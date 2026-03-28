@@ -1,0 +1,132 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '../lib/supabase'
+import Nav from '../components/Nav'
+
+export default function SettingsPage() {
+  const router = useRouter()
+  const supabase = createBrowserClient()
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+  }, [])
+
+  async function signOut() {
+    setLoading(true)
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  const SESSION_INFO = [
+    { label: 'Current Session', value: '2025-2026' },
+    { label: 'Session State', value: 'Interim' },
+    { label: 'Next Session Opens', value: 'Jan 13, 2027' },
+    { label: 'Pre-filing Starts', value: 'Dec 1, 2026' },
+    { label: 'Bills in Database', value: '3,111' },
+    { label: 'Scoring Engine', value: 'v3.1 · Calibrated' },
+  ]
+
+  return (
+    <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
+      <div style={{
+        background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
+        padding: '52px 20px 20px',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-display)', fontSize: 24,
+          fontWeight: 700, color: 'var(--green-dark)',
+        }}>Settings</div>
+      </div>
+
+      <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        <div>
+          <div style={{
+            fontSize: 10, color: 'var(--text-faint)',
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            marginBottom: 10, fontWeight: 600,
+          }}>Account</div>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '14px 16px',
+          }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 2 }}>Signed in as</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>
+              {user?.email || 'Loading...'}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style={{
+            fontSize: 10, color: 'var(--text-faint)',
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            marginBottom: 10, fontWeight: 600,
+          }}>Session Information</div>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', overflow: 'hidden',
+          }}>
+            {SESSION_INFO.map(({ label, value }, i) => (
+              <div key={label} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: i < SESSION_INFO.length - 1 ? '1px solid var(--border-light)' : 'none',
+              }}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
+                <span style={{
+                  fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
+                  fontFamily: label.includes('Bills') || label.includes('Engine') ? 'var(--font-mono)' : 'inherit',
+                }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div style={{
+            fontSize: 10, color: 'var(--text-faint)',
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            marginBottom: 10, fontWeight: 600,
+          }}>About</div>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <svg width="24" height="20" viewBox="0 0 56 48" fill="none">
+                <path d="M4 4 L28 44 L52 4" stroke="var(--green-dark)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                <path d="M28 44 L52 20" stroke="var(--green-mid)" strokeWidth="4" strokeLinecap="round" fill="none"/>
+                <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
+              </svg>
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-display)', fontSize: 16,
+                  fontWeight: 700, color: 'var(--green-dark)',
+                }}>VECTOR <span style={{ color: 'var(--green-light)', fontWeight: 400 }}>| WA</span></div>
+                <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              Trajectory scoring engine calibrated from 8,824 WA bills across the 2021-22 and 2023-24 sessions. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
+            </div>
+          </div>
+        </div>
+
+        <button onClick={signOut} disabled={loading} style={{
+          width: '100%', padding: '13px',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--danger)',
+          borderRadius: 'var(--radius)',
+          fontSize: 14, fontWeight: 600,
+          color: 'var(--danger)', cursor: 'pointer',
+          opacity: loading ? 0.6 : 1,
+        }}>{loading ? 'Signing out...' : 'Sign Out'}</button>
+      </div>
+      <Nav/>
+    </div>
+  )
+}
