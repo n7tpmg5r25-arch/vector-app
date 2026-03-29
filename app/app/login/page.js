@@ -1,4 +1,6 @@
 'use client'
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { createBrowserClient } from '../../lib/supabase'
 
@@ -29,7 +31,6 @@ export default function LoginPage() {
       alignItems: 'center', justifyContent: 'center',
       padding: '24px',
     }}>
-      {/* Logo */}
       <div style={{ marginBottom: 48, textAlign: 'center' }}>
         <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12 }}>
           <path d="M4 4 L28 44 L52 4" stroke="#1e3a2f" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -52,7 +53,6 @@ export default function LoginPage() {
         }}>Legislative Trajectories</div>
       </div>
 
-      {/* Card */}
       <div style={{
         background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', padding: '32px 28px',
