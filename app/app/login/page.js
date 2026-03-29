@@ -1,118 +1,137 @@
 'use client'
-
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
+import { createBrowserClient } from '../../lib/supabase'
 
 export default function LoginPage() {
-const [email, setEmail] = useState('')
-const [sent, setSent] = useState(false)
-const [error, setError] = useState(null)
-const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const supabase = createBrowserClient()
 
-const supabase = createBrowserClient(
-process.env.NEXT_PUBLIC_SUPABASE_URL,
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-)
+  async function handleLogin(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
+    })
+    if (error) setError(error.message)
+    else setSent(true)
+    setLoading(false)
+  }
 
-async function handleLogin(e) {
-e.preventDefault()
-setLoading(true)
-setError(null)
+  return (
+    <div style={{
+      minHeight: '100vh', background: 'var(--bg)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '24px',
+    }}>
+      {/* Logo */}
+      <div style={{ marginBottom: 48, textAlign: 'center' }}>
+        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12 }}>
+          <path d="M4 4 L28 44 L52 4" stroke="#1e3a2f" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          <path d="M28 44 L52 20" stroke="#4a7c59" strokeWidth="4" strokeLinecap="round" fill="none"/>
+          <polygon points="52,14 58,22 44,22" fill="#b8923a"/>
+        </svg>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 28, fontWeight: 700,
+          color: 'var(--green-dark)',
+          letterSpacing: '-0.02em',
+        }}>
+          VECTOR <span style={{ color: 'var(--green-light)', fontWeight: 400, fontSize: 22 }}>| WA</span>
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-body)',
+          fontSize: 12, color: 'var(--text-muted)',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          marginTop: 4,
+        }}>Legislative Trajectories</div>
+      </div>
 
-const { error } = await supabase.auth.signInWithOtp({
-email,
-options: {
-emailRedirectTo: `${window.location.origin}/auth/callback`,
-},
-})
+      {/* Card */}
+      <div style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)', padding: '32px 28px',
+        width: '100%', maxWidth: 360,
+        boxShadow: 'var(--shadow-md)',
+      }}>
+        {sent ? (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 16 }}>✉️</div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 20, fontWeight: 600,
+              color: 'var(--green-dark)', marginBottom: 8,
+            }}>Check your email</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              We sent a magic link to <strong>{email}</strong>. Click it to sign in.
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 20, fontWeight: 600,
+              color: 'var(--green-dark)', marginBottom: 6,
+            }}>Sign in</div>
+            <div style={{
+              fontSize: 13, color: 'var(--text-muted)', marginBottom: 24,
+            }}>Enter your email to receive a magic link.</div>
 
-if (error) {
-setError(error.message)
-setLoading(false)
-} else {
-setSent(true)
-}
-}
+            <form onSubmit={handleLogin}>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', fontSize: 15,
+                  color: 'var(--text-primary)', marginBottom: 12,
+                  outline: 'none', transition: 'border-color 0.2s',
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--green-mid)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+              {error && (
+                <div style={{
+                  fontSize: 12, color: 'var(--danger)',
+                  marginBottom: 10, padding: '8px 12px',
+                  background: 'var(--danger-pale)',
+                  borderRadius: 6,
+                }}>{error}</div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: '100%', padding: '13px',
+                  background: loading ? 'var(--green-light)' : 'var(--green-dark)',
+                  color: 'white', border: 'none',
+                  borderRadius: 'var(--radius)', fontSize: 14,
+                  fontWeight: 600, letterSpacing: '0.04em',
+                  transition: 'background 0.2s',
+                }}
+              >
+                {loading ? 'Sending...' : 'Send Magic Link'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
 
-return (
-<div style={{
-minHeight: '100vh',
-display: 'flex',
-alignItems: 'center',
-justifyContent: 'center',
-backgroundColor: '#1e3a2f',
-fontFamily: 'sans-serif'
-}}>
-<div style={{
-backgroundColor: '#f5f0e8',
-padding: '2rem',
-borderRadius: '8px',
-width: '100%',
-maxWidth: '400px',
-boxShadow: '0 4px 24px rgba(0,0,0,0.3)'
-}}>
-<h1 style={{ color: '#1e3a2f', marginBottom: '0.25rem', fontSize: '1.5rem', fontWeight: 'bold' }}>
-VECTOR | WA
-</h1>
-<p style={{ color: '#5a6e63', marginBottom: '2rem', fontSize: '0.9rem' }}>
-WA Legislature Intelligence
-</p>
-
-{sent ? (
-<div style={{ textAlign: 'center' }}>
-<p style={{ color: '#1e3a2f', fontWeight: 'bold', marginBottom: '0.5rem' }}>Check your email</p>
-<p style={{ color: '#5a6e63', fontSize: '0.9rem' }}>We sent a magic link to {email}</p>
-</div>
-) : (
-<form onSubmit={handleLogin}>
-<div style={{ marginBottom: '1rem' }}>
-<label style={{ color: '#1a1a1a', display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem' }}>
-Email
-</label>
-<input
-type="email"
-value={email}
-onChange={(e) => setEmail(e.target.value)}
-required
-placeholder="your@email.com"
-style={{
-width: '100%',
-padding: '0.6rem 0.75rem',
-borderRadius: '4px',
-border: '1px solid #d9d0c4',
-backgroundColor: '#fff',
-color: '#1a1a1a',
-fontSize: '1rem',
-boxSizing: 'border-box'
-}}
-/>
-</div>
-
-{error && (
-<p style={{ color: '#b85c3a', marginBottom: '1rem', fontSize: '0.85rem' }}>
-{error}
-</p>
-)}
-
-<button
-type="submit"
-disabled={loading}
-style={{
-width: '100%',
-padding: '0.75rem',
-backgroundColor: loading ? '#5a6e63' : '#1e3a2f',
-color: '#f5f0e8',
-border: 'none',
-borderRadius: '4px',
-fontSize: '1rem',
-cursor: loading ? 'not-allowed' : 'pointer'
-}}
->
-{loading ? 'Sending...' : 'Send Magic Link'}
-</button>
-</form>
-)}
-</div>
-</div>
-)
+      <div style={{
+        marginTop: 24, fontSize: 11,
+        color: 'var(--text-faint)', textAlign: 'center',
+      }}>
+        Private access only · Vector WA &copy; 2026
+      </div>
+    </div>
+  )
 }
