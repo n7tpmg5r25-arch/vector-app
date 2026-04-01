@@ -27,7 +27,7 @@ const NAV = [
     path: '/search', label: 'Search',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active ? 'var(--green-dark)' : 'var(--text-muted)'} strokeWidth="1.8"
+        stroke={active ? 'var(--green-dark)' : 'var(--text-muted)' } strokeWidth="1.8"
         strokeLinecap="round" strokeLinejoin="round">
         <circle cx="11" cy="11" r="8"/>
         <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -35,13 +35,31 @@ const NAV = [
     ),
   },
   {
-    path: '/settings', label: 'Settings',
+    path: '/hearings', label: 'Hearings',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? 'var(--green-dark)' : 'var(--text-muted)'} strokeWidth="1.8"
         strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <circle cx="8" cy="15" r="1" fill={active ? 'var(--green-dark)' : 'var(--text-muted)'}/>
+        <circle cx="12" cy="15" r="1" fill={active ? 'var(--green-dark)' : 'var(--text-muted)'}/>
+        <circle cx="16" cy="15" r="1" fill={active ? 'var(--green-dark)' : 'var(--text-muted)'}/>
+      </svg>
+    ),
+  },
+  {
+    path: '/members', label: 'Members',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active ? 'var(--green-dark)' : 'var(--text-muted)'} strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
     ),
   },
@@ -56,16 +74,16 @@ export default function Nav() {
       position: 'fixed', bottom: 0, left: '50%',
       transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
-      background: 'rgba(245,240,232,0.95)',
+      background: 'rgba(245,240,232,0.96)',
       backdropFilter: 'blur(12px)',
       borderTop: '1px solid var(--border)',
-      padding: '10px 8px 24px',
+      padding: '10px 4px 24px',
       display: 'flex', justifyContent: 'space-around',
       alignItems: 'center',
       zIndex: 100,
     }}>
       {NAV.map(({ path, label, icon }) => {
-        const active = pathname === path
+        const active = pathname === path || (path !== '/' && pathname.startsWith(path))
         return (
           <button
             key={path}
@@ -74,16 +92,17 @@ export default function Nav() {
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', gap: 3,
               background: 'none', border: 'none',
-              padding: '4px 12px',
-              opacity: active ? 1 : 0.55,
-              transition: 'opacity 0.2s',
+              padding: '4px 8px',
+              opacity: active ? 1 : 0.5,
+              transition: 'opacity 0.15s',
+              minWidth: 52,
             }}
           >
             {icon(active)}
             <span style={{
-              fontSize: 10, fontWeight: active ? 600 : 400,
+              fontSize: 9, fontWeight: active ? 600 : 400,
               color: active ? 'var(--green-dark)' : 'var(--text-muted)',
-              letterSpacing: '0.04em',
+              letterSpacing: '0.03em',
               fontFamily: 'var(--font-body)',
             }}>{label}</span>
           </button>
