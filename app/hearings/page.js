@@ -115,7 +115,7 @@ export default function HearingsPage() {
               border: `1px solid ${view === v ? 'var(--green-dark)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
-              {v === 'upcoming' ? `All (${allHearings.length})` : `Watched (${watchedHearings.length})`}
+              {v === 'upcoming' ? `All (${allHearin's.length})` : `Watched (${watchedHearings.length})`}
             </button>
           ))}
         </div>
@@ -245,7 +245,7 @@ export default function HearingsPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {bill.hearing_date && (
-                      <span style={{ fontSize: 10, aÏlor: 'var(--green-dark)', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--green-dark)', fontFamily: 'var(--font-mono)' }}>
                         ðŸ“… {formatDate(bill.hearing_date)}
                       </span>
                     )}
