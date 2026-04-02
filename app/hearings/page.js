@@ -115,7 +115,7 @@ export default function HearingsPage() {
               border: `1px solid ${view === v ? 'var(--green-dark)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}>
-              {v === 'upcoming' ? `All (${allHearin's.length})` : `Watched (${watchedHearings.length})`}
+              {v === 'upcoming' ? `All (${allHearings.length})` : `Watched (${watchedHearings.length})`}
             </button>
           ))}
         </div>
