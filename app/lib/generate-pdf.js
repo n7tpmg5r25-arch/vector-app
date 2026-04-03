@@ -6,7 +6,7 @@
  */
 
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Floor Vote', 'Opp. Chamber', 'Conference', 'Signed into Law']
 const STAGE_SHORT  = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
@@ -205,7 +205,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     ]
   })
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: y,
     head: [['Bill', 'Title', 'Score', '\u0394', 'Stage', 'Confidence']],
     body: tableData,
@@ -265,7 +265,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     },
   })
 
-  y = doc.lastAutoTable.finalY + 10
+  y = doc.previousAutoTable.finalY + 10
 
   /* ━━━━━━━━━━━━━━━━ METHODOLOGY NOTE ━━━━━━━━━━━━━━━━ */
 
@@ -324,3 +324,6 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.save(filename)
   return filename
 }
+
+
+
