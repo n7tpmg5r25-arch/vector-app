@@ -3,6 +3,9 @@
  *
  * Generates a branded Post & Policy / Vector WA report PDF.
  * Uses jsPDF + jspdf-autotable (must be installed: npm install jspdf jspdf-autotable)
+ *
+ * NOTE: jsPDF built-in fonts (Helvetica/Times/Courier) only support Windows-1252 characters.
+ * Do NOT use Unicode symbols like box-drawing, Greek letters, or arrows — use ASCII equivalents.
  */
 
 import jsPDF from 'jspdf'
@@ -40,25 +43,41 @@ function loadImageAsBase64(url) {
   })
 }
 
+/**
+ * Get a display-ready title for a bill.
+ * Falls back to committee name or bill number if title is missing or looks wrong.
+ */
+function getBillTitle(bill) {
+  const title = (bill.title || '').trim()
+  // If title is empty, or is ALL CAPS with no legislative keywords (likely a person name from bad data)
+  if (!title) {
+    return bill.committee_name || 'Bill ' + bill.bill_number
+  }
+  if (title === title.toUpperCase() && title.length < 40 && !/RELAT|CONCERN|PROVID|CREAT|AMEND|REPEAL/.test(title)) {
+    return bill.committee_name || 'Bill ' + bill.bill_number
+  }
+  return title
+}
+
 export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
   const m  = 20  // margin
+  const contentW = pw - 2 * m  // usable width
   let y = 16
 
-  /* ━━━━━━━━━━━━━━━━ HEADER (with logo) ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     HEADER (with logo)
+     ================================================================ */
 
-  // Try to load logo from public folder
   const logoData = await loadImageAsBase64('/logo.png')
 
   if (logoData) {
-    // Logo on the left (scaled to ~22mm tall)
     const logoH = 22
-    const logoW = logoH * 0.82  // approximate aspect ratio of the V logo
+    const logoW = logoH * 0.82
     doc.addImage(logoData, 'PNG', m, y - 4, logoW, logoH)
 
-    // Brand text to the right of logo
     const textX = m + logoW + 4
 
     doc.setFont('times', 'bold')
@@ -71,7 +90,6 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setTextColor(...TEAL)
     doc.text('VECTOR | WA', textX, y + 11)
 
-    // Report type (right-aligned)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...GRAY)
@@ -109,22 +127,26 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.line(m, y, pw - m, y)
   y += 8
 
-  /* ━━━━━━━━━━━━━━━━ CLIENT INFO ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     CLIENT INFO
+     ================================================================ */
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.setTextColor(...NAVY)
-  doc.text(clientName ? `Prepared for: ${clientName}` : 'Full Portfolio Report', m, y)
+  doc.text(clientName ? 'Prepared for: ' + clientName : 'Full Portfolio Report', m, y)
   y += 6
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(...GRAY)
   doc.text(date, m, y)
-  doc.text('Session: 2025\u20132026 (Interim)', m + 55, y)
+  doc.text('Session: 2025-2026 (Interim)', m + 55, y)
   y += 10
 
-  /* ━━━━━━━━━━━━━━━━ SUMMARY STATS ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     SUMMARY STATS — individual stat blocks (not one long string)
+     ================================================================ */
 
   const allScores = bills.map(b => b.bills?.final_score || 0)
   const avg       = allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0
@@ -135,52 +157,76 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.setFillColor(245, 248, 252)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
-  doc.roundedRect(m, y, pw - 2 * m, 16, 2, 2, 'FD')
+  doc.roundedRect(m, y, contentW, 18, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
+  doc.setFontSize(7.5)
   doc.setTextColor(...NAVY)
-  doc.text('PORTFOLIO SUMMARY', m + 4, y + 5)
+  doc.text('PORTFOLIO SUMMARY', m + 4, y + 5.5)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(60, 60, 60)
-  const statsText = `Bills Tracked: ${bills.length}    \u2502    Avg Score: ${avg}    \u2502    High Trajectory (50+): ${highCount}    \u2502    At Risk (<25): ${atRisk}`
-  doc.text(statsText, m + 4, y + 12)
-  y += 22
+  // Stat blocks — evenly spaced across the box
+  const stats = [
+    { label: 'Bills Tracked', value: String(bills.length) },
+    { label: 'Avg Score', value: String(avg) },
+    { label: 'High Trajectory (50+)', value: String(highCount) },
+    { label: 'At Risk (<25)', value: String(atRisk) },
+  ]
 
-  /* ━━━━━━━━━━━━━━━━ CHANGES SINCE LAST VISIT ━━━━━━━━━━━━━━━━ */
+  const statStartX = m + 4
+  const statSpacing = (contentW - 8) / stats.length
+  const statY = y + 14
+
+  stats.forEach((stat, i) => {
+    const sx = statStartX + i * statSpacing
+    // Value — large bold number
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(...NAVY)
+    doc.text(stat.value, sx, statY)
+    // Label — small gray text next to the number
+    const valueWidth = doc.getTextWidth(stat.value)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text(stat.label, sx + valueWidth + 2, statY)
+  })
+
+  y += 24
+
+  /* ================================================================
+     CHANGES SINCE LAST VISIT
+     ================================================================ */
 
   const changedBills = bills.filter(b => changes[b.bill_id])
   if (changedBills.length > 0) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...TEAL)
-    doc.text('\u25cf  RECENT CHANGES', m, y)
+    doc.text('RECENT CHANGES', m, y)
     y += 5
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
 
     changedBills.forEach(({ bill_id, bills: bill }) => {
       const c = changes[bill_id]
-      const label = `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`
+      const label = (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number
       let desc = []
-      if (c.scoreDiff !== 0) desc.push(`Score ${c.oldScore} \u2192 ${c.newScore} (${c.scoreDiff > 0 ? '+' : ''}${c.scoreDiff})`)
-      if (c.stageChanged) desc.push(`Stage ${STAGE_SHORT[c.oldStage] || '?'} \u2192 ${STAGE_SHORT[c.newStage] || '?'}`)
+      if (c.scoreDiff !== 0) desc.push('Score ' + c.oldScore + ' -> ' + c.newScore + ' (' + (c.scoreDiff > 0 ? '+' : '') + c.scoreDiff + ')')
+      if (c.stageChanged) desc.push('Stage ' + (STAGE_SHORT[c.oldStage] || '?') + ' -> ' + (STAGE_SHORT[c.newStage] || '?'))
 
-      doc.setTextColor(...NAVY)
       doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(...NAVY)
       doc.text(label, m + 2, y)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(60, 60, 60)
-      doc.text(desc.join('  |  '), m + 22, y)
+      doc.text(desc.join('   |   '), m + 22, y)
       y += 4.5
     })
     y += 4
   }
 
-  /* ━━━━━━━━━━━━━━━━ BILL TABLE ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     BILL TABLE
+     ================================================================ */
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
@@ -190,24 +236,23 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
   const tableData = bills.map(({ bill_id, bills: bill, client_tag }) => {
     const delta = scoreDeltas[bill_id]
-    const deltaStr = delta ? (delta > 0 ? `+${delta}` : `${delta}`) : '\u2014'
-    const titleTrunc = (bill.title || '').length > 55
-      ? (bill.title || '').slice(0, 55) + '\u2026'
-      : (bill.title || '')
+    const deltaStr = delta ? (delta > 0 ? '+' + delta : String(delta)) : '--'
+    const title = getBillTitle(bill)
+    const titleTrunc = title.length > 55 ? title.slice(0, 55) + '...' : title
 
     return [
-      `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`,
+      (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number,
       titleTrunc,
       String(bill.final_score || 0),
       deltaStr,
       STAGE_LABELS[bill.stage] || 'Introduced',
-      bill.confidence_label || '\u2014',
+      bill.confidence_label || '--',
     ]
   })
 
   autoTable(doc, {
     startY: y,
-    head: [['Bill', 'Title', 'Score', '\u0394', 'Stage', 'Confidence']],
+    head: [['Bill', 'Title', 'Score', 'Chg', 'Stage', 'Confidence']],
     body: tableData,
     margin: { left: m, right: m },
     styles: {
@@ -228,9 +273,9 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
       0: { cellWidth: 20, fontStyle: 'bold', font: 'courier' },
       1: { cellWidth: 'auto' },
       2: { cellWidth: 14, halign: 'center' },
-      3: { cellWidth: 12, halign: 'center' },
+      3: { cellWidth: 14, halign: 'center' },
       4: { cellWidth: 26 },
-      5: { cellWidth: 22 },
+      5: { cellWidth: 24 },
     },
     alternateRowStyles: { fillColor: [248, 250, 253] },
     didParseCell: function (data) {
@@ -268,10 +313,12 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   // autoTable() returns undefined — finalY is on doc.lastAutoTable
   y = doc.lastAutoTable.finalY + 10
 
-  /* ━━━━━━━━━━━━━━━━ METHODOLOGY NOTE ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     METHODOLOGY NOTE
+     ================================================================ */
 
-  // Check if we need a new page
-  if (y > ph - 55) {
+  // Check if we need a new page for methodology + footer
+  if (y > ph - 60) {
     doc.addPage()
     y = 20
   }
@@ -290,37 +337,62 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...GRAY)
-  const lines = [
-    'Trajectory scores (0\u201399) are generated by Vector WA\u2019s proprietary scoring engine analyzing five signals: committee activity,',
-    'sponsor strength, legislative momentum, fiscal impact, and historical category pass rates. Each signal is independently weighted',
-    'and combined with X-Factor multipliers for exceptional circumstances (e.g., emergency clauses, governor requests).',
-    '',
-    'Scores are calibrated against verified 2025\u20132026 session outcomes. Confidence labels reflect calibrated pass probability:',
-    'HIGH (>10%), MODERATE (1\u201310%), LOW (<1%), VERY LOW (<0.1%). Score changes (\u0394) reflect movement since the previous daily snapshot.',
-  ]
-  lines.forEach(line => {
+
+  // Use splitTextToSize for proper word-wrapping within margins
+  const methodText =
+    'Trajectory scores (0-99) are generated by Vector WA\'s proprietary scoring engine analyzing ' +
+    'five signals: committee activity, sponsor strength, legislative momentum, fiscal impact, and ' +
+    'historical category pass rates. Each signal is independently weighted and combined with ' +
+    'X-Factor multipliers for exceptional circumstances (e.g., emergency clauses, governor requests).' +
+    '\n\n' +
+    'Scores are calibrated against verified 2025-2026 session outcomes. Confidence labels reflect ' +
+    'calibrated pass probability: HIGH (>10%), MODERATE (1-10%), LOW (<1%), VERY LOW (<0.1%). ' +
+    'Score changes (Chg column) reflect movement since the previous daily snapshot.'
+
+  const wrappedLines = doc.splitTextToSize(methodText, contentW)
+  wrappedLines.forEach(line => {
+    // If we'd run into the footer, start a new page
+    if (y > ph - 18) {
+      doc.addPage()
+      y = 20
+    }
     doc.text(line, m, y)
     y += 3.2
   })
 
-  /* ━━━━━━━━━━━━━━━━ FOOTER ━━━━━━━━━━━━━━━━ */
+  /* ================================================================
+     FOOTER (on every page)
+     ================================================================ */
 
-  const fy = ph - 12
-  doc.setDrawColor(...TEAL)
-  doc.setLineWidth(0.4)
-  doc.line(m, fy, pw - m, fy)
+  const pageCount = doc.getNumberOfPages()
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(...GRAY)
-  doc.text('\u00a9 Post & Policy  \u2502  Vector | WA  \u2502  Legislative Intelligence', m, fy + 5)
-  doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
+    const fy = ph - 12
+    doc.setDrawColor(...TEAL)
+    doc.setLineWidth(0.4)
+    doc.line(m, fy, pw - m, fy)
 
-  /* ━━━━━━━━━━━━━━━━ SAVE ━━━━━━━━━━━━━━━━ */
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text('Post & Policy  |  Vector | WA  |  Legislative Intelligence', m, fy + 5)
+    doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
+
+    // Page number (if multi-page)
+    if (pageCount > 1) {
+      doc.setFontSize(6.5)
+      doc.text('Page ' + p + ' of ' + pageCount, pw / 2, fy + 5, { align: 'center' })
+    }
+  }
+
+  /* ================================================================
+     SAVE
+     ================================================================ */
 
   const safeName = (clientName || 'Portfolio').replace(/[^a-zA-Z0-9]/g, '_')
   const safeDate = date.replace(/[^a-zA-Z0-9]/g, '_')
-  const filename = `Vector_WA_Brief_${safeName}_${safeDate}.pdf`
+  const filename = 'Vector_WA_Brief_' + safeName + '_' + safeDate + '.pdf'
 
   doc.save(filename)
   return filename
