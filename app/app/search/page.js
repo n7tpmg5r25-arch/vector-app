@@ -1,11 +1,9 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
-
-export const dynamic = 'force-dynamic'
 
 const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
@@ -22,7 +20,7 @@ const STAGES = [
   { label: 'Signed', value: 6 },
 ]
 
-export default function SearchPage() {
+function SearchContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
@@ -164,7 +162,7 @@ export default function SearchPage() {
               <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
                 {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                 {bill.category && bill.category !== 'Other' && (
-                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>· {bill.category}</span>
+                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category}</span>
                 )}
               </div>
               <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -172,10 +170,10 @@ export default function SearchPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
                 {bill.has_public_hearing && (
-                  <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>● Hearing</span>
+                  <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>&#9679; Hearing</span>
                 )}
                 {bill.committee_passed && (
-                  <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>✓ Comm. Pass</span>
+                  <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>&#10003; Comm. Pass</span>
                 )}
               </div>
             </div>
@@ -213,5 +211,13 @@ export default function SearchPage() {
 
       <Nav/>
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading search...</div>}>
+      <SearchContent />
+    </Suspense>
   )
 }
