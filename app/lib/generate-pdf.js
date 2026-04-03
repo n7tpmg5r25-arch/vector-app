@@ -205,7 +205,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     ]
   })
 
-  $autoTableResult = const tableResult = autoTable(doc, {
+  const tableResult = autoTable(doc, {
     startY: y,
     head: [['Bill', 'Title', 'Score', '\u0394', 'Stage', 'Confidence']],
     body: tableData,
@@ -265,7 +265,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     },
   })
 
-  y = $autoTableResult.finalY + 10
+  y = tableResult.finalY + 10
 
   /* ━━━━━━━━━━━━━━━━ METHODOLOGY NOTE ━━━━━━━━━━━━━━━━ */
 
@@ -324,9 +324,3 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.save(filename)
   return filename
 }
-
-
-
-
-
-
