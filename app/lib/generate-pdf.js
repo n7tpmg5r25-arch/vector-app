@@ -5,6 +5,9 @@
  * Uses jsPDF + jspdf-autotable (must be installed: npm install jspdf jspdf-autotable)
  */
 
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
+
 const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Floor Vote', 'Opp. Chamber', 'Conference', 'Signed into Law']
 const STAGE_SHORT  = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -38,10 +41,6 @@ function loadImageAsBase64(url) {
 }
 
 export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes }) {
-  /* ── Dynamic imports (keeps bundle small until user clicks Export) ── */
-  const { default: jsPDF } = await import('jspdf')
-  await import('jspdf-autotable')
-
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
