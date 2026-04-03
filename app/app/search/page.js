@@ -5,6 +5,8 @@ import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
+export const dynamic = 'force-dynamic'
+
 const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
 const CATEGORIES = ['All', 'Health', 'Education', 'Housing', 'Environment',
