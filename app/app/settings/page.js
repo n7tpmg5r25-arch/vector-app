@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '../../lib/supabase'
-import Nav from '../../components/Nav'
+import { createBrowserClient } from '../lib/supabase'
+import Nav from '../components/Nav'
 
 export default function SettingsPage() {
   const router = useRouter()

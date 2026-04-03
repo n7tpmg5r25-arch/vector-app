@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '../../lib/supabase'
-import Nav from '../../components/Nav'
-import ScoreBadge from '../../components/ScoreBadge'
+import { createBrowserClient } from '../lib/supabase'
+import Nav from '../components/Nav'
+import ScoreBadge from '../components/ScoreBadge'
 
 export default function WatchlistPage() {
   const router = useRouter()

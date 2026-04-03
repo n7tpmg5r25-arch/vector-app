@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createBrowserClient } from '../../lib/supabase'
-import Nav from '../../components/Nav'
-import ScoreBadge from '../../components/ScoreBadge'
+import { createBrowserClient } from '../lib/supabase'
+import Nav from '../components/Nav'
+import ScoreBadge from '../components/ScoreBadge'
 
 const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
