@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '../lib/supabase'
+import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
