@@ -1,6 +1,4 @@
 'use client'
-export const dynamic = 'force-dynamic'
-
 import { useState } from 'react'
 import { createBrowserClient } from '../../lib/supabase'
 
@@ -30,34 +28,46 @@ export default function LoginPage() {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       padding: '24px',
+      position: 'relative', overflow: 'hidden',
     }}>
-      <div style={{ marginBottom: 48, textAlign: 'center' }}>
-        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12 }}>
-          <path d="M4 4 L28 44 L52 4" stroke="#1e3a2f" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          <path d="M28 44 L52 20" stroke="#4a7c59" strokeWidth="4" strokeLinecap="round" fill="none"/>
-          <polygon points="52,14 58,22 44,22" fill="#b8923a"/>
+      {/* Background glow */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'radial-gradient(ellipse at 50% 30%, rgba(0,229,204,0.06) 0%, transparent 60%)',
+        pointerEvents: 'none',
+      }}/>
+
+      {/* Logo */}
+      <div style={{ marginBottom: 48, textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12, filter: 'drop-shadow(0 0 16px rgba(0,229,204,0.3))' }}>
+          <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
+          <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
         </svg>
         <div style={{
           fontFamily: 'var(--font-display)',
           fontSize: 28, fontWeight: 700,
-          color: 'var(--green-dark)',
+          color: 'var(--teal)',
           letterSpacing: '-0.02em',
+          textShadow: '0 0 24px rgba(0,229,204,0.3)',
         }}>
-          VECTOR <span style={{ color: 'var(--green-light)', fontWeight: 400, fontSize: 22 }}>| WA</span>
+          VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 22 }}>| WA</span>
         </div>
         <div style={{
           fontFamily: 'var(--font-body)',
-          fontSize: 12, color: 'var(--text-muted)',
+          fontSize: 12, color: 'var(--text-faint)',
           letterSpacing: '0.12em', textTransform: 'uppercase',
           marginTop: 4,
         }}>Legislative Trajectories</div>
       </div>
 
+      {/* Card */}
       <div style={{
         background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', padding: '32px 28px',
         width: '100%', maxWidth: 360,
-        boxShadow: 'var(--shadow-md)',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 60px rgba(0,229,204,0.05)',
+        position: 'relative', zIndex: 1,
       }}>
         {sent ? (
           <div style={{ textAlign: 'center' }}>
@@ -65,10 +75,10 @@ export default function LoginPage() {
             <div style={{
               fontFamily: 'var(--font-display)',
               fontSize: 20, fontWeight: 600,
-              color: 'var(--green-dark)', marginBottom: 8,
+              color: 'var(--teal)', marginBottom: 8,
             }}>Check your email</div>
             <div style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              We sent a magic link to <strong>{email}</strong>. Click it to sign in.
+              We sent a magic link to <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>. Click it to sign in.
             </div>
           </div>
         ) : (
@@ -76,7 +86,7 @@ export default function LoginPage() {
             <div style={{
               fontFamily: 'var(--font-display)',
               fontSize: 20, fontWeight: 600,
-              color: 'var(--green-dark)', marginBottom: 6,
+              color: 'var(--teal)', marginBottom: 6,
             }}>Sign in</div>
             <div style={{
               fontSize: 13, color: 'var(--text-muted)', marginBottom: 24,
@@ -84,8 +94,7 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin}>
               <input
-                type="email"
-                value={email}
+                type="email" value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
@@ -96,7 +105,7 @@ export default function LoginPage() {
                   color: 'var(--text-primary)', marginBottom: 12,
                   outline: 'none', transition: 'border-color 0.2s',
                 }}
-                onFocus={e => e.target.style.borderColor = 'var(--green-mid)'}
+                onFocus={e => e.target.style.borderColor = 'rgba(0,229,204,0.5)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border)'}
               />
               {error && (
@@ -107,18 +116,15 @@ export default function LoginPage() {
                   borderRadius: 6,
                 }}>{error}</div>
               )}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: '100%', padding: '13px',
-                  background: loading ? 'var(--green-light)' : 'var(--green-dark)',
-                  color: 'white', border: 'none',
-                  borderRadius: 'var(--radius)', fontSize: 14,
-                  fontWeight: 600, letterSpacing: '0.04em',
-                  transition: 'background 0.2s',
-                }}
-              >
+              <button type="submit" disabled={loading} style={{
+                width: '100%', padding: '13px',
+                background: loading ? 'var(--teal-dim)' : 'var(--teal)',
+                color: 'var(--bg)', border: 'none',
+                borderRadius: 'var(--radius)', fontSize: 14,
+                fontWeight: 600, letterSpacing: '0.04em',
+                transition: 'background 0.2s',
+                boxShadow: 'var(--teal-glow)',
+              }}>
                 {loading ? 'Sending...' : 'Send Magic Link'}
               </button>
             </form>
@@ -129,6 +135,7 @@ export default function LoginPage() {
       <div style={{
         marginTop: 24, fontSize: 11,
         color: 'var(--text-faint)', textAlign: 'center',
+        position: 'relative', zIndex: 1,
       }}>
         Private access only · Vector WA &copy; 2026
       </div>

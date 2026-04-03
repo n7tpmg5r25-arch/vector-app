@@ -5,6 +5,8 @@ import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../../components/Nav'
 import ScoreBadge from '../../components/ScoreBadge'
 
+const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
+
 export default function HearingsPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -14,12 +16,11 @@ export default function HearingsPage() {
   const [watchedIds, setWatchedIds] = useState(new Set())
   const [loading, setLoading]       = useState(true)
   const [chamber, setChamber]       = useState('All')
-  const [view, setView]             = useState('upcoming') // 'upcoming' | 'watched'
-  const isInterim = true // Session ended March 12, 2026
+  const [view, setView]             = useState('upcoming')
+  const isInterim = true
 
   useEffect(() => {
     async function load() {
-      // Get current user's watchlist bill IDs
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: wl } = await supabase
@@ -29,7 +30,6 @@ export default function HearingsPage() {
         setWatchedIds(new Set((wl || []).map(w => w.bill_id)))
       }
 
-      // Try hearings table first (will have data once 2027 session starts)
       const { data: hearingRows } = await supabase
         .from('hearings')
         .select(`
@@ -42,11 +42,10 @@ export default function HearingsPage() {
 
       setHearings((hearingRows || []).filter(h => h.bills))
 
-      // Fallback: bills with hearing_date from the 2025-26 session
       const { data: billRows } = await supabase
         .from('bills')
         .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, hearing_date, has_public_hearing, committee_passed, prime_sponsor, prime_party')
-        .eq('session', '2025-2026')
+        .eq('session', SESSION)
         .eq('has_public_hearing', true)
         .not('hearing_date', 'is', null)
         .order('final_score', { ascending: false })
@@ -58,7 +57,6 @@ export default function HearingsPage() {
     load()
   }, [])
 
-  // Filter bill hearings by chamber
   const filteredBillHearings = billHearings.filter(b => {
     if (chamber !== 'All' && b.chamber !== chamber) return false
     return true
@@ -66,7 +64,6 @@ export default function HearingsPage() {
 
   const watchedHearings = filteredBillHearings.filter(b => watchedIds.has(b.bill_id))
   const allHearings = filteredBillHearings
-
   const displayBills = view === 'watched' ? watchedHearings : allHearings
 
   function formatDate(dateStr) {
@@ -78,56 +75,54 @@ export default function HearingsPage() {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
-      {/* Header */}
       <div style={{
-        background: 'var(--bg-card)',
+        background: 'rgba(8,12,20,0.95)',
+        backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--green-dark)', marginBottom: 4 }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
           Hearings
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           Committee schedules · WA Legislature
         </div>
 
-        {/* Interim banner */}
         {isInterim && (
           <div style={{
-            background: 'var(--gold-pale)', border: '1px solid var(--gold)',
+            background: 'var(--gold-pale)', border: '1px solid rgba(212,168,75,0.25)',
             borderRadius: 8, padding: '8px 12px', marginBottom: 12,
             fontSize: 11, color: 'var(--gold)', fontWeight: 500,
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <span>●</span>
+            <span style={{ boxShadow: 'var(--gold-glow)', width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block' }}/>
             <span>WA Legislature is in interim. Hearings resume when the 2027 session opens Jan 13, 2027.</span>
           </div>
         )}
 
-        {/* View toggle */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           {['upcoming', 'watched'].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 500,
-              background: view === v ? 'var(--green-dark)' : 'var(--bg)',
-              color: view === v ? 'white' : 'var(--text-muted)',
-              border: `1px solid ${view === v ? 'var(--green-dark)' : 'var(--border)'}`,
+              background: view === v ? 'var(--teal)' : 'transparent',
+              color: view === v ? 'var(--bg)' : 'var(--text-muted)',
+              border: `1px solid ${view === v ? 'var(--teal)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
+              boxShadow: view === v ? 'var(--teal-glow)' : 'none',
             }}>
               {v === 'upcoming' ? `All (${allHearings.length})` : `Watched (${watchedHearings.length})`}
             </button>
           ))}
         </div>
 
-        {/* Chamber filter */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
           {['All', 'House', 'Senate'].map(c => (
             <button key={c} onClick={() => setChamber(c)} style={{
               padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500, flexShrink: 0,
-              background: chamber === c ? 'var(--green-dark)' : 'var(--bg)',
-              color: chamber === c ? 'white' : 'var(--text-muted)',
-              border: `1px solid ${chamber === c ? 'var(--green-dark)' : 'var(--border)'}`,
+              background: chamber === c ? 'var(--bg-surface)' : 'transparent',
+              color: chamber === c ? 'var(--text-primary)' : 'var(--text-muted)',
+              border: `1px solid ${chamber === c ? 'var(--border-light)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}>{c}</button>
           ))}
@@ -136,7 +131,6 @@ export default function HearingsPage() {
 
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-        {/* Live hearings from hearings table (when in session) */}
         {hearings.length > 0 && (
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -149,8 +143,10 @@ export default function HearingsPage() {
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 7,
-                  cursor: 'pointer',
+                  cursor: 'pointer', transition: 'border-color 0.2s',
                 }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <ScoreBadge score={h.bills?.final_score} size="sm"/>
@@ -163,7 +159,7 @@ export default function HearingsPage() {
                       {h.bills?.title || h.bills?.committee_name || `Bill ${h.bills?.bill_number}`}
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10, color: 'var(--green-dark)', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
                         📅 {formatDate(h.hearing_date)}
                       </span>
                       {h.committee_name && (
@@ -172,7 +168,7 @@ export default function HearingsPage() {
                       {h.tvw_link && (
                         <a href={h.tvw_link} target="_blank" rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          style={{ fontSize: 10, color: 'var(--green-mid)', textDecoration: 'underline' }}>
+                          style={{ fontSize: 10, color: 'var(--teal-mid)', textDecoration: 'underline' }}>
                           TVW →
                         </a>
                       )}
@@ -189,7 +185,6 @@ export default function HearingsPage() {
           </div>
         )}
 
-        {/* 2025-26 Session hearing history */}
         {loading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
         ) : displayBills.length === 0 ? (
@@ -198,8 +193,8 @@ export default function HearingsPage() {
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>📅</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--green-dark)', marginBottom: 8 }}>
+            <div style={{ fontSize: 28, marginBottom: 12, filter: 'grayscale(0.5)' }}>📅</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 8 }}>
               {view === 'watched' ? 'No watched bills had hearings' : 'No hearings found'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -211,9 +206,9 @@ export default function HearingsPage() {
         ) : (
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              2025-26 Session · Bills with Hearings ({displayBills.length})
+              {SESSION} · Bills with Hearings ({displayBills.length})
             </div>
-            {displayBills.map(bill => (
+            {displayBills.map((bill, idx) => (
               <div
                 key={bill.bill_id}
                 onClick={() => router.push(`/bill/${bill.bill_id}`)}
@@ -221,11 +216,12 @@ export default function HearingsPage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 6,
                   cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
-                  transition: 'box-shadow 0.15s',
+                  transition: 'border-color 0.2s',
                   borderLeft: watchedIds.has(bill.bill_id) ? '3px solid var(--gold)' : '1px solid var(--border)',
+                  animation: `fadeUp 0.3s ease ${idx * 0.02}s both`,
                 }}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-sm)'}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <ScoreBadge score={bill.final_score} size="sm"/>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -235,7 +231,7 @@ export default function HearingsPage() {
                     </span>
                     {watchedIds.has(bill.bill_id) && <span style={{ color: 'var(--gold)', fontSize: 10 }}>🔖</span>}
                     {bill.committee_passed && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--green-pale)', color: 'var(--green-dark)', border: '1px solid var(--green-light)', borderRadius: 8, fontWeight: 600 }}>
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 8, fontWeight: 600 }}>
                         ✓ Pass
                       </span>
                     )}
@@ -245,18 +241,13 @@ export default function HearingsPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {bill.hearing_date && (
-                      <span style={{ fontSize: 10, color: 'var(--green-dark)', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
                         📅 {formatDate(bill.hearing_date)}
                       </span>
                     )}
                     <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
                       {bill.committee_name || '—'}
                     </span>
-                    {bill.prime_sponsor && (
-                      <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                        {bill.prime_sponsor}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
