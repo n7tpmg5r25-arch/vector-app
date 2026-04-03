@@ -5,26 +5,32 @@ import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
+const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
+
 export default function WatchlistPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const [watched, setWatched]       = useState([])
-  const [clients, setClients]       = useState([])
-  const [activeClient, setActiveClient] = useState('All')
-  const [sortBy, setSortBy]         = useState('score')
-  const [atRiskOnly, setAtRiskOnly] = useState(false)
-  const [scoreDeltas, setScoreDeltas] = useState({})
-  const [loading, setLoading]       = useState(true)
+  const [watched, setWatched]               = useState([])
+  const [clients, setClients]               = useState([])
+  const [activeClient, setActiveClient]     = useState('All')
+  const [sortBy, setSortBy]                 = useState('score')
+  const [atRiskOnly, setAtRiskOnly]         = useState(false)
+  const [scoreDeltas, setScoreDeltas]       = useState({})
+  const [changes, setChanges]               = useState({})
+  const [changesDismissed, setChangesDismissed] = useState(false)
+  const [loading, setLoading]               = useState(true)
+  const [exporting, setExporting]           = useState(false)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      /* ── 1. Fetch tracked bills (now includes last_viewed_at) ── */
       const { data } = await supabase
         .from('tracked_bills')
         .select(`
-          bill_id, client_tag, notes, added_at,
+          bill_id, client_tag, notes, added_at, last_viewed_at,
           bills (
             bill_id, bill_number, title, final_score,
             stage, chamber, category, committee_name,
@@ -43,35 +49,81 @@ export default function WatchlistPage() {
       const allClients = [...new Set(items.map(d => d.client_tag).filter(Boolean))]
       setClients(allClients)
 
-      // Fetch score deltas (2 most recent snapshots per bill)
+      /* ── 2. Find earliest last_viewed_at (they should all match) ── */
+      const lastViewed = items.reduce((earliest, d) => {
+        if (!d.last_viewed_at) return earliest
+        if (!earliest) return d.last_viewed_at
+        return d.last_viewed_at < earliest ? d.last_viewed_at : earliest
+      }, null)
+
+      /* ── 3. Fetch snapshots for deltas + change detection ── */
       const billIds = items.map(d => d.bill_id)
       if (billIds.length > 0) {
         const { data: snaps } = await supabase
           .from('trajectory_snapshots')
-          .select('bill_id, score, snapshot_date')
+          .select('bill_id, score, stage, snapshot_date')
           .in('bill_id', billIds)
           .order('snapshot_date', { ascending: false })
+
         if (snaps) {
-          const deltas = {}
           const byBill = {}
           snaps.forEach(s => {
             if (!byBill[s.bill_id]) byBill[s.bill_id] = []
-            if (byBill[s.bill_id].length < 2) byBill[s.bill_id].push(s)
+            byBill[s.bill_id].push(s)
           })
+
+          // Score deltas: latest vs previous snapshot
+          const deltas = {}
           Object.entries(byBill).forEach(([bid, arr]) => {
             if (arr.length >= 2) {
               deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
             }
           })
           setScoreDeltas(deltas)
+
+          // Change detection: latest vs snapshot at last_viewed_at
+          if (lastViewed) {
+            const lastViewedDate = lastViewed.slice(0, 10) // YYYY-MM-DD
+            const detected = {}
+
+            Object.entries(byBill).forEach(([bid, arr]) => {
+              const latest = arr[0]
+              // Find the snapshot that was current when user last visited
+              const oldSnap = arr.find(s => s.snapshot_date <= lastViewedDate)
+
+              if (oldSnap && latest && latest.snapshot_date !== oldSnap.snapshot_date) {
+                const scoreDiff = (latest.score || 0) - (oldSnap.score || 0)
+                const stageChanged = latest.stage !== oldSnap.stage
+
+                if (scoreDiff !== 0 || stageChanged) {
+                  detected[bid] = {
+                    oldScore: oldSnap.score,
+                    newScore: latest.score,
+                    scoreDiff,
+                    oldStage: oldSnap.stage,
+                    newStage: latest.stage,
+                    stageChanged,
+                  }
+                }
+              }
+            })
+            setChanges(detected)
+          }
         }
       }
+
+      /* ── 4. Update last_viewed_at to NOW ── */
+      await supabase
+        .from('tracked_bills')
+        .update({ last_viewed_at: new Date().toISOString() })
+        .eq('user_id', user.id)
 
       setLoading(false)
     }
     load()
   }, [])
 
+  /* ── Filtering & sorting ── */
   const clientFiltered = activeClient === 'All'
     ? watched
     : watched.filter(d => d.client_tag === activeClient)
@@ -91,11 +143,36 @@ export default function WatchlistPage() {
   const highCount = filtered.filter(d => (d.bills?.final_score || 0) >= 50).length
   const hearingCount = filtered.filter(d => d.bills?.has_public_hearing).length
 
-  const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
+  /* ── PDF Export handler ── */
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const { generateClientPDF } = await import('../../lib/generate-pdf')
+      const clientName = activeClient !== 'All' ? activeClient : null
+      const billsToExport = sorted // uses current filter
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+      await generateClientPDF({
+        clientName,
+        date: today,
+        bills: billsToExport,
+        scoreDeltas,
+        changes,
+      })
+    } catch (err) {
+      console.error('PDF export failed:', err)
+      alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
+    }
+    setExporting(false)
+  }
+
+  /* ── Which bills have changes (filtered to current view) ── */
+  const changedBills = sorted.filter(d => changes[d.bill_id])
+  const showChanges = !changesDismissed && changedBills.length > 0
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
-      {/* Header */}
+      {/* ━━━ HEADER ━━━ */}
       <div style={{
         background: 'rgba(8,12,20,0.95)',
         backdropFilter: 'blur(12px)',
@@ -107,8 +184,33 @@ export default function WatchlistPage() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
             Watchlist
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-            {filtered.length} bills
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Export Report button */}
+            {filtered.length > 0 && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                style={{
+                  padding: '4px 12px', borderRadius: 14, fontSize: 10, fontWeight: 600,
+                  background: 'transparent',
+                  color: 'var(--gold)',
+                  border: '1px solid rgba(212,168,75,0.35)',
+                  cursor: exporting ? 'wait' : 'pointer',
+                  transition: 'all 0.15s',
+                  opacity: exporting ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
+                </svg>
+                {exporting ? 'Generating...' : 'Export PDF'}
+              </button>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+              {filtered.length} bills
+            </div>
           </div>
         </div>
 
@@ -144,7 +246,7 @@ export default function WatchlistPage() {
 
         {filtered.length > 1 && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A–Z']].map(([val, label]) => (
+            {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A\u2013Z']].map(([val, label]) => (
               <button key={val} onClick={() => setSortBy(val)} style={{
                 padding: '3px 10px', borderRadius: 12, fontSize: 10, flexShrink: 0,
                 background: sortBy === val ? 'var(--bg-surface)' : 'transparent',
@@ -161,12 +263,95 @@ export default function WatchlistPage() {
               border: `1px solid ${atRiskOnly ? 'rgba(255,82,82,0.3)' : 'transparent'}`,
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
-            }}>⚠ At Risk</button>
+            }}>\u26a0 At Risk</button>
           </div>
         )}
       </div>
 
+      {/* ━━━ CONTENT ━━━ */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+
+        {/* ── WHAT'S CHANGED SECTION ── */}
+        {!loading && showChanges && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(0,229,204,0.06), rgba(0,229,204,0.02))',
+            border: '1px solid rgba(0,229,204,0.2)',
+            borderRadius: 'var(--radius)',
+            padding: '14px 16px',
+            marginBottom: 4,
+            animation: 'fadeUp 0.3s ease both',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{
+                fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                color: 'var(--teal)',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', boxShadow: '0 0 6px rgba(0,229,204,0.5)', display: 'inline-block' }}/>
+                What's Changed
+                <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
+                  since your last visit
+                </span>
+              </div>
+              <button
+                onClick={() => setChangesDismissed(true)}
+                style={{
+                  background: 'none', border: 'none', color: 'var(--text-faint)',
+                  cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
+                }}
+                aria-label="Dismiss changes"
+              >\u00d7</button>
+            </div>
+
+            {changedBills.map(({ bill_id, bills: bill }) => {
+              const change = changes[bill_id]
+              return (
+                <div
+                  key={bill_id}
+                  onClick={() => router.push(`/bill/${bill.bill_id}`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
+                    borderTop: '1px solid rgba(0,229,204,0.08)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
+                    minWidth: 56, fontWeight: 500,
+                  }}>
+                    {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                  </span>
+                  <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                    {change.scoreDiff !== 0 && (
+                      <span style={{
+                        fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                        padding: '2px 8px', borderRadius: 10,
+                        background: change.scoreDiff > 0 ? 'rgba(0,229,204,0.12)' : 'rgba(255,82,82,0.12)',
+                        color: change.scoreDiff > 0 ? 'var(--teal)' : 'var(--danger)',
+                        border: `1px solid ${change.scoreDiff > 0 ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
+                      }}>
+                        Score {change.oldScore} \u2192 {change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
+                      </span>
+                    )}
+                    {change.stageChanged && (
+                      <span style={{
+                        fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                        padding: '2px 8px', borderRadius: 10,
+                        background: change.newStage > change.oldStage ? 'rgba(0,229,204,0.12)' : 'rgba(255,82,82,0.12)',
+                        color: change.newStage > change.oldStage ? 'var(--teal)' : 'var(--danger)',
+                        border: `1px solid ${change.newStage > change.oldStage ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
+                      }}>
+                        Stage {STAGE_SHORT[change.oldStage] || '?'} \u2192 {STAGE_SHORT[change.newStage] || '?'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── BILL CARDS ── */}
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
         ) : sorted.length === 0 ? (
@@ -186,6 +371,7 @@ export default function WatchlistPage() {
           </div>
         ) : sorted.map(({ bill_id, client_tag, notes, bills: bill }, idx) => {
           const delta = scoreDeltas[bill_id]
+          const hasChange = changes[bill_id]
           return (
           <div
             key={bill_id}
@@ -241,10 +427,10 @@ export default function WatchlistPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {bill.has_public_hearing && (
-                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>● HEARING</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>\u25cf HEARING</span>
                   )}
                   {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>✓ CMTE PASS</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>\u2713 CMTE PASS</span>
                   )}
                   {!bill.bipartisan && (
                     <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>Minority Only</span>
