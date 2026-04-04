@@ -1,0 +1,46 @@
+name: Nightly Sync
+
+on:
+  schedule:
+    # Midnight Pacific Time = 8 AM UTC (PDT) / 7 AM UTC (PST)
+    # Using 8 AM UTC to target midnight PDT (April-November)
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allow manual trigger from Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # Kill if stuck (target is ~20 min)
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./app
+        run: npm ci
+
+      - name: Run sync-v2.js
+        working-directory: ./app
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          # Session calendar for 2025-26 (already ended)
+          SESSION_START: '2025-01-13'
+          COMMITTEE_CUTOFF: '2025-02-21'
+          FLOOR_CUTOFF: '2025-03-07'
+          OPPOSITE_CUTOFF: '2025-03-21'
+          SINE_DIE: '2026-03-12'
+        run: node lib/sync-v2.js
+
+      - name: Report result
+        if: always()
+        run: echo "Sync completed at $(date -u)"

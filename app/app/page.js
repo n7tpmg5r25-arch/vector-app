@@ -43,6 +43,8 @@ export default function HomePage() {
   const [watchlist, setWatchlist] = useState([])
   const [topBills, setTopBills]  = useState([])
   const [categories, setCategories] = useState([])
+  const [scoreDeltas, setScoreDeltas] = useState({}) // bill_id -> delta number
+  const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
   const [loading, setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -80,6 +82,46 @@ export default function HomePage() {
       setCategories((cats || []).filter(c => c.category && c.category !== 'Other'))
     } catch (_) {}
 
+    // Fetch score deltas for top bills and watchlist bills
+    const allBillIds = [
+      ...(bills || []).map(b => b.bill_id),
+      ...(wl || []).filter(w => w.bills).map(w => w.bill_id),
+    ]
+    const uniqueIds = [...new Set(allBillIds)].slice(0, 30)
+    if (uniqueIds.length > 0) {
+      const { data: snaps } = await supabase
+        .from('trajectory_snapshots')
+        .select('bill_id, score, snapshot_date')
+        .in('bill_id', uniqueIds)
+        .order('snapshot_date', { ascending: false })
+      if (snaps) {
+        const deltas = {}
+        const byBill = {}
+        snaps.forEach(s => {
+          if (!byBill[s.bill_id]) byBill[s.bill_id] = []
+          if (byBill[s.bill_id].length < 2) byBill[s.bill_id].push(s)
+        })
+        Object.entries(byBill).forEach(([bid, arr]) => {
+          if (arr.length >= 2) {
+            deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
+          }
+        })
+        setScoreDeltas(deltas)
+      }
+    }
+
+    // Phase 5A: Check last sync time for stale data warning
+    try {
+      const { data: syncLog } = await supabase
+        .from('sync_log')
+        .select('ran_at')
+        .order('ran_at', { ascending: false })
+        .limit(1)
+      if (syncLog && syncLog.length > 0) {
+        setLastSyncAt(new Date(syncLog[0].ran_at))
+      }
+    } catch (_) {}
+
     setLoading(false)
   }
 
@@ -101,6 +143,7 @@ export default function HomePage() {
   const atRisk = watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
 
   const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
+  const sessionYear = SESSION.split('-')[0]
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
@@ -224,6 +267,25 @@ export default function HomePage() {
 
       <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+        {/* ── STALE DATA WARNING (Phase 5A) ────────────────── */}
+        {lastSyncAt && (Date.now() - lastSyncAt.getTime()) > 36 * 60 * 60 * 1000 && (
+          <div style={{
+            background: 'rgba(212,168,75,0.08)',
+            border: '1px solid rgba(212,168,75,0.3)',
+            borderRadius: 'var(--radius)',
+            padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span style={{ fontSize: 11, color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>
+              Data may be stale — last synced {lastSyncAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {lastSyncAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          </div>
+        )}
+
         {/* ── SESSION COUNTDOWN ─────────────────────────────── */}
         <div style={{
           background: 'var(--bg-card)',
@@ -296,7 +358,9 @@ export default function HomePage() {
             </div>
 
             {/* Top 3 watchlist bills */}
-            {watchlist.slice(0, 3).map(({ bill_id, client_tag, bills: bill }) => (
+            {watchlist.slice(0, 3).map(({ bill_id, client_tag, bills: bill }) => {
+              const delta = scoreDeltas[bill_id]
+              return (
               <div
                 key={bill_id}
                 onClick={() => router.push(`/bill/${bill.bill_id}`)}
@@ -310,7 +374,22 @@ export default function HomePage() {
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
-                <ScoreBadge score={bill.final_score} size="md"/>
+                <div style={{ position: 'relative' }}>
+                  <ScoreBadge score={bill.final_score} size="md"/>
+                  {delta != null && delta !== 0 && (
+                    <span style={{
+                      position: 'absolute', top: -6, right: -10,
+                      fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                      padding: '1px 5px', borderRadius: 8,
+                      background: delta > 0 ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)',
+                      color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
+                      border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {delta > 0 ? '+' : ''}{delta}
+                    </span>
+                  )}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
@@ -329,7 +408,7 @@ export default function HomePage() {
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               </div>
-            ))}
+            )})}
           </div>
         ) : (
           <div style={{
@@ -368,7 +447,9 @@ export default function HomePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {loading ? (
               <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
-            ) : topBills.map((bill, idx) => (
+            ) : topBills.map((bill, idx) => {
+              const delta = scoreDeltas[bill.bill_id]
+              return (
               <div
                 key={bill.bill_id}
                 onClick={() => router.push(`/bill/${bill.bill_id}`)}
@@ -387,16 +468,31 @@ export default function HomePage() {
                   color: 'var(--text-faint)', width: 16, paddingTop: 2, flexShrink: 0,
                 }}>{idx + 1}</div>
 
-                <ScoreBadge score={bill.final_score} size="sm"/>
+                <div style={{ position: 'relative' }}>
+                  <ScoreBadge score={bill.final_score} size="sm"/>
+                  {delta != null && delta !== 0 && (
+                    <span style={{
+                      position: 'absolute', top: -5, right: -10,
+                      fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                      padding: '0px 4px', borderRadius: 6,
+                      background: delta > 0 ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)',
+                      color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
+                      border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {delta > 0 ? '+' : ''}{delta}
+                    </span>
+                  )}
+                </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                     </span>
-                    {bill.bipartisan && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 8 }}>
-                        Bipartisan
+                    {!bill.bipartisan && (
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'rgba(212,168,75,0.1)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 8 }}>
+                        Minority Only
                       </span>
                     )}
                     {bill.pulled_from_rules && (
@@ -421,8 +517,21 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
+                <a
+                  href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`}
+                  target="_blank" rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                  title="View on leg.wa.gov"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </a>
               </div>
-            ))}
+            )})}
           </div>
         </div>
 
