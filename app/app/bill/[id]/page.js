@@ -317,12 +317,19 @@ export default function BillDetailPage() {
 
   const floorMargin = bill.avg_floor_margin ? Math.round(bill.avg_floor_margin * 100) : null
 
+  // Build leg.wa.gov link
+  const sessionYear = (bill.session || '2025-2026').split('-')[0]
+  const legUrl = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`
+
   // Velocity: is the score trending up from earliest snapshot?
   const velocityRising = sparkScores.length > 1 && score > sparkScores[0]
 
-  // Confidence label styling
-  const confLabel = bill.confidence_label || 'MODERATE'
-  const confColor = confLabel === 'HIGH' ? 'var(--teal)' : confLabel === 'LOW' ? 'var(--danger)' : 'var(--gold)'
+  // Confidence label styling (4 tiers)
+  const confLabel = bill.confidence_label || 'VERY LOW'
+  const confColor = confLabel === 'HIGH' ? 'var(--teal)'
+    : confLabel === 'MODERATE' ? 'var(--gold)'
+    : confLabel === 'LOW' ? 'var(--danger)'
+    : 'var(--text-muted)' // VERY LOW
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
@@ -340,6 +347,26 @@ export default function BillDetailPage() {
           ← Back
         </button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <a
+            href={legUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              padding: '7px 12px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: 20, fontSize: 12, fontWeight: 500,
+              color: 'var(--text-muted)',
+              cursor: 'pointer', transition: 'all 0.15s',
+              textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            leg.wa.gov
+          </a>
           <button
             onClick={shareBill}
             style={{
@@ -382,8 +409,15 @@ export default function BillDetailPage() {
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{
                 fontSize: 9, padding: '3px 10px', borderRadius: 10,
-                background: 'rgba(0,229,204,0.1)', color: 'var(--teal)',
-                border: '1px solid rgba(0,229,204,0.2)',
+                background: confLabel === 'HIGH' ? 'rgba(0,229,204,0.1)'
+                  : confLabel === 'MODERATE' ? 'rgba(212,168,75,0.1)'
+                  : confLabel === 'LOW' ? 'rgba(255,82,82,0.1)'
+                  : 'rgba(100,120,140,0.1)',
+                color: confColor,
+                border: `1px solid ${confLabel === 'HIGH' ? 'rgba(0,229,204,0.2)'
+                  : confLabel === 'MODERATE' ? 'rgba(212,168,75,0.2)'
+                  : confLabel === 'LOW' ? 'rgba(255,82,82,0.2)'
+                  : 'rgba(100,120,140,0.2)'}`,
                 fontFamily: 'var(--font-mono)', fontWeight: 600,
                 letterSpacing: '0.05em',
               }}>
@@ -417,22 +451,77 @@ export default function BillDetailPage() {
           </div>
         </div>
 
+        {/* ── AI SUMMARY ──────────────────────────────── */}
+        {bill.ai_summary && (
+          <div style={{
+            background: 'rgba(0,229,204,0.03)',
+            border: '1px solid rgba(0,229,204,0.12)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '14px 16px',
+          }}>
+            <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal-mid)', fontWeight: 600, letterSpacing: '0.08em', marginBottom: 8 }}>
+              PLAIN ENGLISH SUMMARY
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+              {bill.ai_summary}
+            </div>
+          </div>
+        )}
+
         {/* ── BILL IDENTITY ──────────────────────────────── */}
         <div>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>{bill.chamber === 'House' ? 'HB' : 'SB'}{bill.bill_number}</span>
-            {bill.bipartisan && (
-              <span style={{ fontSize: 9, padding: '2px 8px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 10 }}>
-                Bipartisan
+            {!bill.bipartisan && (
+              <span style={{ fontSize: 9, padding: '2px 8px', background: 'rgba(212,168,75,0.1)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10 }}>
+                Minority Only
               </span>
             )}
             {bill.category && bill.category !== 'Other' && (
               <span style={{ color: 'var(--text-faint)' }}>· {bill.category}</span>
             )}
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, marginBottom: 14 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, marginBottom: bill.companion_bill ? 8 : 14 }}>
             {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
           </div>
+
+          {/* Companion bill cross-reference */}
+          {bill.companion_bill && (
+            <div
+              onClick={async () => {
+                // companion_bill stores values like "HB 2193" — extract just the number
+                const compNum = bill.companion_bill.replace(/^[A-Z]+\s*/i, '')
+                const { data } = await supabase
+                  .from('bills')
+                  .select('bill_id')
+                  .eq('bill_number', compNum)
+                  .eq('session', bill.session || '2025-2026')
+                  .maybeSingle()
+                if (data?.bill_id) router.push(`/bill/${data.bill_id}`)
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', marginBottom: 14,
+                background: 'rgba(0,229,204,0.06)',
+                border: '1px solid rgba(0,229,204,0.15)',
+                borderRadius: 10, cursor: 'pointer',
+                transition: 'border-color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.15)'}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+                Companion: {bill.companion_bill}
+              </span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </div>
+          )}
 
           {/* Score + Score breakdown row */}
           <div style={{
@@ -769,7 +858,7 @@ export default function BillDetailPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[
                   { label: 'Committee Vote', value: bill.committee_passed ? 'Do Pass' : 'Pending', color: bill.committee_passed ? 'var(--teal)' : 'var(--text-muted)' },
-                  { label: 'Bipartisan', value: bill.bipartisan ? 'Yes' : 'No', color: bill.bipartisan ? 'var(--teal)' : 'var(--text-muted)' },
+                  { label: 'Bipartisan', value: bill.bipartisan ? 'Yes' : 'Minority Only', color: bill.bipartisan ? 'var(--teal)' : 'var(--gold)' },
                   { label: 'Sponsor Tier', value: bill.sponsor_tier === 1 ? 'Leadership' : bill.sponsor_tier === 2 ? 'Senior' : 'Member', color: bill.sponsor_tier <= 2 ? 'var(--teal)' : 'var(--text-muted)' },
                   { label: 'Cosponsor Count', value: bill.cosponsor_count || 0, color: (bill.cosponsor_count || 0) >= 5 ? 'var(--teal)' : 'var(--text-muted)' },
                 ].map(({ label, value, color }) => (
@@ -807,11 +896,11 @@ export default function BillDetailPage() {
               </div>
 
               {[
-                { range: '0–30', rate: '9.9%', pct: 9.9 },
-                { range: '30–45', rate: '21.2%', pct: 21.2 },
-                { range: '45–60', rate: '73.2%', pct: 73.2 },
-                { range: '60–75', rate: '91.6%', pct: 91.6 },
-                { range: '75–100', rate: '100%', pct: 100 },
+                { range: '0–30', rate: '0.0%', pct: 0 },
+                { range: '30–45', rate: '0.0%', pct: 0 },
+                { range: '45–60', rate: '0.1%', pct: 0.1 },
+                { range: '60–75', rate: '4.7%', pct: 4.7 },
+                { range: '75–100', rate: '42.5%', pct: 42.5 },
               ].map(({ range, rate, pct }) => {
                 const isCurrentBucket =
                   (range === '0–30' && score < 30) || (range === '30–45' && score >= 30 && score < 45) ||
@@ -827,7 +916,7 @@ export default function BillDetailPage() {
                   }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 48, fontWeight: isCurrentBucket ? 600 : 400 }}>{range}</span>
                     <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
+                      <div style={{ height: '100%', width: `${Math.max(pct / 42.5 * 100, pct > 0 ? 3 : 0)}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
                     </div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 36, textAlign: 'right', fontWeight: isCurrentBucket ? 700 : 400 }}>{rate}</span>
                     {isCurrentBucket && <span style={{ fontSize: 10, color: 'var(--teal)' }}>◀</span>}
