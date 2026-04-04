@@ -9,7 +9,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Kill if stuck (target is ~20 min)
+    timeout-minutes: 120  # Sync processes ~7,800 bills; typically 20-85 min
 
     steps:
       - name: Checkout repo
