@@ -41,6 +41,19 @@ jobs:
           SINE_DIE: '2026-03-12'
         run: node app/lib/sync-v2.js
 
+      # Phase 6.3 — Data-quality assertions. Runs immediately after sync and
+      # BEFORE the AI summary step. If any assertion fails, this step exits 1,
+      # the workflow turns red, GitHub Actions sends a failure email, and the
+      # AI summary step is skipped (so we don't burn Haiku tokens summarizing
+      # corrupted data). The Phase 5B bugs would have been caught here on day
+      # one instead of surviving until manual QA.
+      - name: Assert sync data quality
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SYNC_SESSION: '2025-2026'
+        run: node app/lib/assert-sync-quality.js
+
       - name: Summarize bills with AI
         if: success()
         env:
