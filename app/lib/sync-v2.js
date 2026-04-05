@@ -150,13 +150,9 @@ async function getStatusChanges(billId) {
   } catch(e) { return []; }
 }
 
-async function getSponsors(billId) {
-  try {
-    const data = await fetchXML('SponsorService.asmx', 'GetSponsors', { biennium: BIENNIUM, billId });
-    const items = data?.ArrayOfSponsor?.Sponsor;
-    return Array.isArray(items) ? items : (items ? [items] : []);
-  } catch(e) { return []; }
-}
+// Phase 5C.3 — REMOVED getSponsors(). Sponsors are now pulled from the
+// full legislation object returned by GetLegislation (which includes Sponsors
+// inline). This also eliminates ~3,111 redundant API calls per nightly sync.
 
 async function getHearings(billNumber) {
   try {
@@ -244,7 +240,9 @@ function detectCategory(title = '') {
 }
 
 // ── FEATURE EXTRACTION ────────────────────────────────────────────────────────
-function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state) {
+// Phase 5C.2: now also accepts `legislation` so fiscal-note fields can be read
+// from the full Legislation object (raw = LegislationInfo lacks these fields).
+function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation) {
   const hasPublicHearing = hearings.length > 0;
 
   const sortedHearings = hearings
@@ -294,7 +292,14 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const stalled = daysSince > 21 && stage <= 3 && !committeePassed;
 
   // Fiscal note size — derive from API fields + referral patterns
-  const hasFiscal = raw.LocalFiscalNote === 'true' || raw.StateFiscalNote === 'true';
+  // Phase 5C.2: LocalFiscalNote / StateFiscalNote live on the full Legislation
+  // object, NOT on the LegislationInfo summary (raw). Read from legislation
+  // first, then fall back to raw for safety. Values may be booleans or strings.
+  const leg = legislation || {};
+  const localFn = leg.LocalFiscalNote ?? raw.LocalFiscalNote;
+  const stateFn = leg.StateFiscalNote ?? raw.StateFiscalNote;
+  const isTrue = v => v === true || v === 'true' || v === 'True';
+  const hasFiscal = isTrue(localFn) || isTrue(stateFn);
   let fiscalNoteSize = 'none';
   if (hasFiscal && fiscalReferral && doubleReferral) fiscalNoteSize = 'large';
   else if (hasFiscal && fiscalReferral) fiscalNoteSize = 'medium';
@@ -492,21 +497,44 @@ async function processBill(raw, categoryRates, state) {
   const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
   if (!billNum) return null;
 
+  // Phase 5C.8: skip gubernatorial appointments (bill_number >= 9000).
+  // These are not real bills and clutter the DB / burn tokens.
+  const billNumInt = parseInt(billNum, 10);
+  if (!isNaN(billNumInt) && billNumInt >= 9000) return null;
+
   const billApiId = makeBillId(raw);
-  const title = raw.LongDescription || raw.ShortDescription || '';
-  const category = detectCategory(title);
   const billId = `${SESSION}-${billNum}`;
 
-  const [hearings, statusChanges, sponsors, amendments, rollCalls, legislation] = await Promise.all([
+  // Phase 5C.1: Fetch the full legislation object FIRST — it contains title,
+  // fiscal note flags, and sponsors that are all missing from the raw
+  // LegislationInfo summary returned by GetLegislationByYear. We use this
+  // single object downstream for title, fiscal_note_size, and prime_sponsor.
+  const legislation = await getLegislation(billNum);
+
+  // Phase 5C.1: Pull title from legislation object, with a fallback chain.
+  const title =
+    (legislation && (legislation.LongDescription || legislation.ShortDescription)) ||
+    raw.ShortDescription ||
+    billApiId; // e.g. "HB 1001" — still better than empty string
+  const category = detectCategory(title);
+
+  // Phase 5C.3: Extract sponsors from the legislation object (no separate API call).
+  // Shape is legislation.Sponsors.Sponsor — can be an array or a single object.
+  let sponsors = [];
+  if (legislation?.Sponsors?.Sponsor) {
+    const s = legislation.Sponsors.Sponsor;
+    sponsors = Array.isArray(s) ? s : [s];
+  }
+
+  // Remaining API calls run in parallel (getSponsors call deleted).
+  const [hearings, statusChanges, amendments, rollCalls] = await Promise.all([
     getHearings(billNum),
     getStatusChanges(billApiId),
-    getSponsors(billApiId),
     getAmendments(billNum),
-    getRollCalls(billNum),        // FIX: was passing billApiId, now billNum
-    getLegislation(billNum),      // For companion bill + committee_name
+    getRollCalls(billNum),
   ]);
 
-  const features = extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state);
+  const features = extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation);
   const sponsorData = extractSponsors(sponsors);
 
   // Extract companion bill from full legislation data
@@ -524,6 +552,43 @@ async function processBill(raw, categoryRates, state) {
       || legislation?.CurrentStatus?.CommitteeName
       || raw.CurrentStatus?.CommitteeName
       || '';
+
+    // Phase 5B: If still empty, extract from status change history ("referred to [Committee]")
+    if (!committeeName) {
+      // Look through status changes in reverse (most recent first) for referral text
+      const scArr = Array.isArray(statusChanges) ? statusChanges : [];
+      for (let i = scArr.length - 1; i >= 0; i--) {
+        const desc = scArr[i]?.Description || scArr[i]?.HistoryLine || '';
+        const match = desc.match(/[Rr]eferred to ([^.]+)\./);
+        if (match) {
+          committeeName = match[1].trim();
+          break;
+        }
+      }
+    }
+    // Phase 5B: If still empty, try "Rules" or exec action patterns from last status change
+    if (!committeeName) {
+      const lastDesc = features.last_action || '';
+      if (/Rules Committee|Rules "X"|Rules 2 Review/i.test(lastDesc)) {
+        committeeName = 'Rules';
+      } else {
+        const execMatch = lastDesc.match(/^([A-Z]+) - /);
+        if (execMatch) {
+          const abbrevMap = {
+            APP: 'Appropriations', FIN: 'Finance', TR: 'Transportation',
+            AGNR: 'Agriculture & Natural Resources', SGOV: 'State Government',
+            CPB: 'Consumer Protection & Business', HCW: 'Health Care & Wellness',
+            TEDV: 'Trade & Economic Development', PEW: 'Postsecondary Education & Workforce',
+            CB: 'College & Budget', CRJ: 'Civil Rights & Judiciary', HSG: 'Housing',
+            HUSR: 'Human Services', ENET: 'Environment, Energy & Technology',
+            HLTC: 'Health & Long-Term Care', LJ: 'Law & Justice',
+            EDUC: 'Early Learning & K-12 Education', LC: 'Labor & Commerce',
+            LWS: 'Labor & Workplace Standards', LGOV: 'Local Government',
+          };
+          committeeName = abbrevMap[execMatch[1]] || '';
+        }
+      }
+    }
   }
 
   const billRecord = {

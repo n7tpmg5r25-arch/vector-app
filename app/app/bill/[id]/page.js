@@ -203,6 +203,7 @@ export default function BillDetailPage() {
   const [clientTag, setClientTag] = useState('')
   const [user, setUser]         = useState(null)
   const [shared, setShared]     = useState(false)
+  const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -532,8 +533,22 @@ export default function BillDetailPage() {
           }}>
             <ScoreBadge score={score} size="lg"/>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
-                Trajectory Score
+              {/* Phase 5C.5: trajectory score info icon + tooltip */}
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>Trajectory Score</span>
+                <button
+                  type="button"
+                  aria-label="About the trajectory score"
+                  onClick={() => setScoreInfoOpen(v => !v)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-faint)', padding: 0, lineHeight: 0,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
@@ -553,10 +568,39 @@ export default function BillDetailPage() {
                 )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {passPct}% pass probability · <span style={{ color: confColor }}>{confLabel}</span> confidence
+                {passPct}% pass probability · <span style={{ color: confColor }}>{confLabel}</span> signal strength
               </div>
             </div>
           </div>
+
+          {/* Phase 5C.5: Trajectory score explanation panel */}
+          {scoreInfoOpen && (
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', padding: '14px 16px', fontSize: 12,
+              color: 'var(--text-muted)', lineHeight: 1.6,
+            }}>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                How the trajectory score works
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                The score is a weighted sum of five signal components, multiplied by an X-factor adjustment, capped at 99 (100 is reserved for bills signed into law):
+              </div>
+              <ul style={{ margin: '0 0 8px 18px', padding: 0 }}>
+                <li><strong style={{ color: 'var(--text-primary)' }}>Committee (0–25)</strong> — hearings held, executive action, committee passage</li>
+                <li><strong style={{ color: 'var(--text-primary)' }}>Sponsor (0–20)</strong> — majority party, chair status, bipartisan cosponsors</li>
+                <li><strong style={{ color: 'var(--text-primary)' }}>Momentum (0–20)</strong> — recent activity, substitutes filed, stalled penalties</li>
+                <li><strong style={{ color: 'var(--text-primary)' }}>Historical (0–20)</strong> — category pass rates from prior sessions</li>
+                <li><strong style={{ color: 'var(--text-primary)' }}>Fiscal (0–15)</strong> — lower for bills with larger fiscal notes</li>
+              </ul>
+              <div style={{ marginBottom: 8 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
+              </div>
+              <div>
+                Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that passed chamber. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── KEY INFO GRID ──────────────────────────────── */}
@@ -640,16 +684,22 @@ export default function BillDetailPage() {
         {/* ── TABS ───────────────────────────────────────── */}
         <div>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16, overflowX: 'auto' }}>
-            {['trajectory', 'signals', 'votes', 'confidence'].map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
+            {[
+              { key: 'trajectory', label: 'Trajectory' },
+              { key: 'signals',    label: 'Signals' },
+              { key: 'votes',      label: 'Votes' },
+              { key: 'signal',     label: 'Signal Strength' },  // Phase 5C.6: renamed from "confidence"
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setTab(key)} style={{
                 padding: '8px 14px', background: 'none', border: 'none',
-                borderBottom: tab === t ? '2px solid var(--teal)' : '2px solid transparent',
-                fontSize: 12, fontWeight: tab === t ? 600 : 400,
-                color: tab === t ? 'var(--teal)' : 'var(--text-muted)',
-                cursor: 'pointer', textTransform: 'capitalize',
+                borderBottom: tab === key ? '2px solid var(--teal)' : '2px solid transparent',
+                fontSize: 12, fontWeight: tab === key ? 600 : 400,
+                color: tab === key ? 'var(--teal)' : 'var(--text-muted)',
+                cursor: 'pointer',
                 marginBottom: -1, flexShrink: 0,
-                textShadow: tab === t ? '0 0 8px rgba(0,229,204,0.3)' : 'none',
-              }}>{t}</button>
+                textShadow: tab === key ? '0 0 8px rgba(0,229,204,0.3)' : 'none',
+                whiteSpace: 'nowrap',
+              }}>{label}</button>
             ))}
           </div>
 
@@ -874,18 +924,21 @@ export default function BillDetailPage() {
             </div>
           )}
 
-          {/* ── CONFIDENCE TAB ─────────────────────────── */}
-          {tab === 'confidence' && (
+          {/* ── SIGNAL STRENGTH TAB (Phase 5C.6: renamed from "confidence") ─── */}
+          {tab === 'signal' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
                   Pass Probability · 90% CI
                 </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+                  Signal Strength reflects how closely this bill matches historical patterns that resulted in passage. Based on 138 bills that passed chamber and 68 that became law in the 2025&ndash;2026 session.
+                </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, fontWeight: 800, color: scoreColor, marginBottom: 4, textShadow: `0 0 20px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.4)' : 'transparent'}` }}>
                   {passPct}%
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  [{Math.round((bill.confidence_low || 0) * 100)}–{Math.round((bill.confidence_high || 0) * 100)}%] range · <span style={{ color: confColor }}>{confLabel}</span> confidence
+                  [{Math.round((bill.confidence_low || 0) * 100)}–{Math.round((bill.confidence_high || 0) * 100)}%] range · <span style={{ color: confColor }}>{confLabel}</span> signal strength
                 </div>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
                   <div style={{ height: '100%', width: `${passPct}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>

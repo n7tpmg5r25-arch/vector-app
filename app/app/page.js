@@ -1,12 +1,9 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../lib/supabase'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
-
-// Dynamic session switching
-const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
 // Key dates for 2027 session
 const NEXT_PREFILING = '2026-12-01'
@@ -38,6 +35,13 @@ function momentumLabel(bills) {
 export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+
+  // Phase 5C.7: Session derived inside component to avoid SSR/CSR mismatch.
+  // Switches automatically once the 2027-2028 session begins.
+  const SESSION = useMemo(
+    () => (new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'),
+    []
+  )
 
   const [user, setUser]         = useState(null)
   const [watchlist, setWatchlist] = useState([])

@@ -41,6 +41,45 @@ jobs:
           SINE_DIE: '2026-03-12'
         run: node app/lib/sync-v2.js
 
+      - name: Summarize bills with AI
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Starting AI summary pass..."
+          REMAINING="more"
+          TOTAL=0
+          CALLS=0
+          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 80 ]; do
+            CALLS=$((CALLS + 1))
+            RESULT=$(curl -s -w "\n%{http_code}" \
+              "${SUPABASE_URL}/functions/v1/summarize-bills" \
+              -H "Content-Type: application/json" \
+              -H "x-function-secret: ${FUNCTION_SECRET}")
+            HTTP_CODE=$(echo "$RESULT" | tail -1)
+            BODY=$(echo "$RESULT" | head -n -1)
+            echo "Call $CALLS: HTTP $HTTP_CODE - $BODY"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Edge function returned $HTTP_CODE, stopping."
+              break
+            fi
+
+            SUMMARIZED=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summarized',0))" 2>/dev/null || echo "0")
+            REMAINING=$(echo "$BODY" | python3 -c "import sys,json; r=json.load(sys.stdin).get('remaining',0); print(r)" 2>/dev/null || echo "0")
+            TOTAL=$((TOTAL + SUMMARIZED))
+
+            if [ "$SUMMARIZED" = "0" ]; then
+              echo "No bills summarized this call, stopping."
+              break
+            fi
+
+            # Brief pause between calls
+            sleep 2
+          done
+          echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
+
       - name: Report result
         if: always()
         run: echo "Sync completed at $(date -u)"
