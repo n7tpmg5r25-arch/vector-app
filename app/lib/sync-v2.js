@@ -150,9 +150,18 @@ async function getStatusChanges(billId) {
   } catch(e) { return []; }
 }
 
-// Phase 5C.3 — REMOVED getSponsors(). Sponsors are now pulled from the
-// full legislation object returned by GetLegislation (which includes Sponsors
-// inline). This also eliminates ~3,111 redundant API calls per nightly sync.
+// Phase 5C.3 (revised) — GetLegislation does NOT return a Sponsors collection
+// (only a last-name string in parens). So we still need a per-bill call to
+// LegislationService.asmx/GetSponsors, which returns the full roster with
+// FirstName, LastName, Type ('Primary'/'Secondary'), and Order (0-indexed).
+async function getSponsors(billId) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetSponsors', { biennium: BIENNIUM, billId });
+    const items = data?.ArrayOfSponsor?.Sponsor;
+    if (!items) return [];
+    return Array.isArray(items) ? items : [items];
+  } catch(e) { return []; }
+}
 
 async function getHearings(billNumber) {
   try {
@@ -359,15 +368,20 @@ function extractSponsors(sponsors) {
     prime_sponsor: 'Unknown', prime_party: '', majority_sponsor: false,
     bipartisan: false, cosponsor_count: 0, sponsor_tier: 4, is_committee_chair: false,
   };
-  const prime = sponsors.find(s => s.Order === '1' || s.Type === 'Prime') || sponsors[0];
+  // Phase 5C.3 fix: Primary/Secondary (not Prime), Order is 0-indexed (not '1'-based)
+  const prime = sponsors.find(s => s.Type === 'Primary' || s.Order === '0') || sponsors[0];
   const rest = sponsors.filter(s => s !== prime);
-  // Use Party field from GetSponsors (returns 'D' or 'R')
-  const party = prime.Party || prime.Acronym || '';
+  // Note: GetSponsors response does NOT include a Party field. Party enrichment
+  // via SponsorService.asmx/GetSponsors (biennium-wide roster) is a follow-up.
+  const party = prime.Party || '';
+  const fullName = `${prime.FirstName||''} ${prime.LastName||''}`.trim()
+                   || prime.Name
+                   || 'Unknown';
   return {
-    prime_sponsor: `${prime.FirstName||''} ${prime.LastName||''}`.trim() || 'Unknown',
+    prime_sponsor: fullName,
     prime_party: party,
     majority_sponsor: party === 'D',  // Democrats hold majority in WA 2025-28
-    bipartisan: rest.some(s => (s.Party||s.Acronym||'') !== party && (s.Party||s.Acronym||'') !== ''),
+    bipartisan: rest.some(s => (s.Party||'') !== party && (s.Party||'') !== ''),
     cosponsor_count: rest.length,
     sponsor_tier: party === 'D' ? 3 : 4,
     is_committee_chair: false,  // populated separately via committee roster sync
@@ -518,16 +532,11 @@ async function processBill(raw, categoryRates, state) {
     billApiId; // e.g. "HB 1001" — still better than empty string
   const category = detectCategory(title);
 
-  // Phase 5C.3: Extract sponsors from the legislation object (no separate API call).
-  // Shape is legislation.Sponsors.Sponsor — can be an array or a single object.
-  let sponsors = [];
-  if (legislation?.Sponsors?.Sponsor) {
-    const s = legislation.Sponsors.Sponsor;
-    sponsors = Array.isArray(s) ? s : [s];
-  }
-
-  // Remaining API calls run in parallel (getSponsors call deleted).
-  const [hearings, statusChanges, amendments, rollCalls] = await Promise.all([
+  // Phase 5C.3 (revised): GetLegislation's Sponsor field is just a string like
+  // "(Abbarno)", not a collection. Call LegislationService/GetSponsors for the
+  // real list with FirstName/LastName/Type/Order.
+  const [sponsors, hearings, statusChanges, amendments, rollCalls] = await Promise.all([
+    getSponsors(billApiId),
     getHearings(billNum),
     getStatusChanges(billApiId),
     getAmendments(billNum),
