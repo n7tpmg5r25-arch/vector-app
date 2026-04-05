@@ -170,6 +170,9 @@ async function run() {
     process.exit(1);
   }
   console.log('\n✅ All data-quality assertions passed.\n');
+  // Explicit exit to avoid libuv keepalive-pool assertion crash on Windows
+  // when @supabase/supabase-js fetch pool holds open connections at drain time.
+  process.exit(0);
 }
 
 run().catch(e => {
