@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     { label: 'Session State', value: 'Interim', accent: true },
     { label: 'Next Session Opens', value: 'Jan 13, 2027' },
     { label: 'Pre-filing Starts', value: 'Dec 1, 2026' },
-    { label: 'Bills in Database', value: '3,111', mono: true },
+    { label: 'Bills in Database', value: '2,855', mono: true },
     { label: 'Scoring Engine', value: 'v3.1 · Calibrated', mono: true },
   ]
 
@@ -77,6 +78,34 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Reference */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Reference</div>
+          <Link href="/methodology" style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--teal)', marginBottom: 2 }}>
+                  Scoring Methodology
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Signals, weights, X-factors, calibration
+                </div>
+              </div>
+              <span style={{ color: 'var(--text-faint)', fontSize: 18, fontWeight: 300 }}>›</span>
+            </div>
+          </Link>
         </div>
 
         {/* About */}
