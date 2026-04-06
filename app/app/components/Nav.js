@@ -35,18 +35,15 @@ const NAV = [
     ),
   },
   {
-    path: '/hearings', label: 'Hearings',
+    path: '/committees', label: 'Cmtes',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
         strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-        <circle cx="8" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
-        <circle cx="12" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
-        <circle cx="16" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
+        <rect x="3" y="3" width="7" height="9" rx="1"/>
+        <rect x="14" y="3" width="7" height="5" rx="1"/>
+        <rect x="14" y="12" width="7" height="9" rx="1"/>
+        <rect x="3" y="16" width="7" height="5" rx="1"/>
       </svg>
     ),
   },
