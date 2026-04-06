@@ -81,6 +81,9 @@ async function loadCalibratedWeights() {
 
 function getHardcodedWeights() {
   // Recalibrated against FINAL 2025-26 session outcomes (April 5, 2026)
+  // NOTE: These rates were calibrated against 2026-only data (~2,855 bills).
+  // After the first full-biennium sync (2025+2026, ~5,000+ bills),
+  // re-run calibration queries to update these values.
   // law_rate = became-law / total-in-bucket; cmte_rate = passed-committee / total
   return {
     category_rates: {
@@ -131,12 +134,34 @@ async function fetchXML(service, endpoint, params) {
 }
 
 async function getAllBillsSummary() {
-  const [h, s] = await Promise.all([
-    fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: YEAR, biennium: BIENNIUM, agency: 'House' }),
-    fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: YEAR, biennium: BIENNIUM, agency: 'Senate' }),
-  ]);
+  // FIX: Fetch BOTH years of the biennium.
+  // GetLegislationByYear returns bills by the year they were INTRODUCED.
+  // A biennium like '2025-26' has 2025 introductions + 2026 introductions.
+  // Previously only fetching YEAR (2026), missing the entire 2025 long session.
+  const bienniumStart = BIENNIUM.split('-')[0];            // e.g. '2025'
+  const bienniumEnd   = '20' + BIENNIUM.split('-')[1];     // e.g. '2026'
+  const years = [bienniumStart, bienniumEnd];
+
   const toArr = x => { const v = x?.ArrayOfLegislationInfo?.LegislationInfo; return Array.isArray(v) ? v : (v ? [v] : []); };
-  return [...toArr(h), ...toArr(s)];
+  const all = [];
+
+  for (const yr of years) {
+    const [h, s] = await Promise.all([
+      fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'House' }),
+      fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'Senate' }),
+    ]);
+    all.push(...toArr(h), ...toArr(s));
+    console.log(`  Year ${yr}: ${toArr(h).length} House + ${toArr(s).length} Senate bills`);
+  }
+
+  // Deduplicate by BillNumber+Agency in case any bill appears in both years
+  const seen = new Set();
+  return all.filter(b => {
+    const key = `${b.OriginalAgency || b.Agency}_${b.BillNumber}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function getStatusChanges(billId) {
@@ -363,17 +388,60 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   };
 }
 
+// ── PARTY ENRICHMENT (Phase 6.11) ────────────────────────────────────────────
+// The per-bill LegislationService/GetSponsors does NOT include a Party field.
+// SponsorService.asmx/GetSponsors returns the biennium-wide legislator roster
+// and DOES include Party. We call it once at the top of runSync() and build an
+// in-memory Map<sponsorId, 'D'|'R'|''> passed into every extractSponsors() call.
+// Graceful degradation: if this call fails, sync still succeeds — party stays empty.
+async function fetchBienniumSponsorParties() {
+  try {
+    const data = await fetchXML('SponsorService.asmx', 'GetSponsors', { biennium: BIENNIUM });
+    const items = data?.ArrayOfMember?.Member
+               ?? data?.ArrayOfSponsor?.Sponsor
+               ?? data?.ArrayOfLegislator?.Legislator;
+    if (!items) return new Map();
+    const arr = Array.isArray(items) ? items : [items];
+    const map = new Map();
+    for (const m of arr) {
+      const id = m.Id || m.MemberId || m.SponsorId;
+      let party = (m.Party || '').trim();
+      if (party.toLowerCase().startsWith('d')) party = 'D';
+      else if (party.toLowerCase().startsWith('r')) party = 'R';
+      else party = '';
+      if (id) map.set(String(id), party);
+    }
+    return map;
+  } catch(e) {
+    console.warn(`  [party-map] fetch failed: ${e.message} — continuing without party enrichment`);
+    return new Map();
+  }
+}
+
 // ── SPONSOR EXTRACTION ────────────────────────────────────────────────────────
-function extractSponsors(sponsors) {
+function extractSponsors(sponsors, partyMap) {
   if (!sponsors || sponsors.length === 0) return {
     prime_sponsor: 'Unknown', prime_party: '', majority_sponsor: false,
     bipartisan: false, cosponsor_count: 0, sponsor_tier: 4, is_committee_chair: false,
   };
+
+  // Phase 6.11 — Enrich each sponsor's Party from the biennium-wide roster map
+  // BEFORE primary detection runs.
+  if (partyMap && partyMap.size > 0) {
+    for (const s of sponsors) {
+      if (!s.Party || s.Party === '') {
+        const id = s.Id || s.SponsorId || s.MemberId;
+        if (id) {
+          const p = partyMap.get(String(id));
+          if (p) s.Party = p;
+        }
+      }
+    }
+  }
+
   // Phase 5C.3 fix: Primary/Secondary (not Prime), Order is 0-indexed (not '1'-based)
   const prime = sponsors.find(s => s.Type === 'Primary' || s.Order === '0') || sponsors[0];
   const rest = sponsors.filter(s => s !== prime);
-  // Note: GetSponsors response does NOT include a Party field. Party enrichment
-  // via SponsorService.asmx/GetSponsors (biennium-wide roster) is a follow-up.
   const party = prime.Party || '';
   const fullName = `${prime.FirstName||''} ${prime.LastName||''}`.trim()
                    || prime.Name
@@ -507,7 +575,7 @@ function scoreBill(bill, categoryRates) {
 }
 
 // ── PROCESS SINGLE BILL ───────────────────────────────────────────────────────
-async function processBill(raw, categoryRates, state) {
+async function processBill(raw, categoryRates, state, partyMap) {
   const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
   if (!billNum) return null;
 
@@ -544,7 +612,7 @@ async function processBill(raw, categoryRates, state) {
   ]);
 
   const features = extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation);
-  const sponsorData = extractSponsors(sponsors);
+  const sponsorData = extractSponsors(sponsors, partyMap);
 
   // Extract companion bill from full legislation data
   let companionBill = null;
@@ -669,6 +737,10 @@ async function runSync() {
   const calibration = await loadCalibratedWeights();
   const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
 
+  // Phase 6.11: Party enrichment — one-shot biennium-wide roster fetch
+  const partyMap = await fetchBienniumSponsorParties();
+  console.log(`  Loaded party map: ${partyMap.size} sponsors`);
+
   let allBills;
   try {
     allBills = await getAllBillsSummary();
@@ -697,7 +769,7 @@ async function runSync() {
 
     await Promise.all(batch.map(async raw => {
       try {
-        const result = await processBill(raw, categoryRates, state);
+        const result = await processBill(raw, categoryRates, state, partyMap);
         if (!result) return;
         const { billRecord, scores } = result;
 
