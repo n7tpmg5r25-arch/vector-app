@@ -1,30 +1,41 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import './globals.css'
+import RegisterSW from './components/RegisterSW'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+export const metadata = {
+  title: 'Vector WA',
+  description: 'WA Legislative Trajectory Intelligence',
+  themeColor: '#080c14',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Vector WA',
+  },
+  openGraph: {
+    title: 'Vector WA',
+    description: 'WA Legislative Trajectory Intelligence by Post & Policy',
+    siteName: 'Vector WA',
+    type: 'website',
+  },
+}
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#080c14',
+}
 
-export const metadata: Metadata = {
-  title: "Vector WA",
-  description: "WA Legislative Trajectory Intelligence",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+    <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      </head>
+      <body>
+        <RegisterSW />
+        {children}
+      </body>
     </html>
-  );
+  )
 }
