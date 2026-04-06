@@ -56,67 +56,67 @@ export default function WatchlistPage() {
         return d.last_viewed_at < earliest ? d.last_viewed_at : earliest
       }, null)
 
-      /* ── 3. Fetch snapshots for deltas + change detection ── */
+      /* ── 3 & 4. Phase 6.4 perf: Fetch snapshots + update last_viewed_at in parallel ── */
       const billIds = items.map(d => d.bill_id)
-      if (billIds.length > 0) {
-        const { data: snaps } = await supabase
-          .from('trajectory_snapshots')
-          .select('bill_id, score, stage, snapshot_date')
-          .in('bill_id', billIds)
-          .order('snapshot_date', { ascending: false })
+      const [snapsResult] = await Promise.all([
+        billIds.length > 0
+          ? supabase
+              .from('trajectory_snapshots')
+              .select('bill_id, score, stage, snapshot_date')
+              .in('bill_id', billIds)
+              .order('snapshot_date', { ascending: false })
+          : Promise.resolve({ data: null }),
+        supabase
+          .from('tracked_bills')
+          .update({ last_viewed_at: new Date().toISOString() })
+          .eq('user_id', user.id),
+      ])
 
-        if (snaps) {
-          const byBill = {}
-          snaps.forEach(s => {
-            if (!byBill[s.bill_id]) byBill[s.bill_id] = []
-            byBill[s.bill_id].push(s)
-          })
+      const snaps = snapsResult.data
+      if (snaps) {
+        const byBill = {}
+        snaps.forEach(s => {
+          if (!byBill[s.bill_id]) byBill[s.bill_id] = []
+          byBill[s.bill_id].push(s)
+        })
 
-          // Score deltas: latest vs previous snapshot
-          const deltas = {}
+        // Score deltas: latest vs previous snapshot
+        const deltas = {}
+        Object.entries(byBill).forEach(([bid, arr]) => {
+          if (arr.length >= 2) {
+            deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
+          }
+        })
+        setScoreDeltas(deltas)
+
+        // Change detection: latest vs snapshot at last_viewed_at
+        if (lastViewed) {
+          const lastViewedDate = lastViewed.slice(0, 10) // YYYY-MM-DD
+          const detected = {}
+
           Object.entries(byBill).forEach(([bid, arr]) => {
-            if (arr.length >= 2) {
-              deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
-            }
-          })
-          setScoreDeltas(deltas)
+            const latest = arr[0]
+            const oldSnap = arr.find(s => s.snapshot_date <= lastViewedDate)
 
-          // Change detection: latest vs snapshot at last_viewed_at
-          if (lastViewed) {
-            const lastViewedDate = lastViewed.slice(0, 10) // YYYY-MM-DD
-            const detected = {}
+            if (oldSnap && latest && latest.snapshot_date !== oldSnap.snapshot_date) {
+              const scoreDiff = (latest.score || 0) - (oldSnap.score || 0)
+              const stageChanged = latest.stage !== oldSnap.stage
 
-            Object.entries(byBill).forEach(([bid, arr]) => {
-              const latest = arr[0]
-              // Find the snapshot that was current when user last visited
-              const oldSnap = arr.find(s => s.snapshot_date <= lastViewedDate)
-
-              if (oldSnap && latest && latest.snapshot_date !== oldSnap.snapshot_date) {
-                const scoreDiff = (latest.score || 0) - (oldSnap.score || 0)
-                const stageChanged = latest.stage !== oldSnap.stage
-
-                if (scoreDiff !== 0 || stageChanged) {
-                  detected[bid] = {
-                    oldScore: oldSnap.score,
-                    newScore: latest.score,
-                    scoreDiff,
-                    oldStage: oldSnap.stage,
-                    newStage: latest.stage,
-                    stageChanged,
-                  }
+              if (scoreDiff !== 0 || stageChanged) {
+                detected[bid] = {
+                  oldScore: oldSnap.score,
+                  newScore: latest.score,
+                  scoreDiff,
+                  oldStage: oldSnap.stage,
+                  newStage: latest.stage,
+                  stageChanged,
                 }
               }
-            })
-            setChanges(detected)
-          }
+            }
+          })
+          setChanges(detected)
         }
       }
-
-      /* ── 4. Update last_viewed_at to NOW ── */
-      await supabase
-        .from('tracked_bills')
-        .update({ last_viewed_at: new Date().toISOString() })
-        .eq('user_id', user.id)
 
       setLoading(false)
     }
@@ -263,7 +263,7 @@ export default function WatchlistPage() {
               border: `1px solid ${atRiskOnly ? 'rgba(255,82,82,0.3)' : 'transparent'}`,
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
-            }}>\u26a0 At Risk</button>
+            }}>{'⚠'} At Risk</button>
           </div>
         )}
       </div>
@@ -300,7 +300,7 @@ export default function WatchlistPage() {
                   cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
                 }}
                 aria-label="Dismiss changes"
-              >\u00d7</button>
+              >{'×'}</button>
             </div>
 
             {changedBills.map(({ bill_id, bills: bill }) => {
@@ -330,7 +330,7 @@ export default function WatchlistPage() {
                         color: change.scoreDiff > 0 ? 'var(--teal)' : 'var(--danger)',
                         border: `1px solid ${change.scoreDiff > 0 ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
                       }}>
-                        Score {change.oldScore} \u2192 {change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
+                        Score {change.oldScore} {'→'}{change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
                       </span>
                     )}
                     {change.stageChanged && (
@@ -341,7 +341,7 @@ export default function WatchlistPage() {
                         color: change.newStage > change.oldStage ? 'var(--teal)' : 'var(--danger)',
                         border: `1px solid ${change.newStage > change.oldStage ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
                       }}>
-                        Stage {STAGE_SHORT[change.oldStage] || '?'} \u2192 {STAGE_SHORT[change.newStage] || '?'}
+                        Stage {STAGE_SHORT[change.oldStage] || '?'} {'→'}{STAGE_SHORT[change.newStage] || '?'}
                       </span>
                     )}
                   </div>
@@ -427,10 +427,10 @@ export default function WatchlistPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {bill.has_public_hearing && (
-                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>\u25cf HEARING</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>{'●'} HEARING</span>
                   )}
                   {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>\u2713 CMTE PASS</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{'✓'} CMTE PASS</span>
                   )}
                   {!bill.bipartisan && (
                     <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>Minority Only</span>

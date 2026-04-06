@@ -43,20 +43,10 @@ export default function HomePage() {
     []
   )
 
-  // Phase 6.6: Interim mode = 2025-26 session is past sine die (Mar 12, 2026)
-  // but before the 2027-28 session starts (Jan 13, 2027). Flips automatically.
-  const IS_INTERIM = useMemo(
-    () => SESSION === '2025-2026' && new Date() > new Date('2026-03-12'),
-    [SESSION]
-  )
-
   const [user, setUser]         = useState(null)
   const [watchlist, setWatchlist] = useState([])
   const [topBills, setTopBills]  = useState([])
   const [categories, setCategories] = useState([])
-  const [passedBills, setPassedBills] = useState([])           // Phase 6.6: "What Passed"
-  const [diedBills, setDiedBills]     = useState([])           // Phase 6.6: "What Died"
-  const [passedCatCounts, setPassedCatCounts] = useState([])   // Phase 6.6: category rollup
   const [scoreDeltas, setScoreDeltas] = useState({}) // bill_id -> delta number
   const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
   const [loading, setLoading]    = useState(true)
@@ -66,78 +56,54 @@ export default function HomePage() {
   const daysToSession   = daysUntil(NEXT_SESSION)
 
   async function loadData() {
+    // Phase 6.4 perf: Step 1 — auth check (required before tracked_bills)
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
 
-    const { data: bills } = await supabase
-      .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date')
-      .eq('session', SESSION)
-      .not('final_score', 'is', null)
-      .order('final_score', { ascending: false })
-      .limit(12)
-    setTopBills(bills || [])
-
-    // Phase 6.6 — Interim-mode panels: "What Passed" and "What Died".
-    // Only query when IS_INTERIM is true so active-session renders are unaffected.
-    if (IS_INTERIM) {
-      // What Passed — bills that actually became law this session
-      const { data: passed } = await supabase
+    // Phase 6.4 perf: Step 2 — fire all independent queries in parallel
+    const [billsResult, wlResult, catsResult, syncResult] = await Promise.all([
+      supabase
         .from('bills')
-        .select('bill_id, bill_number, title, chamber, category, final_score, prime_sponsor, prime_party')
+        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date')
         .eq('session', SESSION)
-        .eq('outcome_passed_law', true)
+        .not('final_score', 'is', null)
         .order('final_score', { ascending: false })
-        .limit(20)
-      setPassedBills(passed || [])
-
-      // Roll up category counts for the passed bills (for the summary row)
-      const counts = {}
-      ;(passed || []).forEach(b => {
-        const k = b.category || 'Other'
-        counts[k] = (counts[k] || 0) + 1
-      })
-      setPassedCatCounts(
-        Object.entries(counts)
-          .map(([category, count]) => ({ category, count }))
-          .sort((a, b) => b.count - a.count)
-      )
-
-      // What Died — high-momentum bills that didn't make it out. Likely 2027 reintroductions.
-      const { data: died } = await supabase
-        .from('bills')
-        .select('bill_id, bill_number, title, chamber, category, final_score, prime_sponsor, prime_party, stage')
-        .eq('session', SESSION)
-        .gte('final_score', 60)
-        .gte('stage', 2)
-        .or('outcome_passed_law.is.null,outcome_passed_law.eq.false')
-        .order('final_score', { ascending: false })
-        .limit(10)
-      setDiedBills(died || [])
-    }
-
-    if (user) {
-      const { data: wl } = await supabase
-        .from('tracked_bills')
-        .select(`bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing)`)
-        .eq('user_id', user.id)
-        .order('added_at', { ascending: false })
-      setWatchlist(wl?.filter(w => w.bills) || [])
-    }
-
-    try {
-      const { data: cats } = await supabase
+        .limit(12),
+      user
+        ? supabase
+            .from('tracked_bills')
+            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing)')
+            .eq('user_id', user.id)
+            .order('added_at', { ascending: false })
+        : Promise.resolve({ data: null }),
+      supabase
         .from('interim_intelligence')
         .select('*')
         .order('avg_score', { ascending: false })
-        .limit(8)
-      setCategories((cats || []).filter(c => c.category && c.category !== 'Other'))
-    } catch (_) {}
+        .limit(8),
+      supabase
+        .from('sync_log')
+        .select('ran_at')
+        .order('ran_at', { ascending: false })
+        .limit(1),
+    ])
 
-    // Fetch score deltas for top bills and watchlist bills
+    const bills = billsResult.data || []
+    setTopBills(bills)
+
+    const wl = (wlResult.data || []).filter(w => w.bills)
+    setWatchlist(wl)
+
+    setCategories((catsResult.data || []).filter(c => c.category && c.category !== 'Other'))
+
+    if (syncResult.data?.[0]) {
+      setLastSyncAt(new Date(syncResult.data[0].ran_at))
+    }
+
+    // Phase 6.4 perf: Step 3 — snapshots (depends on bill IDs from step 2)
     const allBillIds = [
-      ...(bills || []).map(b => b.bill_id),
-      ...(wl || []).filter(w => w.bills).map(w => w.bill_id),
+      ...bills.map(b => b.bill_id),
+      ...wl.map(w => w.bill_id),
     ]
     const uniqueIds = [...new Set(allBillIds)].slice(0, 30)
     if (uniqueIds.length > 0) {
@@ -161,18 +127,6 @@ export default function HomePage() {
         setScoreDeltas(deltas)
       }
     }
-
-    // Phase 5A: Check last sync time for stale data warning
-    try {
-      const { data: syncLog } = await supabase
-        .from('sync_log')
-        .select('ran_at')
-        .order('ran_at', { ascending: false })
-        .limit(1)
-      if (syncLog && syncLog.length > 0) {
-        setLastSyncAt(new Date(syncLog[0].ran_at))
-      }
-    } catch (_) {}
 
     setLoading(false)
   }
@@ -236,6 +190,7 @@ export default function HomePage() {
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
+                aria-label="Refresh data"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -246,6 +201,7 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => router.push('/settings')}
+                aria-label="Settings"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: 0.5 }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -345,15 +301,8 @@ export default function HomePage() {
           borderRadius: 'var(--radius)',
           padding: '14px 16px',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {IS_INTERIM ? 'Prefile Watch · 2027 Session' : '2027 Session Timeline'}
-            </div>
-            {IS_INTERIM && (
-              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--gold)', letterSpacing: '0.06em' }}>
-                INTERIM · {daysToPreFiling}d TO PREFILE
-              </span>
-            )}
+          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+            2027 Session Timeline
           </div>
           <div style={{ display: 'flex', gap: 0 }}>
             {[
@@ -492,86 +441,11 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── PHASE 6.6 · WHAT PASSED (interim mode only) ───── */}
-        {IS_INTERIM && passedBills.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                What Passed · {SESSION} Session
-              </div>
-              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--teal)', fontWeight: 600 }}>
-                {passedBills.length >= 20 ? '20+' : passedBills.length} signed into law
-              </span>
-            </div>
-
-            {/* Category rollup chips */}
-            {passedCatCounts.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                {passedCatCounts.slice(0, 8).map(({ category, count }) => (
-                  <span key={category} style={{
-                    fontSize: 10, padding: '3px 9px',
-                    background: 'rgba(0,229,204,0.08)',
-                    border: '1px solid rgba(0,229,204,0.25)',
-                    borderRadius: 10, color: 'var(--text-muted)',
-                    fontFamily: 'var(--font-mono)',
-                  }}>
-                    {category} <span style={{ color: 'var(--teal)', fontWeight: 600 }}>{count}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Top passed bills list (show top 5; rest hidden behind All bills) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {passedBills.slice(0, 5).map((bill, idx) => (
-                <div
-                  key={bill.bill_id}
-                  onClick={() => router.push(`/bill/${bill.bill_id}`)}
-                  style={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid rgba(0,229,204,0.2)',
-                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                    animation: `fadeUp 0.3s ease ${idx * 0.04}s both`,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--teal)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(0,229,204,0.08)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,229,204,0.2)'; e.currentTarget.style.boxShadow = 'none' }}
-                >
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(0,229,204,0.12)',
-                    border: '1px solid rgba(0,229,204,0.4)',
-                    flexShrink: 0,
-                  }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 2 }}>
-                      {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                      <span style={{ marginLeft: 6, color: 'var(--text-faint)' }}>· {bill.category || 'Other'}</span>
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                      {bill.title || `Bill ${bill.bill_number}`}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 3 }}>
-                      {bill.prime_sponsor || 'Unknown'}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── TOP TRAJECTORY BILLS ──────────────────────────── */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {IS_INTERIM ? `Final Session Scores · ${SESSION}` : `Top Trajectory · ${SESSION}`}
+              Top Trajectory · {SESSION}
             </div>
             <button onClick={() => router.push('/search')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
               All bills →
@@ -669,62 +543,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── PHASE 6.6 · WHAT DIED (interim mode only) ─────── */}
-        {IS_INTERIM && diedBills.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                What Died · Likely 2027 Reintroductions
-              </div>
-              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--gold)' }}>
-                High-momentum · stalled
-              </span>
-            </div>
-            <div style={{
-              fontSize: 11, color: 'var(--text-muted)',
-              marginBottom: 10, lineHeight: 1.5,
-            }}>
-              Bills that cleared committee but didn't reach the governor. Candidates to resurface when pre-filing opens {new Date(NEXT_PREFILING).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {diedBills.slice(0, 10).map((bill, idx) => (
-                <div
-                  key={bill.bill_id}
-                  onClick={() => router.push(`/bill/${bill.bill_id}`)}
-                  style={{
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '10px 14px',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
-                    transition: 'border-color 0.2s',
-                    animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(212,168,75,0.35)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                >
-                  <div style={{
-                    fontSize: 10, fontFamily: 'var(--font-mono)',
-                    color: 'var(--text-faint)', width: 16, flexShrink: 0,
-                  }}>{idx + 1}</div>
-                  <ScoreBadge score={bill.final_score} size="sm"/>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 2 }}>
-                      {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                      <span style={{ marginLeft: 6, color: 'var(--text-faint)' }}>· {bill.category || 'Other'}</span>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                      {bill.title || `Bill ${bill.bill_number}`}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                      {bill.prime_sponsor || 'Unknown'}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── CATEGORY INTELLIGENCE ─────────────────────────── */}
         {categories.length > 0 && (
           <div>
@@ -775,7 +593,7 @@ export default function HomePage() {
         {/* ── QUICK ACTIONS ─────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '3,111 scored' },
+            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '2,855 scored' },
             { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Interim' },
             { label: 'Member Lookup', icon: '👤', path: '/members', desc: 'WA Legislature' },
             { label: 'Watchlist', icon: '🔖', path: '/watchlist', desc: `${watchlist.length} tracked` },

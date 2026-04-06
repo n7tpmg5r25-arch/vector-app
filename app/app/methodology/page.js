@@ -1,4 +1,5 @@
-'use client'
+// Phase 6.4 perf: Server Component — no 'use client' needed.
+// Nav is already a client component and renders as a client island.
 import Nav from '../components/Nav'
 
 // Phase 6.7 — Methodology page. This is the "accuracy proof point" for
