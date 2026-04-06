@@ -13,6 +13,7 @@ export default function CommitteesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [committees, setCommittees] = useState([])
+  const [rulesQueue, setRulesQueue] = useState([])
   const [chamber, setChamber] = useState('All')
   const [sortBy, setSortBy] = useState('bills')
   const [expanded, setExpanded] = useState(null)  // committee key
@@ -33,12 +34,18 @@ export default function CommitteesPage() {
 
       if (!data) { setLoading(false); return }
 
+      // Separate Rules queue from policy committees
+      const RULES_NAMES = ['Rules 2 Review', 'Rules Committee for second reading', 'Rules']
+      const isRules = (name) => RULES_NAMES.some(r => (name || '').toLowerCase().includes(r.toLowerCase()))
+
       // Aggregate by committee+chamber
       const map = {}
+      const rulesMap = {}
       data.forEach(b => {
+        const target = isRules(b.committee_name) ? rulesMap : map
         const key = b.committee_name + '|' + b.chamber
-        if (!map[key]) {
-          map[key] = {
+        if (!target[key]) {
+          target[key] = {
             key,
             name: b.committee_name,
             chamber: b.chamber,
@@ -48,24 +55,26 @@ export default function CommitteesPage() {
             hearings: 0,
             highScore: 0,
             stalled: 0,
+            isRulesQueue: isRules(b.committee_name),
           }
         }
-        map[key].bills.push(b)
-        map[key].totalScore += (b.final_score || 0)
-        if (b.committee_passed) map[key].passed++
-        if (b.has_public_hearing) map[key].hearings++
-        if ((b.final_score || 0) >= 50) map[key].highScore++
-        if (b.stalled) map[key].stalled++
+        target[key].bills.push(b)
+        target[key].totalScore += (b.final_score || 0)
+        if (b.committee_passed) target[key].passed++
+        if (b.has_public_hearing) target[key].hearings++
+        if ((b.final_score || 0) >= 50) target[key].highScore++
+        if (b.stalled) target[key].stalled++
       })
 
-      const list = Object.values(map).map(c => ({
+      const toList = (m) => Object.values(m).map(c => ({
         ...c,
         billCount: c.bills.length,
         avgScore: Math.round(c.totalScore / c.bills.length),
         passRate: Math.round((c.passed / c.bills.length) * 100),
       }))
 
-      setCommittees(list)
+      setCommittees(toList(map))
+      setRulesQueue(toList(rulesMap))
       setLoading(false)
     }
     load()
@@ -88,16 +97,23 @@ export default function CommitteesPage() {
   const totalPassed = filtered.reduce((s, c) => s + c.passed, 0)
   const overallAvg = totalBills > 0 ? Math.round(filtered.reduce((s, c) => s + c.totalScore, 0) / totalBills) : 0
 
+  // Combine both lists for expand lookup
+  const allCommittees = [...committees, ...rulesQueue]
+
   function handleExpand(key) {
     if (expanded === key) {
       setExpanded(null)
       setExpandedBills([])
     } else {
       setExpanded(key)
-      const cmte = committees.find(c => c.key === key)
+      const cmte = allCommittees.find(c => c.key === key)
       setExpandedBills(cmte ? cmte.bills.slice(0, 20) : [])
     }
   }
+
+  // Filtered rules queue
+  const filteredRules = chamber === 'All' ? rulesQueue : rulesQueue.filter(c => c.chamber === chamber)
+  const rulesTotal = filteredRules.reduce((s, c) => s + c.billCount, 0)
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
@@ -315,6 +331,150 @@ export default function CommitteesPage() {
           )
         })}
       </div>
+
+      {/* RULES QUEUE — separated from policy committees */}
+      {!loading && filteredRules.length > 0 && (
+        <div style={{ padding: '4px 16px 12px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8,
+            padding: '10px 0', borderTop: '1px solid var(--border)',
+          }}>
+            <span style={{
+              fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600,
+              color: 'var(--gold)', letterSpacing: '-0.01em',
+            }}>
+              Floor Queue
+            </span>
+            <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+              {rulesTotal} bills awaiting floor vote
+            </span>
+          </div>
+          <div style={{
+            fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10,
+            padding: '8px 12px', background: 'rgba(212,168,75,0.04)', borderRadius: 8,
+            border: '1px solid rgba(212,168,75,0.12)',
+          }}>
+            These bills passed their policy committee and are queued in Rules for a floor vote. Being in the queue does not guarantee a floor vote — many bills die here when the session clock runs out.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {filteredRules.map((cmte, idx) => {
+              const isExpanded = expanded === cmte.key
+              const scoreColor = cmte.avgScore >= 50 ? 'var(--teal)' : cmte.avgScore >= 35 ? 'var(--gold)' : 'var(--text-muted)'
+
+              return (
+                <div key={cmte.key}>
+                  <div
+                    onClick={() => handleExpand(cmte.key)}
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid ' + (isExpanded ? 'rgba(212,168,75,0.3)' : 'var(--border)'),
+                      borderRadius: isExpanded ? 'var(--radius) var(--radius) 0 0' : 'var(--radius)',
+                      padding: '14px',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.2s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <ScoreBadge score={cmte.avgScore} size="sm" />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {cmte.name}
+                          </span>
+                          <span style={{
+                            fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 500,
+                            background: 'rgba(212,168,75,0.08)', color: 'var(--gold)',
+                            border: '1px solid rgba(212,168,75,0.25)',
+                          }}>Queue</span>
+                          <span style={{
+                            fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 500,
+                            background: cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.08)' : 'rgba(212,168,75,0.08)',
+                            color: cmte.chamber === 'Senate' ? 'var(--teal)' : 'var(--gold)',
+                            border: '1px solid ' + (cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.25)' : 'rgba(212,168,75,0.25)'),
+                          }}>{cmte.chamber}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                            {cmte.billCount} bills
+                          </span>
+                          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: scoreColor }}>
+                            avg {cmte.avgScore}
+                          </span>
+                          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--teal)' }}>
+                            {cmte.highScore} high
+                          </span>
+                        </div>
+                      </div>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{
+                      background: 'rgba(8,12,20,0.6)',
+                      border: '1px solid rgba(212,168,75,0.3)',
+                      borderTop: 'none',
+                      borderRadius: '0 0 var(--radius) var(--radius)',
+                      padding: '8px 10px',
+                      display: 'flex', flexDirection: 'column', gap: 4,
+                    }}>
+                      {expandedBills.map(bill => (
+                        <div
+                          key={bill.bill_id}
+                          onClick={() => router.push('/bill/' + bill.bill_id)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(212,168,75,0.04)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <ScoreBadge score={bill.final_score} size="sm" />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                              </span>
+                              <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                                {STAGE_SHORT[bill.stage] || 'Intro'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {bill.title || 'Bill ' + bill.bill_number}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                              {bill.prime_sponsor && (
+                                <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                                  {bill.prime_sponsor}{bill.prime_party ? ' (' + bill.prime_party.charAt(0) + ')' : ''}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {cmte.billCount > 20 && (
+                        <div style={{
+                          textAlign: 'center', padding: '8px',
+                          fontSize: 11, color: 'var(--gold)', cursor: 'pointer',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                        onClick={(e) => { e.stopPropagation(); setExpandedBills(cmte.bills) }}>
+                          Show all {cmte.billCount} bills
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <Nav />
     </div>

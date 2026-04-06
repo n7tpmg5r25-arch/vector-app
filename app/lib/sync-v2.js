@@ -80,17 +80,18 @@ async function loadCalibratedWeights() {
 }
 
 function getHardcodedWeights() {
-  // Calibrated against actual 2025-26 session outcomes (April 2, 2026)
+  // Recalibrated against FINAL 2025-26 session outcomes (April 5, 2026)
+  // law_rate = became-law / total-in-bucket; cmte_rate = passed-committee / total
   return {
     category_rates: {
-      "Transportation": 0.090, "Technology": 0.068, "Agriculture": 0.063,
-      "Health": 0.054, "Employment / Labor": 0.051, "Other": 0.045,
-      "Housing": 0.042, "Environment": 0.041, "Business / Commerce": 0.034,
-      "Criminal Justice": 0.026, "Education": 0.025, "Budget / Appropriations": 0.000,
+      "Technology": 0.060, "Employment / Labor": 0.048, "Environment": 0.046,
+      "Budget / Appropriations": 0.034, "Health": 0.032, "Transportation": 0.025,
+      "Business / Commerce": 0.024, "Housing": 0.024, "Other": 0.019,
+      "Education": 0.017, "Criminal Justice": 0.010, "Agriculture": 0.000,
     },
     bucket_pass_rates: {
-      "0-30": 0.000, "30-45": 0.000, "45-60": 0.008,
-      "60-75": 0.051, "75-100": 0.293,
+      "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
+      "60-75": 0.015, "75-100": 0.362,
     },
   };
 }
@@ -161,41 +162,6 @@ async function getSponsors(billId) {
     if (!items) return [];
     return Array.isArray(items) ? items : [items];
   } catch(e) { return []; }
-}
-
-// Phase 6.11 — Party enrichment. The per-bill LegislationService/GetSponsors
-// response does NOT include a Party field, which is why prime_party, bipartisan,
-// majority_sponsor, and sponsor_tier were all degraded after Phase 5C.
-// SponsorService.asmx/GetSponsors returns the full biennium-wide legislator
-// roster and DOES include Party. We call it once at the top of runSync() and
-// build an in-memory Map<sponsorId, 'D'|'R'|''> that we pass into every
-// extractSponsors() call to enrich the per-bill sponsors before primary
-// detection and downstream logic runs.
-// Graceful degradation: if this call fails, the sync still succeeds — party
-// just stays empty (no worse than pre-6.11 state).
-async function fetchBienniumSponsorParties() {
-  try {
-    const data = await fetchXML('SponsorService.asmx', 'GetSponsors', { biennium: BIENNIUM });
-    const items = data?.ArrayOfMember?.Member
-               ?? data?.ArrayOfSponsor?.Sponsor
-               ?? data?.ArrayOfLegislator?.Legislator;
-    if (!items) return new Map();
-    const arr = Array.isArray(items) ? items : [items];
-    const map = new Map();
-    for (const m of arr) {
-      const id = m.Id || m.MemberId || m.SponsorId;
-      // WA API returns Party as 'D' or 'R' (or sometimes full name — normalize)
-      let party = (m.Party || '').trim();
-      if (party.toLowerCase().startsWith('d')) party = 'D';
-      else if (party.toLowerCase().startsWith('r')) party = 'R';
-      else party = '';
-      if (id) map.set(String(id), party);
-    }
-    return map;
-  } catch(e) {
-    console.warn(`  [party-map] fetch failed: ${e.message} — continuing without party enrichment`);
-    return new Map();
-  }
 }
 
 async function getHearings(billNumber) {
@@ -398,31 +364,16 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
 }
 
 // ── SPONSOR EXTRACTION ────────────────────────────────────────────────────────
-function extractSponsors(sponsors, partyMap) {
+function extractSponsors(sponsors) {
   if (!sponsors || sponsors.length === 0) return {
     prime_sponsor: 'Unknown', prime_party: '', majority_sponsor: false,
     bipartisan: false, cosponsor_count: 0, sponsor_tier: 4, is_committee_chair: false,
   };
-
-  // Phase 6.11 — Enrich each sponsor's Party from the biennium-wide roster map
-  // BEFORE primary detection runs. The per-bill GetSponsors response doesn't
-  // include Party, so without this enrichment everything downstream (primary
-  // party, bipartisan flag, majority_sponsor, sponsor_tier) is degraded.
-  if (partyMap && partyMap.size > 0) {
-    for (const s of sponsors) {
-      if (!s.Party || s.Party === '') {
-        const id = s.Id || s.SponsorId || s.MemberId;
-        if (id) {
-          const p = partyMap.get(String(id));
-          if (p) s.Party = p;
-        }
-      }
-    }
-  }
-
   // Phase 5C.3 fix: Primary/Secondary (not Prime), Order is 0-indexed (not '1'-based)
   const prime = sponsors.find(s => s.Type === 'Primary' || s.Order === '0') || sponsors[0];
   const rest = sponsors.filter(s => s !== prime);
+  // Note: GetSponsors response does NOT include a Party field. Party enrichment
+  // via SponsorService.asmx/GetSponsors (biennium-wide roster) is a follow-up.
   const party = prime.Party || '';
   const fullName = `${prime.FirstName||''} ${prime.LastName||''}`.trim()
                    || prime.Name
@@ -532,18 +483,17 @@ function scoreBill(bill, categoryRates) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — calibrated against actual 2025-26 session outcomes
+  // CONFIDENCE — recalibrated against FINAL 2025-26 outcomes (April 5, 2026)
+  // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
   let pass_prob, conf_label, conf_low, conf_high;
 
   if (bill.stalled || bill.held_in_rules) {
-    pass_prob = 0.01; conf_label = 'VERY LOW'; conf_low = 0.00; conf_high = 0.03;
+    pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    pass_prob = 0.293; conf_label = 'HIGH'; conf_low = 0.220; conf_high = 0.370;
+    pass_prob = 0.362; conf_label = 'HIGH'; conf_low = 0.280; conf_high = 0.450;
   } else if (final_score >= 60) {
-    pass_prob = 0.051; conf_label = 'MODERATE'; conf_low = 0.030; conf_high = 0.075;
+    pass_prob = 0.015; conf_label = 'LOW'; conf_low = 0.005; conf_high = 0.035;
   } else if (final_score >= 45) {
-    pass_prob = 0.008; conf_label = 'LOW'; conf_low = 0.002; conf_high = 0.020;
-  } else if (final_score >= 30) {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
   } else {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
@@ -557,7 +507,7 @@ function scoreBill(bill, categoryRates) {
 }
 
 // ── PROCESS SINGLE BILL ───────────────────────────────────────────────────────
-async function processBill(raw, categoryRates, state, partyMap) {
+async function processBill(raw, categoryRates, state) {
   const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
   if (!billNum) return null;
 
@@ -594,7 +544,7 @@ async function processBill(raw, categoryRates, state, partyMap) {
   ]);
 
   const features = extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation);
-  const sponsorData = extractSponsors(sponsors, partyMap);
+  const sponsorData = extractSponsors(sponsors);
 
   // Extract companion bill from full legislation data
   let companionBill = null;
@@ -684,6 +634,25 @@ async function processBill(raw, categoryRates, state, partyMap) {
   billRecord.confidence_low = scores.conf_low;
   billRecord.confidence_high = scores.conf_high;
 
+  // Outcome label — human-readable final status
+  const cmteName = (billRecord.committee_name || '').toLowerCase();
+  const isRulesQueue = cmteName.includes('rules');
+  if (billRecord.stage >= 6) {
+    billRecord.outcome_label = 'Signed into Law';
+  } else if (billRecord.stage >= 5) {
+    billRecord.outcome_label = 'Passed Both Chambers';
+  } else if (billRecord.stage >= 4) {
+    billRecord.outcome_label = 'Passed Chamber of Origin';
+  } else if (billRecord.stage >= 3 && isRulesQueue) {
+    billRecord.outcome_label = 'Died in Rules';
+  } else if (billRecord.stage >= 3) {
+    billRecord.outcome_label = 'Passed Committee';
+  } else if (billRecord.stage >= 2) {
+    billRecord.outcome_label = 'Had Hearing';
+  } else {
+    billRecord.outcome_label = 'Died in Committee';
+  }
+
   return { billRecord, scores };
 }
 
@@ -699,12 +668,6 @@ async function runSync() {
 
   const calibration = await loadCalibratedWeights();
   const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
-
-  // Phase 6.11 — Load biennium-wide sponsor roster once, build ID->party map,
-  // and pass it through to every processBill() call so extractSponsors() can
-  // enrich sponsors before primary detection + downstream bipartisan/tier logic.
-  const partyMap = await fetchBienniumSponsorParties();
-  console.log(`  Loaded party map: ${partyMap.size} sponsors`);
 
   let allBills;
   try {
@@ -734,7 +697,7 @@ async function runSync() {
 
     await Promise.all(batch.map(async raw => {
       try {
-        const result = await processBill(raw, categoryRates, state, partyMap);
+        const result = await processBill(raw, categoryRates, state);
         if (!result) return;
         const { billRecord, scores } = result;
 
@@ -784,7 +747,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.3 Phase 6.11 — party enrichment via biennium roster`,
+    notes: `sync-v2.2 Phase 5A — retry/timeout/committee/action`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
