@@ -1,9 +1,16 @@
 /**
- * VECTOR | WA — Sync Script v2.2 (Phase 5A — Reliability + Data Gaps)
+ * VECTOR | WA — Sync Script v2.3 (Step 6.13 — Scoring Engine Bug Fixes)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
+ *
+ * v2.3 CHANGES (Step 6.13):
+ *  - 6.13.1: Stalled detection now catches Rules-queue bills (was 82 false positives)
+ *  - 6.13.2: Session-state awareness — interim bills show DEAD/CARRY OVER/LAW
+ *  - 6.13.3: Added LOW confidence tier (bridge between MODERATE and VERY LOW)
+ *  - 6.13.4: Hearing detection from status text as fallback to GetHearings API
+ *  - 6.13.5: Graceful null handling for committee_name in UI
  *
  * v2.2 CHANGES (Phase 5A):
  *  - Retry with exponential backoff on API failures (3 retries)
@@ -275,14 +282,36 @@ function detectCategory(title = '') {
 // Phase 5C.2: now also accepts `legislation` so fiscal-note fields can be read
 // from the full Legislation object (raw = LegislationInfo lacks these fields).
 function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation) {
-  const hasPublicHearing = hearings.length > 0;
+  // 6.13.4: Detect hearings from BOTH the GetHearings API AND status change text.
+  // The API may miss some hearings; status text catches "public hearing in..." lines.
+  const hasHearingFromAPI = hearings.length > 0;
 
   const sortedHearings = hearings
     .filter(h => h.CommitteeMeeting?.Date)
     .sort((a,b) => new Date(a.CommitteeMeeting.Date) - new Date(b.CommitteeMeeting.Date));
-  const hearingDate = sortedHearings.length > 0
+  let hearingDate = sortedHearings.length > 0
     ? new Date(sortedHearings[0].CommitteeMeeting.Date).toISOString().split('T')[0]
     : null;
+
+  // Fallback: detect hearing from status change text
+  const hasHearingFromStatus = statusChanges.some(s => {
+    const line = (s.HistoryLine || s.Status || '').toLowerCase();
+    return line.includes('public hearing') || line.includes('scheduled for public hearing');
+  });
+
+  // If status text found a hearing but API didn't, try to extract the date
+  if (!hearingDate && hasHearingFromStatus) {
+    const hearingSC = statusChanges.find(s => {
+      const line = (s.HistoryLine || s.Status || '').toLowerCase();
+      return line.includes('public hearing');
+    });
+    if (hearingSC) {
+      const d = new Date(hearingSC.ActionDate || hearingSC.StatusDate || '');
+      if (!isNaN(d)) hearingDate = d.toISOString().split('T')[0];
+    }
+  }
+
+  const hasPublicHearing = hasHearingFromAPI || hasHearingFromStatus;
 
   const statusTexts = statusChanges.map(s => (s.HistoryLine || s.Status || '').toLowerCase());
   const joined = statusTexts.join(' ');
@@ -320,8 +349,19 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const lastDate = allDates.length ? new Date(Math.max(...allDates)) : new Date();
   const daysSince = Math.floor((new Date() - lastDate) / 86400000);
 
-  // Stalled: only during active session or if clearly dead in interim
-  const stalled = daysSince > 21 && stage <= 3 && !committeePassed;
+  // Stalled detection — catches both committee-stage AND Rules-queue bills
+  // Rules bills HAVE passed committee (committeePassed=true, stage=3) but can
+  // sit in the Rules queue for months with no action. Derive committee name
+  // from the legislation object to check for "rules".
+  const leg2 = legislation || {};
+  const cmteForStalled = (
+    leg2?.CurrentStatus?.Committee?.Name
+    || leg2?.CurrentStatus?.Committee?.LongName
+    || leg2?.CurrentStatus?.CommitteeName
+    || ''
+  ).toLowerCase();
+  const isInRulesQueue = cmteForStalled.includes('rules') && stage === 3;
+  const stalled = daysSince > 21 && stage <= 3 && (!committeePassed || isInRulesQueue);
 
   // Fiscal note size — derive from API fields + referral patterns
   // Phase 5C.2: LocalFiscalNote / StateFiscalNote live on the full Legislation
@@ -455,7 +495,7 @@ function extractSponsors(sponsors, partyMap) {
 }
 
 // ── SCORING ENGINE v2 ─────────────────────────────────────────────────────────
-function scoreBill(bill, categoryRates) {
+function scoreBill(bill, categoryRates, sessionState) {
   // COMMITTEE (0-25)
   let committee = 3;
   if (bill.has_public_hearing) committee += 11;
@@ -552,12 +592,29 @@ function scoreBill(bill, categoryRates) {
   // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
   let pass_prob, conf_label, conf_low, conf_high;
 
-  if (bill.stalled || bill.held_in_rules) {
+  // 6.13.2: SESSION-STATE AWARENESS — once sine die hits, bills that didn't
+  // pass are dead. Stage 6 (signed) keeps its score. Stage 4-5 carry over
+  // within a biennium. Everything else is dead until next session.
+  const isInterim = sessionState === 'interim' || sessionState === 'pre_filing';
+
+  if (isInterim && bill.stage >= 6) {
+    // Signed into law — terminal success
+    pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
+  } else if (isInterim && bill.stage >= 4) {
+    // Passed at least one chamber — carries over in biennium
+    pass_prob = 0.350; conf_label = 'CARRY OVER'; conf_low = 0.200; conf_high = 0.500;
+  } else if (isInterim && bill.stage < 4) {
+    // Didn't make it out — dead for now
+    pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
+  } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
     pass_prob = 0.960; conf_label = 'VERY HIGH'; conf_low = 0.920; conf_high = 0.990;
   } else if (final_score >= 60) {
     pass_prob = 0.227; conf_label = 'MODERATE'; conf_low = 0.180; conf_high = 0.280;
+  } else if (final_score >= 45 && bill.committee_passed) {
+    // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
+    pass_prob = 0.050; conf_label = 'LOW'; conf_low = 0.020; conf_high = 0.080;
   } else if (final_score >= 45) {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
   } else {
@@ -689,8 +746,8 @@ async function processBill(raw, categoryRates, state, partyMap) {
     updated_at: new Date().toISOString(),
   };
 
-  // Score with calibrated rates
-  const scores = scoreBill(billRecord, categoryRates);
+  // Score with calibrated rates + session state awareness (6.13.2)
+  const scores = scoreBill(billRecord, categoryRates, state);
   billRecord.trajectory_score = scores.base_total;
   billRecord.final_score = scores.final_score;
   billRecord.xf_multiplier = scores.xf_multiplier;

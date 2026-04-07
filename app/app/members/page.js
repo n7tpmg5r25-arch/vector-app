@@ -196,7 +196,7 @@ export default function MembersPage() {
                   {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                  {bill.committee_name || '—'}
+                  {bill.committee_name || 'No committee assigned'}
                   {bill.committee_passed && <span style={{ marginLeft: 8, color: 'var(--teal)', fontWeight: 600 }}>✓ Pass</span>}
                   {bill.has_public_hearing && <span style={{ marginLeft: 8, color: 'var(--teal-mid)' }}>● Hearing</span>}
                 </div>

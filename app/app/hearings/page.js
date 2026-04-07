@@ -246,7 +246,7 @@ export default function HearingsPage() {
                       </span>
                     )}
                     <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                      {bill.committee_name || '—'}
+                      {bill.committee_name || 'No committee assigned'}
                     </span>
                   </div>
                 </div>

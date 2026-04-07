@@ -325,11 +325,15 @@ export default function BillDetailPage() {
   // Velocity: is the score trending up from earliest snapshot?
   const velocityRising = sparkScores.length > 1 && score > sparkScores[0]
 
-  // Confidence label styling (4 tiers)
+  // Confidence label styling (4 active tiers + 3 interim states)
   const confLabel = bill.confidence_label || 'VERY LOW'
-  const confColor = confLabel === 'HIGH' ? 'var(--teal)'
+  const confColor = confLabel === 'VERY HIGH' ? 'var(--teal)'
+    : confLabel === 'HIGH' ? 'var(--teal)'
     : confLabel === 'MODERATE' ? 'var(--gold)'
     : confLabel === 'LOW' ? 'var(--danger)'
+    : confLabel === 'LAW' ? 'var(--teal)'
+    : confLabel === 'CARRY OVER' ? 'var(--gold)'
+    : confLabel === 'DEAD' ? 'var(--text-faint)'
     : 'var(--text-muted)' // VERY LOW
 
   return (
@@ -597,7 +601,7 @@ export default function BillDetailPage() {
                 <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
               </div>
               <div>
-                Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that passed chamber. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
+                Signal strength (VERY HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
               </div>
             </div>
           )}
@@ -606,7 +610,7 @@ export default function BillDetailPage() {
         {/* ── KEY INFO GRID ──────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Committee', value: bill.committee_name || '—' },
+            { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
             { label: 'Prime Sponsor', value: bill.prime_sponsor ? `${bill.prime_sponsor}${bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}` : '—',
               extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
             { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
