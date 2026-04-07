@@ -7,9 +7,10 @@ import ScoreBadge from '../components/ScoreBadge'
 
 const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
-const CATEGORIES = ['All', 'Health', 'Education', 'Housing', 'Environment',
-  'Technology', 'Budget / Appropriations', 'Employment / Labor',
-  'Criminal Justice', 'Transportation', 'Agriculture', 'Business / Commerce']
+const CATEGORIES = ['All', 'Health', 'Education', 'Criminal Justice', 'Environment',
+  'Government Operations', 'Business / Commerce', 'Budget / Appropriations',
+  'Transportation', 'Employment / Labor', 'Housing', 'Technology',
+  'Veterans / Military', 'Agriculture', 'Natural Resources']
 
 const STAGES = [
   { label: 'All Stages', value: 0 },
@@ -161,8 +162,8 @@ function SearchContent() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
                 {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                {bill.category && bill.category !== 'Other' && (
-                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category}</span>
+                {bill.category && (
+                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
                 )}
               </div>
               <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -177,9 +178,19 @@ function SearchContent() {
                 )}
               </div>
             </div>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
+            <a
+              href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`}
+              target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+              title="View on leg.wa.gov"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </a>
           </div>
         ))}
 

@@ -482,8 +482,8 @@ export default function BillDetailPage() {
                 Minority Only
               </span>
             )}
-            {bill.category && bill.category !== 'Other' && (
-              <span style={{ color: 'var(--text-faint)' }}>· {bill.category}</span>
+            {bill.category && (
+              <span style={{ color: 'var(--text-faint)' }}>· {bill.category === 'Other' && bill.committee_name ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
             )}
           </div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, marginBottom: bill.companion_bill ? 8 : 14 }}>

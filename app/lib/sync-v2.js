@@ -1,9 +1,16 @@
 /**
- * VECTOR | WA — Sync Script v2.3 (Step 6.13 — Scoring Engine Bug Fixes)
+ * VECTOR | WA — Sync Script v2.4 (Step 6.14 — Category Classification)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
+ *
+ * v2.4 CHANGES (Step 6.14):
+ *  - 6.14.1: Expanded detectCategory() from 11 to 14 categories, ~160 keywords
+ *            Added: Government Operations, Natural Resources, Veterans / Military
+ *            "Other" drops from 50% to ~30%
+ *  - 6.14.2: Remaining "Other" bills get committee-based sub-label in UI
+ *  - 6.14.3: Recalculated category_rates from reclassified data
  *
  * v2.3 CHANGES (Step 6.13):
  *  - 6.13.1: Stalled detection now catches Rules-queue bills (was 82 false positives)
@@ -87,14 +94,15 @@ async function loadCalibratedWeights() {
 }
 
 function getHardcodedWeights() {
-  // Recalibrated against FULL 2025-26 biennium (April 6, 2026 — 3,411 bills)
-  // law_rate = became-law / total-in-bucket; cmte_rate = passed-committee / total
+  // Recalibrated after Step 6.14 category expansion (April 7, 2026 — 3,411 bills, 14 categories)
+  // law_rate = became-law / total-in-bucket
   return {
     category_rates: {
-      "Agriculture": 0.108, "Employment / Labor": 0.096, "Environment": 0.082,
-      "Technology": 0.071, "Health": 0.070, "Transportation": 0.064,
-      "Other": 0.056, "Business / Commerce": 0.053, "Budget / Appropriations": 0.048,
-      "Education": 0.043, "Housing": 0.042, "Criminal Justice": 0.027,
+      "Natural Resources": 0.195, "Government Operations": 0.098, "Agriculture": 0.098,
+      "Employment / Labor": 0.096, "Transportation": 0.092, "Veterans / Military": 0.070,
+      "Business / Commerce": 0.068, "Health": 0.062, "Environment": 0.054,
+      "Housing": 0.052, "Budget / Appropriations": 0.046, "Other": 0.045,
+      "Criminal Justice": 0.044, "Technology": 0.036, "Education": 0.034,
     },
     bucket_pass_rates: {
       "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
@@ -257,20 +265,26 @@ function getDaysToCutoff(stage) {
 }
 
 // ── CATEGORY DETECTION ────────────────────────────────────────────────────────
+// v2.4 (Step 6.14): Expanded from 11 to 14 categories, ~160 keywords.
+// Goal: drop "Other" from 50% to <30%. Order matters — first match wins.
+// More-specific categories listed before broader ones to avoid false positives.
 function detectCategory(title = '') {
   const t = title.toLowerCase();
   const CATS = {
-    'Health': ['health','medical','hospital','medicaid','medicare','mental health','substance','disease','pharmacy'],
-    'Education': ['school','education','student','teacher','university','college','curriculum'],
-    'Housing': ['housing','tenant','landlord','rent','zoning','eviction','homeless'],
-    'Environment': ['environment','climate','carbon','emission','pollution','water quality','salmon','forest'],
-    'Technology': ['technology','data','privacy','cybersecurity','artificial intelligence','digital'],
-    'Budget / Appropriations': ['appropriat','budget','fund','fiscal','revenue','tax credit'],
-    'Employment / Labor': ['employee','employer','wage','labor','worker','employment','unemployment','workplace'],
-    'Criminal Justice': ['criminal','police','law enforcement','felony','misdemeanor','sentencing','jail','prison','offense'],
-    'Transportation': ['transport','highway','road','transit','vehicle','ferry','traffic'],
-    'Agriculture': ['agricultur','farm','crop','livestock','irrigation','pesticide'],
-    'Business / Commerce': ['business','commerce','corporation','license','contract','trade','insurance'],
+    'Veterans / Military':  ['veteran','military','armed forces','national guard','service member','medal of honor','purple heart'],
+    'Natural Resources':    ['water right','timber','mining','mineral','fishery','fisheries','wildlife manag','hatchery','shellfish','aquatic','irrigation','reclamation','wildland'],
+    'Health':               ['health','medical','hospital','medicaid','medicare','mental health','substance','disease','pharmacy','abortion','reproductive','prescri','prosthetic','hiv','dental','opioid','fentanyl','behavioral health','therapy','therapist','nursing home','assisted living','long-term care','aging','elder','senior','dementia','developmental disabilit','intellectual disabilit','autism'],
+    'Education':            ['school','education','student','teacher','university','college','curriculum','child care','childcare','early childhood','preschool','ninth grade','postsecondary','k-12','tuition','financial aid','scholarship','literacy','special education'],
+    'Criminal Justice':     ['criminal','police','law enforcement','felony','misdemeanor','sentencing','jail','prison','offense','court','judge','judicial','attorney','public defense','public safety','victim','domestic violence','sex offend','trafficking','assault','robbery','theft','fraud','corrections','parole','probation','restitution','firearm','gun','weapon','ammunition','body cam','community safety'],
+    'Housing':              ['housing','tenant','landlord','rent ','zoning','eviction','homeless','dwelling','accessory dwelling','building code','condominium','condo','mortgage','affordable housing','residential develop','shelter','mobile home','manufactured home'],
+    'Environment':          ['environment','climate','carbon','emission','pollution','water quality','salmon','forest','energy','electric','nuclear','solar','wind power','renewable','wildfire','clean air','clean fuel','recycling','composting','waste','hazardous','toxic','superfund','shoreline','wetland','endangered species'],
+    'Government Operations':['election','voter','ballot','campaign','redistrict','public record','disclosure','transparency','open meeting','public facilities','state agenc','county','municipal','local govern','city council','commission on','public employ','civil service','notary','lobbyist','ethics in public','initiative','referendum','tribal','native american','indian tribe'],
+    'Technology':           ['technology','data','privacy','cybersecurity','artificial intelligence','digital','broadband','internet','telecom','blockchain','autonomous vehicle','drone','surveillance'],
+    'Budget / Appropriations':['appropriat','budget','general fund','fiscal','revenue','tax credit','sales tax','property tax','excise tax','B&O tax','income tax','capital gains','estate tax','levy','assessment','exemption','tax incentive','tax preference','tax reform','tax relief','tax exempt','reducing','state propert'],
+    'Employment / Labor':   ['employee','employer','wage','labor','worker','employment','unemployment','workplace','pension','retirement','paid leave','family leave','paid family','collective bargain','workforce','apprentice','occupational','prevailing wage','compensation'],
+    'Transportation':       ['transport','highway','road','transit','vehicle','ferry','traffic','rail ','railroad','aviation','airport','bicycle','pedestrian','speed limit','driver','trucking','freight','port ','maritime'],
+    'Agriculture':          ['agricultur','farm','crop','livestock','irrigation','pesticide','animal','veterinar','poultry','dairy','organic','food safety','food processing','hemp'],
+    'Business / Commerce':  ['business','commerce','corporation','license','contract','trade','insurance','consumer','debt','credit','loan ','pawnbroker','antitrust','cannabis','marijuana','liquor','alcohol','real estate','gaming','gambling','lottery','regulation of','small business','retail','wholesale','franchise'],
   };
   for (const [cat, keywords] of Object.entries(CATS)) {
     if (keywords.some(kw => t.includes(kw))) return cat;
