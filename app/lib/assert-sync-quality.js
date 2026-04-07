@@ -35,8 +35,8 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ── Thresholds ───────────────────────────────────────────────────────────────
-const EXPECTED_BILL_COUNT = 5500;          // full biennium (2025+2026); was 2855 when only fetching 2026
-const BILL_COUNT_TOLERANCE = 0.20;         // ±20% — wider tolerance to handle full-biennium first run
+const EXPECTED_BILL_COUNT = 3400;          // full biennium (2025+2026); was 2855 when only fetching 2026
+const BILL_COUNT_TOLERANCE = 0.15;         // ±15% — allows 2,890..3,910
 const MIN_TITLE_PCT = 0.99;                // 99% must have titles
 const MIN_SPONSOR_PCT = 0.99;              // 99% must have real prime_sponsor (not "Unknown")
 const MIN_PARTY_PCT = 0.95;                // 95% must have prime_party in (D,R)

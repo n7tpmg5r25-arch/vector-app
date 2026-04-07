@@ -80,21 +80,18 @@ async function loadCalibratedWeights() {
 }
 
 function getHardcodedWeights() {
-  // Recalibrated against FINAL 2025-26 session outcomes (April 5, 2026)
-  // NOTE: These rates were calibrated against 2026-only data (~2,855 bills).
-  // After the first full-biennium sync (2025+2026, ~5,000+ bills),
-  // re-run calibration queries to update these values.
+  // Recalibrated against FULL 2025-26 biennium (April 6, 2026 — 3,411 bills)
   // law_rate = became-law / total-in-bucket; cmte_rate = passed-committee / total
   return {
     category_rates: {
-      "Technology": 0.060, "Employment / Labor": 0.048, "Environment": 0.046,
-      "Budget / Appropriations": 0.034, "Health": 0.032, "Transportation": 0.025,
-      "Business / Commerce": 0.024, "Housing": 0.024, "Other": 0.019,
-      "Education": 0.017, "Criminal Justice": 0.010, "Agriculture": 0.000,
+      "Agriculture": 0.108, "Employment / Labor": 0.096, "Environment": 0.082,
+      "Technology": 0.071, "Health": 0.070, "Transportation": 0.064,
+      "Other": 0.056, "Business / Commerce": 0.053, "Budget / Appropriations": 0.048,
+      "Education": 0.043, "Housing": 0.042, "Criminal Justice": 0.027,
     },
     bucket_pass_rates: {
       "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
-      "60-75": 0.015, "75-100": 0.362,
+      "60-75": 0.227, "75-100": 0.960,
     },
   };
 }
@@ -551,16 +548,16 @@ function scoreBill(bill, categoryRates) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — recalibrated against FINAL 2025-26 outcomes (April 5, 2026)
+  // CONFIDENCE — recalibrated against FULL 2025-26 biennium (April 6, 2026 — 3,411 bills)
   // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
   let pass_prob, conf_label, conf_low, conf_high;
 
   if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    pass_prob = 0.362; conf_label = 'HIGH'; conf_low = 0.280; conf_high = 0.450;
+    pass_prob = 0.960; conf_label = 'VERY HIGH'; conf_low = 0.920; conf_high = 0.990;
   } else if (final_score >= 60) {
-    pass_prob = 0.015; conf_label = 'LOW'; conf_low = 0.005; conf_high = 0.035;
+    pass_prob = 0.227; conf_label = 'MODERATE'; conf_low = 0.180; conf_high = 0.280;
   } else if (final_score >= 45) {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
   } else {
