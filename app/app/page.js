@@ -2,17 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../lib/supabase'
+import { getCurrentSession, getNextBiennium, daysUntil } from '../lib/session-config'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
-
-// Key dates for 2027 session
-const NEXT_PREFILING = '2026-12-01'
-const NEXT_SESSION   = '2027-01-13'
-
-function daysUntil(dateStr) {
-  const diff = new Date(dateStr) - new Date()
-  return Math.max(0, Math.ceil(diff / 86400000))
-}
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -36,12 +28,9 @@ export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
 
-  // Phase 5C.7: Session derived inside component to avoid SSR/CSR mismatch.
-  // Switches automatically once the 2027-2028 session begins.
-  const SESSION = useMemo(
-    () => (new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'),
-    []
-  )
+  // Phase 5C.7 + 6.15.4: Session from shared config — auto-switches bienniums.
+  const SESSION = useMemo(() => getCurrentSession(), [])
+  const nextBiennium = useMemo(() => getNextBiennium(), [])
 
   const [user, setUser]         = useState(null)
   const [watchlist, setWatchlist] = useState([])
@@ -52,8 +41,8 @@ export default function HomePage() {
   const [loading, setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  const daysToPreFiling = daysUntil(NEXT_PREFILING)
-  const daysToSession   = daysUntil(NEXT_SESSION)
+  const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
+  const daysToSession   = daysUntil(nextBiennium.start)
 
   async function loadData() {
     // Phase 6.4 perf: Step 1 — auth check (required before tracked_bills)

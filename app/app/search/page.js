@@ -2,10 +2,11 @@
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
+const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 const CATEGORIES = ['All', 'Health', 'Education', 'Criminal Justice', 'Environment',
   'Government Operations', 'Business / Commerce', 'Budget / Appropriations',

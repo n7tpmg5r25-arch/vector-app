@@ -2,10 +2,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { getCurrentSession, isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
+const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 export default function HearingsPage() {
   const router = useRouter()
@@ -17,7 +18,7 @@ export default function HearingsPage() {
   const [loading, setLoading]       = useState(true)
   const [chamber, setChamber]       = useState('All')
   const [view, setView]             = useState('upcoming')
-  const isInterim = true
+  const isInterim = typeof window !== 'undefined' ? isInterimPeriod() : true
 
   useEffect(() => {
     async function load() {
@@ -89,17 +90,25 @@ export default function HearingsPage() {
           Committee schedules · WA Legislature
         </div>
 
-        {isInterim && (
-          <div style={{
-            background: 'var(--gold-pale)', border: '1px solid rgba(212,168,75,0.25)',
-            borderRadius: 8, padding: '8px 12px', marginBottom: 12,
-            fontSize: 11, color: 'var(--gold)', fontWeight: 500,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span style={{ boxShadow: 'var(--gold-glow)', width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block' }}/>
-            <span>WA Legislature is in interim. Hearings resume when the 2027 session opens Jan 13, 2027.</span>
-          </div>
-        )}
+        {isInterim && (() => {
+          const next = typeof window !== 'undefined' ? getNextBiennium() : { session: '2027-2028', start: '2027-01-13' }
+          const cur = typeof window !== 'undefined' ? getCurrentBiennium() : { session: '2025-2026' }
+          return (
+            <div style={{
+              background: 'var(--gold-pale)', border: '1px solid rgba(212,168,75,0.25)',
+              borderRadius: 8, padding: '10px 12px', marginBottom: 12,
+              fontSize: 11, color: 'var(--gold)', fontWeight: 500,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ boxShadow: 'var(--gold-glow)', width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block', flexShrink: 0 }}/>
+                <span>WA Legislature is in interim. Hearings resume when the {next.session} session opens {formatSessionDate(next.start)}.</span>
+              </div>
+              <div style={{ paddingLeft: 12, color: 'var(--text-muted)', fontWeight: 400, lineHeight: 1.5 }}>
+                {cur.session} bills that didn't pass are dead. The {next.session} biennium begins {formatSessionDate(next.start)}.
+              </div>
+            </div>
+          )
+        })()}
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           {['upcoming', 'watched'].map(v => (
@@ -200,7 +209,7 @@ export default function HearingsPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {view === 'watched'
                 ? 'Add bills to your watchlist to track their hearings here.'
-                : 'Hearing data will populate when the 2027 session opens.'}
+                : `Hearing data will populate when the ${typeof window !== 'undefined' ? getNextBiennium().session : '2027-2028'} session opens.`}
             </div>
           </div>
         ) : (

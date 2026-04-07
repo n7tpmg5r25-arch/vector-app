@@ -7,6 +7,24 @@ import Nav from '../../components/Nav'
 
 const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Floor', 'Opp. Chamber', 'Conference', 'Signed']
 
+/* ── X-Factor tooltip descriptions ──────────────────── */
+const XF_TOOLTIPS = {
+  'Companion bill':      'A matching bill was introduced in the other chamber, doubling the chances of movement.',
+  'Substitute filed':    'A revised version was filed, signaling active committee engagement.',
+  'Exec session passed': 'The committee held an executive session and voted the bill out.',
+  '2nd chamber':         'The bill has crossed to the opposite chamber \u2014 a major milestone.',
+  'Pulled from Rules':   'Leadership pulled this bill from the Rules committee for a floor vote.',
+  'Strong margin':       'Floor vote passed with a wide margin (+10% or more), signaling broad support.',
+  'Double referral':     'Referred to two committees, which slows progress and adds veto points.',
+  'High amendments':     'More than 3 amendments filed, indicating contested provisions.',
+  'Fiscal referral':     'Sent to a fiscal committee for cost review, adding an extra hurdle.',
+  'Stalled':             'No movement detected for an extended period \u2014 bill may be parked.',
+  'Held in Rules':       'Stuck in Rules committee without being pulled for a floor vote.',
+  'Minority only':       'Sponsored only by the minority party, reducing passage odds in a majority-controlled chamber.',
+  'Narrow margin':       'Floor vote passed by a slim margin, suggesting fragile support.',
+  'Cutoff warning':      'Approaching a legislative cutoff deadline \u2014 time pressure is building.',
+}
+
 /* ── Animated Sparkline Component ─────────────────── */
 function AnimatedSparkline({ scores, snapshots, stageLabels }) {
   const svgRef = useRef(null)
@@ -412,7 +430,9 @@ export default function BillDetailPage() {
           {/* Top badges */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{
+              <span
+                title="Based on how similar bills performed this biennium. Bills with this score became law at this rate."
+                style={{
                 fontSize: 9, padding: '3px 10px', borderRadius: 10,
                 background: confLabel === 'HIGH' ? 'rgba(0,229,204,0.1)'
                   : confLabel === 'MODERATE' ? 'rgba(212,168,75,0.1)'
@@ -425,9 +445,30 @@ export default function BillDetailPage() {
                   : 'rgba(100,120,140,0.2)'}`,
                 fontFamily: 'var(--font-mono)', fontWeight: 600,
                 letterSpacing: '0.05em',
+                cursor: 'help',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
-                {passPct}% PASS · {confLabel} CONF
+                {['LAW','DEAD','CARRY OVER'].includes(confLabel)
+                  ? confLabel === 'LAW' ? 'Signed into law'
+                  : confLabel === 'DEAD' ? 'Dead \u2014 did not pass'
+                  : 'Carries over to next session'
+                  : `${passPct}% chance of becoming law`}
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.6 }}>
+                  <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                  <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
+                </svg>
               </span>
+              {!['LAW','DEAD','CARRY OVER'].includes(confLabel) && (
+                <span style={{
+                  fontSize: 8, padding: '2px 8px', borderRadius: 8,
+                  background: 'rgba(100,120,140,0.06)',
+                  color: confColor,
+                  border: '1px solid rgba(100,120,140,0.12)',
+                  fontFamily: 'var(--font-mono)', fontWeight: 500,
+                }}>
+                  {confLabel}
+                </span>
+              )}
               {sparkScores.length > 1 && (
                 <span style={{
                   fontSize: 9, padding: '3px 10px', borderRadius: 10,
@@ -616,8 +657,9 @@ export default function BillDetailPage() {
             { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
             { label: 'To Cutoff', value: bill.days_to_cutoff != null ? (bill.days_to_cutoff > 10 ? 'Safe' : bill.days_to_cutoff > 0 ? `${bill.days_to_cutoff}d` : 'Passed') : '—',
               extraColor: bill.days_to_cutoff > 10 ? 'var(--teal)' : bill.days_to_cutoff > 0 ? 'var(--gold)' : 'var(--text-muted)' },
+            { label: 'Floor Margin', value: floorMargin !== null ? `${floorMargin > 0 ? '+' : ''}${floorMargin}%` : 'No vote yet',
+              extraColor: floorMargin !== null ? (floorMargin >= 10 ? 'var(--teal)' : floorMargin >= 0 ? 'var(--gold)' : 'var(--danger)') : undefined },
             { label: 'Fiscal', value: bill.fiscal_note_size ? bill.fiscal_note_size.charAt(0).toUpperCase() + bill.fiscal_note_size.slice(1) : '—' },
-            { label: 'Status', value: bill.status || '—' },
           ].map(({ label, value, extra, extraColor }) => (
             <div key={label} style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -632,19 +674,30 @@ export default function BillDetailPage() {
 
         {/* ── X FACTOR PILLS ─────────────────────────────── */}
         {xfFactors.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {xfFactors.map((f, i) => (
-              <div key={i} style={{
-                padding: '5px 12px', borderRadius: 16,
-                fontSize: 11, fontWeight: 500,
-                background: f.pos ? 'rgba(0,229,204,0.08)' : 'var(--danger-pale)',
-                color: f.pos ? 'var(--teal)' : 'var(--danger)',
-                border: `1px solid ${f.pos ? 'rgba(0,229,204,0.2)' : 'rgba(255,82,82,0.2)'}`,
-                boxShadow: f.pos ? '0 0 8px rgba(0,229,204,0.1)' : '0 0 8px rgba(255,82,82,0.1)',
-              }}>
-                {f.pos ? '▲' : '▼'} {f.l} {f.d > 0 ? '+' : ''}{Math.round(f.d * 100)}%
-              </div>
-            ))}
+          <div>
+            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+              X Factors
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {xfFactors.map((f, i) => {
+                // Match tooltip by prefix (handles dynamic labels like "Cutoff: 3d")
+                const tooltipKey = Object.keys(XF_TOOLTIPS).find(k => f.l.startsWith(k)) || f.l
+                const tooltip = XF_TOOLTIPS[tooltipKey] || ''
+                return (
+                  <div key={i} title={tooltip} style={{
+                    padding: '5px 12px', borderRadius: 16,
+                    fontSize: 11, fontWeight: 500,
+                    background: f.pos ? 'rgba(0,229,204,0.08)' : 'var(--danger-pale)',
+                    color: f.pos ? 'var(--teal)' : 'var(--danger)',
+                    border: `1px solid ${f.pos ? 'rgba(0,229,204,0.2)' : 'rgba(255,82,82,0.2)'}`,
+                    boxShadow: f.pos ? '0 0 8px rgba(0,229,204,0.1)' : '0 0 8px rgba(255,82,82,0.1)',
+                    cursor: tooltip ? 'help' : 'default',
+                  }}>
+                    {f.pos ? '▲' : '▼'} {f.l} {f.d > 0 ? '+' : ''}{Math.round(f.d * 100)}%
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -942,7 +995,7 @@ export default function BillDetailPage() {
                   {passPct}%
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  [{Math.round((bill.confidence_low || 0) * 100)}–{Math.round((bill.confidence_high || 0) * 100)}%] range · <span style={{ color: confColor }}>{confLabel}</span> signal strength
+                  Range: {Math.round((bill.confidence_low || 0) * 100)}–{Math.round((bill.confidence_high || 0) * 100)}% · <span style={{ color: confColor }}>{confLabel}</span> confidence
                 </div>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
                   <div style={{ height: '100%', width: `${passPct}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
