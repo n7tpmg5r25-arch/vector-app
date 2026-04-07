@@ -752,6 +752,14 @@ async function processBill(raw, categoryRates, state, partyMap) {
     updated_at: new Date().toISOString(),
   };
 
+  // 6.13.1 FIX: extractFeatures reads committee from the legislation object,
+  // but for many bills that call returns null and the committee_name is set
+  // via status-change fallback above. Re-check stalled using the resolved name.
+  if (!billRecord.stalled && committeeName.toLowerCase().includes('rules')
+      && billRecord.stage === 3 && (billRecord.days_since_action || 0) > 21) {
+    billRecord.stalled = true;
+  }
+
   // Score with calibrated rates + session state awareness (6.13.2)
   const scores = scoreBill(billRecord, categoryRates, state);
   billRecord.trajectory_score = scores.base_total;
