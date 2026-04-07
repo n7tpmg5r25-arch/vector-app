@@ -311,8 +311,6 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
     }
   }
 
-  const hasPublicHearing = hasHearingFromAPI || hasHearingFromStatus;
-
   const statusTexts = statusChanges.map(s => (s.HistoryLine || s.Status || '').toLowerCase());
   const joined = statusTexts.join(' ');
 
@@ -324,6 +322,14 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const passedFloor = joined.includes('third reading, passed') || joined.includes('passed third reading');
   const passedOpposite = joined.includes('passed to senate') || joined.includes('passed to house') || joined.includes('delivered to governor');
   const signedByGov = joined.includes('signed by governor') || joined.includes('effective date') || joined.includes('chaptered');
+
+  // 6.13.4 FIX: GetHearings API returns 0 for all bills, and WA status
+  // changes don't include "public hearing" events (hearings are tracked in
+  // CommitteeMeetingService, not as legislative status changes). Infer from
+  // downstream signals: if a bill had exec session or passed committee, it
+  // definitely had a public hearing first — WA rules require it.
+  const hasPublicHearing = hasHearingFromAPI || hasHearingFromStatus
+    || hasExecSession || committeePassed;
 
   let stage = 1;
   if (signedByGov) stage = 6;
@@ -786,7 +792,7 @@ async function runSync() {
   let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.2 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.3 — ${SESSION} — state: ${state}`);
 
   const calibration = await loadCalibratedWeights();
   const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
@@ -873,7 +879,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.2 Phase 5A — retry/timeout/committee/action`,
+    notes: `sync-v2.3 Step 6.13 — stalled/session-state/hearing/confidence fixes`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
