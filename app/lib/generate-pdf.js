@@ -1,7 +1,14 @@
 /**
- * Vector | WA — Client PDF Intelligence Brief Generator
+ * Vector | WA — Client PDF Intelligence Brief Generator (v2 — Step 6.17)
  *
  * Generates a branded Post & Policy / Vector WA report PDF.
+ * v2 enhancements:
+ *   - Bills grouped by client_tag
+ *   - Score trend column (7-day sparkline text: +3, -2, etc.)
+ *   - Hearing date column
+ *   - Pass probability in plain language
+ *   - Improved summary stats per group
+ *
  * Uses jsPDF + jspdf-autotable (must be installed: npm install jspdf jspdf-autotable)
  */
 
@@ -40,25 +47,50 @@ function loadImageAsBase64(url) {
   })
 }
 
+/** Plain-language pass probability */
+function passProbLabel(pp) {
+  const pct = Math.round((pp || 0) * 100)
+  if (pct >= 80) return `${pct}% \u2014 very likely to pass`
+  if (pct >= 40) return `${pct}% \u2014 good chance`
+  if (pct >= 10) return `${pct}% \u2014 moderate odds`
+  if (pct >= 1)  return `${pct}% \u2014 uphill battle`
+  return `${pct}% \u2014 very unlikely`
+}
+
+/** Format hearing date short */
+function fmtDate(dateStr) {
+  if (!dateStr) return '\u2014'
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  } catch { return '\u2014' }
+}
+
+/** Ensure new page if needed */
+function ensureSpace(doc, y, needed) {
+  const ph = doc.internal.pageSize.getHeight()
+  if (y + needed > ph - 20) {
+    doc.addPage()
+    return 20
+  }
+  return y
+}
+
 export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
-  const m  = 20  // margin
+  const m  = 18  // margin
   let y = 16
 
   /* ━━━━━━━━━━━━━━━━ HEADER (with logo) ━━━━━━━━━━━━━━━━ */
 
-  // Try to load logo from public folder
   const logoData = await loadImageAsBase64('/logo.png')
 
   if (logoData) {
-    // Logo on the left (scaled to ~22mm tall)
     const logoH = 22
-    const logoW = logoH * 0.82  // approximate aspect ratio of the V logo
+    const logoW = logoH * 0.82
     doc.addImage(logoData, 'PNG', m, y - 4, logoW, logoH)
 
-    // Brand text to the right of logo
     const textX = m + logoW + 4
 
     doc.setFont('times', 'bold')
@@ -71,7 +103,6 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setTextColor(...TEAL)
     doc.text('VECTOR | WA', textX, y + 11)
 
-    // Report type (right-aligned)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...GRAY)
@@ -79,7 +110,6 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
     y += logoH + 2
   } else {
-    // Fallback: text-only header
     doc.setDrawColor(...TEAL)
     doc.setLineWidth(1.2)
     doc.line(m, y, pw - m, y)
@@ -130,12 +160,13 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   const avg       = allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0
   const highCount = allScores.filter(s => s >= 50).length
   const atRisk    = allScores.filter(s => s < 25).length
+  const withHearings = bills.filter(b => b.bills?.has_public_hearing).length
 
   // Summary box
   doc.setFillColor(245, 248, 252)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
-  doc.roundedRect(m, y, pw - 2 * m, 16, 2, 2, 'FD')
+  doc.roundedRect(m, y, pw - 2 * m, 22, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
@@ -145,9 +176,17 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(60, 60, 60)
-  const statsText = `Bills Tracked: ${bills.length}    \u2502    Avg Score: ${avg}    \u2502    High Trajectory (50+): ${highCount}    \u2502    At Risk (<25): ${atRisk}`
-  doc.text(statsText, m + 4, y + 12)
-  y += 22
+  const statsLine1 = `Bills Tracked: ${bills.length}    \u2502    Avg Score: ${avg}    \u2502    High Trajectory (50+): ${highCount}    \u2502    At Risk (<25): ${atRisk}`
+  doc.text(statsLine1, m + 4, y + 12)
+
+  // Outlook label
+  const outlookText = avg >= 55 ? 'Very Strong' : avg >= 45 ? 'Strong Outlook' : avg >= 35 ? 'Building Momentum' : avg >= 25 ? 'Watch Closely' : 'High Risk'
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8)
+  doc.setTextColor(...TEAL)
+  doc.text(`Portfolio Outlook: ${outlookText}    \u2502    Hearings: ${withHearings}`, m + 4, y + 18)
+
+  y += 28
 
   /* ━━━━━━━━━━━━━━━━ CHANGES SINCE LAST VISIT ━━━━━━━━━━━━━━━━ */
 
@@ -162,7 +201,8 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
 
-    changedBills.forEach(({ bill_id, bills: bill }) => {
+    changedBills.slice(0, 8).forEach(({ bill_id, bills: bill }) => {
+      y = ensureSpace(doc, y, 6)
       const c = changes[bill_id]
       const label = `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`
       let desc = []
@@ -177,104 +217,145 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
       doc.text(desc.join('  |  '), m + 22, y)
       y += 4.5
     })
+    if (changedBills.length > 8) {
+      doc.setTextColor(...GRAY)
+      doc.text(`+ ${changedBills.length - 8} more changes`, m + 2, y)
+      y += 4.5
+    }
     y += 4
   }
 
-  /* ━━━━━━━━━━━━━━━━ BILL TABLE ━━━━━━━━━━━━━━━━ */
+  /* ━━━━━━━━━━━━━━━━ BILL TABLE (grouped by client tag) ━━━━━━━━━━━━━━━━ */
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...NAVY)
-  doc.text('TRACKED LEGISLATION', m, y)
-  y += 3
-
-  const tableData = bills.map(({ bill_id, bills: bill, client_tag }) => {
-    const delta = scoreDeltas[bill_id]
-    const deltaStr = delta ? (delta > 0 ? `+${delta}` : `${delta}`) : '\u2014'
-    const titleTrunc = (bill.title || '').length > 55
-      ? (bill.title || '').slice(0, 55) + '\u2026'
-      : (bill.title || '')
-
-    return [
-      `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`,
-      titleTrunc,
-      String(bill.final_score || 0),
-      deltaStr,
-      STAGE_LABELS[bill.stage] || 'Introduced',
-      bill.confidence_label || '\u2014',
-    ]
+  // Group bills by client_tag
+  const groups = {}
+  bills.forEach(b => {
+    const tag = b.client_tag || 'General'
+    if (!groups[tag]) groups[tag] = []
+    groups[tag].push(b)
   })
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Bill', 'Title', 'Score', '\u0394', 'Stage', 'Signal']],
-    body: tableData,
-    margin: { left: m, right: m },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.5,
-      textColor: [40, 40, 40],
-      lineColor: LGRAY,
-      lineWidth: 0.15,
-      font: 'helvetica',
-    },
-    headStyles: {
-      fillColor: NAVY,
-      textColor: WHITE,
-      fontStyle: 'bold',
-      fontSize: 7.5,
-    },
-    columnStyles: {
-      0: { cellWidth: 20, fontStyle: 'bold', font: 'courier' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 14, halign: 'center' },
-      3: { cellWidth: 12, halign: 'center' },
-      4: { cellWidth: 26 },
-      5: { cellWidth: 22 },
-    },
-    alternateRowStyles: { fillColor: [248, 250, 253] },
-    didParseCell: function (data) {
-      if (data.section !== 'body') return
-      const col = data.column.index
-      const val = data.cell.raw
+  // Sort groups: named clients first (alphabetical), then 'General' last
+  const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+    if (a === 'General') return 1
+    if (b === 'General') return -1
+    return a.localeCompare(b)
+  })
 
-      // Color-code score column
-      if (col === 2) {
-        const s = parseInt(val)
-        if (s >= 60)      data.cell.styles.textColor = [0, 150, 135]
-        else if (s >= 45) data.cell.styles.textColor = [170, 130, 50]
-        else if (s < 25)  data.cell.styles.textColor = [200, 55, 55]
-      }
-      // Color-code delta column
-      if (col === 3) {
-        if (typeof val === 'string' && val.startsWith('+')) {
-          data.cell.styles.textColor = [0, 150, 135]
-          data.cell.styles.fontStyle = 'bold'
-        } else if (typeof val === 'string' && val.startsWith('-')) {
-          data.cell.styles.textColor = [200, 55, 55]
-          data.cell.styles.fontStyle = 'bold'
+  for (const groupName of sortedGroupKeys) {
+    const groupBills = groups[groupName]
+
+    y = ensureSpace(doc, y, 20)
+
+    // Group header
+    if (sortedGroupKeys.length > 1 || groupName !== 'General') {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(...NAVY)
+      doc.text(groupName === 'General' ? 'UNTAGGED BILLS' : groupName.toUpperCase(), m, y)
+
+      // Group mini-stats
+      const gScores = groupBills.map(b => b.bills?.final_score || 0)
+      const gAvg = gScores.length ? Math.round(gScores.reduce((a, b) => a + b, 0) / gScores.length) : 0
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(...GRAY)
+      doc.text(`${groupBills.length} bills \u2502 avg ${gAvg}`, pw - m, y, { align: 'right' })
+      y += 3
+    } else {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(...NAVY)
+      doc.text('TRACKED LEGISLATION', m, y)
+      y += 3
+    }
+
+    const tableData = groupBills.map(({ bill_id, bills: bill }) => {
+      const delta = scoreDeltas[bill_id]
+      const deltaStr = delta ? (delta > 0 ? `+${delta}` : `${delta}`) : '\u2014'
+      const titleTrunc = (bill.title || '').length > 48
+        ? (bill.title || '').slice(0, 48) + '\u2026'
+        : (bill.title || '')
+
+      return [
+        `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`,
+        titleTrunc,
+        String(bill.final_score || 0),
+        deltaStr,
+        STAGE_SHORT[bill.stage] || 'Intro',
+        passProbLabel(bill.pass_probability),
+        fmtDate(bill.hearing_date),
+      ]
+    })
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Bill', 'Title', 'Score', '\u0394', 'Stage', 'Pass Probability', 'Hearing']],
+      body: tableData,
+      margin: { left: m, right: m },
+      styles: {
+        fontSize: 7,
+        cellPadding: 2,
+        textColor: [40, 40, 40],
+        lineColor: LGRAY,
+        lineWidth: 0.15,
+        font: 'helvetica',
+      },
+      headStyles: {
+        fillColor: NAVY,
+        textColor: WHITE,
+        fontStyle: 'bold',
+        fontSize: 7,
+      },
+      columnStyles: {
+        0: { cellWidth: 18, fontStyle: 'bold', font: 'courier' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 12, halign: 'center' },
+        3: { cellWidth: 10, halign: 'center' },
+        4: { cellWidth: 14 },
+        5: { cellWidth: 34, fontSize: 6.5 },
+        6: { cellWidth: 16, fontSize: 6.5 },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 253] },
+      didParseCell: function (data) {
+        if (data.section !== 'body') return
+        const col = data.column.index
+        const val = data.cell.raw
+
+        // Color-code score column
+        if (col === 2) {
+          const s = parseInt(val)
+          if (s >= 60)      data.cell.styles.textColor = [0, 150, 135]
+          else if (s >= 45) data.cell.styles.textColor = [170, 130, 50]
+          else if (s < 25)  data.cell.styles.textColor = [200, 55, 55]
         }
-      }
-      // Color-code signal strength
-      if (col === 5) {
-        if (val === 'HIGH')           data.cell.styles.textColor = [0, 150, 135]
-        else if (val === 'MODERATE')  data.cell.styles.textColor = [170, 130, 50]
-        else if (val === 'LOW')       data.cell.styles.textColor = [200, 55, 55]
-        else if (val === 'VERY LOW')  data.cell.styles.textColor = [150, 150, 150]
-      }
-    },
-  })
+        // Color-code delta column
+        if (col === 3) {
+          if (typeof val === 'string' && val.startsWith('+')) {
+            data.cell.styles.textColor = [0, 150, 135]
+            data.cell.styles.fontStyle = 'bold'
+          } else if (typeof val === 'string' && val.startsWith('-')) {
+            data.cell.styles.textColor = [200, 55, 55]
+            data.cell.styles.fontStyle = 'bold'
+          }
+        }
+        // Color-code pass probability
+        if (col === 5) {
+          if (val.includes('very likely'))   data.cell.styles.textColor = [0, 150, 135]
+          else if (val.includes('good'))     data.cell.styles.textColor = [0, 150, 135]
+          else if (val.includes('moderate')) data.cell.styles.textColor = [170, 130, 50]
+          else if (val.includes('uphill'))   data.cell.styles.textColor = [200, 100, 55]
+          else if (val.includes('unlikely')) data.cell.styles.textColor = [200, 55, 55]
+        }
+      },
+    })
 
-  // autoTable() returns undefined — finalY is on doc.lastAutoTable
-  y = doc.lastAutoTable.finalY + 10
+    y = doc.lastAutoTable.finalY + 8
+  }
 
   /* ━━━━━━━━━━━━━━━━ METHODOLOGY NOTE ━━━━━━━━━━━━━━━━ */
 
-  // Check if we need a new page
-  if (y > ph - 55) {
-    doc.addPage()
-    y = 20
-  }
+  y = ensureSpace(doc, y, 35)
 
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
@@ -295,26 +376,30 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     'sponsor strength, legislative momentum, fiscal impact, and historical category pass rates. Each signal is independently weighted',
     'and combined with X-Factor multipliers for exceptional circumstances (e.g., emergency clauses, governor requests).',
     '',
-    'Scores are calibrated against verified 2025\u20132026 session outcomes. Signal strength labels reflect calibrated pass probability:',
-    'HIGH (>10%), MODERATE (1\u201310%), LOW (<1%), VERY LOW (<0.1%). Score changes (\u0394) reflect movement since the previous daily snapshot.',
+    'Scores are calibrated against verified 2025\u20132026 session outcomes. Pass probability reflects the historical rate of bills in',
+    'the same score range becoming law. Score changes (\u0394) reflect movement since the previous daily snapshot.',
   ]
   lines.forEach(line => {
     doc.text(line, m, y)
     y += 3.2
   })
 
-  /* ━━━━━━━━━━━━━━━━ FOOTER ━━━━━━━━━━━━━━━━ */
+  /* ━━━━━━━━━━━━━━━━ FOOTER (on every page) ━━━━━━━━━━━━━━━━ */
 
-  const fy = ph - 12
-  doc.setDrawColor(...TEAL)
-  doc.setLineWidth(0.4)
-  doc.line(m, fy, pw - m, fy)
+  const totalPages = doc.getNumberOfPages()
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p)
+    const fy = ph - 12
+    doc.setDrawColor(...TEAL)
+    doc.setLineWidth(0.4)
+    doc.line(m, fy, pw - m, fy)
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(...GRAY)
-  doc.text('\u00a9 Post & Policy  \u2502  Vector | WA  \u2502  Legislative Intelligence', m, fy + 5)
-  doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text('\u00a9 Post & Policy  \u2502  Vector | WA  \u2502  Legislative Intelligence', m, fy + 5)
+    doc.text(`CONFIDENTIAL  \u2502  Page ${p} of ${totalPages}`, pw - m, fy + 5, { align: 'right' })
+  }
 
   /* ━━━━━━━━━━━━━━━━ SAVE ━━━━━━━━━━━━━━━━ */
 
