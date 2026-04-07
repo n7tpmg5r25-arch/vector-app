@@ -5,19 +5,36 @@
  */
 
 // ── Biennium definitions ──────────────────────────────────
-// Each entry: { session, start, end, prefilingOpens }
+// Each entry: { session, start, end, prefilingOpens, cutoffs }
+// Cutoff dates are the most critical dates in a lobbyist's calendar.
 const BIENNIUMS = [
   {
     session: '2025-2026',
     start:   '2025-01-13',
     end:     '2026-03-12',   // Sine die March 12 2026
     prefilingOpens: null,    // Already passed
+    cutoffs: {
+      committee:       '2026-02-07',   // Bills must pass out of committee
+      fiscal:          '2026-02-14',   // Fiscal committee cutoff
+      floor:           '2026-02-21',   // Must pass floor of origin chamber
+      opposite_committee: '2026-02-28', // Must pass opposite chamber committee
+      opposite_floor:  '2026-03-05',   // Must pass opposite chamber floor
+      sine_die:        '2026-03-12',   // Last day of session
+    },
   },
   {
     session: '2027-2028',
     start:   '2027-01-13',
     end:     '2028-03-10',   // Estimated
     prefilingOpens: '2026-12-01',
+    cutoffs: {
+      committee:       '2028-02-07',   // Estimated
+      fiscal:          '2028-02-14',   // Estimated
+      floor:           '2028-02-21',   // Estimated
+      opposite_committee: '2028-03-01', // Estimated
+      opposite_floor:  '2028-03-05',   // Estimated
+      sine_die:        '2028-03-10',   // Estimated
+    },
   },
 ]
 
@@ -68,6 +85,37 @@ export function formatSessionDate(dateStr) {
   return dt.toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
   })
+}
+
+/**
+ * Get cutoff dates for the upcoming or current active session.
+ * During interim, returns the NEXT session's cutoffs.
+ * During active session, returns the CURRENT session's cutoffs.
+ * Each cutoff includes: { label, date, daysLeft, passed }
+ */
+export function getSessionCutoffs() {
+  const isInterim = isInterimPeriod()
+  const biennium = isInterim ? getNextBiennium() : getCurrentBiennium()
+  const cutoffs = biennium.cutoffs
+  if (!cutoffs) return []
+
+  const labels = {
+    committee:          'Committee Cutoff',
+    fiscal:             'Fiscal Cutoff',
+    floor:              'Floor Cutoff',
+    opposite_committee: 'Opp. Chamber Committee',
+    opposite_floor:     'Opp. Chamber Floor',
+    sine_die:           'Sine Die (Session End)',
+  }
+
+  return Object.entries(cutoffs).map(([key, date]) => ({
+    key,
+    label: labels[key] || key,
+    date,
+    dateFormatted: formatSessionDate(date),
+    daysLeft: daysUntil(date),
+    passed: new Date() > new Date(date),
+  }))
 }
 
 // ── Convenience constants (for the current cycle) ─────────

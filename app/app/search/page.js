@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession } from '../../lib/session-config'
+import { exportSearchCSV } from '../../lib/csv-export'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -35,6 +36,7 @@ function SearchContent() {
   const [sortBy, setSortBy] = useState('score')
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const PAGE_SIZE = 50
 
   const fetchBills = useCallback(async (reset = false) => {
@@ -43,7 +45,7 @@ function SearchContent() {
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, prime_sponsor, prime_party, hearing_date')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -74,6 +76,37 @@ function SearchContent() {
     fetchBills(true)
   }, [query, category, chamber, stage, sortBy])
 
+  // 6.16.3: CSV export — fetches ALL matching bills (not just current page)
+  async function handleExportCSV() {
+    setExporting(true)
+    try {
+      // Build the same query but fetch up to 5000 rows
+      let q = supabase
+        .from('bills')
+        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, prime_sponsor, prime_party, hearing_date')
+        .eq('session', SESSION)
+        .range(0, 4999)
+
+      if (category !== 'All') q = q.eq('category', category)
+      if (chamber !== 'All') q = q.eq('chamber', chamber)
+      if (stage > 0) q = q.eq('stage', stage)
+      if (query.trim()) {
+        q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%`)
+      }
+      if (sortBy === 'score') q = q.order('final_score', { ascending: false })
+      else if (sortBy === 'number') q = q.order('bill_number_seq', { ascending: true })
+      else if (sortBy === 'action') q = q.order('last_action_date', { ascending: false, nullsFirst: false })
+
+      const { data, error } = await q
+      if (!error && data) {
+        exportSearchCSV(data, SESSION)
+      }
+    } catch (err) {
+      console.error('CSV export error:', err)
+    }
+    setExporting(false)
+  }
+
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {/* Header */}
@@ -84,12 +117,38 @@ function SearchContent() {
         padding: '52px 16px 12px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 22, fontWeight: 700,
-          color: 'var(--teal)', marginBottom: 12,
-          textShadow: '0 0 16px rgba(0,229,204,0.2)',
-        }}>Browse Bills</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 22, fontWeight: 700,
+            color: 'var(--teal)',
+            textShadow: '0 0 16px rgba(0,229,204,0.2)',
+          }}>Browse Bills</div>
+
+          {/* 6.16.3: CSV Export button */}
+          <button
+            onClick={handleExportCSV}
+            disabled={exporting || bills.length === 0}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 12px', borderRadius: 8,
+              background: 'rgba(0,229,204,0.08)',
+              border: '1px solid rgba(0,229,204,0.25)',
+              color: 'var(--teal)', fontSize: 11, fontWeight: 500,
+              cursor: exporting || bills.length === 0 ? 'default' : 'pointer',
+              opacity: exporting || bills.length === 0 ? 0.4 : 1,
+              transition: 'all 0.15s',
+            }}
+            title="Export current search results as CSV"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {exporting ? 'Exporting...' : 'CSV'}
+          </button>
+        </div>
 
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -164,7 +223,7 @@ function SearchContent() {
               <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
                 {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                 {bill.category && (
-                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
+                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other \u2014 ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
                 )}
               </div>
               <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
