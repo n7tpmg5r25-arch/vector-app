@@ -6,7 +6,14 @@ import ScoreBadge from '../../components/ScoreBadge'
 import Nav from '../../components/Nav'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
-const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Floor', 'Opp. Chamber', 'Conference', 'Signed']
+// Pipeline stages that actually appear in the data (stage 2 and 5 never
+// populated — WA bills jump 1->3 and 4->6). Labels describe what happened.
+const PIPELINE_STAGES = [
+  { num: 1, label: 'Introduced' },
+  { num: 3, label: 'Out of Cmte' },
+  { num: 4, label: 'Passed Floor' },
+  { num: 6, label: 'Signed' },
+]
 
 /* ── X-Factor tooltip descriptions ──────────────────── */
 const XF_TOOLTIPS = {
@@ -743,14 +750,14 @@ export default function BillDetailPage() {
             Legislative Stage
           </div>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            {STAGE_LABELS.slice(1).map((lbl, i) => {
-              const stageNum = i + 1
-              const done = stageNum < bill.stage
-              const active = stageNum === bill.stage
+            {PIPELINE_STAGES.map((ps, i) => {
+              const done = ps.num < bill.stage
+              const active = ps.num === bill.stage
               const dotColor = done ? 'var(--teal-dim)' : active ? 'var(--teal)' : 'var(--border)'
               const lineColor = done ? 'var(--teal-dim)' : 'var(--border)'
+              const isLast = i === PIPELINE_STAGES.length - 1
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 5 ? 1 : 'none' }}>
+                <div key={ps.num} style={{ display: 'flex', alignItems: 'center', flex: isLast ? 'none' : 1 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <div style={{
                       width: active ? 11 : 7, height: active ? 11 : 7,
@@ -762,9 +769,9 @@ export default function BillDetailPage() {
                     <span style={{
                       fontSize: 7, color: active ? 'var(--teal)' : done ? 'var(--teal-dim)' : 'var(--text-faint)',
                       textAlign: 'center', whiteSpace: 'nowrap', fontWeight: active ? 600 : 400,
-                    }}>{lbl}</span>
+                    }}>{ps.label}</span>
                   </div>
-                  {i < 5 && <div style={{ flex: 1, height: 1, background: lineColor, margin: '0 2px', marginBottom: 14 }}/>}
+                  {!isLast && <div style={{ flex: 1, height: 1, background: lineColor, margin: '0 2px', marginBottom: 14 }}/>}
                 </div>
               )
             })}
