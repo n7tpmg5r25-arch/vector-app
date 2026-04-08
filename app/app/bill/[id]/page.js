@@ -525,7 +525,7 @@ export default function BillDetailPage() {
                   {confLabel}
                 </span>
               )}
-              {sparkScores.length > 1 && (
+              {!['DEAD','LAW','CARRY OVER'].includes(confLabel) && sparkScores.length > 1 && (
                 <span style={{
                   fontSize: 9, padding: '3px 10px', borderRadius: 10,
                   background: velocityRising ? 'rgba(0,229,204,0.06)' : 'rgba(255,82,82,0.06)',
@@ -541,10 +541,12 @@ export default function BillDetailPage() {
             </div>
           </div>
 
-          <AnimatedSparkline
-            scores={sparkScores}
-            snapshots={snapshots}
-          />
+          <div style={{ opacity: ['DEAD','CARRY OVER'].includes(confLabel) ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+            <AnimatedSparkline
+              scores={sparkScores}
+              snapshots={snapshots}
+            />
+          </div>
 
           {/* Date range */}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
@@ -632,7 +634,7 @@ export default function BillDetailPage() {
             borderRadius: 'var(--radius)',
             padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
           }}>
-            <ScoreBadge score={score} size="lg"/>
+            <ScoreBadge score={score} size="lg" status={confLabel}/>
             <div style={{ flex: 1 }}>
               {/* Phase 5C.5: trajectory score info icon + tooltip */}
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -713,9 +715,13 @@ export default function BillDetailPage() {
             { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
             { label: 'Prime Sponsor', value: bill.prime_sponsor ? `${bill.prime_sponsor}${bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}` : '—',
               extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
-            { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
-            { label: 'To Cutoff', value: bill.days_to_cutoff != null ? (bill.days_to_cutoff > 10 ? 'Safe' : bill.days_to_cutoff > 0 ? `${bill.days_to_cutoff}d` : 'Passed') : '—',
-              extraColor: bill.days_to_cutoff > 10 ? 'var(--teal)' : bill.days_to_cutoff > 0 ? 'var(--gold)' : 'var(--text-muted)' },
+            ...(isInterimPeriod() && ['DEAD','LAW','CARRY OVER'].includes(confLabel)
+              ? [{ label: 'Session', value: `Ended ${formatSessionDate(getCurrentBiennium().end)}`, extraColor: 'var(--text-muted)' }]
+              : [
+                { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
+                { label: 'To Cutoff', value: bill.days_to_cutoff != null ? (bill.days_to_cutoff > 10 ? 'Safe' : bill.days_to_cutoff > 0 ? `${bill.days_to_cutoff}d` : 'Passed') : '—',
+                  extraColor: bill.days_to_cutoff > 10 ? 'var(--teal)' : bill.days_to_cutoff > 0 ? 'var(--gold)' : 'var(--text-muted)' },
+              ]),
             { label: 'Floor Margin', value: floorMargin !== null ? `${floorMargin > 0 ? '+' : ''}${floorMargin}%` : 'No vote yet',
               extraColor: floorMargin !== null ? (floorMargin >= 10 ? 'var(--teal)' : floorMargin >= 0 ? 'var(--gold)' : 'var(--danger)') : undefined },
             { label: 'Fiscal', value: bill.fiscal_note_size ? bill.fiscal_note_size.charAt(0).toUpperCase() + bill.fiscal_note_size.slice(1) : '—' },
@@ -733,9 +739,9 @@ export default function BillDetailPage() {
 
         {/* ── X FACTOR PILLS ─────────────────────────────── */}
         {xfFactors.length > 0 && (
-          <div>
+          <div style={{ opacity: ['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 0.45 : 1, transition: 'opacity 0.2s' }}>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-              X Factors
+              {['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 'Historical Signals (session ended)' : 'X Factors'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {xfFactors.map((f, i) => {

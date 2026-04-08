@@ -279,7 +279,7 @@ export default function WatchlistPage() {
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
 
         {/* ── WHAT'S CHANGED SECTION ── */}
-        {!loading && showChanges && (
+        {!loading && !isInterimPeriod() && showChanges && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(0,229,204,0.06), rgba(0,229,204,0.02))',
             border: '1px solid rgba(0,229,204,0.2)',
@@ -400,7 +400,7 @@ export default function WatchlistPage() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ position: 'relative' }}>
                 <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
-                {delta != null && delta !== 0 && (
+                {!isInterimPeriod() && delta != null && delta !== 0 && (
                   <span style={{
                     position: 'absolute', top: -6, right: -10,
                     fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,

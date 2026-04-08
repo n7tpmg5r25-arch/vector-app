@@ -2,12 +2,10 @@
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
-import { getCurrentSession } from '../../lib/session-config'
-import { exportSearchCSV } from '../../lib/csv-export'
+import { useSession } from '../../lib/useSession'
+import { isInterimPeriod } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
-
-const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 const CATEGORIES = ['All', 'Health', 'Education', 'Criminal Justice', 'Environment',
   'Government Operations', 'Business / Commerce', 'Budget / Appropriations',
@@ -27,6 +25,7 @@ function SearchContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
+  const [SESSION] = useSession()
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -36,8 +35,32 @@ function SearchContent() {
   const [sortBy, setSortBy] = useState('score')
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
-  const [exporting, setExporting] = useState(false)
   const PAGE_SIZE = 50
+
+  // Auth + bulk watch state
+  const [user, setUser] = useState(null)
+  const [watchedIds, setWatchedIds] = useState(new Set())
+  const [showWatchAll, setShowWatchAll] = useState(false)
+  const [bulkTag, setBulkTag] = useState('')
+  const [bulkAdding, setBulkAdding] = useState(false)
+  const [bulkResult, setBulkResult] = useState(null)
+
+  // Check auth on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u) {
+        setUser(u)
+        // Load existing tracked bill IDs
+        supabase
+          .from('tracked_bills')
+          .select('bill_id')
+          .eq('user_id', u.id)
+          .then(({ data }) => {
+            if (data) setWatchedIds(new Set(data.map(d => d.bill_id)))
+          })
+      }
+    })
+  }, [])
 
   const fetchBills = useCallback(async (reset = false) => {
     setLoading(true)
@@ -45,7 +68,7 @@ function SearchContent() {
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, prime_sponsor, prime_party, hearing_date, confidence_label')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -76,35 +99,43 @@ function SearchContent() {
     fetchBills(true)
   }, [query, category, chamber, stage, sortBy])
 
-  // 6.16.3: CSV export — fetches ALL matching bills (not just current page)
-  async function handleExportCSV() {
-    setExporting(true)
-    try {
-      // Build the same query but fetch up to 5000 rows
-      let q = supabase
-        .from('bills')
-        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, prime_sponsor, prime_party, hearing_date')
-        .eq('session', SESSION)
-        .range(0, 4999)
+  // Bulk watch all displayed bills
+  async function bulkWatchAll() {
+    if (!user || bills.length === 0) return
+    setBulkAdding(true)
+    setBulkResult(null)
 
-      if (category !== 'All') q = q.eq('category', category)
-      if (chamber !== 'All') q = q.eq('chamber', chamber)
-      if (stage > 0) q = q.eq('stage', stage)
-      if (query.trim()) {
-        q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%`)
-      }
-      if (sortBy === 'score') q = q.order('final_score', { ascending: false })
-      else if (sortBy === 'number') q = q.order('bill_number_seq', { ascending: true })
-      else if (sortBy === 'action') q = q.order('last_action_date', { ascending: false, nullsFirst: false })
-
-      const { data, error } = await q
-      if (!error && data) {
-        exportSearchCSV(data, SESSION)
-      }
-    } catch (err) {
-      console.error('CSV export error:', err)
+    const newBills = bills.filter(b => !watchedIds.has(b.bill_id))
+    if (newBills.length === 0) {
+      setBulkResult({ added: 0, skipped: bills.length })
+      setBulkAdding(false)
+      return
     }
-    setExporting(false)
+
+    const rows = newBills.map(b => ({
+      bill_id: b.bill_id,
+      user_id: user.id,
+      client_tag: bulkTag.trim() || null,
+      notes: '',
+    }))
+
+    const { error } = await supabase.from('tracked_bills').insert(rows)
+
+    if (!error) {
+      const newIds = new Set(watchedIds)
+      newBills.forEach(b => newIds.add(b.bill_id))
+      setWatchedIds(newIds)
+      setBulkResult({ added: newBills.length, skipped: bills.length - newBills.length })
+    } else {
+      setBulkResult({ error: 'Failed to add bills. Try again.' })
+    }
+
+    setBulkAdding(false)
+    setShowWatchAll(false)
+    setBulkTag('')
+
+    // Auto-dismiss result after 4 seconds
+    setTimeout(() => setBulkResult(null), 4000)
   }
 
   return (
@@ -117,7 +148,7 @@ function SearchContent() {
         padding: '52px 16px 12px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{
             fontFamily: 'var(--font-display)',
             fontSize: 22, fontWeight: 700,
@@ -125,30 +156,83 @@ function SearchContent() {
             textShadow: '0 0 16px rgba(0,229,204,0.2)',
           }}>Browse Bills</div>
 
-          {/* 6.16.3: CSV Export button */}
-          <button
-            onClick={handleExportCSV}
-            disabled={exporting || bills.length === 0}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '5px 12px', borderRadius: 8,
-              background: 'rgba(0,229,204,0.08)',
-              border: '1px solid rgba(0,229,204,0.25)',
-              color: 'var(--teal)', fontSize: 11, fontWeight: 500,
-              cursor: exporting || bills.length === 0 ? 'default' : 'pointer',
-              opacity: exporting || bills.length === 0 ? 0.4 : 1,
-              transition: 'all 0.15s',
-            }}
-            title="Export current search results as CSV"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            {exporting ? 'Exporting...' : 'CSV'}
-          </button>
+          {/* Watch All button — only if logged in */}
+          {user && bills.length > 0 && (
+            <button
+              onClick={() => setShowWatchAll(!showWatchAll)}
+              style={{
+                padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                background: showWatchAll ? 'var(--teal)' : 'transparent',
+                color: showWatchAll ? 'var(--bg)' : 'var(--teal)',
+                border: '1px solid var(--teal)',
+                cursor: 'pointer', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Watch All
+            </button>
+          )}
         </div>
+
+        {/* Bulk watch panel */}
+        {showWatchAll && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid rgba(0,229,204,0.25)',
+            borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 10,
+          }}>
+            <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 8, fontWeight: 500 }}>
+              Add {bills.length} displayed bill{bills.length !== 1 ? 's' : ''} to your watchlist
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="text"
+                value={bulkTag}
+                onChange={e => setBulkTag(e.target.value)}
+                placeholder="Client tag (optional, e.g. Acme Corp)"
+                style={{
+                  flex: 1, padding: '8px 12px',
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                  borderRadius: 8, fontSize: 12,
+                  color: 'var(--text-primary)', outline: 'none',
+                }}
+              />
+              <button
+                onClick={bulkWatchAll}
+                disabled={bulkAdding}
+                style={{
+                  padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  background: 'var(--teal)', color: 'var(--bg)',
+                  border: 'none', cursor: bulkAdding ? 'wait' : 'pointer',
+                  opacity: bulkAdding ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {bulkAdding ? 'Adding...' : 'Add All'}
+              </button>
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 6 }}>
+              Already-tracked bills will be skipped.
+            </div>
+          </div>
+        )}
+
+        {/* Bulk result toast */}
+        {bulkResult && (
+          <div style={{
+            background: bulkResult.error ? 'rgba(255,82,82,0.1)' : 'rgba(0,229,204,0.1)',
+            border: `1px solid ${bulkResult.error ? 'rgba(255,82,82,0.3)' : 'rgba(0,229,204,0.3)'}`,
+            borderRadius: 8, padding: '8px 12px', marginBottom: 10,
+            fontSize: 12, color: bulkResult.error ? 'var(--red)' : 'var(--teal)',
+          }}>
+            {bulkResult.error
+              ? bulkResult.error
+              : `Added ${bulkResult.added} bill${bulkResult.added !== 1 ? 's' : ''} to watchlist.${bulkResult.skipped > 0 ? ` ${bulkResult.skipped} already tracked.` : ''}`
+            }
+          </div>
+        )}
 
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -204,55 +288,70 @@ function SearchContent() {
 
       {/* Results */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {bills.map((bill, idx) => (
-          <div
-            key={bill.bill_id}
-            onClick={() => router.push(`/bill/${bill.bill_id}`)}
-            style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', padding: '12px 14px',
-              display: 'flex', alignItems: 'center', gap: 12,
-              cursor: 'pointer', transition: 'border-color 0.2s',
-              animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
-            }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-          >
-            <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
-                {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                {bill.category && (
-                  <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other \u2014 ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
-                )}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
-                {bill.has_public_hearing && (
-                  <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>&#9679; Hearing</span>
-                )}
-                {bill.committee_passed && (
-                  <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>&#10003; Comm. Pass</span>
-                )}
-              </div>
-            </div>
-            <a
-              href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`}
-              target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-              title="View on leg.wa.gov"
+        {bills.map((bill, idx) => {
+          const isWatched = watchedIds.has(bill.bill_id)
+          return (
+            <div
+              key={bill.bill_id}
+              onClick={() => router.push(`/bill/${bill.bill_id}`)}
+              style={{
+                background: 'var(--bg-card)', border: `1px solid ${isWatched ? 'rgba(0,229,204,0.2)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius)', padding: '12px 14px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                cursor: 'pointer', transition: 'border-color 0.2s',
+                animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(0,229,204,0.2)' : 'var(--border)'}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-            </a>
-          </div>
-        ))}
+              <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
+                  {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                  {isWatched && (
+                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--teal)', fontWeight: 600 }}>WATCHING</span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'LAW' && (
+                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
+                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>Passed Chamber</span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
+                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-faint)', border: '1px solid var(--border)', borderRadius: 10 }}>Dead</span>
+                  )}
+                  {bill.category && (
+                    <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other \u2014 ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                  {bill.has_public_hearing && (
+                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>&#9679; Hearing</span>
+                  )}
+                  {bill.committee_passed && (
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>&#10003; Comm. Pass</span>
+                  )}
+                </div>
+              </div>
+              <a
+                href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`}
+                target="_blank" rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                title="View on leg.wa.gov"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            </div>
+          )
+        })}
 
         {loading && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>

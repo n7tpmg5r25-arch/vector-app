@@ -173,10 +173,20 @@ export default function HomePage() {
   const avgScore = watchedScores.length > 0
     ? Math.round(watchedScores.reduce((a, b) => a + b, 0) / watchedScores.length)
     : null
-  const outlook = avgScore !== null ? outlookLabel(avgScore) : null
+  const outlook = avgScore !== null && !isInterimPeriod() ? outlookLabel(avgScore) : null
   const momentum = momentumLabel(watchlist)
-  const highMomentum = watchlist.filter(w => (w.bills?.final_score || 0) >= 50).length
-  const atRisk = watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
+  // 6H.2: During interim, show outcome counts instead of score-based stats
+  const interimWatchCounts = isInterimPeriod() ? {
+    law: watchlist.filter(w => w.bills?.confidence_label === 'LAW').length,
+    carry: watchlist.filter(w => w.bills?.confidence_label === 'CARRY OVER').length,
+    dead: watchlist.filter(w => w.bills?.confidence_label === 'DEAD').length,
+  } : null
+  const highMomentum = isInterimPeriod()
+    ? (interimWatchCounts?.law || 0)
+    : watchlist.filter(w => (w.bills?.final_score || 0) >= 50).length
+  const atRisk = isInterimPeriod()
+    ? (interimWatchCounts?.dead || 0)
+    : watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
 
   const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
   const sessionYear = SESSION.split('-')[0]
@@ -346,8 +356,29 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Advocacy outlook — 6B.4: require 5+ bills for meaningful stats */}
-          {outlook && watchlist.length >= 5 ? (
+          {/* Advocacy outlook — 6B.4: require 5+ bills, 6H.2: outcome summary during interim */}
+          {isInterimPeriod() && watchlist.length >= 5 && interimWatchCounts ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>
+                Session Results
+              </div>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                background: 'rgba(0,229,204,0.06)',
+                border: '1px solid var(--border)',
+                borderRadius: 20, padding: '5px 14px',
+                fontSize: 12, fontFamily: 'var(--font-mono)',
+              }}>
+                <span style={{ color: 'var(--teal)', fontWeight: 600 }}>{interimWatchCounts.law} passed</span>
+                <span style={{ color: 'var(--text-faint)' }}>·</span>
+                {interimWatchCounts.carry > 0 && (<>
+                  <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{interimWatchCounts.carry} passed chamber</span>
+                  <span style={{ color: 'var(--text-faint)' }}>·</span>
+                </>)}
+                <span style={{ color: 'var(--text-muted)' }}>{interimWatchCounts.dead} dead</span>
+              </div>
+            </div>
+          ) : outlook && watchlist.length >= 5 ? (
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>
                 Advocacy Outlook
@@ -461,11 +492,15 @@ export default function HomePage() {
 
             {/* Stats row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
-              {[
+              {(isInterimPeriod() ? [
+                { label: 'Tracked', value: watchlist.length, color: 'var(--teal)' },
+                { label: 'Passed', value: highMomentum, color: highMomentum > 0 ? 'var(--teal-bright)' : 'var(--text-muted)' },
+                { label: 'Dead', value: atRisk, color: atRisk > 0 ? 'var(--text-muted)' : 'var(--text-muted)' },
+              ] : [
                 { label: 'Tracked', value: watchlist.length, color: 'var(--teal)' },
                 { label: 'High Score', value: highMomentum, color: 'var(--teal-bright)' },
                 { label: 'At Risk', value: atRisk, color: atRisk > 0 ? 'var(--danger)' : 'var(--text-muted)' },
-              ].map(({ label, value, color }) => (
+              ]).map(({ label, value, color }) => (
                 <div key={label} style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
