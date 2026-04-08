@@ -380,7 +380,11 @@ export default function WatchlistPage() {
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '14px',
               cursor: 'pointer', transition: 'border-color 0.2s',
-              borderLeft: bill.stalled ? '3px solid var(--danger)' : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
+              borderLeft: bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
+                : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
+                : bill.confidence_label === 'CARRY OVER' ? '3px solid var(--gold)'
+                : bill.stalled ? '3px solid var(--danger)'
+                : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
@@ -388,7 +392,7 @@ export default function WatchlistPage() {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ position: 'relative' }}>
-                <ScoreBadge score={bill.final_score} size="md"/>
+                <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
                 {delta != null && delta !== 0 && (
                   <span style={{
                     position: 'absolute', top: -6, right: -10,
@@ -416,7 +420,22 @@ export default function WatchlistPage() {
                       {client_tag}
                     </span>
                   )}
-                  {bill.stalled && (
+                  {bill.confidence_label === 'LAW' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                      Signed into Law
+                    </span>
+                  )}
+                  {bill.confidence_label === 'CARRY OVER' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                      Carried Over
+                    </span>
+                  )}
+                  {bill.confidence_label === 'DEAD' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-faint)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                      Dead
+                    </span>
+                  )}
+                  {bill.stalled && !bill.confidence_label && (
                     <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(255,82,82,0.25)', borderRadius: 10 }}>
                       Stalled
                     </span>

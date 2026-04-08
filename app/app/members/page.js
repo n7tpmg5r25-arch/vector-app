@@ -2,14 +2,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
-import { useSession } from '../../lib/useSession'
+import { getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
+
+const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 export default function MembersPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const [SESSION] = useSession()
 
   const [members, setMembers]         = useState([])
   const [selectedMember, setSelected] = useState(null)
@@ -24,7 +25,7 @@ export default function MembersPage() {
     async function load() {
       const { data } = await supabase
         .from('bills')
-        .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing')
+        .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name')
         .eq('session', SESSION)
         .not('prime_sponsor', 'is', null)
 
@@ -39,6 +40,7 @@ export default function MembersPage() {
             name, party: bill.prime_party || '?', chamber: bill.chamber || '?',
             is_chair: bill.is_committee_chair || false, tier: bill.sponsor_tier || 3,
             bill_count: 0, committee_passes: 0, hearing_count: 0, scores: [], top_score: 0,
+            committees: new Set(),
           }
         }
         map[name].bill_count++
@@ -48,10 +50,12 @@ export default function MembersPage() {
         if ((bill.final_score || 0) > map[name].top_score) map[name].top_score = bill.final_score || 0
         if (bill.prime_party) map[name].party = bill.prime_party
         if (bill.chamber) map[name].chamber = bill.chamber
+        if (bill.committee_name) map[name].committees.add(bill.committee_name)
       }
 
       const list = Object.values(map).map(m => ({
         ...m,
+        committees: [...m.committees],
         avg_score: m.scores.length > 0
           ? Math.round(m.scores.reduce((a, b) => a + b, 0) / m.scores.length) : 0,
       })).sort((a, b) => b.bill_count - a.bill_count)
@@ -66,7 +70,7 @@ export default function MembersPage() {
     setBillsLoading(true)
     const { data } = await supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label')
       .eq('session', SESSION)
       .eq('prime_sponsor', name)
       .order('final_score', { ascending: false })
@@ -135,21 +139,27 @@ export default function MembersPage() {
                   {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
-                  {' · '}
-                  <a
-                    href={`https://app.leg.wa.gov/membersearch/#/?member=${encodeURIComponent(selectedMember.name)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ color: 'var(--teal-mid)', textDecoration: 'none' }}
-                  >leg.wa.gov &#8599;</a>
                 </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
                     {tier.text}
                   </span>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: 'var(--bg-surface)', color: 'var(--text-mid)', border: '1px solid var(--border)' }}>
                     {selectedMember.bill_count} bills sponsored
                   </span>
+                  <a
+                    href={`https://leg.wa.gov/${selectedMember.chamber === 'House' ? 'House/Representatives' : 'Senate/Senators'}/Pages/${selectedMember.name.split(' ').pop()}.aspx`}
+                    target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      fontSize: 9, padding: '3px 10px', borderRadius: 10,
+                      background: 'rgba(0,229,204,0.08)', color: 'var(--teal)',
+                      border: '1px solid rgba(0,229,204,0.2)',
+                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    leg.wa.gov ↗
+                  </a>
                 </div>
               </div>
             </div>
@@ -173,6 +183,23 @@ export default function MembersPage() {
             ))}
           </div>
 
+          {selectedMember.committees && selectedMember.committees.length > 0 && (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Committee Affiliations
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {selectedMember.committees.sort().map(c => (
+                  <span key={c} style={{
+                    fontSize: 11, padding: '4px 10px', borderRadius: 8,
+                    background: 'var(--bg-surface)', color: 'var(--text-mid)',
+                    border: '1px solid var(--border)', lineHeight: 1.3,
+                  }}>{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
             Sponsored Bills · {SESSION}
           </div>
@@ -193,7 +220,7 @@ export default function MembersPage() {
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
-              <ScoreBadge score={bill.final_score} size="sm"/>
+              <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
