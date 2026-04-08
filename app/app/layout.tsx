@@ -4,7 +4,6 @@ import RegisterSW from './components/RegisterSW'
 export const metadata = {
   title: 'Vector WA',
   description: 'WA Legislative Trajectory Intelligence',
-  themeColor: '#080c14',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
