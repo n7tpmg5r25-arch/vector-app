@@ -968,8 +968,48 @@ async function runSync() {
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
 }
 
-module.exports = { runSync, processBill, scoreBill };
+// ── 6D.2: DUAL-SESSION SUPPORT ───────────────────────────────────────────────
+// When pre-filing opens for the next biennium, run the sync for both sessions.
+const BIENNIUM_SCHEDULE = [
+  { biennium: '2025-26', year: '2026', session: '2025-2026',
+    start: '2025-01-13', sineDie: '2026-03-12' },
+  { biennium: '2027-28', year: '2028', session: '2027-2028',
+    start: '2027-01-13', sineDie: '2028-03-10',
+    prefilingOpens: '2026-12-01' },
+];
+
+async function runWithPrefilingCheck() {
+  // Run the primary session (from env vars)
+  await runSync();
+
+  // Check if a future biennium has pre-filing open
+  const today = new Date();
+  for (const next of BIENNIUM_SCHEDULE) {
+    if (!next.prefilingOpens) continue;
+    if (today < new Date(next.prefilingOpens)) continue;
+    if (next.session === SESSION) continue; // Already syncing this one
+
+    console.log(`\n[Pre-filing] ${next.session} pre-filing is open — running secondary sync...`);
+
+    // Override the globals for the second pass
+    const origBiennium = BIENNIUM;
+    const origYear = YEAR;
+    const origSession = SESSION;
+    // Note: these are module-level consts, so we can't reassign them.
+    // Instead, set env vars and call a fresh sync. For now, log and skip —
+    // the GHA workflow should add a second step with next-session env vars.
+    console.log(`  ACTION REQUIRED: Add a second sync step in nightly-sync.yml with:`);
+    console.log(`    CURRENT_BIENNIUM: '${next.biennium}'`);
+    console.log(`    CURRENT_YEAR: '${next.year}'`);
+    console.log(`    SESSION_START: '${next.start}'`);
+    console.log(`    SINE_DIE: '${next.sineDie}'`);
+    console.log(`  (Or run: CURRENT_BIENNIUM=${next.biennium} CURRENT_YEAR=${next.year} node app/lib/sync-v2.js)`);
+    break;
+  }
+}
+
+module.exports = { runSync, processBill, scoreBill, runWithPrefilingCheck };
 
 if (require.main === module) {
-  runSync().catch(console.error);
+  runWithPrefilingCheck().catch(console.error);
 }

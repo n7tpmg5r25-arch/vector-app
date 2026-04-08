@@ -2,15 +2,15 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
-import { getCurrentSession, isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
+import { isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
-
-const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 export default function HearingsPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+  const [SESSION] = useSession()
 
   const [hearings, setHearings]     = useState([])
   const [billHearings, setBillHearings] = useState([])

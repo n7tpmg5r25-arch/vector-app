@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../lib/supabase'
-import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod } from '../lib/session-config'
+import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate } from '../lib/session-config'
+import { useSession } from '../lib/useSession'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 
@@ -35,9 +36,10 @@ export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
 
-  // Phase 5C.7 + 6.15.4: Session from shared config — auto-switches bienniums.
-  const SESSION = useMemo(() => getCurrentSession(), [])
+  // 6D.1: Session from useSession hook (localStorage-backed, user-switchable)
+  const [SESSION, setSession] = useSession()
   const nextBiennium = useMemo(() => getNextBiennium(), [])
+  const [availableSessions, setAvailableSessions] = useState([SESSION])
 
   const [user, setUser]         = useState(null)
   const [watchlist, setWatchlist] = useState([])
@@ -142,13 +144,28 @@ export default function HomePage() {
     setLoading(false)
   }
 
+  // 6D.1: Discover which sessions have data for the dropdown
+  async function loadSessions() {
+    // Grab one bill per known session to check if data exists
+    const known = ['2027-2028', '2025-2026']  // newest first
+    const found = []
+    for (const s of known) {
+      const { count } = await supabase
+        .from('bills')
+        .select('bill_id', { count: 'exact', head: true })
+        .eq('session', s)
+      if (count && count > 0) found.push(s)
+    }
+    if (found.length > 0) setAvailableSessions(found)
+  }
+
   async function handleRefresh() {
     setRefreshing(true)
     await loadData()
     setRefreshing(false)
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData(); loadSessions() }, [SESSION])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
   const avgScore = watchedScores.length > 0
@@ -223,8 +240,44 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Status chips */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Status chips + session picker */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {/* 6D.1: Session picker dropdown */}
+            {availableSessions.length > 1 ? (
+              <select
+                value={SESSION}
+                onChange={e => setSession(e.target.value)}
+                style={{
+                  background: 'rgba(0,229,204,0.08)',
+                  border: '1px solid rgba(0,229,204,0.25)',
+                  borderRadius: 20, padding: '4px 12px',
+                  fontSize: 11, color: 'var(--teal)',
+                  fontFamily: 'var(--font-mono)',
+                  cursor: 'pointer', outline: 'none',
+                  WebkitAppearance: 'none', MozAppearance: 'none',
+                  appearance: 'none',
+                  backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'8\' height=\'5\' viewBox=\'0 0 8 5\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1l3 3 3-3\' stroke=\'%2300e5cc\' stroke-width=\'1.5\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 10px center',
+                  paddingRight: 26,
+                }}
+              >
+                {availableSessions.map(s => (
+                  <option key={s} value={s} style={{ background: '#0a0f1a', color: '#ccc' }}>{s}</option>
+                ))}
+              </select>
+            ) : (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(0,229,204,0.08)',
+                border: '1px solid rgba(0,229,204,0.25)',
+                borderRadius: 20, padding: '4px 12px',
+                fontSize: 11, color: 'var(--teal)',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                {SESSION}
+              </div>
+            )}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               background: 'rgba(212,168,75,0.1)',
@@ -234,7 +287,7 @@ export default function HomePage() {
               fontFamily: 'var(--font-mono)',
             }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block', boxShadow: 'var(--gold-glow)' }}/>
-              WA Interim Period
+              {isInterimPeriod() ? 'Interim' : 'In Session'}
             </div>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -247,6 +300,49 @@ export default function HomePage() {
               Solo Practice
             </div>
           </div>
+
+          {/* 6D.3: Transition messaging */}
+          {nextBiennium.prefilingOpens && daysToPreFiling > 0 && daysToPreFiling <= 240 && (
+            <div style={{
+              marginTop: 10, padding: '8px 14px',
+              background: 'rgba(0,229,204,0.04)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5,
+            }}>
+              {daysToPreFiling > 60 ? (
+                <>Pre-filing for {nextBiennium.session} opens {formatSessionDate(nextBiennium.prefilingOpens)} ({daysToPreFiling} days)</>
+              ) : daysToPreFiling > 0 ? (
+                <>Pre-filing opens in <span style={{ color: 'var(--teal)', fontWeight: 600 }}>{daysToPreFiling} days</span> &mdash; {nextBiennium.session} bills will appear here automatically</>
+              ) : null}
+            </div>
+          )}
+          {nextBiennium.prefilingOpens && daysToPreFiling === 0 && daysToSession > 0 && (
+            <div style={{
+              marginTop: 10, padding: '8px 14px',
+              background: 'rgba(0,229,204,0.08)',
+              border: '1px solid rgba(0,229,204,0.2)',
+              borderRadius: 'var(--radius)',
+              fontSize: 12, color: 'var(--teal)', lineHeight: 1.5,
+            }}>
+              {availableSessions.includes(nextBiennium.session) ? (
+                <>{nextBiennium.session} pre-filed bills are being tracked. <span onClick={() => setSession(nextBiennium.session)} style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Switch to {nextBiennium.session}</span></>
+              ) : (
+                <>Pre-filing is open for {nextBiennium.session}. New bills will appear as they are filed.</>
+              )}
+            </div>
+          )}
+          {SESSION !== getCurrentSession() && (
+            <div style={{
+              marginTop: 10, padding: '8px 14px',
+              background: 'rgba(212,168,75,0.06)',
+              border: '1px solid rgba(212,168,75,0.2)',
+              borderRadius: 'var(--radius)',
+              fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
+            }}>
+              Viewing historical session. <span onClick={() => setSession(getCurrentSession())} style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Switch to current session</span>
+            </div>
+          )}
 
           {/* Advocacy outlook — 6B.4: require 5+ bills for meaningful stats */}
           {outlook && watchlist.length >= 5 ? (

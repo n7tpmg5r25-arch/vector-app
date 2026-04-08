@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -27,7 +27,7 @@ jobs:
         working-directory: ./app
         run: npm ci
 
-      - name: Run sync-v2.js
+      - name: Run sync (2025-2026 session)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -41,12 +41,33 @@ jobs:
           SINE_DIE: '2026-03-12'
         run: node app/lib/sync-v2.js
 
-      # Phase 6.3 — Data-quality assertions. Runs immediately after sync and
-      # BEFORE the AI summary step. If any assertion fails, this step exits 1,
-      # the workflow turns red, GitHub Actions sends a failure email, and the
-      # AI summary step is skipped (so we don't burn Haiku tokens summarizing
-      # corrupted data). The Phase 5B bugs would have been caught here on day
-      # one instead of surviving until manual QA.
+      # 6D.2: Pre-filing sync for next biennium
+      # Activates Dec 1, 2026 — fetches new 2027-2028 pre-filed bills
+      # Until then this step runs but exits quickly (0 bills in new session)
+      - name: Run sync (2027-2028 session — pre-filing)
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2027-28'
+          CURRENT_YEAR: '2028'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          SESSION_START: '2027-01-13'
+          COMMITTEE_CUTOFF: '2028-02-07'
+          FLOOR_CUTOFF: '2028-02-21'
+          OPPOSITE_CUTOFF: '2028-03-05'
+          SINE_DIE: '2028-03-10'
+        run: |
+          # Only run if pre-filing has opened (Dec 1, 2026)
+          PREFILING_DATE="2026-12-01"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [[ "$TODAY" < "$PREFILING_DATE" ]]; then
+            echo "Pre-filing not yet open ($TODAY < $PREFILING_DATE). Skipping."
+            exit 0
+          fi
+          echo "Pre-filing is open. Syncing 2027-2028 session..."
+          node app/lib/sync-v2.js
+
       - name: Assert sync data quality
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

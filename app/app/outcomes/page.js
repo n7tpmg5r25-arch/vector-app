@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -18,7 +19,7 @@ const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
 export default function OutcomesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const SESSION = useMemo(() => getCurrentSession(), [])
+  const [SESSION] = useSession()
   const isInterim = useMemo(() => isInterimPeriod(), [])
 
   const [bills, setBills] = useState([])
