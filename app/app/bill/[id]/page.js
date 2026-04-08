@@ -6,13 +6,13 @@ import ScoreBadge from '../../components/ScoreBadge'
 import Nav from '../../components/Nav'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
-// Historical pass rates by score bucket (calibrated from 2025-2026 outcomes)
+// Historical pass rates by score bucket (calibrated from full 2025-2026 biennium, N=3,411, 196 LAW)
 const BUCKET_RATES = [
   { min: 0,  max: 30,  rate: 0,    label: '<1% of similar bills became law' },
   { min: 30, max: 45,  rate: 0,    label: '<1% of similar bills became law' },
-  { min: 45, max: 60,  rate: 0.1,  label: '~1 in 1,000 similar bills became law' },
-  { min: 60, max: 75,  rate: 4.7,  label: '~1 in 20 similar bills became law' },
-  { min: 75, max: 100, rate: 42.5, label: '~2 in 5 similar bills became law' },
+  { min: 45, max: 60,  rate: 0,    label: '<1% of similar bills became law' },
+  { min: 60, max: 75,  rate: 1.3,  label: '~1 in 75 similar bills became law' },
+  { min: 75, max: 100, rate: 69.4, label: '~7 in 10 similar bills became law' },
 ]
 
 function getBucketLabel(score) {
@@ -1063,19 +1063,19 @@ export default function BillDetailPage() {
                   {getBucketLabel(score).label} · <span style={{ color: confColor }}>{confLabel}</span> signal
                 </div>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
-                  <div style={{ height: '100%', width: `${Math.min(getBucketLabel(score).rate / 42.5 * 100, 100)}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
+                  <div style={{ height: '100%', width: `${Math.min(getBucketLabel(score).rate / 69.4 * 100, 100)}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                  <span>0%</span><span>21%</span><span>43%</span>
+                  <span>0%</span><span>35%</span><span>69%</span>
                 </div>
               </div>
 
               {[
                 { range: '0–30', rate: '0.0%', pct: 0 },
                 { range: '30–45', rate: '0.0%', pct: 0 },
-                { range: '45–60', rate: '0.1%', pct: 0.1 },
-                { range: '60–75', rate: '4.7%', pct: 4.7 },
-                { range: '75–100', rate: '42.5%', pct: 42.5 },
+                { range: '45–60', rate: '0.0%', pct: 0 },
+                { range: '60–75', rate: '1.3%', pct: 1.3 },
+                { range: '75–100', rate: '69.4%', pct: 69.4 },
               ].map(({ range, rate, pct }) => {
                 const isCurrentBucket =
                   (range === '0–30' && score < 30) || (range === '30–45' && score >= 30 && score < 45) ||
@@ -1091,7 +1091,7 @@ export default function BillDetailPage() {
                   }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 48, fontWeight: isCurrentBucket ? 600 : 400 }}>{range}</span>
                     <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.max(pct / 42.5 * 100, pct > 0 ? 3 : 0)}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
+                      <div style={{ height: '100%', width: `${Math.max(pct / 69.4 * 100, pct > 0 ? 3 : 0)}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
                     </div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 36, textAlign: 'right', fontWeight: isCurrentBucket ? 700 : 400 }}>{rate}</span>
                     {isCurrentBucket && <span style={{ fontSize: 10, color: 'var(--teal)' }}>◀</span>}

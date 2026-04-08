@@ -296,7 +296,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     'and combined with X-Factor multipliers for exceptional circumstances (e.g., emergency clauses, governor requests).',
     '',
     'Scores are calibrated against verified 2025\u20132026 session outcomes (196 signed into law out of 3,411 total bills).',
-    'Historical pass rates by score bucket: 75\u2013100 = 42.5%, 60\u201375 = 4.7%, 45\u201360 = 0.1%, below 45 = <0.1%.',
+    'Historical pass rates by score bucket: 75\u2013100 = 69.4%, 60\u201375 = 1.3%, below 60 = <1%.',
     'Score changes (\u0394) reflect movement since the previous daily snapshot.',
   ]
   lines.forEach(line => {

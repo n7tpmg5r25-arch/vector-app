@@ -104,7 +104,7 @@ function getHardcodedWeights() {
     },
     bucket_pass_rates: {
       "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
-      "60-75": 0.227, "75-100": 0.960,
+      "60-75": 0.013, "75-100": 0.694,
     },
   };
 }
@@ -606,7 +606,7 @@ function scoreBill(bill, categoryRates, sessionState) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — recalibrated against FULL 2025-26 biennium (April 6, 2026 — 3,411 bills)
+  // CONFIDENCE — recalibrated against FULL 2025-26 biennium (April 8, 2026 — 3,411 bills, 196 LAW)
   // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
   let pass_prob, conf_label, conf_low, conf_high;
 
@@ -627,12 +627,15 @@ function scoreBill(bill, categoryRates, sessionState) {
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    pass_prob = 0.960; conf_label = 'VERY HIGH'; conf_low = 0.920; conf_high = 0.990;
+    // 69.4% of 75+ bills became law (188/271)
+    pass_prob = 0.694; conf_label = 'VERY HIGH'; conf_low = 0.640; conf_high = 0.750;
   } else if (final_score >= 60) {
-    pass_prob = 0.227; conf_label = 'MODERATE'; conf_low = 0.180; conf_high = 0.280;
+    // 1.3% of 60-74 bills became law (8/604)
+    pass_prob = 0.013; conf_label = 'MODERATE'; conf_low = 0.004; conf_high = 0.026;
   } else if (final_score >= 45 && bill.committee_passed) {
     // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
-    pass_prob = 0.050; conf_label = 'LOW'; conf_low = 0.020; conf_high = 0.080;
+    // 0% became law in 45-59 bucket, but 0.8% passed a chamber — tiny nonzero signal
+    pass_prob = 0.008; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.020;
   } else if (final_score >= 45) {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
   } else {

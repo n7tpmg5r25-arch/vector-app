@@ -70,14 +70,14 @@ const XF_NEG = [
   { l: 'High amendment count (>3)', d: '−5%' },
 ]
 
-// LIVE from 2025-2026 session outcomes (query run April 2026, N=2,855 bills).
+// LIVE from 2025-2026 full-biennium outcomes (query run April 2026, N=3,411 bills, 196 signed into law).
 // Each row: final score bucket → actual pass rate.
 const CALIBRATION = [
-  { bucket: '75–99', label: 'HIGH',      bills: 176,  chamber: 46.0, law: 33.5 },
-  { bucket: '60–74', label: 'MODERATE',  bills: 233,  chamber: 11.2, law:  3.9 },
-  { bucket: '45–59', label: 'LOW',       bills: 347,  chamber:  6.3, law:  0.0 },
-  { bucket: '30–44', label: 'VERY LOW',  bills: 921,  chamber:  1.0, law:  0.0 },
-  { bucket: ' 0–29', label: 'VERY LOW',  bills: 1178, chamber:  0.0, law:  0.0 },
+  { bucket: '75–99', label: 'HIGH',      bills: 271,  chamber: 79.0, law: 69.4 },
+  { bucket: '60–74', label: 'MODERATE',  bills: 604,  chamber:  7.6, law:  1.3 },
+  { bucket: '45–59', label: 'LOW',       bills: 726,  chamber:  0.8, law:  0.0 },
+  { bucket: '30–44', label: 'VERY LOW',  bills: 1147, chamber:  0.0, law:  0.0 },
+  { bucket: ' 0–29', label: 'VERY LOW',  bills: 663,  chamber:  0.0, law:  0.0 },
 ]
 
 // Color per confidence tier, matching the bill detail page
@@ -210,7 +210,7 @@ export default function MethodologyPage() {
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              The chart below is the whole point. It shows, for the 2,855 bills in the 2025-26 session,
+              The chart below is the whole point. It shows, for all 3,411 bills in the 2025-26 biennium,
               what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
               model is any good, higher buckets should pass at meaningfully higher rates — and they do,
               with clean monotonic separation.
@@ -245,8 +245,8 @@ export default function MethodologyPage() {
               </table>
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Source: Vector | WA database, session outcomes as of sine die March 12, 2026. N=2,855.
-              "Chamber" = passed its chamber of origin. "Law" = signed by the governor.
+              Source: Vector | WA database, full 2025-26 biennium outcomes. N=3,411.
+              "Chamber" = passed at least one chamber. "Law" = signed by the governor.
             </div>
           </div>
         </div>
@@ -258,13 +258,89 @@ export default function MethodologyPage() {
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
             Most public legislative trackers (LegiScan, OpenStates, the WA Legislature site) tell you
-            where a bill is. Vector | WA tells you where a bill is <em>going</em>. The 1,178 bills in
-            the 0-29 bucket had a 0% pass rate. The 176 bills in the 75+ bucket had a 33.5% pass rate —
-            <span style={{ color: 'var(--teal)', fontWeight: 600 }}> 59 of them became law</span>.
-            That 33× separation is the signal you're paying for.
+            where a bill is. Vector | WA tells you where a bill is <em>going</em>. The 663 bills in
+            the 0–29 bucket had a 0% pass rate. The 271 bills in the 75+ bucket had a 69.4% pass rate —
+            <span style={{ color: 'var(--teal)', fontWeight: 600 }}>188 of them became law</span>.
+            That separation is the signal you're paying for.
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
               Scores refresh nightly. The calibration table above will be re-computed at the end of
               each session against the new outcome data, so the model stays honest.
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION — AFTER SESSION ENDS (interim behavior) */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            After Session Ends (Interim)
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
+            When the legislature adjourns sine die, every bill gets a final classification based on how far
+            it advanced:
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div><span style={{ color: 'var(--teal)', fontWeight: 600 }}>Signed into Law</span> — reached the
+                governor's desk and was signed (stage 6). Pass probability stays at 100%.</div>
+              <div><span style={{ color: '#ffc94a', fontWeight: 600 }}>Passed Chamber</span> — cleared at least
+                one chamber (stage 4–5) but didn't become law before the biennium ended. Pass probability
+                goes to 0% because the legislative window closed.</div>
+              <div><span style={{ color: 'var(--text-faint)', fontWeight: 600 }}>Dead</span> — didn't make it out
+                of its chamber of origin. Pass probability goes to 0%.</div>
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              During the interim, trajectory scores are frozen — they reflect where the bill stood at
+              session end. The signal tier (HIGH, MODERATE, LOW, VERY LOW) is preserved as a historical
+              reference showing how strong the bill's trajectory signal was before the session closed.
+              If a bill is reintroduced in a future session, it gets a fresh score.
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION — SIGNAL TIERS */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            Signal Tiers
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+              Every bill is assigned a signal tier based on its trajectory score. During an active session,
+              this indicates likelihood of advancement. After sine die, the tier is preserved as a historical
+              marker — "Signal was MODERATE" means the bill's trajectory placed it in the MODERATE range
+              before the session ended.
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                fontSize: 12,
+                borderCollapse: 'collapse',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Tier</th>
+                    <th style={{ textAlign: 'left',  padding: '10px 8px',  fontWeight: 600 }}>Score Range</th>
+                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { tier: 'HIGH',      range: '75–99', meaning: 'Strong legislative momentum — committee passed, floor action likely', color: '#00e5cc' },
+                    { tier: 'MODERATE',  range: '60–74', meaning: 'Active movement — hearings held, some advancement', color: '#ffc94a' },
+                    { tier: 'LOW',       range: '45–59', meaning: 'Limited progress — introduced but stalling', color: '#ff9f43' },
+                    { tier: 'VERY LOW',  range: '0–44',  meaning: 'Minimal activity — unlikely to advance', color: '#8a96ad' },
+                  ].map((t, i) => (
+                    <tr key={t.tier} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '12px 16px', color: t.color, fontWeight: 600 }}>{t.tier}</td>
+                      <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{t.range}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{t.meaning}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+              Signal tier is distinct from outcome label. After session ends, a bill might be labeled "Dead"
+              (outcome) but still show "Signal was MODERATE" (tier) — meaning it had real momentum before
+              the clock ran out.
             </div>
           </div>
         </div>
