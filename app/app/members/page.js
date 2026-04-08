@@ -135,6 +135,13 @@ export default function MembersPage() {
                   {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
+                  {' · '}
+                  <a
+                    href={`https://app.leg.wa.gov/membersearch/#/?member=${encodeURIComponent(selectedMember.name)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{ color: 'var(--teal-mid)', textDecoration: 'none' }}
+                  >leg.wa.gov &#8599;</a>
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>

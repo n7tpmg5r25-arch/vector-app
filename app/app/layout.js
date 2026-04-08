@@ -1,22 +1,8 @@
 import './globals.css'
-import RegisterSW from './components/RegisterSW'
 
 export const metadata = {
   title: 'Vector WA',
   description: 'WA Legislative Trajectory Intelligence',
-  themeColor: '#080c14',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'Vector WA',
-  },
-  openGraph: {
-    title: 'Vector WA',
-    description: 'WA Legislative Trajectory Intelligence by Post & Policy',
-    siteName: 'Vector WA',
-    type: 'website',
-  },
 }
 
 export const viewport = {
@@ -30,12 +16,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body>
-        <RegisterSW />
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

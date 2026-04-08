@@ -6,6 +6,24 @@ import ScoreBadge from '../../components/ScoreBadge'
 import Nav from '../../components/Nav'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
+// Historical pass rates by score bucket (calibrated from 2025-2026 outcomes)
+const BUCKET_RATES = [
+  { min: 0,  max: 30,  rate: 0,    label: '<1% of similar bills became law' },
+  { min: 30, max: 45,  rate: 0,    label: '<1% of similar bills became law' },
+  { min: 45, max: 60,  rate: 0.1,  label: '~1 in 1,000 similar bills became law' },
+  { min: 60, max: 75,  rate: 4.7,  label: '~1 in 20 similar bills became law' },
+  { min: 75, max: 100, rate: 42.5, label: '~2 in 5 similar bills became law' },
+]
+
+function getBucketLabel(score) {
+  const s = score || 0
+  for (const b of BUCKET_RATES) {
+    if (s >= b.min && s < b.max) return b
+    if (b.max === 100 && s >= b.min) return b
+  }
+  return BUCKET_RATES[0]
+}
+
 // Pipeline stages that actually appear in the data (stage 2 and 5 never
 // populated — WA bills jump 1->3 and 4->6). Labels describe what happened.
 const PIPELINE_STAGES = [
@@ -306,7 +324,8 @@ export default function BillDetailPage() {
   async function shareBill() {
     if (!bill) return
     const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
-    const text = `${prefix}${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${Math.round((bill.pass_probability || 0) * 100)}% pass probability\n— Vector | WA`
+    const bucket = getBucketLabel(bill.final_score)
+    const text = `${prefix}${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${bucket.rate > 0 ? bucket.rate + '% historical pass rate' : 'Very low historical pass rate'}\n— Vector | WA`
     try {
       await navigator.clipboard.writeText(text)
       setShared(true)
@@ -489,7 +508,7 @@ export default function BillDetailPage() {
                   ? confLabel === 'LAW' ? 'Signed into law'
                   : confLabel === 'DEAD' ? 'Dead \u2014 did not pass'
                   : 'Carries over to next session'
-                  : `${passPct}% chance of becoming law`}
+                  : getBucketLabel(score).label}
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.6 }}>
                   <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
                   <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
@@ -652,7 +671,7 @@ export default function BillDetailPage() {
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {['LAW', 'CARRY OVER', 'DEAD'].includes(confLabel)
                   ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'CARRY OVER' ? 'Carried over to next session' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
-                  : <>{passPct}% pass probability · <span style={{ color: confColor }}>{confLabel}</span> signal strength</>
+                  : <>{getBucketLabel(score).rate}% historical pass rate · <span style={{ color: confColor }}>{confLabel}</span> signal</>
                 }
               </div>
             </div>
@@ -1026,22 +1045,22 @@ export default function BillDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Pass Probability · 90% CI
+                  Historical Pass Rate by Score
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
-                  Signal Strength reflects how closely this bill matches historical patterns that resulted in passage. Based on 138 bills that passed chamber and 68 that became law in the 2025&ndash;2026 session.
+                  How often bills in each score range became law, based on verified 2025&#8211;2026 session outcomes (196 bills signed, 3,411 total).
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, fontWeight: 800, color: scoreColor, marginBottom: 4, textShadow: `0 0 20px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.4)' : 'transparent'}` }}>
-                  {passPct}%
+                  {getBucketLabel(score).rate}%
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Range: {Math.round((bill.confidence_low || 0) * 100)}–{Math.round((bill.confidence_high || 0) * 100)}% · <span style={{ color: confColor }}>{confLabel}</span> confidence
+                  {getBucketLabel(score).label} · <span style={{ color: confColor }}>{confLabel}</span> signal
                 </div>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
-                  <div style={{ height: '100%', width: `${passPct}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
+                  <div style={{ height: '100%', width: `${Math.min(getBucketLabel(score).rate / 42.5 * 100, 100)}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                  <span>0%</span><span>50%</span><span>100%</span>
+                  <span>0%</span><span>21%</span><span>43%</span>
                 </div>
               </div>
 
