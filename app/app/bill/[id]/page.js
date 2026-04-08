@@ -507,7 +507,7 @@ export default function BillDetailPage() {
                 {['LAW','DEAD','CARRY OVER'].includes(confLabel)
                   ? confLabel === 'LAW' ? 'Signed into law'
                   : confLabel === 'DEAD' ? 'Dead \u2014 did not pass'
-                  : 'Carries over to next session'
+                  : 'Passed chamber \u2014 did not become law'
                   : getBucketLabel(score).label}
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.6 }}>
                   <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>

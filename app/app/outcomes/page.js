@@ -132,10 +132,10 @@ export default function OutcomesPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
           {[
             { label: 'Signed', value: lawCount, color: 'var(--teal)', filterVal: 'LAW' },
-            { label: 'Carried Over', value: carryCount, color: 'var(--gold)', filterVal: 'CARRY OVER' },
+            { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'CARRY OVER', tooltip: 'Passed at least one chamber but did not become law this session' },
             { label: 'Dead', value: deadCount, color: 'var(--text-muted)', filterVal: 'DEAD' },
-          ].map(({ label, value, color, filterVal }) => (
-            <button key={label} onClick={() => setOutcome(outcome === filterVal ? 'All' : filterVal)} style={{
+          ].map(({ label, value, color, filterVal, tooltip }) => (
+            <button key={label} onClick={() => setOutcome(outcome === filterVal ? 'All' : filterVal)} title={tooltip || ''} style={{
               background: outcome === filterVal ? 'var(--bg-surface)' : 'var(--bg-card)',
               border: `1px solid ${outcome === filterVal ? color : 'var(--border)'}`,
               borderRadius: 'var(--radius)', padding: '10px 8px', textAlign: 'center', cursor: 'pointer',
@@ -218,7 +218,7 @@ export default function OutcomesPage() {
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                 </span>
                 <span style={outcomeBadgeStyle(bill.confidence_label)}>
-                  {bill.confidence_label === 'LAW' ? 'Signed' : bill.confidence_label === 'CARRY OVER' ? 'Carried Over' : 'Dead'}
+                  {bill.confidence_label === 'LAW' ? 'Signed' : bill.confidence_label === 'CARRY OVER' ? 'Passed Chamber' : 'Dead'}
                 </span>
               </div>
               <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

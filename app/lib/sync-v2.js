@@ -1,21 +1,14 @@
 /**
- * VECTOR | WA — Sync Script v2.5 (Step 6C — Data Gaps & Quality)
+ * VECTOR | WA — Sync Script v2.4 (Phase 6A — Score Stability & Baseline Reset)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
  *
- * v2.5 CHANGES (Step 6C):
- *  - 6C.3: Committee-to-category fallback mapping — when title keywords return
- *          "Other", the bill's committee_name is used to assign a category.
- *          Covers 14 WA committees. Drops "Other" from 29.5% to ~12%.
- *
- * v2.4 CHANGES (Step 6.14):
- *  - 6.14.1: Expanded detectCategory() from 11 to 14 categories, ~160 keywords
- *            Added: Government Operations, Natural Resources, Veterans / Military
- *            "Other" drops from 50% to ~30%
- *  - 6.14.2: Remaining "Other" bills get committee-based sub-label in UI
- *  - 6.14.3: Recalculated category_rates from reclassified data
+ * v2.4 CHANGES (Phase 6A):
+ *  - 6A.1: Interim score freeze — skip rescoring when no material data changed
+ *  - 6A.4: End-of-session stalled detection for stage-1 bills
+ *  - 6A.5: signal_tier column — always stores score-based tier alongside outcome label
  *
  * v2.3 CHANGES (Step 6.13):
  *  - 6.13.1: Stalled detection now catches Rules-queue bills (was 82 false positives)
@@ -99,15 +92,15 @@ async function loadCalibratedWeights() {
 }
 
 function getHardcodedWeights() {
-  // Recalibrated after Step 6C.3 committee-based reclassification (April 7, 2026 — 3,411 bills, 14 categories)
+  // Recalibrated after Step 6.14 category expansion (April 7, 2026 — 3,411 bills, 14 categories)
   // law_rate = became-law / total-in-bucket
   return {
     category_rates: {
-      "Natural Resources": 0.186, "Transportation": 0.094, "Employment / Labor": 0.089,
-      "Government Operations": 0.088, "Agriculture": 0.079, "Veterans / Military": 0.070,
-      "Housing": 0.067, "Business / Commerce": 0.059, "Health": 0.057,
-      "Environment": 0.053, "Criminal Justice": 0.047, "Other": 0.044,
-      "Budget / Appropriations": 0.037, "Technology": 0.036, "Education": 0.032,
+      "Natural Resources": 0.195, "Government Operations": 0.098, "Agriculture": 0.098,
+      "Employment / Labor": 0.096, "Transportation": 0.092, "Veterans / Military": 0.070,
+      "Business / Commerce": 0.068, "Health": 0.062, "Environment": 0.054,
+      "Housing": 0.052, "Budget / Appropriations": 0.046, "Other": 0.045,
+      "Criminal Justice": 0.044, "Technology": 0.036, "Education": 0.034,
     },
     bucket_pass_rates: {
       "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
@@ -293,56 +286,6 @@ function detectCategory(title = '') {
   };
   for (const [cat, keywords] of Object.entries(CATS)) {
     if (keywords.some(kw => t.includes(kw))) return cat;
-  }
-  return 'Other';
-}
-
-// v2.5 (Step 6C.3): Committee-name-based category fallback.
-// When title keywords return "Other", use the bill's committee to assign a
-// category. Committee names are matched case-insensitively via substring.
-const COMMITTEE_CATEGORY_MAP = [
-  // Budget / Appropriations
-  { match: 'ways & means',     category: 'Budget / Appropriations' },
-  { match: 'appropriations',   category: 'Budget / Appropriations' },
-  { match: 'capital budget',   category: 'Budget / Appropriations' },
-  { match: 'finance',          category: 'Budget / Appropriations' },
-  // Criminal Justice
-  { match: 'law & justice',    category: 'Criminal Justice' },
-  { match: 'civil rights & judiciary', category: 'Criminal Justice' },
-  { match: 'community safety', category: 'Criminal Justice' },
-  // Health
-  { match: 'human services',   category: 'Health' },
-  { match: 'health care',      category: 'Health' },
-  { match: 'health & long',    category: 'Health' },
-  // Government Operations
-  { match: 'state government', category: 'Government Operations' },
-  { match: 'local government', category: 'Government Operations' },
-  { match: 'tribal',           category: 'Government Operations' },
-  // Education
-  { match: 'education',        category: 'Education' },
-  { match: 'postsecondary',    category: 'Education' },
-  // Business / Commerce
-  { match: 'consumer protection', category: 'Business / Commerce' },
-  { match: 'business',         category: 'Business / Commerce' },
-  { match: 'trade & economic', category: 'Business / Commerce' },
-  // Employment / Labor
-  { match: 'labor',            category: 'Employment / Labor' },
-  // Environment
-  { match: 'environment',      category: 'Environment' },
-  // Housing
-  { match: 'housing',          category: 'Housing' },
-  // Transportation
-  { match: 'transportation',   category: 'Transportation' },
-  // Natural Resources / Agriculture
-  { match: 'agriculture',      category: 'Agriculture' },
-  { match: 'natural resources', category: 'Natural Resources' },
-];
-
-function detectCategoryByCommittee(committeeName = '') {
-  if (!committeeName) return 'Other';
-  const c = committeeName.toLowerCase();
-  for (const { match, category } of COMMITTEE_CATEGORY_MAP) {
-    if (c.includes(match)) return category;
   }
   return 'Other';
 }
@@ -676,8 +619,8 @@ function scoreBill(bill, categoryRates, sessionState) {
     // Signed into law — terminal success
     pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
   } else if (isInterim && bill.stage >= 4) {
-    // Passed at least one chamber — carries over in biennium
-    pass_prob = 0.350; conf_label = 'CARRY OVER'; conf_low = 0.200; conf_high = 0.500;
+    // Passed at least one chamber but biennium is over — these bills are done
+    pass_prob = 0.000; conf_label = 'CARRY OVER'; conf_low = 0.000; conf_high = 0.000;
   } else if (isInterim && bill.stage < 4) {
     // Didn't make it out — dead for now
     pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
@@ -727,7 +670,7 @@ async function processBill(raw, categoryRates, state, partyMap) {
     (legislation && (legislation.LongDescription || legislation.ShortDescription)) ||
     raw.ShortDescription ||
     billApiId; // e.g. "HB 1001" — still better than empty string
-  let category = detectCategory(title);
+  const category = detectCategory(title);
 
   // Phase 5C.3 (revised): GetLegislation's Sponsor field is just a string like
   // "(Abbarno)", not a collection. Call LegislationService/GetSponsors for the
@@ -797,12 +740,6 @@ async function processBill(raw, categoryRates, state, partyMap) {
     }
   }
 
-  // 6C.3: Committee-based category fallback — if title keywords didn't match,
-  // use the bill's committee name to assign a category.
-  if (category === 'Other' && committeeName) {
-    category = detectCategoryByCommittee(committeeName);
-  }
-
   const billRecord = {
     bill_id: billId,
     bill_number: billNum,
@@ -832,6 +769,13 @@ async function processBill(raw, categoryRates, state, partyMap) {
   // via status-change fallback above. Re-check stalled using the resolved name.
   if (!billRecord.stalled && committeeName.toLowerCase().includes('rules')
       && billRecord.stage === 3 && (billRecord.days_since_action || 0) > 21) {
+    billRecord.stalled = true;
+  }
+
+  // 6A.4: End-of-session stalled detection — any bill at stage 1 that never
+  // passed committee is dead once the session ends. Catches the 372 false-active bills.
+  if (state === 'interim' && !billRecord.stalled
+      && billRecord.stage <= 1 && !billRecord.committee_passed) {
     billRecord.stalled = true;
   }
 
@@ -872,10 +816,31 @@ async function runSync() {
   const startTime = Date.now();
   const state = getSessionState();
   const today = new Date().toISOString().split('T')[0];
-  let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0;
+  let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.3 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.4 — ${SESSION} — state: ${state}`);
+
+  // 6A.1: During interim, pre-load existing bills so we can detect material changes
+  let existingBillsMap = null;
+  if (state === 'interim') {
+    console.log('  INTERIM MODE — will only rescore bills with material data changes');
+    existingBillsMap = new Map();
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error: pgErr } = await supabase
+        .from('bills')
+        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action')
+        .eq('session', SESSION)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (pgErr || !data || data.length === 0) break;
+      data.forEach(b => existingBillsMap.set(b.bill_id, b));
+      if (data.length < PAGE_SIZE) break;
+      page++;
+    }
+    console.log(`  Loaded ${existingBillsMap.size} existing bills for change detection`);
+  }
 
   const calibration = await loadCalibratedWeights();
   const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
@@ -916,6 +881,33 @@ async function runSync() {
         if (!result) return;
         const { billRecord, scores } = result;
 
+        // 6A.1: INTERIM FREEZE — skip rescoring if nothing material changed
+        if (existingBillsMap) {
+          const existing = existingBillsMap.get(billRecord.bill_id);
+          if (existing) {
+            const materialChange =
+              existing.stage !== billRecord.stage ||
+              existing.committee_passed !== billRecord.committee_passed ||
+              existing.has_public_hearing !== billRecord.has_public_hearing ||
+              existing.stalled !== billRecord.stalled ||
+              existing.held_in_rules !== billRecord.held_in_rules ||
+              existing.last_action !== billRecord.last_action;
+            if (!materialChange) {
+              billsSkipped++;
+              return; // No change — keep existing scores
+            }
+            console.log(`  ** Material change detected: ${billRecord.bill_number} (${billRecord.bill_id})`);
+          }
+        }
+
+        // 6A.5: Always compute score-based signal_tier alongside outcome labels
+        let signal_tier;
+        if (scores.final_score >= 75) signal_tier = 'HIGH';
+        else if (scores.final_score >= 60) signal_tier = 'MODERATE';
+        else if (scores.final_score >= 45) signal_tier = 'LOW';
+        else signal_tier = 'VERY LOW';
+        billRecord.signal_tier = signal_tier;
+
         const { error: uErr } = await supabase
           .from('bills')
           .upsert(billRecord, { onConflict: 'bill_id' });
@@ -955,61 +947,21 @@ async function runSync() {
 
   const duration = Date.now() - startTime;
   const mins = (duration / 60000).toFixed(1);
-  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${snapshotsWritten} snapshots, ${errors.length} errors (${mins} min)`);
+  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${errors.length} errors (${mins} min)`);
 
   await supabase.from('sync_log').insert({
     session: SESSION, bills_fetched: billsFetched, bills_updated: billsUpdated,
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.3 Step 6.13 — stalled/session-state/hearing/confidence fixes`,
+    notes: `sync-v2.4 Phase 6A — interim freeze${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
 }
 
-// ── 6D.2: DUAL-SESSION SUPPORT ───────────────────────────────────────────────
-// When pre-filing opens for the next biennium, run the sync for both sessions.
-const BIENNIUM_SCHEDULE = [
-  { biennium: '2025-26', year: '2026', session: '2025-2026',
-    start: '2025-01-13', sineDie: '2026-03-12' },
-  { biennium: '2027-28', year: '2028', session: '2027-2028',
-    start: '2027-01-13', sineDie: '2028-03-10',
-    prefilingOpens: '2026-12-01' },
-];
-
-async function runWithPrefilingCheck() {
-  // Run the primary session (from env vars)
-  await runSync();
-
-  // Check if a future biennium has pre-filing open
-  const today = new Date();
-  for (const next of BIENNIUM_SCHEDULE) {
-    if (!next.prefilingOpens) continue;
-    if (today < new Date(next.prefilingOpens)) continue;
-    if (next.session === SESSION) continue; // Already syncing this one
-
-    console.log(`\n[Pre-filing] ${next.session} pre-filing is open — running secondary sync...`);
-
-    // Override the globals for the second pass
-    const origBiennium = BIENNIUM;
-    const origYear = YEAR;
-    const origSession = SESSION;
-    // Note: these are module-level consts, so we can't reassign them.
-    // Instead, set env vars and call a fresh sync. For now, log and skip —
-    // the GHA workflow should add a second step with next-session env vars.
-    console.log(`  ACTION REQUIRED: Add a second sync step in nightly-sync.yml with:`);
-    console.log(`    CURRENT_BIENNIUM: '${next.biennium}'`);
-    console.log(`    CURRENT_YEAR: '${next.year}'`);
-    console.log(`    SESSION_START: '${next.start}'`);
-    console.log(`    SINE_DIE: '${next.sineDie}'`);
-    console.log(`  (Or run: CURRENT_BIENNIUM=${next.biennium} CURRENT_YEAR=${next.year} node app/lib/sync-v2.js)`);
-    break;
-  }
-}
-
-module.exports = { runSync, processBill, scoreBill, runWithPrefilingCheck };
+module.exports = { runSync, processBill, scoreBill };
 
 if (require.main === module) {
-  runWithPrefilingCheck().catch(console.error);
+  runSync().catch(console.error);
 }

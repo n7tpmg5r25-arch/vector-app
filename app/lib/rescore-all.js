@@ -143,7 +143,8 @@ function scoreBill(bill) {
   if (bill.stage >= 6) {
     pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
   } else if (bill.stage >= 4) {
-    pass_prob = 0.350; conf_label = 'CARRY OVER'; conf_low = 0.200; conf_high = 0.500;
+    // Passed at least one chamber but biennium is over — these bills are done
+    pass_prob = 0.000; conf_label = 'CARRY OVER'; conf_low = 0.000; conf_high = 0.000;
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
   } else if (bill.stage < 4) {

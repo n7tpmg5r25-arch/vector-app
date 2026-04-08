@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { isInterimPeriod } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -128,7 +129,9 @@ export default function WatchlistPage() {
     ? watched
     : watched.filter(d => d.client_tag === activeClient)
   const filtered = atRiskOnly
-    ? clientFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled)
+    ? (isInterimPeriod()
+      ? clientFiltered.filter(d => d.bills?.confidence_label === 'DEAD')
+      : clientFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled))
     : clientFiltered
 
   const sorted = [...filtered].sort((a, b) => {
@@ -216,11 +219,15 @@ export default function WatchlistPage() {
 
         {filtered.length > 0 && (
           <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-            {[
+            {(isInterimPeriod() ? [
+              { label: 'Passed', value: filtered.filter(d => d.bills?.confidence_label === 'LAW').length, color: 'var(--teal)' },
+              { label: 'Passed Chamber', value: filtered.filter(d => d.bills?.confidence_label === 'CARRY OVER').length, color: 'var(--gold)' },
+              { label: 'Dead', value: filtered.filter(d => d.bills?.confidence_label === 'DEAD').length, color: 'var(--text-muted)' },
+            ] : [
               { label: 'Avg Score', value: avgScore, color: avgScore >= 45 ? 'var(--teal)' : avgScore >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
               { label: 'High Score', value: highCount, color: highCount > 0 ? 'var(--teal)' : 'var(--text-muted)' },
               { label: 'Hearings', value: hearingCount, color: hearingCount > 0 ? 'var(--teal-mid)' : 'var(--text-muted)' },
-            ].map(({ label, value, color }) => (
+            ]).map(({ label, value, color }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(0,229,204,0.3)' : 'none' }}>{value}</span>
                 <span style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
@@ -263,7 +270,7 @@ export default function WatchlistPage() {
               border: `1px solid ${atRiskOnly ? 'rgba(255,82,82,0.3)' : 'transparent'}`,
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
-            }}>{'⚠'} At Risk</button>
+            }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
           </div>
         )}
       </div>
@@ -427,7 +434,7 @@ export default function WatchlistPage() {
                   )}
                   {bill.confidence_label === 'CARRY OVER' && (
                     <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>
-                      Carried Over
+                      Passed Chamber
                     </span>
                   )}
                   {bill.confidence_label === 'DEAD' && (

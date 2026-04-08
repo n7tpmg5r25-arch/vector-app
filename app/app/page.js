@@ -16,6 +16,8 @@ function outlookLabel(avg) {
 }
 
 function momentumLabel(bills) {
+  // 6G.3: Velocity is meaningless during interim — all bills have terminal states
+  if (isInterimPeriod()) return null
   // 6A.3: Exclude stalled and signed bills — a stalled bill with score 65 is NOT "rising"
   const active = bills.filter(b => {
     const bill = b.bills
@@ -570,7 +572,7 @@ export default function HomePage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
               {[
                 { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--teal)', glow: 'rgba(0,229,204,0.3)' },
-                { label: 'Carried Over', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(212,168,75,0.3)' },
+                { label: 'Passed Chamber', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(212,168,75,0.3)' },
                 { label: 'Dead', value: outcomeCounts.dead, color: 'var(--text-muted)', glow: 'transparent' },
               ].map(({ label, value, color, glow }) => (
                 <div key={label} style={{
@@ -602,7 +604,7 @@ export default function HomePage() {
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
                     {wlLaw > 0 && <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlLaw} passed</span>}
-                    {wlCarry > 0 && <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlCarry} carried over</span>}
+                    {wlCarry > 0 && <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlCarry} passed chamber</span>}
                     {wlDead > 0 && <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{wlDead} dead</span>}
                     {wlLaw === 0 && wlCarry === 0 && wlDead === 0 && <span style={{ color: 'var(--text-faint)' }}>No outcomes yet</span>}
                   </div>
