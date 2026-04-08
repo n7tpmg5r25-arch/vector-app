@@ -1,16 +1,14 @@
 /**
- * VECTOR | WA — Sync Script v2.4 (Step 6.14 — Category Classification)
+ * VECTOR | WA — Sync Script v2.4 (Phase 6A — Score Stability & Baseline Reset)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
  *
- * v2.4 CHANGES (Step 6.14):
- *  - 6.14.1: Expanded detectCategory() from 11 to 14 categories, ~160 keywords
- *            Added: Government Operations, Natural Resources, Veterans / Military
- *            "Other" drops from 50% to ~30%
- *  - 6.14.2: Remaining "Other" bills get committee-based sub-label in UI
- *  - 6.14.3: Recalculated category_rates from reclassified data
+ * v2.4 CHANGES (Phase 6A):
+ *  - 6A.1: Interim score freeze — skip rescoring when no material data changed
+ *  - 6A.4: End-of-session stalled detection for stage-1 bills
+ *  - 6A.5: signal_tier column — always stores score-based tier alongside outcome label
  *
  * v2.3 CHANGES (Step 6.13):
  *  - 6.13.1: Stalled detection now catches Rules-queue bills (was 82 false positives)
@@ -774,6 +772,13 @@ async function processBill(raw, categoryRates, state, partyMap) {
     billRecord.stalled = true;
   }
 
+  // 6A.4: End-of-session stalled detection — any bill at stage 1 that never
+  // passed committee is dead once the session ends. Catches the 372 false-active bills.
+  if (state === 'interim' && !billRecord.stalled
+      && billRecord.stage <= 1 && !billRecord.committee_passed) {
+    billRecord.stalled = true;
+  }
+
   // Score with calibrated rates + session state awareness (6.13.2)
   const scores = scoreBill(billRecord, categoryRates, state);
   billRecord.trajectory_score = scores.base_total;
@@ -811,10 +816,31 @@ async function runSync() {
   const startTime = Date.now();
   const state = getSessionState();
   const today = new Date().toISOString().split('T')[0];
-  let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0;
+  let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.3 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.4 — ${SESSION} — state: ${state}`);
+
+  // 6A.1: During interim, pre-load existing bills so we can detect material changes
+  let existingBillsMap = null;
+  if (state === 'interim') {
+    console.log('  INTERIM MODE — will only rescore bills with material data changes');
+    existingBillsMap = new Map();
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error: pgErr } = await supabase
+        .from('bills')
+        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action')
+        .eq('session', SESSION)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (pgErr || !data || data.length === 0) break;
+      data.forEach(b => existingBillsMap.set(b.bill_id, b));
+      if (data.length < PAGE_SIZE) break;
+      page++;
+    }
+    console.log(`  Loaded ${existingBillsMap.size} existing bills for change detection`);
+  }
 
   const calibration = await loadCalibratedWeights();
   const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
@@ -855,6 +881,33 @@ async function runSync() {
         if (!result) return;
         const { billRecord, scores } = result;
 
+        // 6A.1: INTERIM FREEZE — skip rescoring if nothing material changed
+        if (existingBillsMap) {
+          const existing = existingBillsMap.get(billRecord.bill_id);
+          if (existing) {
+            const materialChange =
+              existing.stage !== billRecord.stage ||
+              existing.committee_passed !== billRecord.committee_passed ||
+              existing.has_public_hearing !== billRecord.has_public_hearing ||
+              existing.stalled !== billRecord.stalled ||
+              existing.held_in_rules !== billRecord.held_in_rules ||
+              existing.last_action !== billRecord.last_action;
+            if (!materialChange) {
+              billsSkipped++;
+              return; // No change — keep existing scores
+            }
+            console.log(`  ** Material change detected: ${billRecord.bill_number} (${billRecord.bill_id})`);
+          }
+        }
+
+        // 6A.5: Always compute score-based signal_tier alongside outcome labels
+        let signal_tier;
+        if (scores.final_score >= 75) signal_tier = 'HIGH';
+        else if (scores.final_score >= 60) signal_tier = 'MODERATE';
+        else if (scores.final_score >= 45) signal_tier = 'LOW';
+        else signal_tier = 'VERY LOW';
+        billRecord.signal_tier = signal_tier;
+
         const { error: uErr } = await supabase
           .from('bills')
           .upsert(billRecord, { onConflict: 'bill_id' });
@@ -894,14 +947,14 @@ async function runSync() {
 
   const duration = Date.now() - startTime;
   const mins = (duration / 60000).toFixed(1);
-  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${snapshotsWritten} snapshots, ${errors.length} errors (${mins} min)`);
+  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${errors.length} errors (${mins} min)`);
 
   await supabase.from('sync_log').insert({
     session: SESSION, bills_fetched: billsFetched, bills_updated: billsUpdated,
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.3 Step 6.13 — stalled/session-state/hearing/confidence fixes`,
+    notes: `sync-v2.4 Phase 6A — interim freeze${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };

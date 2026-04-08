@@ -223,10 +223,6 @@ export default function BillDetailPage() {
   const [shared, setShared]     = useState(false)
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
 
-  // 6.17.2: Related bills
-  const [relatedBills, setRelatedBills] = useState([])
-  const [relatedLoading, setRelatedLoading] = useState(false)
-
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -265,52 +261,6 @@ export default function BillDetailPage() {
       }
 
       setLoading(false)
-
-      // 6.17.2: Load related bills (same committee + same sponsor)
-      if (billData) {
-        setRelatedLoading(true)
-        const related = []
-        const seenIds = new Set([billData.bill_id])
-
-        // Same committee (top 5 by score, excluding this bill)
-        if (billData.committee_name) {
-          const { data: cmteBills } = await supabase
-            .from('bills')
-            .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, prime_sponsor')
-            .eq('session', billData.session || '2025-2026')
-            .eq('committee_name', billData.committee_name)
-            .neq('bill_id', billData.bill_id)
-            .order('final_score', { ascending: false })
-            .limit(5)
-          ;(cmteBills || []).forEach(b => {
-            if (!seenIds.has(b.bill_id)) {
-              related.push({ ...b, relation: 'Same committee' })
-              seenIds.add(b.bill_id)
-            }
-          })
-        }
-
-        // Same sponsor (top 5 by score, excluding this bill)
-        if (billData.prime_sponsor) {
-          const { data: sponsorBills } = await supabase
-            .from('bills')
-            .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, prime_sponsor')
-            .eq('session', billData.session || '2025-2026')
-            .eq('prime_sponsor', billData.prime_sponsor)
-            .neq('bill_id', billData.bill_id)
-            .order('final_score', { ascending: false })
-            .limit(5)
-          ;(sponsorBills || []).forEach(b => {
-            if (!seenIds.has(b.bill_id)) {
-              related.push({ ...b, relation: 'Same sponsor' })
-              seenIds.add(b.bill_id)
-            }
-          })
-        }
-
-        setRelatedBills(related)
-        setRelatedLoading(false)
-      }
     }
     load()
   }, [billId])
@@ -663,7 +613,10 @@ export default function BillDetailPage() {
                 )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {passPct}% pass probability · <span style={{ color: confColor }}>{confLabel}</span> signal strength
+                {['LAW', 'CARRY OVER', 'DEAD'].includes(confLabel)
+                  ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'CARRY OVER' ? 'Carried over to next session' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
+                  : <>{passPct}% pass probability · <span style={{ color: confColor }}>{confLabel}</span> signal strength</>
+                }
               </div>
             </div>
           </div>
@@ -1114,61 +1067,6 @@ export default function BillDetailPage() {
               cursor: 'pointer', opacity: saving ? 0.6 : 1,
               boxShadow: 'var(--teal-glow)',
             }}>{saving ? 'Saving...' : 'Save Notes'}</button>
-          </div>
-        )}
-
-        {/* ── 6.17.2: RELATED BILLS ─────────────────────────── */}
-        {(relatedBills.length > 0 || relatedLoading) && (
-          <div>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              Related Bills
-            </div>
-            {relatedLoading ? (
-              <div style={{ padding: '12px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 12 }}>
-                Finding related bills...
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {relatedBills.slice(0, 8).map((rb, idx) => (
-                  <div
-                    key={rb.bill_id}
-                    onClick={() => router.push(`/bill/${rb.bill_id}`)}
-                    style={{
-                      background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)', padding: '10px 12px',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
-                      transition: 'border-color 0.2s',
-                      animation: `fadeUp 0.25s ease ${idx * 0.03}s both`,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <ScoreBadge score={rb.final_score} size="sm"/>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                          {rb.chamber === 'House' ? 'HB' : 'SB'} {rb.bill_number}
-                        </span>
-                        <span style={{
-                          fontSize: 8, padding: '1px 6px', borderRadius: 6,
-                          background: rb.relation === 'Same committee' ? 'rgba(0,229,204,0.06)' : 'rgba(212,168,75,0.08)',
-                          color: rb.relation === 'Same committee' ? 'var(--teal-mid)' : 'var(--gold)',
-                          border: `1px solid ${rb.relation === 'Same committee' ? 'rgba(0,229,204,0.15)' : 'rgba(212,168,75,0.2)'}`,
-                        }}>
-                          {rb.relation}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {rb.title || `Bill ${rb.bill_number}`}
-                      </div>
-                    </div>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6"/>
-                    </svg>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>

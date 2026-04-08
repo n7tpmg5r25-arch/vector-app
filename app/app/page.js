@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../lib/supabase'
-import { getCurrentSession, getNextBiennium, daysUntil, getSessionCutoffs, isInterimPeriod } from '../lib/session-config'
+import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod } from '../lib/session-config'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 
@@ -15,37 +15,20 @@ function outlookLabel(avg) {
 }
 
 function momentumLabel(bills) {
-  const rising = bills.filter(b => (b.bills?.final_score || 0) >= 45).length
-  const total = bills.length
-  if (total === 0) return null
-  const pct = rising / total
+  // 6A.3: Exclude stalled and signed bills — a stalled bill with score 65 is NOT "rising"
+  const active = bills.filter(b => {
+    const bill = b.bills
+    if (!bill) return false
+    if (bill.stalled) return false
+    if (bill.stage >= 6) return false  // Already signed into law
+    return true
+  })
+  if (active.length === 0) return null
+  const rising = active.filter(b => (b.bills?.final_score || 0) >= 45).length
+  const pct = rising / active.length
   if (pct >= 0.6) return { text: 'VELOCITY: RISING', color: 'var(--teal)' }
   if (pct >= 0.4) return { text: 'VELOCITY: MIXED', color: 'var(--gold)' }
   return { text: 'VELOCITY: DECLINING', color: 'var(--danger)' }
-}
-
-/** Describe what changed between two snapshots */
-function describeChange(current, previous, bill) {
-  const changes = []
-  if (current.score !== previous.score) {
-    const delta = current.score - previous.score
-    changes.push({
-      type: 'score',
-      text: `Score ${delta > 0 ? '+' : ''}${delta} (${previous.score} → ${current.score})`,
-      color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-      icon: delta > 0 ? '▲' : '▼',
-    })
-  }
-  if (current.stage !== previous.stage) {
-    const STAGE_NAMES = ['', 'Introduced', 'Committee', 'Floor', 'Opp. Chamber', 'Conference', 'Signed']
-    changes.push({
-      type: 'stage',
-      text: `${STAGE_NAMES[previous.stage] || '?'} → ${STAGE_NAMES[current.stage] || '?'}`,
-      color: 'var(--gold)',
-      icon: '→',
-    })
-  }
-  return changes
 }
 
 export default function HomePage() {
@@ -65,22 +48,8 @@ export default function HomePage() {
   const [loading, setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  // 6.16.1: What Changed Today
-  const [recentChanges, setRecentChanges] = useState([])
-  const [changesLoading, setChangesLoading] = useState(true)
-
   const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
   const daysToSession   = daysUntil(nextBiennium.start)
-
-  // 6.16.2: Session cutoffs
-  const cutoffs = useMemo(() => {
-    if (typeof window === 'undefined') return []
-    return getSessionCutoffs()
-  }, [])
-  const isInterim = useMemo(() => {
-    if (typeof window === 'undefined') return true
-    return isInterimPeriod()
-  }, [])
 
   async function loadData() {
     // Phase 6.4 perf: Step 1 — auth check (required before tracked_bills)
@@ -128,160 +97,46 @@ export default function HomePage() {
     }
 
     // Phase 6.4 perf: Step 3 — snapshots (depends on bill IDs from step 2)
-    const allBillIds = [
-      ...bills.map(b => b.bill_id),
-      ...wl.map(w => w.bill_id),
-    ]
-    const uniqueIds = [...new Set(allBillIds)].slice(0, 30)
-    if (uniqueIds.length > 0) {
-      const { data: snaps } = await supabase
-        .from('trajectory_snapshots')
-        .select('bill_id, score, snapshot_date')
-        .in('bill_id', uniqueIds)
-        .order('snapshot_date', { ascending: false })
-      if (snaps) {
-        const deltas = {}
-        const byBill = {}
-        snaps.forEach(s => {
-          if (!byBill[s.bill_id]) byBill[s.bill_id] = []
-          if (byBill[s.bill_id].length < 2) byBill[s.bill_id].push(s)
-        })
-        Object.entries(byBill).forEach(([bid, arr]) => {
-          if (arr.length >= 2) {
-            deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
-          }
-        })
-        setScoreDeltas(deltas)
+    // 6A.3: Skip delta computation during interim — scores are frozen, deltas are noise
+    if (!isInterimPeriod()) {
+      const allBillIds = [
+        ...bills.map(b => b.bill_id),
+        ...wl.map(w => w.bill_id),
+      ]
+      const uniqueIds = [...new Set(allBillIds)].slice(0, 30)
+      if (uniqueIds.length > 0) {
+        const { data: snaps } = await supabase
+          .from('trajectory_snapshots')
+          .select('bill_id, score, snapshot_date')
+          .in('bill_id', uniqueIds)
+          .order('snapshot_date', { ascending: false })
+        if (snaps) {
+          const deltas = {}
+          const byBill = {}
+          snaps.forEach(s => {
+            if (!byBill[s.bill_id]) byBill[s.bill_id] = []
+            if (byBill[s.bill_id].length < 2) byBill[s.bill_id].push(s)
+          })
+          Object.entries(byBill).forEach(([bid, arr]) => {
+            if (arr.length >= 2) {
+              deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
+            }
+          })
+          setScoreDeltas(deltas)
+        }
       }
     }
 
     setLoading(false)
   }
 
-  // 6.16.1: Load "What Changed" data — compare two most recent snapshot dates
-  async function loadRecentChanges() {
-    setChangesLoading(true)
-    try {
-      // Get the two most recent snapshot dates
-      const { data: dates } = await supabase
-        .from('trajectory_snapshots')
-        .select('snapshot_date')
-        .eq('session', SESSION)
-        .order('snapshot_date', { ascending: false })
-        .limit(1)
-
-      if (!dates || dates.length === 0) {
-        setRecentChanges([])
-        setChangesLoading(false)
-        return
-      }
-
-      const latestDate = dates[0].snapshot_date
-
-      // Get all snapshots from latest date
-      const { data: latest } = await supabase
-        .from('trajectory_snapshots')
-        .select('bill_id, score, stage, snapshot_date')
-        .eq('snapshot_date', latestDate)
-        .order('score', { ascending: false })
-        .range(0, 999)
-
-      // Get the second-most-recent date
-      const { data: prevDates } = await supabase
-        .from('trajectory_snapshots')
-        .select('snapshot_date')
-        .eq('session', SESSION)
-        .lt('snapshot_date', latestDate)
-        .order('snapshot_date', { ascending: false })
-        .limit(1)
-
-      if (!prevDates || prevDates.length === 0 || !latest) {
-        setRecentChanges([])
-        setChangesLoading(false)
-        return
-      }
-
-      const prevDate = prevDates[0].snapshot_date
-
-      // Get all snapshots from previous date
-      const { data: previous } = await supabase
-        .from('trajectory_snapshots')
-        .select('bill_id, score, stage')
-        .eq('snapshot_date', prevDate)
-        .range(0, 999)
-
-      if (!previous) {
-        setRecentChanges([])
-        setChangesLoading(false)
-        return
-      }
-
-      // Build lookup: bill_id -> previous snapshot
-      const prevMap = {}
-      previous.forEach(s => { prevMap[s.bill_id] = s })
-
-      // Find bills that changed
-      const changed = []
-      for (const snap of latest) {
-        const prev = prevMap[snap.bill_id]
-        if (!prev) continue
-        if (snap.score !== prev.score || snap.stage !== prev.stage) {
-          changed.push({
-            bill_id: snap.bill_id,
-            current: snap,
-            previous: prev,
-          })
-        }
-      }
-
-      if (changed.length === 0) {
-        setRecentChanges([])
-        setChangesLoading(false)
-        return
-      }
-
-      // Sort by absolute score change (biggest movers first)
-      changed.sort((a, b) => {
-        const aDelta = Math.abs((a.current.score || 0) - (a.previous.score || 0))
-        const bDelta = Math.abs((b.current.score || 0) - (b.previous.score || 0))
-        return bDelta - aDelta
-      })
-
-      // Fetch bill details for the top changers
-      const topIds = changed.slice(0, 12).map(c => c.bill_id)
-      const { data: billDetails } = await supabase
-        .from('bills')
-        .select('bill_id, bill_number, title, chamber, final_score, stage, category')
-        .in('bill_id', topIds)
-
-      const billMap = {}
-      ;(billDetails || []).forEach(b => { billMap[b.bill_id] = b })
-
-      const results = changed.slice(0, 12).map(c => ({
-        ...c,
-        bill: billMap[c.bill_id] || null,
-        changes: describeChange(c.current, c.previous, billMap[c.bill_id]),
-      })).filter(c => c.bill && c.changes.length > 0)
-
-      setRecentChanges(results)
-    } catch (err) {
-      console.error('Error loading recent changes:', err)
-      setRecentChanges([])
-    }
-    setChangesLoading(false)
-  }
-
   async function handleRefresh() {
     setRefreshing(true)
     await loadData()
-    await loadRecentChanges()
     setRefreshing(false)
   }
 
-  useEffect(() => {
-    loadData()
-    loadRecentChanges()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
   const avgScore = watchedScores.length > 0
@@ -408,7 +263,7 @@ export default function HomePage() {
                     fontFamily: 'var(--font-mono)', fontWeight: 500,
                     letterSpacing: '0.06em',
                   }}>
-                    {'▲'} {momentum.text}
+                    ▲ {momentum.text}
                   </div>
                 )}
               </div>
@@ -438,221 +293,41 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── 6.16.1: WHAT CHANGED (recent activity) ───────── */}
+        {/* ── SESSION COUNTDOWN ─────────────────────────────── */}
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
           padding: '14px 16px',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Recent Activity
-            </div>
-            {recentChanges.length > 0 && (
-              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--teal)', fontWeight: 500 }}>
-                {recentChanges.length} bill{recentChanges.length !== 1 ? 's' : ''} moved
-              </span>
-            )}
+          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+            2027 Session Timeline
           </div>
-
-          {changesLoading ? (
-            <div style={{ padding: '12px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 12 }}>
-              Checking for changes...
-            </div>
-          ) : recentChanges.length === 0 ? (
-            <div style={{ padding: '8px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                No score or stage changes since the last sync.
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4 }}>
-                The nightly sync compares each bill against its previous snapshot.
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {recentChanges.slice(0, 6).map((item, idx) => {
-                const bill = item.bill
-                if (!bill) return null
-                const delta = (item.current.score || 0) - (item.previous.score || 0)
-                return (
-                  <div
-                    key={bill.bill_id}
-                    onClick={() => router.push(`/bill/${bill.bill_id}`)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 10px', borderRadius: 8,
-                      background: 'rgba(0,229,204,0.03)',
-                      border: '1px solid var(--border)',
-                      cursor: 'pointer', transition: 'border-color 0.2s',
-                      animation: `fadeUp 0.25s ease ${idx * 0.04}s both`,
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <ScoreBadge score={bill.final_score} size="sm"/>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 2 }}>
-                        {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {bill.title || `Bill ${bill.bill_number}`}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                        {item.changes.map((c, ci) => (
-                          <span key={ci} style={{
-                            fontSize: 9, fontFamily: 'var(--font-mono)',
-                            color: c.color, fontWeight: 600,
-                          }}>
-                            {c.icon} {c.text}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    {delta !== 0 && (
-                      <span style={{
-                        fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700,
-                        padding: '2px 8px', borderRadius: 8, flexShrink: 0,
-                        background: delta > 0 ? 'rgba(0,229,204,0.12)' : 'rgba(255,82,82,0.12)',
-                        color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-                        border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
-                      }}>
-                        {delta > 0 ? '+' : ''}{delta}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-              {recentChanges.length > 6 && (
-                <div style={{ textAlign: 'center', paddingTop: 4 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                    + {recentChanges.length - 6} more changes
+          <div style={{ display: 'flex', gap: 0 }}>
+            {[
+              { label: 'Today', sublabel: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), active: true },
+              { label: 'Pre-Filing', sublabel: `${daysToPreFiling}d`, active: false },
+              { label: '2027 Session', sublabel: `${daysToSession}d`, active: false },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 2 ? 1 : 'none' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{
+                    width: item.active ? 10 : 8, height: item.active ? 10 : 8,
+                    borderRadius: '50%',
+                    background: item.active ? 'var(--teal)' : 'var(--border)',
+                    boxShadow: item.active ? 'var(--teal-glow)' : 'none',
+                    animation: item.active ? 'dotPulse 2s ease-in-out infinite' : 'none',
+                  }}/>
+                  <span style={{ fontSize: 9, color: item.active ? 'var(--teal)' : 'var(--text-faint)', fontWeight: item.active ? 600 : 400, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </span>
+                  <span style={{ fontSize: 8, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                    {item.sublabel}
                   </span>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── 6.16.2: SESSION DEADLINES / CUTOFF TRACKING ──── */}
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: '14px 16px',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {isInterim ? '2027-2028 Session Deadlines (Est.)' : `${SESSION} Deadlines`}
-            </div>
-            {isInterim && (
-              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--gold)' }}>
-                Interim
-              </span>
-            )}
-          </div>
-
-          {cutoffs.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {cutoffs.map((cutoff, idx) => {
-                // Urgency color: red if <14 days and not passed, gold if <30 days, else muted
-                let urgencyColor = 'var(--text-faint)'
-                let barColor = 'var(--border-light)'
-                if (!cutoff.passed && !isInterim) {
-                  if (cutoff.daysLeft <= 14) {
-                    urgencyColor = 'var(--danger)'
-                    barColor = 'var(--danger)'
-                  } else if (cutoff.daysLeft <= 30) {
-                    urgencyColor = 'var(--gold)'
-                    barColor = 'var(--gold)'
-                  } else {
-                    urgencyColor = 'var(--teal-mid)'
-                    barColor = 'var(--teal)'
-                  }
-                }
-
-                return (
-                  <div key={cutoff.key} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '6px 0',
-                    borderBottom: idx < cutoffs.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        width: 6, height: 6, borderRadius: '50%',
-                        background: cutoff.passed ? 'var(--text-faint)' : barColor,
-                        boxShadow: !cutoff.passed && !isInterim && cutoff.daysLeft <= 30 ? `0 0 6px ${barColor}` : 'none',
-                        opacity: cutoff.passed ? 0.4 : 1,
-                        flexShrink: 0,
-                      }}/>
-                      <span style={{
-                        fontSize: 11, color: cutoff.passed ? 'var(--text-faint)' : 'var(--text-mid)',
-                        textDecoration: cutoff.passed ? 'line-through' : 'none',
-                        fontWeight: 500,
-                      }}>
-                        {cutoff.label}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                        {cutoff.dateFormatted}
-                      </span>
-                      {cutoff.passed ? (
-                        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', padding: '1px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.04)' }}>
-                          Passed
-                        </span>
-                      ) : (
-                        <span style={{
-                          fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
-                          color: urgencyColor,
-                          padding: '1px 6px', borderRadius: 6,
-                          background: urgencyColor === 'var(--danger)' ? 'rgba(255,82,82,0.1)' :
-                                     urgencyColor === 'var(--gold)' ? 'rgba(212,168,75,0.1)' :
-                                     'rgba(0,229,204,0.06)',
-                          minWidth: 40, textAlign: 'center',
-                        }}>
-                          {cutoff.daysLeft}d
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div style={{ padding: '8px 0', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
-              No deadline data available.
-            </div>
-          )}
-
-          {/* Session timeline (moved from standalone card) */}
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', gap: 0 }}>
-              {[
-                { label: 'Today', sublabel: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), active: true },
-                { label: 'Pre-Filing', sublabel: `${daysToPreFiling}d`, active: false },
-                { label: '2027 Session', sublabel: `${daysToSession}d`, active: false },
-              ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 2 ? 1 : 'none' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <div style={{
-                      width: item.active ? 10 : 8, height: item.active ? 10 : 8,
-                      borderRadius: '50%',
-                      background: item.active ? 'var(--teal)' : 'var(--border)',
-                      boxShadow: item.active ? 'var(--teal-glow)' : 'none',
-                      animation: item.active ? 'dotPulse 2s ease-in-out infinite' : 'none',
-                    }}/>
-                    <span style={{ fontSize: 9, color: item.active ? 'var(--teal)' : 'var(--text-faint)', fontWeight: item.active ? 600 : 400, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      {item.label}
-                    </span>
-                    <span style={{ fontSize: 8, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
-                      {item.sublabel}
-                    </span>
-                  </div>
-                  {i < 2 && <div style={{ flex: 1, height: 1, background: 'var(--border)', margin: '0 6px', marginBottom: 24 }}/>}
-                </div>
-              ))}
-            </div>
+                {i < 2 && <div style={{ flex: 1, height: 1, background: 'var(--border)', margin: '0 6px', marginBottom: 24 }}/>}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -664,7 +339,7 @@ export default function HomePage() {
                 Your Watchlist
               </div>
               <button onClick={() => router.push('/watchlist')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
-                View all {'→'}
+                View all →
               </button>
             </div>
 
@@ -725,14 +400,14 @@ export default function HomePage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                    {client_tag && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 600 }}>{'·'} {client_tag}</span>}
+                    {client_tag && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 600 }}>· {client_tag}</span>}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {bill.committee_passed && <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>{'✓'} CMTE PASS</span>}
-                    {bill.has_public_hearing && <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>{'●'} HEARING</span>}
+                    {bill.committee_passed && <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>✓ CMTE PASS</span>}
+                    {bill.has_public_hearing && <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>● HEARING</span>}
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>{STAGE_SHORT[bill.stage] || 'Intro'}</span>
                   </div>
                 </div>
@@ -769,10 +444,10 @@ export default function HomePage() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Top Trajectory {'·'} {SESSION}
+              Top Trajectory · {SESSION}
             </div>
             <button onClick={() => router.push('/search')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
-              All bills {'→'}
+              All bills →
             </button>
           </div>
 
@@ -829,7 +504,7 @@ export default function HomePage() {
                     )}
                     {bill.pulled_from_rules && (
                       <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 8 }}>
-                        {'↑'} Rules
+                        ↑ Rules
                       </span>
                     )}
                   </div>
@@ -840,12 +515,12 @@ export default function HomePage() {
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                       {bill.prime_sponsor || 'Unknown'}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
                     </span>
-                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>{'·'}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>·</span>
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                       {STAGE_SHORT[bill.stage] || 'Intro'}
                     </span>
                     {bill.committee_passed && (
-                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{'✓'} Pass</span>
+                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>✓ Pass</span>
                     )}
                   </div>
                 </div>
@@ -871,7 +546,7 @@ export default function HomePage() {
         {categories.length > 0 && (
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-              Interim Intelligence {'·'} Category Pass Rates
+              Interim Intelligence · Category Pass Rates
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {categories.slice(0, 6).map(cat => {
@@ -917,8 +592,8 @@ export default function HomePage() {
         {/* ── QUICK ACTIONS ─────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '3,400+ scored' },
-            { label: 'Committees', icon: '🏛', path: '/committees', desc: 'By chamber' },
+            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '2,855 scored' },
+            { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Interim' },
             { label: 'Member Lookup', icon: '👤', path: '/members', desc: 'WA Legislature' },
             { label: 'Watchlist', icon: '🔖', path: '/watchlist', desc: `${watchlist.length} tracked` },
           ].map(({ label, icon, path, desc }) => (
@@ -943,7 +618,7 @@ export default function HomePage() {
 
         {/* Footer */}
         <div style={{ padding: '8px 0 4px', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>
-          Vector WA {'·'} Post & Policy {'·'} {SESSION} Session
+          Vector WA · Post & Policy · {SESSION} Session
         </div>
       </div>
 
