@@ -47,6 +47,8 @@ export default function HomePage() {
   const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
   const [loading, setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // 6B.1: Session outcome counts for interim display
+  const [outcomeCounts, setOutcomeCounts] = useState({ law: 0, carryOver: 0, dead: 0 })
 
   const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
   const daysToSession   = daysUntil(nextBiennium.start)
@@ -60,7 +62,7 @@ export default function HomePage() {
     const [billsResult, wlResult, catsResult, syncResult] = await Promise.all([
       supabase
         .from('bills')
-        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date')
+        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date, confidence_label')
         .eq('session', SESSION)
         .not('final_score', 'is', null)
         .order('final_score', { ascending: false })
@@ -68,7 +70,7 @@ export default function HomePage() {
       user
         ? supabase
             .from('tracked_bills')
-            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing)')
+            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label)')
             .eq('user_id', user.id)
             .order('added_at', { ascending: false })
         : Promise.resolve({ data: null }),
@@ -89,6 +91,16 @@ export default function HomePage() {
 
     const wl = (wlResult.data || []).filter(w => w.bills)
     setWatchlist(wl)
+
+    // 6B.1: Count session outcomes for interim display
+    if (isInterimPeriod()) {
+      const [lawRes, coRes, deadRes] = await Promise.all([
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'LAW'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'CARRY OVER'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'DEAD'),
+      ])
+      setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
+    }
 
     setCategories((catsResult.data || []).filter(c => c.category && c.category !== 'Other'))
 
@@ -236,8 +248,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Advocacy outlook */}
-          {outlook && (
+          {/* Advocacy outlook — 6B.4: require 5+ bills for meaningful stats */}
+          {outlook && watchlist.length >= 5 ? (
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 5 }}>
                 Advocacy Outlook
@@ -268,7 +280,13 @@ export default function HomePage() {
                 )}
               </div>
             </div>
-          )}
+          ) : watchlist.length > 0 && watchlist.length < 5 ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-faint)', fontStyle: 'italic' }}>
+                Track 5+ bills to see portfolio outlook
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -382,7 +400,7 @@ export default function HomePage() {
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <div style={{ position: 'relative' }}>
-                  <ScoreBadge score={bill.final_score} size="md"/>
+                  <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
                   {delta != null && delta !== 0 && (
                     <span style={{
                       position: 'absolute', top: -6, right: -10,
@@ -440,7 +458,63 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── TOP TRAJECTORY BILLS ──────────────────────────── */}
+        {/* ── SESSION OUTCOMES (interim) / TOP TRAJECTORY (active) ─── */}
+        {isInterimPeriod() ? (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Session Outcomes · {SESSION}
+              </div>
+              <button onClick={() => router.push('/outcomes')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+                All outcomes →
+              </button>
+            </div>
+
+            {/* Outcome stat cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+              {[
+                { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--teal)', glow: 'rgba(0,229,204,0.3)' },
+                { label: 'Carried Over', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(212,168,75,0.3)' },
+                { label: 'Dead', value: outcomeCounts.dead, color: 'var(--text-muted)', glow: 'transparent' },
+              ].map(({ label, value, color, glow }) => (
+                <div key={label} style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '12px 10px', textAlign: 'center',
+                }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color, lineHeight: 1, textShadow: `0 0 12px ${glow}` }}>
+                    {value}
+                  </div>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 5, lineHeight: 1.2 }}>
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Watchlist outcomes */}
+            {watchlist.length > 0 && (() => {
+              const wlLaw = watchlist.filter(w => w.bills?.confidence_label === 'LAW').length
+              const wlCarry = watchlist.filter(w => w.bills?.confidence_label === 'CARRY OVER').length
+              const wlDead = watchlist.filter(w => w.bills?.confidence_label === 'DEAD').length
+              return (
+                <div style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 12,
+                }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Your Watchlist Outcomes
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                    {wlLaw > 0 && <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlLaw} passed</span>}
+                    {wlCarry > 0 && <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlCarry} carried over</span>}
+                    {wlDead > 0 && <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{wlDead} dead</span>}
+                    {wlLaw === 0 && wlCarry === 0 && wlDead === 0 && <span style={{ color: 'var(--text-faint)' }}>No outcomes yet</span>}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        ) : (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
@@ -476,7 +550,7 @@ export default function HomePage() {
                 }}>{idx + 1}</div>
 
                 <div style={{ position: 'relative' }}>
-                  <ScoreBadge score={bill.final_score} size="sm"/>
+                  <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
                   {delta != null && delta !== 0 && (
                     <span style={{
                       position: 'absolute', top: -5, right: -10,
@@ -541,6 +615,7 @@ export default function HomePage() {
             )})}
           </div>
         </div>
+        )}
 
         {/* ── CATEGORY INTELLIGENCE ─────────────────────────── */}
         {categories.length > 0 && (
@@ -593,7 +668,9 @@ export default function HomePage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
             { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '2,855 scored' },
-            { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Interim' },
+            isInterimPeriod()
+              ? { label: 'Session Outcomes', icon: '✓', path: '/outcomes', desc: `${outcomeCounts.law} signed` }
+              : { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Calendar' },
             { label: 'Member Lookup', icon: '👤', path: '/members', desc: 'WA Legislature' },
             { label: 'Watchlist', icon: '🔖', path: '/watchlist', desc: `${watchlist.length} tracked` },
           ].map(({ label, icon, path, desc }) => (

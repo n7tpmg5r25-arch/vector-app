@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
-import { exportHearingsCSV } from '../../lib/csv-export'
-import { exportSingleHearingICS, exportAllHearingsICS } from '../../lib/ics-export'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -70,31 +68,10 @@ export default function HearingsPage() {
   const displayBills = view === 'watched' ? watchedHearings : allHearings
 
   function formatDate(dateStr) {
-    if (!dateStr) return '\u2014'
+    if (!dateStr) return '—'
     try {
       return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     } catch { return dateStr }
-  }
-
-  // 6.16.3: CSV export
-  function handleExportCSV() {
-    if (displayBills.length > 0) {
-      exportHearingsCSV(displayBills, SESSION)
-    }
-  }
-
-  // 6.16.4: ICS export (single)
-  function handleExportICS(bill, e) {
-    e.stopPropagation()
-    exportSingleHearingICS(bill, SESSION)
-  }
-
-  // 6.16.4: ICS export (all)
-  function handleExportAllICS() {
-    const withDates = displayBills.filter(b => b.hearing_date)
-    if (withDates.length > 0) {
-      exportAllHearingsICS(withDates, SESSION)
-    }
   }
 
   return (
@@ -106,61 +83,11 @@ export default function HearingsPage() {
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
-            Hearings
-          </div>
-          {/* 6.16.3 + 6.16.4: Export buttons */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={handleExportCSV}
-              disabled={displayBills.length === 0}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 8,
-                background: 'rgba(0,229,204,0.08)',
-                border: '1px solid rgba(0,229,204,0.25)',
-                color: 'var(--teal)', fontSize: 10, fontWeight: 500,
-                cursor: displayBills.length === 0 ? 'default' : 'pointer',
-                opacity: displayBills.length === 0 ? 0.4 : 1,
-                transition: 'all 0.15s',
-              }}
-              title="Export as CSV"
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              CSV
-            </button>
-            <button
-              onClick={handleExportAllICS}
-              disabled={displayBills.filter(b => b.hearing_date).length === 0}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px', borderRadius: 8,
-                background: 'rgba(212,168,75,0.08)',
-                border: '1px solid rgba(212,168,75,0.25)',
-                color: 'var(--gold)', fontSize: 10, fontWeight: 500,
-                cursor: displayBills.filter(b => b.hearing_date).length === 0 ? 'default' : 'pointer',
-                opacity: displayBills.filter(b => b.hearing_date).length === 0 ? 0.4 : 1,
-                transition: 'all 0.15s',
-              }}
-              title="Export all hearings as .ics calendar file"
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              .ics
-            </button>
-          </div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
+          Hearings
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          Committee schedules {'·'} WA Legislature
+          Committee schedules · WA Legislature
         </div>
 
         {isInterim && (() => {
@@ -235,14 +162,14 @@ export default function HearingsPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                       {h.bills?.chamber === 'House' ? 'HB' : 'SB'} {h.bills?.bill_number}
-                      {watchedIds.has(h.bill_id) && <span style={{ marginLeft: 6, color: 'var(--gold)' }}>{'\uD83D\uDD16'}</span>}
+                      {watchedIds.has(h.bill_id) && <span style={{ marginLeft: 6, color: 'var(--gold)' }}>🔖</span>}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4 }}>
                       {h.bills?.title || h.bills?.committee_name || `Bill ${h.bills?.bill_number}`}
                     </div>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
-                        {'\uD83D\uDCC5'} {formatDate(h.hearing_date)}
+                        📅 {formatDate(h.hearing_date)}
                       </span>
                       {h.committee_name && (
                         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{h.committee_name}</span>
@@ -251,30 +178,8 @@ export default function HearingsPage() {
                         <a href={h.tvw_link} target="_blank" rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
                           style={{ fontSize: 10, color: 'var(--teal-mid)', textDecoration: 'underline' }}>
-                          TVW {'\u2192'}
+                          TVW →
                         </a>
-                      )}
-                      {/* 6.16.4: Add to Calendar button */}
-                      {h.hearing_date && h.bills && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            exportSingleHearingICS({
-                              ...h.bills,
-                              hearing_date: h.hearing_date,
-                              location: h.location,
-                              committee_name: h.committee_name || h.bills.committee_name,
-                            }, SESSION)
-                          }}
-                          style={{
-                            fontSize: 9, color: 'var(--gold)', background: 'rgba(212,168,75,0.1)',
-                            border: '1px solid rgba(212,168,75,0.2)', borderRadius: 6,
-                            padding: '1px 6px', cursor: 'pointer', fontWeight: 500,
-                          }}
-                          title="Add to calendar"
-                        >
-                          + Cal
-                        </button>
                       )}
                     </div>
                     {h.testimony_deadline && (
@@ -291,13 +196,38 @@ export default function HearingsPage() {
 
         {loading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+        ) : isInterim && hearings.length === 0 && displayBills.length === 0 ? (
+          /* 6B.5: Full interim empty state when hearings table has no data */
+          <div style={{
+            padding: '40px 20px', textAlign: 'center',
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>📅</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 10 }}>
+              Legislature is in interim
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
+              Committee hearings will resume when the {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : { session: '2027-2028', start: '2027-01-13' }; return `${n.session} session convenes on ${formatSessionDate(n.start)}`; })()}.
+              {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : { prefilingOpens: '2026-12-01' }; return n.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
+            </div>
+            <button
+              onClick={() => typeof window !== 'undefined' && (window.location.href = '/outcomes')}
+              style={{
+                marginTop: 16, padding: '8px 20px',
+                background: 'var(--teal)', color: 'var(--bg)',
+                border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                boxShadow: 'var(--teal-glow)',
+              }}
+            >View session outcomes</button>
+          </div>
         ) : displayBills.length === 0 ? (
           <div style={{
             padding: '40px 20px', textAlign: 'center',
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12, filter: 'grayscale(0.5)' }}>{'\uD83D\uDCC5'}</div>
+            <div style={{ fontSize: 28, marginBottom: 12, filter: 'grayscale(0.5)' }}>📅</div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 8 }}>
               {view === 'watched' ? 'No watched bills had hearings' : 'No hearings found'}
             </div>
@@ -310,7 +240,7 @@ export default function HearingsPage() {
         ) : (
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              {SESSION} {'·'} Bills with Hearings ({displayBills.length})
+              {SESSION} · Bills with Hearings ({displayBills.length})
             </div>
             {displayBills.map((bill, idx) => (
               <div
@@ -333,10 +263,10 @@ export default function HearingsPage() {
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                     </span>
-                    {watchedIds.has(bill.bill_id) && <span style={{ color: 'var(--gold)', fontSize: 10 }}>{'\uD83D\uDD16'}</span>}
+                    {watchedIds.has(bill.bill_id) && <span style={{ color: 'var(--gold)', fontSize: 10 }}>🔖</span>}
                     {bill.committee_passed && (
                       <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 8, fontWeight: 600 }}>
-                        {'\u2713'} Pass
+                        ✓ Pass
                       </span>
                     )}
                   </div>
@@ -346,27 +276,12 @@ export default function HearingsPage() {
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {bill.hearing_date && (
                       <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
-                        {'\uD83D\uDCC5'} {formatDate(bill.hearing_date)}
+                        📅 {formatDate(bill.hearing_date)}
                       </span>
                     )}
                     <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
                       {bill.committee_name || 'No committee assigned'}
                     </span>
-                    {/* 6.16.4: Add to Calendar button for each bill */}
-                    {bill.hearing_date && (
-                      <button
-                        onClick={(e) => handleExportICS(bill, e)}
-                        style={{
-                          fontSize: 9, color: 'var(--gold)', background: 'rgba(212,168,75,0.1)',
-                          border: '1px solid rgba(212,168,75,0.2)', borderRadius: 6,
-                          padding: '1px 6px', cursor: 'pointer', fontWeight: 500,
-                          transition: 'all 0.15s',
-                        }}
-                        title="Add this hearing to your calendar"
-                      >
-                        + Cal
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>

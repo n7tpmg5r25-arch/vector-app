@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '../../../lib/supabase'
 import ScoreBadge from '../../components/ScoreBadge'
 import Nav from '../../components/Nav'
+import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
 const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Floor', 'Opp. Chamber', 'Conference', 'Signed']
 
@@ -418,6 +419,35 @@ export default function BillDetailPage() {
       </div>
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* 6B.2: Session-ended banner for dead/carried-over bills during interim */}
+        {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
+          <div style={{
+            background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '10px 14px',
+            fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5,
+          }}>
+            This bill did not advance before session ended on {formatSessionDate(getCurrentBiennium().end)}. It may be reintroduced in the {getNextBiennium().session} session.
+          </div>
+        )}
+        {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
+          <div style={{
+            background: 'rgba(212,168,75,0.06)', border: '1px solid rgba(212,168,75,0.2)',
+            borderRadius: 'var(--radius)', padding: '10px 14px',
+            fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
+          }}>
+            This bill passed at least one chamber and carries over within the {bill.session || '2025-2026'} biennium.
+          </div>
+        )}
+        {isInterimPeriod() && bill.confidence_label === 'LAW' && (
+          <div style={{
+            background: 'rgba(0,229,204,0.06)', border: '1px solid rgba(0,229,204,0.2)',
+            borderRadius: 'var(--radius)', padding: '10px 14px',
+            fontSize: 12, color: 'var(--teal)', lineHeight: 1.5,
+          }}>
+            Signed into law.
+          </div>
+        )}
 
         {/* ── SPARKLINE HERO ──────────────────────────────── */}
         <div style={{
