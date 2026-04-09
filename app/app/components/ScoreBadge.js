@@ -6,25 +6,25 @@ export default function ScoreBadge({ score, size = 'md', status }) {
   const isCarryOver = status === 'CARRY OVER'
   const hasOutcome = isDead || isLaw || isCarryOver
 
-  // Color tiers — teal for high, gold for mid, muted for low
-  // 6B.2: Dim colors when dead
+  // Color tiers — aligned with signal tiers (HIGH 75+, MODERATE 60+, LOW 45+, VERY LOW <45)
+  // 6L.1: Shifted from 60/45/30 to 75/60/45 to match signal tier breakpoints
   const color = isDead ? 'var(--text-faint)'
-    : s >= 60 ? 'var(--teal)'
-    : s >= 45 ? 'var(--teal-mid)'
-    : s >= 30 ? 'var(--gold)'
+    : s >= 75 ? 'var(--teal)'
+    : s >= 60 ? 'var(--teal-mid)'
+    : s >= 45 ? 'var(--gold)'
     : 'var(--text-muted)'
 
   const glowColor = isDead ? 'transparent'
-    : s >= 60 ? 'rgba(0,229,204,0.4)'
-    : s >= 45 ? 'rgba(0,191,170,0.3)'
-    : s >= 30 ? 'rgba(212,168,75,0.3)'
+    : s >= 75 ? 'rgba(0,229,204,0.4)'
+    : s >= 60 ? 'rgba(0,191,170,0.3)'
+    : s >= 45 ? 'rgba(212,168,75,0.3)'
     : 'transparent'
 
   const borderColor = isDead ? 'var(--border)'
     : isLaw ? 'rgba(0,229,204,0.6)'
-    : s >= 60 ? 'rgba(0,229,204,0.6)'
-    : s >= 45 ? 'rgba(0,191,170,0.4)'
-    : s >= 30 ? 'rgba(212,168,75,0.4)'
+    : s >= 75 ? 'rgba(0,229,204,0.6)'
+    : s >= 60 ? 'rgba(0,191,170,0.4)'
+    : s >= 45 ? 'rgba(212,168,75,0.4)'
     : 'var(--border)'
 
   const sizes = {
@@ -45,7 +45,7 @@ export default function ScoreBadge({ score, size = 'md', status }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         opacity: isDead ? 0.45 : 1,
         boxShadow: (!hasOutcome && s >= 45) ? `0 0 16px ${glowColor}, inset 0 0 8px ${glowColor}` : 'none',
-        animation: (!hasOutcome && s >= 60) ? 'scoreGlow 3s ease-in-out infinite' : 'none',
+        animation: (!hasOutcome && s >= 75) ? 'scoreGlow 3s ease-in-out infinite' : 'none',
       }}>
         <span style={{
           fontFamily: 'var(--font-mono)',
@@ -67,7 +67,7 @@ export default function ScoreBadge({ score, size = 'md', status }) {
           color: isLaw ? 'var(--teal)' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)',
           border: `1px solid ${isLaw ? 'rgba(0,229,204,0.3)' : isCarryOver ? 'rgba(212,168,75,0.25)' : 'var(--border)'}`,
         }}>
-          {isLaw ? 'LAW' : isCarryOver ? 'CARRY' : 'DEAD'}
+          {isLaw ? 'LAW' : isCarryOver ? 'PASSED' : 'DEAD'}
         </span>
       )}
     </div>

@@ -453,13 +453,13 @@ export default function HomePage() {
           padding: '14px 16px',
         }}>
           <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
-            2027 Session Timeline
+            {nextBiennium.session?.split('-')[0] || '2027'} Session Timeline
           </div>
           <div style={{ display: 'flex', gap: 0 }}>
             {[
               { label: 'Today', sublabel: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), active: true },
               { label: 'Pre-Filing', sublabel: `${daysToPreFiling}d`, active: false },
-              { label: '2027 Session', sublabel: `${daysToSession}d`, active: false },
+              { label: `${nextBiennium.session?.split('-')[0] || '2027'} Session`, sublabel: `${daysToSession}d`, active: false },
             ].map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < 2 ? 1 : 'none' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>

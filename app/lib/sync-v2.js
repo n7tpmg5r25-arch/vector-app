@@ -52,9 +52,12 @@ const supabase = createClient(
 );
 
 const WA_BASE  = process.env.WA_API_BASE || 'https://wslwebservices.leg.wa.gov';
-const BIENNIUM = process.env.CURRENT_BIENNIUM;   // e.g. '2027-28'
-const YEAR     = process.env.CURRENT_YEAR;        // e.g. '2027'
-const SESSION  = `${parseInt(YEAR)-1}-${YEAR}`;   // e.g. '2026-2027'
+
+// 6L.3: Fallback defaults so sync doesn't break if GitHub Actions env vars aren't updated for 2027
+// When adding a new biennium, update the fallback values here to match session-config.js
+const BIENNIUM = process.env.CURRENT_BIENNIUM || '2025-26';   // e.g. '2027-28'
+const YEAR     = process.env.CURRENT_YEAR     || '2026';      // e.g. '2027'
+const SESSION  = `${parseInt(YEAR)-1}-${YEAR}`;               // e.g. '2025-2026'
 
 // Session cutoff calendar — update each session
 const SESSION_CALENDAR = {
@@ -628,7 +631,7 @@ function scoreBill(bill, categoryRates, sessionState) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
     // 69.4% of 75+ bills became law (188/271)
-    pass_prob = 0.694; conf_label = 'VERY HIGH'; conf_low = 0.640; conf_high = 0.750;
+    pass_prob = 0.694; conf_label = 'HIGH'; conf_low = 0.640; conf_high = 0.750;
   } else if (final_score >= 60) {
     // 1.3% of 60-74 bills became law (8/604)
     pass_prob = 0.013; conf_label = 'MODERATE'; conf_low = 0.004; conf_high = 0.026;

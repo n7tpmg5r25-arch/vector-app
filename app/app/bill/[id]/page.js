@@ -372,8 +372,8 @@ export default function BillDetailPage() {
 
   // Confidence label styling (4 active tiers + 3 interim states)
   const confLabel = bill.confidence_label || 'VERY LOW'
-  const confColor = confLabel === 'VERY HIGH' ? 'var(--teal)'
-    : confLabel === 'HIGH' ? 'var(--teal)'
+  // 6L.2: VERY HIGH renamed to HIGH for consistency with signal_tier
+  const confColor = confLabel === 'HIGH' ? 'var(--teal)'
     : confLabel === 'MODERATE' ? 'var(--gold)'
     : confLabel === 'LOW' ? 'var(--danger)'
     : confLabel === 'LAW' ? 'var(--teal)'
@@ -703,7 +703,7 @@ export default function BillDetailPage() {
                 <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
               </div>
               <div>
-                Signal strength (VERY HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
+                Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
               </div>
             </div>
           )}
