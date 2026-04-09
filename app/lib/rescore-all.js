@@ -26,17 +26,18 @@ const supabase = createClient(
 
 const SESSION = '2025-2026';
 
-// ── CALIBRATED RATES (from April 2, 2026 recalibration) ─────────────────────
+// ── CALIBRATED RATES (full biennium April 8, 2026 — 3,411 bills, 196 LAW) ──
 const BUCKET_RATES = {
-  '0-30': 0.000, '30-45': 0.000, '45-60': 0.008,
-  '60-75': 0.051, '75-100': 0.293,
+  '0-30': 0.000, '30-45': 0.000, '45-60': 0.000,
+  '60-75': 0.013, '75-100': 0.694,
 };
 
 const CATEGORY_RATES = {
-  'Transportation': 0.090, 'Technology': 0.068, 'Agriculture': 0.063,
-  'Health': 0.054, 'Employment / Labor': 0.051, 'Other': 0.045,
-  'Housing': 0.042, 'Environment': 0.041, 'Business / Commerce': 0.034,
-  'Criminal Justice': 0.026, 'Education': 0.025, 'Budget / Appropriations': 0.000,
+  'Natural Resources': 0.195, 'Government Operations': 0.098, 'Agriculture': 0.098,
+  'Employment / Labor': 0.096, 'Transportation': 0.092, 'Veterans / Military': 0.070,
+  'Business / Commerce': 0.068, 'Health': 0.062, 'Environment': 0.054,
+  'Housing': 0.052, 'Budget / Appropriations': 0.046, 'Other': 0.045,
+  'Criminal Justice': 0.044, 'Technology': 0.036, 'Education': 0.034,
 };
 
 // ── SCORING ENGINE (same as sync-v2.js) ─────────────────────────────────────
