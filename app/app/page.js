@@ -53,6 +53,7 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false)
   // 6B.1: Session outcome counts for interim display
   const [outcomeCounts, setOutcomeCounts] = useState({ law: 0, carryOver: 0, dead: 0 })
+  const [totalBills, setTotalBills] = useState(0)
 
   const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
   const daysToSession   = daysUntil(nextBiennium.start)
@@ -95,6 +96,10 @@ export default function HomePage() {
 
     const wl = (wlResult.data || []).filter(w => w.bills)
     setWatchlist(wl)
+
+    // 6K.2: Fetch total bill count for quick actions grid
+    const totalRes = await supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION)
+    setTotalBills(totalRes.count || 0)
 
     // 6B.1: Count session outcomes for interim display
     if (isInterimPeriod()) {
@@ -800,7 +805,7 @@ export default function HomePage() {
         {/* ── QUICK ACTIONS ─────────────────────────────────── */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: '2,855 scored' },
+            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: `${totalBills.toLocaleString()} scored` },
             isInterimPeriod()
               ? { label: 'Session Outcomes', icon: '✓', path: '/outcomes', desc: `${outcomeCounts.law} signed` }
               : { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Calendar' },

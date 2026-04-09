@@ -40,7 +40,7 @@ function loadImageAsBase64(url) {
   })
 }
 
-export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes }) {
+export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
@@ -121,15 +121,18 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   doc.setFontSize(9)
   doc.setTextColor(...GRAY)
   doc.text(date, m, y)
-  doc.text('Session: 2025\u20132026 (Interim)', m + 55, y)
+  doc.text(`Session: ${session || '2025\u20132026'}`, m + 55, y)
   y += 10
 
   /* ━━━━━━━━━━━━━━━━ SUMMARY STATS ━━━━━━━━━━━━━━━━ */
 
   const allScores = bills.map(b => b.bills?.final_score || 0)
   const avg       = allScores.length ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0
-  const highCount = allScores.filter(s => s >= 50).length
-  const atRisk    = allScores.filter(s => s < 25).length
+  // 50+ = above midpoint (MODERATE or better trajectory); <25 = weak signal (bottom quartile)
+  const HIGH_TRAJECTORY_THRESHOLD = 50
+  const AT_RISK_THRESHOLD = 25
+  const highCount = allScores.filter(s => s >= HIGH_TRAJECTORY_THRESHOLD).length
+  const atRisk    = allScores.filter(s => s < AT_RISK_THRESHOLD).length
 
   // Summary box
   doc.setFillColor(245, 248, 252)

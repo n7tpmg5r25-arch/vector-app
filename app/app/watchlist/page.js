@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
-import { isInterimPeriod } from '../../lib/session-config'
+import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -155,12 +155,14 @@ export default function WatchlistPage() {
       const billsToExport = sorted // uses current filter
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
+      const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
       await generateClientPDF({
         clientName,
         date: today,
         bills: billsToExport,
         scoreDeltas,
         changes,
+        session: sessionLabel,
       })
     } catch (err) {
       console.error('PDF export failed:', err)

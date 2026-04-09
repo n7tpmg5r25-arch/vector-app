@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
 import Nav from '../components/Nav'
 
 export default function SettingsPage() {
@@ -10,9 +10,12 @@ export default function SettingsPage() {
   const supabase = createBrowserClient()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [billCount, setBillCount] = useState('...')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    supabase.from('bills').select('id', { count: 'exact', head: true })
+      .then(({ count }) => { if (count != null) setBillCount(count.toLocaleString()) })
   }, [])
 
   async function signOut() {
@@ -21,13 +24,14 @@ export default function SettingsPage() {
     router.push('/login')
   }
 
+  const nextB = getNextBiennium()
   const SESSION_INFO = [
-    { label: 'Current Session', value: '2025–2026' },
-    { label: 'Session State', value: 'Interim', accent: true },
-    { label: 'Next Session Opens', value: 'Jan 13, 2027' },
-    { label: 'Pre-filing Starts', value: 'Dec 1, 2026' },
-    { label: 'Bills in Database', value: '2,855', mono: true },
-    { label: 'Scoring Engine', value: 'v3.1 · Calibrated', mono: true },
+    { label: 'Current Session', value: getCurrentSession() },
+    { label: 'Session State', value: isInterimPeriod() ? 'Interim' : 'In Session', accent: isInterimPeriod() },
+    { label: 'Next Session Opens', value: nextB?.start ? formatSessionDate(nextB.start) : 'TBD' },
+    { label: 'Pre-filing Starts', value: nextB?.prefilingOpens ? formatSessionDate(nextB.prefilingOpens) : 'TBD' },
+    { label: 'Bills in Database', value: billCount, mono: true },
+    { label: 'Scoring Engine', value: 'v3.1 \u00b7 Calibrated', mono: true },
   ]
 
   return (
@@ -80,34 +84,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Reference */}
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Reference</div>
-          <Link href="/methodology" style={{ textDecoration: 'none' }}>
-            <div style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--teal)', marginBottom: 2 }}>
-                  Scoring Methodology
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Signals, weights, X-factors, calibration
-                </div>
-              </div>
-              <span style={{ color: 'var(--text-faint)', fontSize: 18, fontWeight: 300 }}>›</span>
-            </div>
-          </Link>
-        </div>
-
         {/* About */}
         <div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>About</div>
@@ -129,7 +105,7 @@ export default function SettingsPage() {
                 <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
               </div>
             </div>
-            Trajectory scoring engine calibrated from 8,824 WA bills across the 2021-22 and 2023-24 sessions. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
+            Trajectory scoring engine calibrated against 3,411 bills from the completed 2025-26 biennium, with historical baselines from 8,824 bills across 2021-22 and 2023-24. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
           </div>
         </div>
 
