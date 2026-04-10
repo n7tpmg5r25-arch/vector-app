@@ -142,7 +142,7 @@ function SearchContent() {
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {/* Header */}
       <div style={{
-        background: 'rgba(11,26,18,0.95)',
+        background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 12px',
@@ -153,7 +153,7 @@ function SearchContent() {
             fontFamily: 'var(--font-display)',
             fontSize: 22, fontWeight: 700,
             color: 'var(--teal)',
-            textShadow: '0 0 16px rgba(45,107,69,0.2)',
+            textShadow: '0 0 16px rgba(184,151,90,0.2)',
           }}>Browse Bills</div>
 
           {/* Watch All button — only if logged in */}
@@ -180,7 +180,7 @@ function SearchContent() {
         {/* Bulk watch panel */}
         {showWatchAll && (
           <div style={{
-            background: 'var(--bg-card)', border: '1px solid rgba(45,107,69,0.25)',
+            background: 'var(--bg-card)', border: '1px solid rgba(184,151,90,0.25)',
             borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 10,
           }}>
             <div style={{ fontSize: 12, color: 'var(--text-primary)', marginBottom: 8, fontWeight: 500 }}>
@@ -222,8 +222,8 @@ function SearchContent() {
         {/* Bulk result toast */}
         {bulkResult && (
           <div style={{
-            background: bulkResult.error ? 'rgba(196,71,48,0.1)' : 'rgba(45,107,69,0.1)',
-            border: `1px solid ${bulkResult.error ? 'rgba(196,71,48,0.3)' : 'rgba(45,107,69,0.3)'}`,
+            background: bulkResult.error ? 'rgba(196,71,48,0.1)' : 'rgba(184,151,90,0.1)',
+            border: `1px solid ${bulkResult.error ? 'rgba(196,71,48,0.3)' : 'rgba(184,151,90,0.3)'}`,
             borderRadius: 8, padding: '8px 12px', marginBottom: 10,
             fontSize: 12, color: bulkResult.error ? 'var(--red)' : 'var(--teal)',
           }}>
@@ -295,14 +295,14 @@ function SearchContent() {
               key={bill.bill_id}
               onClick={() => router.push(`/bill/${bill.bill_id}`)}
               style={{
-                background: 'var(--bg-card)', border: `1px solid ${isWatched ? 'rgba(45,107,69,0.2)' : 'var(--border)'}`,
+                background: 'var(--bg-card)', border: `1px solid ${isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
                 borderRadius: 'var(--radius)', padding: '12px 14px',
                 display: 'flex', alignItems: 'center', gap: 12,
                 cursor: 'pointer', transition: 'border-color 0.2s',
                 animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(45,107,69,0.2)' : 'var(--border)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}
             >
               <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -312,7 +312,7 @@ function SearchContent() {
                     <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--teal)', fontWeight: 600 }}>WATCHING</span>
                   )}
                   {isInterimPeriod() && bill.confidence_label === 'LAW' && (
-                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(45,107,69,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
+                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
                   )}
                   {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
                     <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Passed Chamber</span>
@@ -367,7 +367,7 @@ function SearchContent() {
               cursor: 'pointer', marginTop: 4,
               transition: 'border-color 0.2s',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >Load more</button>
         )}

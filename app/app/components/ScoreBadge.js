@@ -63,9 +63,9 @@ export default function ScoreBadge({ score, size = 'md', status }) {
           fontSize: dim.badgeFontSize, fontFamily: 'var(--font-mono)', fontWeight: 700,
           padding: '1px 5px', borderRadius: 6, whiteSpace: 'nowrap',
           letterSpacing: '0.04em', textTransform: 'uppercase',
-          background: isLaw ? 'rgba(122,171,110,0.15)' : isCarryOver ? 'rgba(184,151,90,0.12)' : 'rgba(255,255,255,0.06)',
+          background: isLaw ? 'rgba(122,171,110,0.15)' : isCarryOver ? 'rgba(212,180,122,0.12)' : 'rgba(255,255,255,0.06)',
           color: isLaw ? '#7aab6e' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)',
-          border: `1px solid ${isLaw ? 'rgba(122,171,110,0.3)' : isCarryOver ? 'rgba(184,151,90,0.25)' : 'var(--border)'}`,
+          border: `1px solid ${isLaw ? 'rgba(122,171,110,0.3)' : isCarryOver ? 'rgba(212,180,122,0.25)' : 'var(--border)'}`,
         }}>
           {isLaw ? 'LAW' : isCarryOver ? 'PASSED' : 'DEAD'}
         </span>

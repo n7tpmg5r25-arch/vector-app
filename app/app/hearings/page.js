@@ -77,13 +77,13 @@ export default function HearingsPage() {
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
       <div style={{
-        background: 'rgba(11,26,18,0.95)',
+        background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(45,107,69,0.2)' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
           Hearings
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
@@ -154,7 +154,7 @@ export default function HearingsPage() {
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 7,
                   cursor: 'pointer', transition: 'border-color 0.2s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -254,7 +254,7 @@ export default function HearingsPage() {
                   borderLeft: watchedIds.has(bill.bill_id) ? '3px solid var(--gold)' : '1px solid var(--border)',
                   animation: `fadeUp 0.3s ease ${idx * 0.02}s both`,
                 }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <ScoreBadge score={bill.final_score} size="sm"/>
@@ -265,7 +265,7 @@ export default function HearingsPage() {
                     </span>
                     {watchedIds.has(bill.bill_id) && <span style={{ color: 'var(--gold)', fontSize: 10 }}>🔖</span>}
                     {bill.committee_passed && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(45,107,69,0.2)', borderRadius: 8, fontWeight: 600 }}>
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8, fontWeight: 600 }}>
                         ✓ Pass
                       </span>
                     )}

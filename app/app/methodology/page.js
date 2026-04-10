@@ -82,7 +82,7 @@ const CALIBRATION = [
 
 // Color per confidence tier, matching the bill detail page
 const TIER_COLOR = {
-  'HIGH':     '#2d6b45',  // teal
+  'HIGH':     '#b8975a',  // teal
   'MODERATE': '#ffc94a',  // gold
   'LOW':      '#ff9f43',  // amber
   'VERY LOW': '#8a96ad',  // muted
@@ -94,7 +94,7 @@ export default function MethodologyPage() {
 
       {/* HEADER */}
       <div style={{
-        background: 'rgba(11,26,18,0.95)',
+        background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 20px 20px',
@@ -103,7 +103,7 @@ export default function MethodologyPage() {
           fontFamily: 'var(--font-display)',
           fontSize: 24, fontWeight: 700,
           color: 'var(--teal)',
-          textShadow: '0 0 16px rgba(45,107,69,0.2)',
+          textShadow: '0 0 16px rgba(184,151,90,0.2)',
         }}>Methodology</div>
         <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
           How Vector | WA scores bills
@@ -154,8 +154,8 @@ export default function MethodologyPage() {
                     <span key={inp} style={{
                       fontSize: 11,
                       padding: '3px 8px',
-                      background: 'rgba(45,107,69,0.08)',
-                      border: '1px solid rgba(45,107,69,0.25)',
+                      background: 'rgba(184,151,90,0.08)',
+                      border: '1px solid rgba(184,151,90,0.25)',
                       borderRadius: 10,
                       color: 'var(--text-muted)',
                     }}>{inp}</span>
@@ -323,7 +323,7 @@ export default function MethodologyPage() {
                 </thead>
                 <tbody>
                   {[
-                    { tier: 'HIGH',      range: '75–99', meaning: 'Strong legislative momentum — committee passed, floor action likely', color: '#2d6b45' },
+                    { tier: 'HIGH',      range: '75–99', meaning: 'Strong legislative momentum — committee passed, floor action likely', color: '#b8975a' },
                     { tier: 'MODERATE',  range: '60–74', meaning: 'Active movement — hearings held, some advancement', color: '#ffc94a' },
                     { tier: 'LOW',       range: '45–59', meaning: 'Limited progress — introduced but stalling', color: '#ff9f43' },
                     { tier: 'VERY LOW',  range: '0–44',  meaning: 'Minimal activity — unlikely to advance', color: '#8a96ad' },

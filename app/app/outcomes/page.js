@@ -88,8 +88,8 @@ export default function OutcomesPage() {
     fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
     padding: '2px 8px', borderRadius: 10,
     color: outcomeColor(label),
-    background: label === 'LAW' ? 'rgba(45,107,69,0.1)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.08)' : 'rgba(255,255,255,0.04)',
-    border: `1px solid ${label === 'LAW' ? 'rgba(45,107,69,0.25)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
+    background: label === 'LAW' ? 'rgba(184,151,90,0.1)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.08)' : 'rgba(255,255,255,0.04)',
+    border: `1px solid ${label === 'LAW' ? 'rgba(184,151,90,0.25)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
   })
 
   // Chip style helper
@@ -106,12 +106,12 @@ export default function OutcomesPage() {
 
       {/* ── HEADER ──────────────────────────────── */}
       <div style={{
-        background: 'rgba(11,26,18,0.95)', backdropFilter: 'blur(12px)',
+        background: 'rgba(14,16,20,0.95)', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(45,107,69,0.2)' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
           Session Outcomes
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
@@ -208,7 +208,7 @@ export default function OutcomesPage() {
               transition: 'border-color 0.2s',
               animation: idx < 20 ? `fadeUp 0.3s ease ${idx * 0.02}s both` : 'none',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
             <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>

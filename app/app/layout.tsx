@@ -27,7 +27,7 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#0b1a12',
+  themeColor: '#0e1014',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
-      <body style={{ backgroundColor: '#0b1a12' }}>
+      <body style={{ backgroundColor: '#0e1014' }}>
         <RegisterSW />
         {children}
       </body>

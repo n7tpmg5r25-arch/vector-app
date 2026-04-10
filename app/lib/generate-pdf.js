@@ -22,7 +22,7 @@ const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
-const NAVY  = [11, 26, 18]       // Forest Ink (Shorepine #0b1a12)
+const NAVY  = [26, 74, 46]       // Forest #1a4a2e (firm brand v3.1 sec 14)
 const TEAL  = [45, 107, 69]      // Forest Mid (Shorepine #2d6b45)
 const GOLD  = [184, 151, 90]     // Brass (Shorepine #b8975a)
 const GRAY  = [74, 80, 96]       // Slate (Shorepine #4a5060)

@@ -2,25 +2,25 @@
 
 :root {
   /* ── SHOREPINE DARK INTELLIGENCE THEME ─────────── */
-  --bg:            #0b1a12;
-  --bg-card:       #101f16;
-  --bg-card-2:     #152a1c;
-  --bg-surface:    #1a3324;
+  --bg:            #0e1014;
+  --bg-card:       #171921;
+  --bg-card-2:     #1c1f28;
+  --bg-surface:    #232632;
 
   /* Forest Green accent (was Teal/Cyan) */
-  --teal:          #2d6b45;
-  --teal-bright:   #3d8b5a;
-  --teal-mid:      #1a4a2e;
-  --teal-dim:      #143d22;
-  --teal-pale:     rgba(45,107,69,0.08);
-  --teal-glow:     0 0 12px rgba(45,107,69,0.35);
-  --teal-glow-lg:  0 0 24px rgba(45,107,69,0.25), 0 0 48px rgba(45,107,69,0.1);
+  --teal:          #b8975a;
+  --teal-bright:   #d4b47a;
+  --teal-mid:      #a0824a;
+  --teal-dim:      #6e5a38;
+  --teal-pale:     rgba(184,151,90,0.08);
+  --teal-glow:     0 0 12px rgba(184,151,90,0.35);
+  --teal-glow-lg:  0 0 24px rgba(184,151,90,0.25), 0 0 48px rgba(184,151,90,0.1);
 
   /* Brass accent (was Gold) */
-  --gold:          #b8975a;
-  --gold-light:    #d4b07a;
-  --gold-pale:     rgba(184,151,90,0.12);
-  --gold-glow:     0 0 10px rgba(184,151,90,0.3);
+  --gold:          #d4b47a;
+  --gold-light:    #e4c899;
+  --gold-pale:     rgba(212,180,122,0.12);
+  --gold-glow:     0 0 10px rgba(212,180,122,0.3);
 
   /* Danger (warm red, harmonizes with Amber) */
   --danger:        #c44730;
@@ -28,14 +28,14 @@
   --danger-glow:   0 0 10px rgba(196,71,48,0.3);
 
   /* Text (warm-shifted) */
-  --text-primary:  #e8ede5;
-  --text-mid:      #b0b8a8;
-  --text-muted:    #6b7a70;
+  --text-primary:  #e8e9ec;
+  --text-mid:      #a8acb4;
+  --text-muted:    #6c7078;
   --text-faint:    #3d4d42;
 
   /* Borders (forest-tinted) */
-  --border:        #1e3028;
-  --border-light:  #253d30;
+  --border:        #2a2d38;
+  --border-light:  #343845;
 
   /* Shadows */
   --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
@@ -52,10 +52,10 @@
   --font-mono:     'DM Mono', 'Courier New', monospace;
 
   /* Legacy compat (green → forest mapping) */
-  --green-dark:    #2d6b45;
-  --green-mid:     #1a4a2e;
-  --green-light:   #143d22;
-  --green-pale:    rgba(45,107,69,0.08);
+  --green-dark:    #b8975a;
+  --green-mid:     #a0824a;
+  --green-light:   #6e5a38;
+  --green-pale:    rgba(184,151,90,0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -93,16 +93,16 @@ input, textarea { font-family: var(--font-body); }
 /* ── SPARKLINE ANIMATION ─────────────────────── */
 /* sparkline animation is handled via inline styles + useEffect in AnimatedSparkline */
 @keyframes glowPulse {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(45,107,69,0.4)); }
-  50%      { filter: drop-shadow(0 0 12px rgba(45,107,69,0.7)); }
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(184,151,90,0.4)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(184,151,90,0.7)); }
 }
 @keyframes dotPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(45,107,69,0.4); }
-  50%      { box-shadow: 0 0 0 6px rgba(45,107,69,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184,151,90,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(184,151,90,0); }
 }
 @keyframes scoreGlow {
-  0%, 100% { box-shadow: 0 0 12px rgba(45,107,69,0.3), inset 0 0 8px rgba(45,107,69,0.1); }
-  50%      { box-shadow: 0 0 24px rgba(45,107,69,0.5), inset 0 0 12px rgba(45,107,69,0.15); }
+  0%, 100% { box-shadow: 0 0 12px rgba(184,151,90,0.3), inset 0 0 8px rgba(184,151,90,0.1); }
+  50%      { box-shadow: 0 0 24px rgba(184,151,90,0.5), inset 0 0 12px rgba(184,151,90,0.15); }
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }
