@@ -1,32 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg:          #f5f0e8;
-  --bg-card:     #faf7f2;
-  --bg-card-2:   #f0ebe0;
-  --green-dark:  #1e3a2f;
-  --green-mid:   #2d5a3d;
-  --green-light: #4a7c59;
-  --green-pale:  #e8f0ea;
-  --gold:        #b8923a;
-  --gold-light:  #d4a84b;
-  --gold-pale:   #f5ecd6;
-  --text-primary:#1a1a1a;
-  --text-mid:    #3d3730;
-  --text-muted:  #6b6560;
-  --text-faint:  #9e9890;
-  --border:      #d9d0c4;
-  --border-light:#e8e2d8;
-  --danger:      #b85c3a;
-  --danger-pale: #f8ede8;
-  --shadow-sm:   0 1px 4px rgba(30,58,47,0.08);
-  --shadow-md:   0 4px 16px rgba(30,58,47,0.12);
-  --shadow-lg:   0 8px 32px rgba(30,58,47,0.16);
-  --radius:      10px;
-  --radius-lg:   16px;
-  --font-display:'Playfair Display', Georgia, serif;
-  --font-body:   'DM Sans', system-ui, sans-serif;
-  --font-mono:   'DM Mono', 'Courier New', monospace;
+  /* ── SHOREPINE DARK INTELLIGENCE THEME ─────────── */
+  --bg:            #0b1a12;
+  --bg-card:       #101f16;
+  --bg-card-2:     #152a1c;
+  --bg-surface:    #1a3324;
+
+  /* Forest Green accent (was Teal/Cyan) */
+  --teal:          #2d6b45;
+  --teal-bright:   #3d8b5a;
+  --teal-mid:      #1a4a2e;
+  --teal-dim:      #143d22;
+  --teal-pale:     rgba(45,107,69,0.08);
+  --teal-glow:     0 0 12px rgba(45,107,69,0.35);
+  --teal-glow-lg:  0 0 24px rgba(45,107,69,0.25), 0 0 48px rgba(45,107,69,0.1);
+
+  /* Brass accent (was Gold) */
+  --gold:          #b8975a;
+  --gold-light:    #d4b07a;
+  --gold-pale:     rgba(184,151,90,0.12);
+  --gold-glow:     0 0 10px rgba(184,151,90,0.3);
+
+  /* Danger (warm red, harmonizes with Amber) */
+  --danger:        #c44730;
+  --danger-pale:   rgba(196,71,48,0.1);
+  --danger-glow:   0 0 10px rgba(196,71,48,0.3);
+
+  /* Text (warm-shifted) */
+  --text-primary:  #e8ede5;
+  --text-mid:      #b0b8a8;
+  --text-muted:    #6b7a70;
+  --text-faint:    #3d4d42;
+
+  /* Borders (forest-tinted) */
+  --border:        #1e3028;
+  --border-light:  #253d30;
+
+  /* Shadows */
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md:     0 4px 20px rgba(0,0,0,0.4);
+  --shadow-lg:     0 8px 40px rgba(0,0,0,0.5);
+
+  /* Radii */
+  --radius:        10px;
+  --radius-lg:     16px;
+
+  /* Fonts */
+  --font-display:  'Playfair Display', Georgia, serif;
+  --font-body:     'Karla', 'DM Sans', system-ui, sans-serif;
+  --font-mono:     'DM Mono', 'Courier New', monospace;
+
+  /* Legacy compat (green → forest mapping) */
+  --green-dark:    #2d6b45;
+  --green-mid:     #1a4a2e;
+  --green-light:   #143d22;
+  --green-pale:    rgba(45,107,69,0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -49,12 +78,33 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: var(--font-body); }
 input, textarea { font-family: var(--font-body); }
 
+/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
+/* Utility */
 .sr-only {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* ── SPARKLINE ANIMATION ─────────────────────── */
+/* sparkline animation is handled via inline styles + useEffect in AnimatedSparkline */
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(45,107,69,0.4)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(45,107,69,0.7)); }
+}
+@keyframes dotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45,107,69,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(45,107,69,0); }
+}
+@keyframes scoreGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(45,107,69,0.3), inset 0 0 8px rgba(45,107,69,0.1); }
+  50%      { box-shadow: 0 0 24px rgba(45,107,69,0.5), inset 0 0 12px rgba(45,107,69,0.15); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
