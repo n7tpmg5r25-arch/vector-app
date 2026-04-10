@@ -179,14 +179,14 @@ export default function WatchlistPage() {
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
       {/* ━━━ HEADER ━━━ */}
       <div style={{
-        background: 'rgba(8,12,20,0.95)',
+        background: 'rgba(11,26,18,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(45,107,69,0.2)' }}>
             Watchlist
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -199,7 +199,7 @@ export default function WatchlistPage() {
                   padding: '4px 12px', borderRadius: 14, fontSize: 10, fontWeight: 600,
                   background: 'transparent',
                   color: 'var(--gold)',
-                  border: '1px solid rgba(212,168,75,0.35)',
+                  border: '1px solid rgba(184,151,90,0.35)',
                   cursor: exporting ? 'wait' : 'pointer',
                   transition: 'all 0.15s',
                   opacity: exporting ? 0.5 : 1,
@@ -231,7 +231,7 @@ export default function WatchlistPage() {
               { label: 'Hearings', value: hearingCount, color: hearingCount > 0 ? 'var(--teal-mid)' : 'var(--text-muted)' },
             ]).map(({ label, value, color }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(0,229,204,0.3)' : 'none' }}>{value}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(45,107,69,0.3)' : 'none' }}>{value}</span>
                 <span style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
               </div>
             ))}
@@ -269,7 +269,7 @@ export default function WatchlistPage() {
               padding: '3px 10px', borderRadius: 12, fontSize: 10, flexShrink: 0,
               background: atRiskOnly ? 'var(--danger-pale)' : 'transparent',
               color: atRiskOnly ? 'var(--danger)' : 'var(--text-faint)',
-              border: `1px solid ${atRiskOnly ? 'rgba(255,82,82,0.3)' : 'transparent'}`,
+              border: `1px solid ${atRiskOnly ? 'rgba(196,71,48,0.3)' : 'transparent'}`,
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
             }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
@@ -283,8 +283,8 @@ export default function WatchlistPage() {
         {/* ── WHAT'S CHANGED SECTION ── */}
         {!loading && !isInterimPeriod() && showChanges && (
           <div style={{
-            background: 'linear-gradient(135deg, rgba(0,229,204,0.06), rgba(0,229,204,0.02))',
-            border: '1px solid rgba(0,229,204,0.2)',
+            background: 'linear-gradient(135deg, rgba(45,107,69,0.06), rgba(45,107,69,0.02))',
+            border: '1px solid rgba(45,107,69,0.2)',
             borderRadius: 'var(--radius)',
             padding: '14px 16px',
             marginBottom: 4,
@@ -296,7 +296,7 @@ export default function WatchlistPage() {
                 color: 'var(--teal)',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', boxShadow: '0 0 6px rgba(0,229,204,0.5)', display: 'inline-block' }}/>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', boxShadow: '0 0 6px rgba(45,107,69,0.5)', display: 'inline-block' }}/>
                 What's Changed
                 <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
                   since your last visit
@@ -320,7 +320,7 @@ export default function WatchlistPage() {
                   onClick={() => router.push(`/bill/${bill.bill_id}`)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
-                    borderTop: '1px solid rgba(0,229,204,0.08)',
+                    borderTop: '1px solid rgba(45,107,69,0.08)',
                     cursor: 'pointer',
                   }}
                 >
@@ -335,9 +335,9 @@ export default function WatchlistPage() {
                       <span style={{
                         fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
                         padding: '2px 8px', borderRadius: 10,
-                        background: change.scoreDiff > 0 ? 'rgba(0,229,204,0.12)' : 'rgba(255,82,82,0.12)',
+                        background: change.scoreDiff > 0 ? 'rgba(45,107,69,0.12)' : 'rgba(196,71,48,0.12)',
                         color: change.scoreDiff > 0 ? 'var(--teal)' : 'var(--danger)',
-                        border: `1px solid ${change.scoreDiff > 0 ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
+                        border: `1px solid ${change.scoreDiff > 0 ? 'rgba(45,107,69,0.25)' : 'rgba(196,71,48,0.25)'}`,
                       }}>
                         Score {change.oldScore} {'→'}{change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
                       </span>
@@ -346,9 +346,9 @@ export default function WatchlistPage() {
                       <span style={{
                         fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
                         padding: '2px 8px', borderRadius: 10,
-                        background: change.newStage > change.oldStage ? 'rgba(0,229,204,0.12)' : 'rgba(255,82,82,0.12)',
+                        background: change.newStage > change.oldStage ? 'rgba(45,107,69,0.12)' : 'rgba(196,71,48,0.12)',
                         color: change.newStage > change.oldStage ? 'var(--teal)' : 'var(--danger)',
-                        border: `1px solid ${change.newStage > change.oldStage ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
+                        border: `1px solid ${change.newStage > change.oldStage ? 'rgba(45,107,69,0.25)' : 'rgba(196,71,48,0.25)'}`,
                       }}>
                         Stage {STAGE_SHORT[change.oldStage] || '?'} {'→'}{STAGE_SHORT[change.newStage] || '?'}
                       </span>
@@ -396,7 +396,7 @@ export default function WatchlistPage() {
                 : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -407,9 +407,9 @@ export default function WatchlistPage() {
                     position: 'absolute', top: -6, right: -10,
                     fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
                     padding: '1px 5px', borderRadius: 8,
-                    background: delta > 0 ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)',
+                    background: delta > 0 ? 'rgba(45,107,69,0.15)' : 'rgba(196,71,48,0.15)',
                     color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-                    border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                    border: `1px solid ${delta > 0 ? 'rgba(45,107,69,0.3)' : 'rgba(196,71,48,0.3)'}`,
                     whiteSpace: 'nowrap',
                   }}>
                     {delta > 0 ? '+' : ''}{delta}
@@ -425,17 +425,17 @@ export default function WatchlistPage() {
                     {STAGE_SHORT[bill.stage] || 'Intro'}
                   </span>
                   {client_tag && (
-                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>
                       {client_tag}
                     </span>
                   )}
                   {bill.confidence_label === 'LAW' && (
-                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(45,107,69,0.25)', borderRadius: 10, fontWeight: 500 }}>
                       Signed into Law
                     </span>
                   )}
                   {bill.confidence_label === 'CARRY OVER' && (
-                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>
                       Passed Chamber
                     </span>
                   )}
@@ -445,7 +445,7 @@ export default function WatchlistPage() {
                     </span>
                   )}
                   {bill.stalled && !bill.confidence_label && (
-                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(255,82,82,0.25)', borderRadius: 10 }}>
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(196,71,48,0.25)', borderRadius: 10 }}>
                       Stalled
                     </span>
                   )}
@@ -473,7 +473,7 @@ export default function WatchlistPage() {
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <div style={{ fontSize: 14, color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(212,168,75,0.3))' }}>🔖</div>
+                <div style={{ fontSize: 14, color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>🔖</div>
                 <a
                   href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`}
                   target="_blank" rel="noopener noreferrer"

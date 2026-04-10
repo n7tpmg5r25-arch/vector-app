@@ -201,14 +201,14 @@ export default function HomePage() {
 
       {/* ── HEADER ────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(180deg, #0d1520 0%, var(--bg) 100%)',
+        background: 'linear-gradient(180deg, #0d1f14 0%, var(--bg) 100%)',
         padding: '52px 20px 20px',
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Radial glow */}
         <div style={{
           position: 'absolute', inset: 0,
-          backgroundImage: 'radial-gradient(ellipse at 70% 20%, rgba(0,229,204,0.08) 0%, transparent 60%)',
+          backgroundImage: 'radial-gradient(ellipse at 70% 20%, rgba(45,107,69,0.08) 0%, transparent 60%)',
           pointerEvents: 'none',
         }}/>
 
@@ -222,7 +222,7 @@ export default function HomePage() {
                 <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
               </svg>
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--teal)', letterSpacing: '-0.01em', lineHeight: 1, textShadow: '0 0 20px rgba(0,229,204,0.3)' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--teal)', letterSpacing: '-0.01em', lineHeight: 1, textShadow: '0 0 20px rgba(45,107,69,0.3)' }}>
                   VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14 }}>| WA</span>
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
@@ -265,8 +265,8 @@ export default function HomePage() {
                 value={SESSION}
                 onChange={e => setSession(e.target.value)}
                 style={{
-                  background: 'rgba(0,229,204,0.08)',
-                  border: '1px solid rgba(0,229,204,0.25)',
+                  background: 'rgba(45,107,69,0.08)',
+                  border: '1px solid rgba(45,107,69,0.25)',
                   borderRadius: 20, padding: '4px 12px',
                   fontSize: 11, color: 'var(--teal)',
                   fontFamily: 'var(--font-mono)',
@@ -286,8 +286,8 @@ export default function HomePage() {
             ) : (
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'rgba(0,229,204,0.08)',
-                border: '1px solid rgba(0,229,204,0.25)',
+                background: 'rgba(45,107,69,0.08)',
+                border: '1px solid rgba(45,107,69,0.25)',
                 borderRadius: 20, padding: '4px 12px',
                 fontSize: 11, color: 'var(--teal)',
                 fontFamily: 'var(--font-mono)',
@@ -297,8 +297,8 @@ export default function HomePage() {
             )}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'rgba(212,168,75,0.1)',
-              border: '1px solid rgba(212,168,75,0.25)',
+              background: 'rgba(184,151,90,0.1)',
+              border: '1px solid rgba(184,151,90,0.25)',
               borderRadius: 20, padding: '4px 12px',
               fontSize: 11, color: 'var(--gold)',
               fontFamily: 'var(--font-mono)',
@@ -308,7 +308,7 @@ export default function HomePage() {
             </div>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'rgba(0,229,204,0.06)',
+              background: 'rgba(45,107,69,0.06)',
               border: '1px solid var(--border)',
               borderRadius: 20, padding: '4px 12px',
               fontSize: 11, color: 'var(--text-muted)',
@@ -322,7 +322,7 @@ export default function HomePage() {
           {nextBiennium.prefilingOpens && daysToPreFiling > 0 && daysToPreFiling <= 240 && (
             <div style={{
               marginTop: 10, padding: '8px 14px',
-              background: 'rgba(0,229,204,0.04)',
+              background: 'rgba(45,107,69,0.04)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius)',
               fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5,
@@ -337,8 +337,8 @@ export default function HomePage() {
           {nextBiennium.prefilingOpens && daysToPreFiling === 0 && daysToSession > 0 && (
             <div style={{
               marginTop: 10, padding: '8px 14px',
-              background: 'rgba(0,229,204,0.08)',
-              border: '1px solid rgba(0,229,204,0.2)',
+              background: 'rgba(45,107,69,0.08)',
+              border: '1px solid rgba(45,107,69,0.2)',
               borderRadius: 'var(--radius)',
               fontSize: 12, color: 'var(--teal)', lineHeight: 1.5,
             }}>
@@ -352,8 +352,8 @@ export default function HomePage() {
           {SESSION !== getCurrentSession() && (
             <div style={{
               marginTop: 10, padding: '8px 14px',
-              background: 'rgba(212,168,75,0.06)',
-              border: '1px solid rgba(212,168,75,0.2)',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.2)',
               borderRadius: 'var(--radius)',
               fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
             }}>
@@ -369,7 +369,7 @@ export default function HomePage() {
               </div>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
-                background: 'rgba(0,229,204,0.06)',
+                background: 'rgba(45,107,69,0.06)',
                 border: '1px solid var(--border)',
                 borderRadius: 20, padding: '5px 14px',
                 fontSize: 12, fontFamily: 'var(--font-mono)',
@@ -391,8 +391,8 @@ export default function HomePage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                  background: 'rgba(0,229,204,0.08)',
-                  border: '1px solid rgba(0,229,204,0.25)',
+                  background: 'rgba(45,107,69,0.08)',
+                  border: '1px solid rgba(45,107,69,0.25)',
                   borderRadius: 20, padding: '5px 14px',
                   fontSize: 12, color: outlook.color, fontWeight: 600,
                   boxShadow: outlook.glow,
@@ -402,7 +402,7 @@ export default function HomePage() {
                 {momentum && (
                   <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                    background: 'rgba(0,229,204,0.06)',
+                    background: 'rgba(45,107,69,0.06)',
                     border: '1px solid var(--border)',
                     borderRadius: 20, padding: '5px 12px',
                     fontSize: 10, color: momentum.color,
@@ -429,8 +429,8 @@ export default function HomePage() {
         {/* ── STALE DATA WARNING (Phase 5A) ────────────────── */}
         {lastSyncAt && (Date.now() - lastSyncAt.getTime()) > 36 * 60 * 60 * 1000 && (
           <div style={{
-            background: 'rgba(212,168,75,0.08)',
-            border: '1px solid rgba(212,168,75,0.3)',
+            background: 'rgba(184,151,90,0.08)',
+            border: '1px solid rgba(184,151,90,0.3)',
             borderRadius: 'var(--radius)',
             padding: '10px 14px',
             display: 'flex', alignItems: 'center', gap: 8,
@@ -510,7 +510,7 @@ export default function HomePage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
                 }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: `0 0 12px ${color === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : color === 'var(--danger)' ? 'rgba(255,82,82,0.3)' : 'transparent'}` }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: `0 0 12px ${color === 'var(--teal)' ? 'rgba(45,107,69,0.3)' : color === 'var(--danger)' ? 'rgba(196,71,48,0.3)' : 'transparent'}` }}>
                     {value}
                   </div>
                   <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>
@@ -534,7 +534,7 @@ export default function HomePage() {
                   display: 'flex', alignItems: 'center', gap: 12,
                   transition: 'border-color 0.2s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <div style={{ position: 'relative' }}>
@@ -544,9 +544,9 @@ export default function HomePage() {
                       position: 'absolute', top: -6, right: -10,
                       fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
                       padding: '1px 5px', borderRadius: 8,
-                      background: delta > 0 ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)',
+                      background: delta > 0 ? 'rgba(45,107,69,0.15)' : 'rgba(196,71,48,0.15)',
                       color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-                      border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                      border: `1px solid ${delta > 0 ? 'rgba(45,107,69,0.3)' : 'rgba(196,71,48,0.3)'}`,
                       whiteSpace: 'nowrap',
                     }}>
                       {delta > 0 ? '+' : ''}{delta}
@@ -611,8 +611,8 @@ export default function HomePage() {
             {/* Outcome stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
               {[
-                { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--teal)', glow: 'rgba(0,229,204,0.3)' },
-                { label: 'Passed Chamber', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(212,168,75,0.3)' },
+                { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--teal)', glow: 'rgba(45,107,69,0.3)' },
+                { label: 'Passed Chamber', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(184,151,90,0.3)' },
                 { label: 'Dead', value: outcomeCounts.dead, color: 'var(--text-muted)', glow: 'transparent' },
               ].map(({ label, value, color, glow }) => (
                 <div key={label} style={{
@@ -679,7 +679,7 @@ export default function HomePage() {
                   transition: 'border-color 0.2s, box-shadow 0.2s',
                   animation: `fadeUp 0.3s ease ${idx * 0.04}s both`,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(0,229,204,0.06)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(45,107,69,0.06)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
               >
                 <div style={{
@@ -694,9 +694,9 @@ export default function HomePage() {
                       position: 'absolute', top: -5, right: -10,
                       fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700,
                       padding: '0px 4px', borderRadius: 6,
-                      background: delta > 0 ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)',
+                      background: delta > 0 ? 'rgba(45,107,69,0.15)' : 'rgba(196,71,48,0.15)',
                       color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-                      border: `1px solid ${delta > 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                      border: `1px solid ${delta > 0 ? 'rgba(45,107,69,0.3)' : 'rgba(196,71,48,0.3)'}`,
                       whiteSpace: 'nowrap',
                     }}>
                       {delta > 0 ? '+' : ''}{delta}
@@ -710,12 +710,12 @@ export default function HomePage() {
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                     </span>
                     {!bill.bipartisan && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'rgba(212,168,75,0.1)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 8 }}>
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8 }}>
                         Minority Only
                       </span>
                     )}
                     {bill.pulled_from_rules && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(0,229,204,0.2)', borderRadius: 8 }}>
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(45,107,69,0.2)', borderRadius: 8 }}>
                         ↑ Rules
                       </span>
                     )}
@@ -773,7 +773,7 @@ export default function HomePage() {
                     borderRadius: 'var(--radius)', padding: '10px 14px',
                     cursor: 'pointer', transition: 'border-color 0.2s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500 }}>{cat.category}</span>
@@ -781,7 +781,7 @@ export default function HomePage() {
                         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                           {cat.bill_count} bills
                         </span>
-                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: barColor, fontWeight: 600, textShadow: avg >= 50 ? '0 0 8px rgba(0,229,204,0.3)' : 'none' }}>
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: barColor, fontWeight: 600, textShadow: avg >= 50 ? '0 0 8px rgba(45,107,69,0.3)' : 'none' }}>
                           avg {avg}
                         </span>
                       </div>
@@ -791,7 +791,7 @@ export default function HomePage() {
                         height: '100%',
                         width: `${Math.min(avg, 100)}%`,
                         background: barColor, borderRadius: 2,
-                        boxShadow: avg >= 50 ? '0 0 8px rgba(0,229,204,0.3)' : 'none',
+                        boxShadow: avg >= 50 ? '0 0 8px rgba(45,107,69,0.3)' : 'none',
                         transition: 'width 0.4s ease',
                       }}/>
                     </div>
@@ -821,7 +821,7 @@ export default function HomePage() {
                 textAlign: 'left', cursor: 'pointer',
                 transition: 'border-color 0.2s',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
               <div style={{ fontSize: 22, marginBottom: 6 }}>{icon}</div>

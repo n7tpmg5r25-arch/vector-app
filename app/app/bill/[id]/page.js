@@ -96,8 +96,8 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
         style={{ overflow: 'visible' }}>
         <defs>
           <linearGradient id="sparkGradDark" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(0,229,204,0.25)"/>
-            <stop offset="100%" stopColor="rgba(0,229,204,0)"/>
+            <stop offset="0%" stopColor="rgba(45,107,69,0.25)"/>
+            <stop offset="100%" stopColor="rgba(45,107,69,0)"/>
           </linearGradient>
           <filter id="glowFilter">
             <feGaussianBlur stdDeviation="3" result="blur"/>
@@ -123,7 +123,7 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
         />
 
         {/* Glow line (behind main) */}
-        <path d={linePath} fill="none" stroke="rgba(0,229,204,0.3)" strokeWidth="6"
+        <path d={linePath} fill="none" stroke="rgba(45,107,69,0.3)" strokeWidth="6"
           filter="url(#glowFilter)" strokeLinecap="round" strokeLinejoin="round"
           style={{
             strokeDasharray: pathLen || 1000,
@@ -157,10 +157,10 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
         {/* Current position dot */}
         {last && hoveredIdx === null && (
           <g style={{ opacity: drawn ? 1 : 0, transition: 'opacity 0.3s ease 1.2s' }}>
-            <circle cx={last.x} cy={last.y} r="8" fill="rgba(0,229,204,0.15)"
+            <circle cx={last.x} cy={last.y} r="8" fill="rgba(45,107,69,0.15)"
               style={{ animation: 'dotPulse 2s ease-in-out infinite' }}/>
             <circle cx={last.x} cy={last.y} r="4" fill="var(--teal)"
-              style={{ filter: 'drop-shadow(0 0 6px rgba(0,229,204,0.6))' }}/>
+              style={{ filter: 'drop-shadow(0 0 6px rgba(45,107,69,0.6))' }}/>
           </g>
         )}
 
@@ -181,10 +181,10 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
         {hoveredIdx !== null && points[hoveredIdx] && (
           <g>
             <line x1={points[hoveredIdx].x} y1={PAD} x2={points[hoveredIdx].x} y2={H - PAD}
-              stroke="rgba(0,229,204,0.3)" strokeWidth="1" strokeDasharray="3 3"/>
+              stroke="rgba(45,107,69,0.3)" strokeWidth="1" strokeDasharray="3 3"/>
             <circle cx={points[hoveredIdx].x} cy={points[hoveredIdx].y} r="4"
               fill="var(--teal)" stroke="var(--bg-card)" strokeWidth="2"
-              style={{ filter: 'drop-shadow(0 0 4px rgba(0,229,204,0.5))' }}/>
+              style={{ filter: 'drop-shadow(0 0 4px rgba(45,107,69,0.5))' }}/>
           </g>
         )}
       </svg>
@@ -196,8 +196,8 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
           left: `${(points[hoveredIdx].x / W) * 100}%`,
           top: Math.max(0, points[hoveredIdx].y - 8),
           transform: 'translate(-50%, -100%)',
-          background: 'rgba(8,12,20,0.95)',
-          border: '1px solid rgba(0,229,204,0.3)',
+          background: 'rgba(11,26,18,0.95)',
+          border: '1px solid rgba(45,107,69,0.3)',
           borderRadius: 6, padding: '4px 8px',
           pointerEvents: 'none', whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
@@ -220,7 +220,7 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
           position: 'absolute', right: 0, top: 0,
           fontFamily: 'var(--font-mono)', fontSize: 11,
           color: 'var(--teal)', fontWeight: 600,
-          textShadow: '0 0 8px rgba(0,229,204,0.4)',
+          textShadow: '0 0 8px rgba(45,107,69,0.4)',
           opacity: drawn ? 1 : 0, transition: 'opacity 0.3s ease 1.4s',
         }}>
           {scores[scores.length - 1]}
@@ -388,7 +388,7 @@ export default function BillDetailPage() {
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '52px 16px 12px',
-        background: 'rgba(8,12,20,0.95)',
+        background: 'rgba(11,26,18,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         position: 'sticky', top: 0, zIndex: 50,
@@ -421,7 +421,7 @@ export default function BillDetailPage() {
             onClick={shareBill}
             style={{
               padding: '7px 12px',
-              background: shared ? 'rgba(0,229,204,0.1)' : 'transparent',
+              background: shared ? 'rgba(45,107,69,0.1)' : 'transparent',
               border: '1px solid var(--border)',
               borderRadius: 20, fontSize: 12, fontWeight: 500,
               color: shared ? 'var(--teal)' : 'var(--text-muted)',
@@ -434,7 +434,7 @@ export default function BillDetailPage() {
             style={{
               padding: '7px 16px',
               background: tracked ? 'var(--gold-pale)' : 'var(--teal-pale)',
-              border: `1px solid ${tracked ? 'rgba(212,168,75,0.3)' : 'rgba(0,229,204,0.3)'}`,
+              border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'rgba(45,107,69,0.3)'}`,
               borderRadius: 20, fontSize: 12, fontWeight: 600,
               color: tracked ? 'var(--gold)' : 'var(--teal)',
               cursor: 'pointer', transition: 'all 0.15s',
@@ -458,7 +458,7 @@ export default function BillDetailPage() {
         )}
         {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
           <div style={{
-            background: 'rgba(212,168,75,0.06)', border: '1px solid rgba(212,168,75,0.2)',
+            background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.2)',
             borderRadius: 'var(--radius)', padding: '10px 14px',
             fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
           }}>
@@ -467,7 +467,7 @@ export default function BillDetailPage() {
         )}
         {isInterimPeriod() && bill.confidence_label === 'LAW' && (
           <div style={{
-            background: 'rgba(0,229,204,0.06)', border: '1px solid rgba(0,229,204,0.2)',
+            background: 'rgba(45,107,69,0.06)', border: '1px solid rgba(45,107,69,0.2)',
             borderRadius: 'var(--radius)', padding: '10px 14px',
             fontSize: 12, color: 'var(--teal)', lineHeight: 1.5,
           }}>
@@ -490,14 +490,14 @@ export default function BillDetailPage() {
                 title="Based on how similar bills performed this biennium. Bills with this score became law at this rate."
                 style={{
                 fontSize: 9, padding: '3px 10px', borderRadius: 10,
-                background: confLabel === 'HIGH' ? 'rgba(0,229,204,0.1)'
-                  : confLabel === 'MODERATE' ? 'rgba(212,168,75,0.1)'
-                  : confLabel === 'LOW' ? 'rgba(255,82,82,0.1)'
+                background: confLabel === 'HIGH' ? 'rgba(45,107,69,0.1)'
+                  : confLabel === 'MODERATE' ? 'rgba(184,151,90,0.1)'
+                  : confLabel === 'LOW' ? 'rgba(196,71,48,0.1)'
                   : 'rgba(100,120,140,0.1)',
                 color: confColor,
-                border: `1px solid ${confLabel === 'HIGH' ? 'rgba(0,229,204,0.2)'
-                  : confLabel === 'MODERATE' ? 'rgba(212,168,75,0.2)'
-                  : confLabel === 'LOW' ? 'rgba(255,82,82,0.2)'
+                border: `1px solid ${confLabel === 'HIGH' ? 'rgba(45,107,69,0.2)'
+                  : confLabel === 'MODERATE' ? 'rgba(184,151,90,0.2)'
+                  : confLabel === 'LOW' ? 'rgba(196,71,48,0.2)'
                   : 'rgba(100,120,140,0.2)'}`,
                 fontFamily: 'var(--font-mono)', fontWeight: 600,
                 letterSpacing: '0.05em',
@@ -528,9 +528,9 @@ export default function BillDetailPage() {
               {!['DEAD','LAW','CARRY OVER'].includes(confLabel) && sparkScores.length > 1 && (
                 <span style={{
                   fontSize: 9, padding: '3px 10px', borderRadius: 10,
-                  background: velocityRising ? 'rgba(0,229,204,0.06)' : 'rgba(255,82,82,0.06)',
+                  background: velocityRising ? 'rgba(45,107,69,0.06)' : 'rgba(196,71,48,0.06)',
                   color: velocityRising ? 'var(--teal-mid)' : 'var(--danger)',
-                  border: `1px solid ${velocityRising ? 'rgba(0,229,204,0.15)' : 'rgba(255,82,82,0.15)'}`,
+                  border: `1px solid ${velocityRising ? 'rgba(45,107,69,0.15)' : 'rgba(196,71,48,0.15)'}`,
                   fontFamily: 'var(--font-mono)', fontWeight: 500,
                   display: 'flex', alignItems: 'center', gap: 4,
                 }}>
@@ -558,8 +558,8 @@ export default function BillDetailPage() {
         {/* ── AI SUMMARY ──────────────────────────────── */}
         {bill.ai_summary && (
           <div style={{
-            background: 'rgba(0,229,204,0.03)',
-            border: '1px solid rgba(0,229,204,0.12)',
+            background: 'rgba(45,107,69,0.03)',
+            border: '1px solid rgba(45,107,69,0.12)',
             borderRadius: 'var(--radius-lg)',
             padding: '14px 16px',
           }}>
@@ -577,7 +577,7 @@ export default function BillDetailPage() {
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>{bill.chamber === 'House' ? 'HB' : 'SB'}{bill.bill_number}</span>
             {!bill.bipartisan && (
-              <span style={{ fontSize: 9, padding: '2px 8px', background: 'rgba(212,168,75,0.1)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10 }}>
+              <span style={{ fontSize: 9, padding: '2px 8px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10 }}>
                 Minority Only
               </span>
             )}
@@ -606,13 +606,13 @@ export default function BillDetailPage() {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '6px 12px', marginBottom: 14,
-                background: 'rgba(0,229,204,0.06)',
-                border: '1px solid rgba(0,229,204,0.15)',
+                background: 'rgba(45,107,69,0.06)',
+                border: '1px solid rgba(45,107,69,0.15)',
                 borderRadius: 10, cursor: 'pointer',
                 transition: 'border-color 0.2s',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.4)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.15)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.15)'}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -629,7 +629,7 @@ export default function BillDetailPage() {
 
           {/* Score + Score breakdown row */}
           <div style={{
-            background: 'linear-gradient(135deg, #0d1a24 0%, #0a1118 100%)',
+            background: 'linear-gradient(135deg, #0d1f14 0%, #0a1810 100%)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
             padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
@@ -752,10 +752,10 @@ export default function BillDetailPage() {
                   <div key={i} title={tooltip} style={{
                     padding: '5px 12px', borderRadius: 16,
                     fontSize: 11, fontWeight: 500,
-                    background: f.pos ? 'rgba(0,229,204,0.08)' : 'var(--danger-pale)',
+                    background: f.pos ? 'rgba(45,107,69,0.08)' : 'var(--danger-pale)',
                     color: f.pos ? 'var(--teal)' : 'var(--danger)',
-                    border: `1px solid ${f.pos ? 'rgba(0,229,204,0.2)' : 'rgba(255,82,82,0.2)'}`,
-                    boxShadow: f.pos ? '0 0 8px rgba(0,229,204,0.1)' : '0 0 8px rgba(255,82,82,0.1)',
+                    border: `1px solid ${f.pos ? 'rgba(45,107,69,0.2)' : 'rgba(196,71,48,0.2)'}`,
+                    boxShadow: f.pos ? '0 0 8px rgba(45,107,69,0.1)' : '0 0 8px rgba(196,71,48,0.1)',
                     cursor: tooltip ? 'help' : 'default',
                   }}>
                     {f.pos ? '▲' : '▼'} {f.l} {f.d > 0 ? '+' : ''}{Math.round(f.d * 100)}%
@@ -787,7 +787,7 @@ export default function BillDetailPage() {
                     <div style={{
                       width: active ? 11 : 7, height: active ? 11 : 7,
                       borderRadius: '50%', background: dotColor,
-                      boxShadow: active ? 'var(--teal-glow)' : done ? '0 0 4px rgba(0,229,204,0.2)' : 'none',
+                      boxShadow: active ? 'var(--teal-glow)' : done ? '0 0 4px rgba(45,107,69,0.2)' : 'none',
                       animation: active ? 'dotPulse 2s ease-in-out infinite' : 'none',
                       transition: 'all 0.2s',
                     }}/>
@@ -819,7 +819,7 @@ export default function BillDetailPage() {
                 color: tab === key ? 'var(--teal)' : 'var(--text-muted)',
                 cursor: 'pointer',
                 marginBottom: -1, flexShrink: 0,
-                textShadow: tab === key ? '0 0 8px rgba(0,229,204,0.3)' : 'none',
+                textShadow: tab === key ? '0 0 8px rgba(45,107,69,0.3)' : 'none',
                 whiteSpace: 'nowrap',
               }}>{label}</button>
             ))}
@@ -830,7 +830,7 @@ export default function BillDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Score formula bar */}
               <div style={{
-                background: 'linear-gradient(135deg, #0d1a24 0%, #0a1118 100%)',
+                background: 'linear-gradient(135deg, #0d1f14 0%, #0a1810 100%)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 padding: '12px 14px',
@@ -848,7 +848,7 @@ export default function BillDetailPage() {
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-faint)' }}>=</div>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 8, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>FINAL</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(0,229,204,0.4)' }}>{score}</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(45,107,69,0.4)' }}>{score}</div>
                 </div>
               </div>
 
@@ -860,7 +860,7 @@ export default function BillDetailPage() {
                 }}>
                   <div style={{ fontSize: 8, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Momentum Index</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(0,229,204,0.3)' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(45,107,69,0.3)' }}>
                       {score}
                     </span>
                     {sparkScores.length > 1 && (
@@ -915,7 +915,7 @@ export default function BillDetailPage() {
                       {new Date(snap.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </span>
                     <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2 }}>
-                      <div style={{ height: '100%', width: `${snap.score}%`, background: snap.score >= 50 ? 'var(--teal)' : snap.score >= 30 ? 'var(--gold)' : 'var(--text-muted)', borderRadius: 2, boxShadow: snap.score >= 50 ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
+                      <div style={{ height: '100%', width: `${snap.score}%`, background: snap.score >= 50 ? 'var(--teal)' : snap.score >= 30 ? 'var(--gold)' : 'var(--text-muted)', borderRadius: 2, boxShadow: snap.score >= 50 ? '0 0 6px rgba(45,107,69,0.3)' : 'none' }}/>
                     </div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: snap.score >= 50 ? 'var(--teal)' : 'var(--text-muted)', fontWeight: 600, width: 24, textAlign: 'right' }}>
                       {snap.score}
@@ -953,7 +953,7 @@ export default function BillDetailPage() {
               ))}
 
               {latestSnap ? (
-                <div style={{ padding: '12px 14px', background: 'var(--teal-pale)', border: '1px solid rgba(0,229,204,0.15)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--teal)', lineHeight: 1.5 }}>
+                <div style={{ padding: '12px 14px', background: 'var(--teal-pale)', border: '1px solid rgba(45,107,69,0.15)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--teal)', lineHeight: 1.5 }}>
                   {bill.pulled_from_rules
                     ? 'Pulled from Rules — strong floor advancement signal (+15%).'
                     : bill.held_in_rules
@@ -983,7 +983,7 @@ export default function BillDetailPage() {
                     Floor Vote Margin
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 800, color: scoreColor, textShadow: `0 0 16px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.4)' : 'transparent'}` }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 800, color: scoreColor, textShadow: `0 0 16px ${scoreColor === 'var(--teal)' ? 'rgba(45,107,69,0.4)' : 'transparent'}` }}>
                       {floorMargin > 0 ? '+' : ''}{floorMargin}%
                     </div>
                     <div>
@@ -1000,7 +1000,7 @@ export default function BillDetailPage() {
                       background: floorMargin >= 0 ? 'var(--teal)' : 'var(--danger)',
                       transform: floorMargin >= 0 ? 'none' : 'translateX(-100%)',
                       borderRadius: 4,
-                      boxShadow: `0 0 8px ${floorMargin >= 0 ? 'rgba(0,229,204,0.3)' : 'rgba(255,82,82,0.3)'}`,
+                      boxShadow: `0 0 8px ${floorMargin >= 0 ? 'rgba(45,107,69,0.3)' : 'rgba(196,71,48,0.3)'}`,
                     }}/>
                     <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.1)' }}/>
                   </div>
@@ -1010,7 +1010,7 @@ export default function BillDetailPage() {
                   {bill.avg_floor_margin >= 0.1 && (
                     <div style={{
                       marginTop: 10, padding: '8px 12px',
-                      background: 'var(--teal-pale)', border: '1px solid rgba(0,229,204,0.2)',
+                      background: 'var(--teal-pale)', border: '1px solid rgba(45,107,69,0.2)',
                       borderRadius: 8, fontSize: 11, color: 'var(--teal)',
                     }}>
                       ▲ Strong floor margin (+8% X Factor applied to trajectory score)
@@ -1056,14 +1056,14 @@ export default function BillDetailPage() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
                   How often bills in each score range became law, based on verified 2025&#8211;2026 session outcomes (196 bills signed, 3,411 total).
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, fontWeight: 800, color: scoreColor, marginBottom: 4, textShadow: `0 0 20px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.4)' : 'transparent'}` }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, fontWeight: 800, color: scoreColor, marginBottom: 4, textShadow: `0 0 20px ${scoreColor === 'var(--teal)' ? 'rgba(45,107,69,0.4)' : 'transparent'}` }}>
                   {getBucketLabel(score).rate}%
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
                   {getBucketLabel(score).label} · <span style={{ color: confColor }}>{confLabel}</span> signal
                 </div>
                 <div style={{ height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
-                  <div style={{ height: '100%', width: `${Math.min(getBucketLabel(score).rate / 69.4 * 100, 100)}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(0,229,204,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
+                  <div style={{ height: '100%', width: `${Math.min(getBucketLabel(score).rate / 69.4 * 100, 100)}%`, background: scoreColor, borderRadius: 4, boxShadow: `0 0 10px ${scoreColor === 'var(--teal)' ? 'rgba(45,107,69,0.3)' : 'transparent'}`, transition: 'width 0.4s ease' }}/>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                   <span>0%</span><span>35%</span><span>69%</span>
@@ -1085,13 +1085,13 @@ export default function BillDetailPage() {
                   <div key={range} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     background: isCurrentBucket ? 'var(--teal-pale)' : 'var(--bg-card)',
-                    border: `1px solid ${isCurrentBucket ? 'rgba(0,229,204,0.2)' : 'var(--border)'}`,
+                    border: `1px solid ${isCurrentBucket ? 'rgba(45,107,69,0.2)' : 'var(--border)'}`,
                     borderRadius: 'var(--radius)', padding: '8px 12px',
-                    boxShadow: isCurrentBucket ? '0 0 12px rgba(0,229,204,0.1)' : 'none',
+                    boxShadow: isCurrentBucket ? '0 0 12px rgba(45,107,69,0.1)' : 'none',
                   }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 48, fontWeight: isCurrentBucket ? 600 : 400 }}>{range}</span>
                     <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.max(pct / 69.4 * 100, pct > 0 ? 3 : 0)}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}/>
+                      <div style={{ height: '100%', width: `${Math.max(pct / 69.4 * 100, pct > 0 ? 3 : 0)}%`, background: isCurrentBucket ? 'var(--teal)' : 'var(--teal-dim)', borderRadius: 2, boxShadow: isCurrentBucket ? '0 0 6px rgba(45,107,69,0.3)' : 'none' }}/>
                     </div>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrentBucket ? 'var(--teal)' : 'var(--text-muted)', width: 36, textAlign: 'right', fontWeight: isCurrentBucket ? 700 : 400 }}>{rate}</span>
                     {isCurrentBucket && <span style={{ fontSize: 10, color: 'var(--teal)' }}>◀</span>}

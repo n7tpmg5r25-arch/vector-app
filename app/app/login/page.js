@@ -33,13 +33,13 @@ export default function LoginPage() {
       {/* Background glow */}
       <div style={{
         position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(ellipse at 50% 30%, rgba(0,229,204,0.06) 0%, transparent 60%)',
+        backgroundImage: 'radial-gradient(ellipse at 50% 30%, rgba(45,107,69,0.06) 0%, transparent 60%)',
         pointerEvents: 'none',
       }}/>
 
       {/* Logo */}
       <div style={{ marginBottom: 48, textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12, filter: 'drop-shadow(0 0 16px rgba(0,229,204,0.3))' }}>
+        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12, filter: 'drop-shadow(0 0 16px rgba(45,107,69,0.3))' }}>
           <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
           <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
           <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
@@ -49,7 +49,7 @@ export default function LoginPage() {
           fontSize: 28, fontWeight: 700,
           color: 'var(--teal)',
           letterSpacing: '-0.02em',
-          textShadow: '0 0 24px rgba(0,229,204,0.3)',
+          textShadow: '0 0 24px rgba(45,107,69,0.3)',
         }}>
           VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 22 }}>| WA</span>
         </div>
@@ -66,7 +66,7 @@ export default function LoginPage() {
         background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius-lg)', padding: '32px 28px',
         width: '100%', maxWidth: 360,
-        boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 60px rgba(0,229,204,0.05)',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 60px rgba(45,107,69,0.05)',
         position: 'relative', zIndex: 1,
       }}>
         {sent ? (
@@ -105,7 +105,7 @@ export default function LoginPage() {
                   color: 'var(--text-primary)', marginBottom: 12,
                   outline: 'none', transition: 'border-color 0.2s',
                 }}
-                onFocus={e => e.target.style.borderColor = 'rgba(0,229,204,0.5)'}
+                onFocus={e => e.target.style.borderColor = 'rgba(45,107,69,0.5)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border)'}
               />
               {error && (

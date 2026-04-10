@@ -120,7 +120,7 @@ export default function CommitteesPage() {
 
       {/* HEADER */}
       <div style={{
-        background: 'rgba(8,12,20,0.95)',
+        background: 'rgba(11,26,18,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
@@ -129,7 +129,7 @@ export default function CommitteesPage() {
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{
             fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700,
-            color: 'var(--teal)', textShadow: '0 0 16px rgba(0,229,204,0.2)',
+            color: 'var(--teal)', textShadow: '0 0 16px rgba(45,107,69,0.2)',
           }}>
             Committees
           </div>
@@ -198,7 +198,7 @@ export default function CommitteesPage() {
                 onClick={() => handleExpand(cmte.key)}
                 style={{
                   background: 'var(--bg-card)',
-                  border: '1px solid ' + (isExpanded ? 'rgba(0,229,204,0.3)' : 'var(--border)'),
+                  border: '1px solid ' + (isExpanded ? 'rgba(45,107,69,0.3)' : 'var(--border)'),
                   borderRadius: isExpanded ? 'var(--radius) var(--radius) 0 0' : 'var(--radius)',
                   padding: '14px',
                   cursor: 'pointer',
@@ -215,9 +215,9 @@ export default function CommitteesPage() {
                       </span>
                       <span style={{
                         fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 500,
-                        background: cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.08)' : 'rgba(212,168,75,0.08)',
+                        background: cmte.chamber === 'Senate' ? 'rgba(45,107,69,0.08)' : 'rgba(184,151,90,0.08)',
                         color: cmte.chamber === 'Senate' ? 'var(--teal)' : 'var(--gold)',
-                        border: '1px solid ' + (cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.25)' : 'rgba(212,168,75,0.25)'),
+                        border: '1px solid ' + (cmte.chamber === 'Senate' ? 'rgba(45,107,69,0.25)' : 'rgba(184,151,90,0.25)'),
                       }}>{cmte.chamber}</span>
                     </div>
 
@@ -265,8 +265,8 @@ export default function CommitteesPage() {
               {/* Expanded bill list */}
               {isExpanded && (
                 <div style={{
-                  background: 'rgba(8,12,20,0.6)',
-                  border: '1px solid rgba(0,229,204,0.3)',
+                  background: 'rgba(11,26,18,0.6)',
+                  border: '1px solid rgba(45,107,69,0.3)',
                   borderTop: 'none',
                   borderRadius: '0 0 var(--radius) var(--radius)',
                   padding: '8px 10px',
@@ -283,7 +283,7 @@ export default function CommitteesPage() {
                         cursor: 'pointer',
                         transition: 'background 0.15s',
                       }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,204,0.04)'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(45,107,69,0.04)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
                       <ScoreBadge score={bill.final_score} size="sm" />
@@ -296,7 +296,7 @@ export default function CommitteesPage() {
                             {STAGE_SHORT[bill.stage] || 'Intro'}
                           </span>
                           {bill.stalled && (
-                            <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(255,82,82,0.25)', borderRadius: 8 }}>Stalled</span>
+                            <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(196,71,48,0.25)', borderRadius: 8 }}>Stalled</span>
                           )}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -351,8 +351,8 @@ export default function CommitteesPage() {
           </div>
           <div style={{
             fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 10,
-            padding: '8px 12px', background: 'rgba(212,168,75,0.04)', borderRadius: 8,
-            border: '1px solid rgba(212,168,75,0.12)',
+            padding: '8px 12px', background: 'rgba(184,151,90,0.04)', borderRadius: 8,
+            border: '1px solid rgba(184,151,90,0.12)',
           }}>
             These bills passed their policy committee and are queued in Rules for a floor vote. Being in the queue does not guarantee a floor vote — many bills die here when the session clock runs out.
           </div>
@@ -367,7 +367,7 @@ export default function CommitteesPage() {
                     onClick={() => handleExpand(cmte.key)}
                     style={{
                       background: 'var(--bg-card)',
-                      border: '1px solid ' + (isExpanded ? 'rgba(212,168,75,0.3)' : 'var(--border)'),
+                      border: '1px solid ' + (isExpanded ? 'rgba(184,151,90,0.3)' : 'var(--border)'),
                       borderRadius: isExpanded ? 'var(--radius) var(--radius) 0 0' : 'var(--radius)',
                       padding: '14px',
                       cursor: 'pointer',
@@ -383,14 +383,14 @@ export default function CommitteesPage() {
                           </span>
                           <span style={{
                             fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 500,
-                            background: 'rgba(212,168,75,0.08)', color: 'var(--gold)',
-                            border: '1px solid rgba(212,168,75,0.25)',
+                            background: 'rgba(184,151,90,0.08)', color: 'var(--gold)',
+                            border: '1px solid rgba(184,151,90,0.25)',
                           }}>Queue</span>
                           <span style={{
                             fontSize: 9, padding: '1px 7px', borderRadius: 10, fontWeight: 500,
-                            background: cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.08)' : 'rgba(212,168,75,0.08)',
+                            background: cmte.chamber === 'Senate' ? 'rgba(45,107,69,0.08)' : 'rgba(184,151,90,0.08)',
                             color: cmte.chamber === 'Senate' ? 'var(--teal)' : 'var(--gold)',
-                            border: '1px solid ' + (cmte.chamber === 'Senate' ? 'rgba(0,229,204,0.25)' : 'rgba(212,168,75,0.25)'),
+                            border: '1px solid ' + (cmte.chamber === 'Senate' ? 'rgba(45,107,69,0.25)' : 'rgba(184,151,90,0.25)'),
                           }}>{cmte.chamber}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 12 }}>
@@ -415,8 +415,8 @@ export default function CommitteesPage() {
 
                   {isExpanded && (
                     <div style={{
-                      background: 'rgba(8,12,20,0.6)',
-                      border: '1px solid rgba(212,168,75,0.3)',
+                      background: 'rgba(11,26,18,0.6)',
+                      border: '1px solid rgba(184,151,90,0.3)',
                       borderTop: 'none',
                       borderRadius: '0 0 var(--radius) var(--radius)',
                       padding: '8px 10px',
@@ -431,7 +431,7 @@ export default function CommitteesPage() {
                             padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
                             transition: 'background 0.15s',
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(212,168,75,0.04)'}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.04)'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
                           <ScoreBadge score={bill.final_score} size="sm" />

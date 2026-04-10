@@ -37,7 +37,7 @@ export default function SettingsPage() {
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       <div style={{
-        background: 'rgba(8,12,20,0.95)',
+        background: 'rgba(11,26,18,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 20px 20px',
@@ -46,7 +46,7 @@ export default function SettingsPage() {
           fontFamily: 'var(--font-display)',
           fontSize: 24, fontWeight: 700,
           color: 'var(--teal)',
-          textShadow: '0 0 16px rgba(0,229,204,0.2)',
+          textShadow: '0 0 16px rgba(45,107,69,0.2)',
         }}>Settings</div>
       </div>
 

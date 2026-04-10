@@ -93,8 +93,8 @@ export default function MembersPage() {
   })
 
   const tierLabel = (tier) => {
-    if (tier === 1) return { text: 'Majority Leadership', color: 'var(--teal)', bg: 'var(--teal-pale)', border: 'rgba(0,229,204,0.2)' }
-    if (tier === 2) return { text: 'Senior Member', color: 'var(--teal-mid)', bg: 'var(--teal-pale)', border: 'rgba(0,229,204,0.15)' }
+    if (tier === 1) return { text: 'Majority Leadership', color: 'var(--teal)', bg: 'var(--teal-pale)', border: 'rgba(45,107,69,0.2)' }
+    if (tier === 2) return { text: 'Senior Member', color: 'var(--teal-mid)', bg: 'var(--teal-pale)', border: 'rgba(45,107,69,0.15)' }
     if (tier === 3) return { text: 'Member', color: 'var(--text-mid)', bg: 'var(--bg-surface)', border: 'var(--border)' }
     return { text: 'Minority', color: 'var(--text-muted)', bg: 'var(--bg-surface)', border: 'var(--border)' }
   }
@@ -105,13 +105,13 @@ export default function MembersPage() {
     return (
       <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
         <div style={{
-          background: 'linear-gradient(180deg, #0d1520 0%, var(--bg) 100%)',
+          background: 'linear-gradient(180deg, #0d1f14 0%, var(--bg) 100%)',
           padding: '52px 20px 20px',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
             position: 'absolute', inset: 0,
-            backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(0,229,204,0.06) 0%, transparent 60%)',
+            backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(45,107,69,0.06) 0%, transparent 60%)',
             pointerEvents: 'none',
           }}/>
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -123,11 +123,11 @@ export default function MembersPage() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: '50%',
-                background: 'rgba(0,229,204,0.1)',
-                border: '2px solid rgba(0,229,204,0.3)',
+                background: 'rgba(45,107,69,0.1)',
+                border: '2px solid rgba(45,107,69,0.3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 16, fontWeight: 700, color: 'var(--teal)', flexShrink: 0,
-                boxShadow: '0 0 16px rgba(0,229,204,0.15)',
+                boxShadow: '0 0 16px rgba(45,107,69,0.15)',
               }}>
                 {selectedMember.name.split(' ').map(n => n[0]).slice(-2).join('')}
               </div>
@@ -153,8 +153,8 @@ export default function MembersPage() {
                     onClick={e => e.stopPropagation()}
                     style={{
                       fontSize: 9, padding: '3px 10px', borderRadius: 10,
-                      background: 'rgba(0,229,204,0.08)', color: 'var(--teal)',
-                      border: '1px solid rgba(0,229,204,0.2)',
+                      background: 'rgba(45,107,69,0.08)', color: 'var(--teal)',
+                      border: '1px solid rgba(45,107,69,0.2)',
                       textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
@@ -177,7 +177,7 @@ export default function MembersPage() {
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
               }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(0,229,204,0.3)' : 'none' }}>{value}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(45,107,69,0.3)' : 'none' }}>{value}</div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
               </div>
             ))}
@@ -217,7 +217,7 @@ export default function MembersPage() {
                 marginBottom: 6, transition: 'border-color 0.2s',
                 animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
               <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
@@ -247,13 +247,13 @@ export default function MembersPage() {
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
       <div style={{
-        background: 'rgba(8,12,20,0.95)',
+        background: 'rgba(11,26,18,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(0,229,204,0.2)' }}>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(45,107,69,0.2)' }}>
           Members
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
@@ -315,7 +315,7 @@ export default function MembersPage() {
                 transition: 'border-color 0.2s',
                 animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(45,107,69,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
               <div style={{
@@ -333,7 +333,7 @@ export default function MembersPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{member.name}</span>
                   {member.is_chair && (
-                    <span style={{ fontSize: 8, padding: '1px 5px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 6 }}>
+                    <span style={{ fontSize: 8, padding: '1px 5px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 6 }}>
                       Chair
                     </span>
                   )}
@@ -345,7 +345,7 @@ export default function MembersPage() {
               </div>
 
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: scoreColor, textShadow: scoreColor === 'var(--teal)' ? '0 0 6px rgba(0,229,204,0.3)' : 'none' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: scoreColor, textShadow: scoreColor === 'var(--teal)' ? '0 0 6px rgba(45,107,69,0.3)' : 'none' }}>
                   {member.avg_score}
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
