@@ -2,7 +2,24 @@ import './globals.css'
 
 export const metadata = {
   title: 'Vector | WA',
-  description: 'WA Legislative Trajectory Intelligence — Shorepine Government Relations',
+  description: 'WA Legislative Trajectory Intelligence',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'Vector | WA',
+    statusBarStyle: 'black-translucent',
+  },
+  openGraph: {
+    title: 'Vector | WA',
+    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+    siteName: 'Vector | WA',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Vector | WA',
+    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+  },
 }
 
 export const viewport = {
@@ -16,7 +33,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body style={{ backgroundColor: '#0b1a12' }}>{children}</body>
     </html>
