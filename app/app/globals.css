@@ -1,41 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  /* ── DARK INTELLIGENCE THEME ──────────────────── */
-  --bg:            #080c14;
-  --bg-card:       #0f1520;
-  --bg-card-2:     #151d2c;
-  --bg-surface:    #1a2336;
+  /* ── SHOREPINE DARK INTELLIGENCE THEME ─────────── */
+  --bg:            #0b1a12;
+  --bg-card:       #101f16;
+  --bg-card-2:     #152a1c;
+  --bg-surface:    #1a3324;
 
-  /* Teal / Cyan accent */
-  --teal:          #00e5cc;
-  --teal-bright:   #00fff0;
-  --teal-mid:      #00bfaa;
-  --teal-dim:      #0a8070;
-  --teal-pale:     rgba(0,229,204,0.08);
-  --teal-glow:     0 0 12px rgba(0,229,204,0.35);
-  --teal-glow-lg:  0 0 24px rgba(0,229,204,0.25), 0 0 48px rgba(0,229,204,0.1);
+  /* Forest Green accent (was Teal/Cyan) */
+  --teal:          #2d6b45;
+  --teal-bright:   #3d8b5a;
+  --teal-mid:      #1a4a2e;
+  --teal-dim:      #143d22;
+  --teal-pale:     rgba(45,107,69,0.08);
+  --teal-glow:     0 0 12px rgba(45,107,69,0.35);
+  --teal-glow-lg:  0 0 24px rgba(45,107,69,0.25), 0 0 48px rgba(45,107,69,0.1);
 
-  /* Gold accent */
-  --gold:          #d4a84b;
-  --gold-light:    #e8c06a;
-  --gold-pale:     rgba(212,168,75,0.12);
-  --gold-glow:     0 0 10px rgba(212,168,75,0.3);
+  /* Brass accent (was Gold) */
+  --gold:          #b8975a;
+  --gold-light:    #d4b07a;
+  --gold-pale:     rgba(184,151,90,0.12);
+  --gold-glow:     0 0 10px rgba(184,151,90,0.3);
 
-  /* Danger */
-  --danger:        #ff5252;
-  --danger-pale:   rgba(255,82,82,0.1);
-  --danger-glow:   0 0 10px rgba(255,82,82,0.3);
+  /* Danger (warm red, harmonizes with Amber) */
+  --danger:        #c44730;
+  --danger-pale:   rgba(196,71,48,0.1);
+  --danger-glow:   0 0 10px rgba(196,71,48,0.3);
 
-  /* Text */
-  --text-primary:  #e8edf5;
-  --text-mid:      #b0b8c8;
-  --text-muted:    #6b7a8d;
-  --text-faint:    #3d4d60;
+  /* Text (warm-shifted) */
+  --text-primary:  #e8ede5;
+  --text-mid:      #b0b8a8;
+  --text-muted:    #6b7a70;
+  --text-faint:    #3d4d42;
 
-  /* Borders */
-  --border:        #1e2d40;
-  --border-light:  #253548;
+  /* Borders (forest-tinted) */
+  --border:        #1e3028;
+  --border-light:  #253d30;
 
   /* Shadows */
   --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
@@ -48,14 +48,14 @@
 
   /* Fonts */
   --font-display:  'Playfair Display', Georgia, serif;
-  --font-body:     'DM Sans', system-ui, sans-serif;
+  --font-body:     'Karla', 'DM Sans', system-ui, sans-serif;
   --font-mono:     'DM Mono', 'Courier New', monospace;
 
-  /* Legacy compat (green → teal mapping) */
-  --green-dark:    #00e5cc;
-  --green-mid:     #00bfaa;
-  --green-light:   #0a8070;
-  --green-pale:    rgba(0,229,204,0.08);
+  /* Legacy compat (green → forest mapping) */
+  --green-dark:    #2d6b45;
+  --green-mid:     #1a4a2e;
+  --green-light:   #143d22;
+  --green-pale:    rgba(45,107,69,0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -93,16 +93,16 @@ input, textarea { font-family: var(--font-body); }
 /* ── SPARKLINE ANIMATION ─────────────────────── */
 /* sparkline animation is handled via inline styles + useEffect in AnimatedSparkline */
 @keyframes glowPulse {
-  0%, 100% { filter: drop-shadow(0 0 4px rgba(0,229,204,0.4)); }
-  50%      { filter: drop-shadow(0 0 12px rgba(0,229,204,0.7)); }
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(45,107,69,0.4)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(45,107,69,0.7)); }
 }
 @keyframes dotPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,204,0.4); }
-  50%      { box-shadow: 0 0 0 6px rgba(0,229,204,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45,107,69,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(45,107,69,0); }
 }
 @keyframes scoreGlow {
-  0%, 100% { box-shadow: 0 0 12px rgba(0,229,204,0.3), inset 0 0 8px rgba(0,229,204,0.1); }
-  50%      { box-shadow: 0 0 24px rgba(0,229,204,0.5), inset 0 0 12px rgba(0,229,204,0.15); }
+  0%, 100% { box-shadow: 0 0 12px rgba(45,107,69,0.3), inset 0 0 8px rgba(45,107,69,0.1); }
+  50%      { box-shadow: 0 0 24px rgba(45,107,69,0.5), inset 0 0 12px rgba(45,107,69,0.15); }
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(8px); }

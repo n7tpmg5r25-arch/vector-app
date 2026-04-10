@@ -6,25 +6,25 @@ export default function ScoreBadge({ score, size = 'md', status }) {
   const isCarryOver = status === 'CARRY OVER'
   const hasOutcome = isDead || isLaw || isCarryOver
 
-  // Color tiers — aligned with signal tiers (HIGH 75+, MODERATE 60+, LOW 45+, VERY LOW <45)
-  // 6L.1: Shifted from 60/45/30 to 75/60/45 to match signal tier breakpoints
+  // Color tiers — Shorepine data viz palette (Sage / Deep Teal / Amber / Stone)
+  // 7R.1.4: Remapped from teal/gold to Shorepine palette
   const color = isDead ? 'var(--text-faint)'
-    : s >= 75 ? 'var(--teal)'
-    : s >= 60 ? 'var(--teal-mid)'
-    : s >= 45 ? 'var(--gold)'
-    : 'var(--text-muted)'
+    : s >= 75 ? '#7aab6e'   /* Sage — strong/passed */
+    : s >= 60 ? '#3a7a8a'   /* Deep Teal — active */
+    : s >= 45 ? '#c47a30'   /* Amber — watch/pending */
+    : '#8a8070'              /* Stone — inactive */
 
   const glowColor = isDead ? 'transparent'
-    : s >= 75 ? 'rgba(0,229,204,0.4)'
-    : s >= 60 ? 'rgba(0,191,170,0.3)'
-    : s >= 45 ? 'rgba(212,168,75,0.3)'
+    : s >= 75 ? 'rgba(122,171,110,0.4)'   /* Sage glow */
+    : s >= 60 ? 'rgba(58,122,138,0.3)'    /* Deep Teal glow */
+    : s >= 45 ? 'rgba(196,122,48,0.3)'    /* Amber glow */
     : 'transparent'
 
   const borderColor = isDead ? 'var(--border)'
-    : isLaw ? 'rgba(0,229,204,0.6)'
-    : s >= 75 ? 'rgba(0,229,204,0.6)'
-    : s >= 60 ? 'rgba(0,191,170,0.4)'
-    : s >= 45 ? 'rgba(212,168,75,0.4)'
+    : isLaw ? 'rgba(122,171,110,0.6)'     /* Sage for LAW */
+    : s >= 75 ? 'rgba(122,171,110,0.6)'
+    : s >= 60 ? 'rgba(58,122,138,0.4)'
+    : s >= 45 ? 'rgba(196,122,48,0.4)'
     : 'var(--border)'
 
   const sizes = {
@@ -63,9 +63,9 @@ export default function ScoreBadge({ score, size = 'md', status }) {
           fontSize: dim.badgeFontSize, fontFamily: 'var(--font-mono)', fontWeight: 700,
           padding: '1px 5px', borderRadius: 6, whiteSpace: 'nowrap',
           letterSpacing: '0.04em', textTransform: 'uppercase',
-          background: isLaw ? 'rgba(0,229,204,0.15)' : isCarryOver ? 'rgba(212,168,75,0.12)' : 'rgba(255,255,255,0.06)',
-          color: isLaw ? 'var(--teal)' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)',
-          border: `1px solid ${isLaw ? 'rgba(0,229,204,0.3)' : isCarryOver ? 'rgba(212,168,75,0.25)' : 'var(--border)'}`,
+          background: isLaw ? 'rgba(122,171,110,0.15)' : isCarryOver ? 'rgba(184,151,90,0.12)' : 'rgba(255,255,255,0.06)',
+          color: isLaw ? '#7aab6e' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)',
+          border: `1px solid ${isLaw ? 'rgba(122,171,110,0.3)' : isCarryOver ? 'rgba(184,151,90,0.25)' : 'var(--border)'}`,
         }}>
           {isLaw ? 'LAW' : isCarryOver ? 'PASSED' : 'DEAD'}
         </span>

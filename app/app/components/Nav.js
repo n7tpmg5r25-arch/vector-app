@@ -87,7 +87,7 @@ export default function Nav() {
       position: 'fixed', bottom: 0, left: '50%',
       transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
-      background: 'rgba(8,12,20,0.92)',
+      background: 'rgba(11,26,18,0.92)',
       backdropFilter: 'blur(16px)',
       borderTop: '1px solid var(--border)',
       padding: '10px 4px 24px',
@@ -109,7 +109,7 @@ export default function Nav() {
               opacity: active ? 1 : 0.5,
               transition: 'opacity 0.15s',
               minWidth: 52,
-              filter: active ? 'drop-shadow(0 0 6px rgba(0,229,204,0.3))' : 'none',
+              filter: active ? 'drop-shadow(0 0 6px rgba(45,107,69,0.3))' : 'none',
             }}
           >
             {icon(active)}
