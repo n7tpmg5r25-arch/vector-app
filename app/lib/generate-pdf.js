@@ -22,18 +22,13 @@ const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
-const FOREST     = [26, 74, 46]    // #1a4a2e
-const FOREST_MID = [45, 107, 69]   // #2d6b45
-const BRASS      = [184, 151, 90]  // #b8975a
-const SLATE      = [74, 80, 96]    // #4a5060
-const LSTONE     = [220, 212, 196] // parchment stroke
-const WHITE      = [255, 255, 255]
-// Data viz palette (Shorepine)
-const SAGE       = [122, 171, 110] // #7aab6e -- positive / high trajectory
-const AMBER      = [196, 122, 48]  // #c47a30 -- moderate
-const EMBER      = [196, 71, 48]   // #c44730 -- at risk / low
-const STONE      = [138, 128, 112] // #8a8070 -- neutral / very low
-const RED   = [196, 71, 48]
+const NAVY  = [10, 22, 40]
+const TEAL  = [0, 163, 150]
+const GOLD  = [180, 142, 62]
+const GRAY  = [120, 130, 145]
+const LGRAY = [200, 210, 220]
+const WHITE = [255, 255, 255]
+const RED   = [200, 55, 55]
 const MUTED = [160, 165, 175]
 
 // ── Score tier thresholds (match ScoreBadge from 6L.1) ───────
@@ -217,7 +212,7 @@ function drawGroupHeader(doc, group, y, m, contentW, ph) {
   doc.text(group.label.toUpperCase() + '  (' + group.bills.length + ')', m + 20, y + 0.5)
 
   // Faint full-width line
-  doc.setDrawColor(...LSTONE)
+  doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.15)
   const labelW = doc.getTextWidth(group.label.toUpperCase() + '  (' + group.bills.length + ')')
   doc.line(m + 22 + labelW, y, m + contentW, y)
@@ -268,13 +263,13 @@ function drawSessionContextBar(doc, y, pw, m, contentW) {
 
   // Draw bar
   doc.setFillColor(240, 244, 250)
-  doc.setDrawColor(...LSTONE)
+  doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.15)
   doc.roundedRect(m, y, contentW, 9, 1.5, 1.5, 'FD')
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.setTextColor(...FOREST)
+  doc.setTextColor(...NAVY)
   doc.text(contextText, m + 4, y + 5.8)
 
   return y + 13
@@ -290,7 +285,7 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...FOREST_MID)
+  doc.setTextColor(...TEAL)
   doc.text('EXECUTIVE SUMMARY', m, y)
   y += 5
 
@@ -452,7 +447,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   // ── Line 1: Bill number + Score badge + Tier ──
   doc.setFont('courier', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...FOREST)
+  doc.setTextColor(...NAVY)
   doc.text(billLabel, cx, cy)
 
   // Score indicator (right side)
@@ -475,7 +470,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   // Tier label
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.setTextColor(...SLATE)
+  doc.setTextColor(...GRAY)
   const scoreNumW = doc.getTextWidth(scoreStr)
   doc.text(tierStr, circleX + 3 + scoreNumW + 2, cy)
 
@@ -537,7 +532,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   if (tag) {
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(6.5)
-    doc.setTextColor(...BRASS)
+    doc.setTextColor(...GOLD)
     doc.text('Tagged: ' + tag, cx, cy)
     cy += 3.5
   }
@@ -618,7 +613,7 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
   // Section header
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...FOREST_MID)
+  doc.setTextColor(...TEAL)
   doc.text(interim ? 'KEY DATES AHEAD' : 'WHAT TO WATCH THIS WEEK', m, y)
   y += 5
 
@@ -664,47 +659,47 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
     doc.setFont('times', 'bold')
     doc.setFontSize(18)
-    doc.setTextColor(...FOREST)
-    doc.text('SHOREPINE', textX, y + 5)
+    doc.setTextColor(...NAVY)
+    doc.text('POST & POLICY', textX, y + 5)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
-    doc.setTextColor(...FOREST_MID)
-    doc.text('GOVERNMENT RELATIONS  \u00b7  VECTOR | WA', textX, y + 11)
+    doc.setTextColor(...TEAL)
+    doc.text('VECTOR | WA', textX, y + 11)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 11, { align: 'right' })
 
     y += logoH + 2
   } else {
     // Fallback: text-only header
-    doc.setDrawColor(...FOREST_MID)
+    doc.setDrawColor(...TEAL)
     doc.setLineWidth(1.2)
     doc.line(m, y, pw - m, y)
     y += 8
 
     doc.setFont('times', 'bold')
     doc.setFontSize(22)
-    doc.setTextColor(...FOREST)
-    doc.text('SHOREPINE', m, y)
+    doc.setTextColor(...NAVY)
+    doc.text('POST & POLICY', m, y)
     y += 7
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
-    doc.setTextColor(...FOREST_MID)
-    doc.text('GOVERNMENT RELATIONS  \u00b7  VECTOR | WA', m, y)
+    doc.setTextColor(...TEAL)
+    doc.text('VECTOR | WA', m, y)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y, { align: 'right' })
     y += 4
   }
 
   // Thin separator
-  doc.setDrawColor(...LSTONE)
+  doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.3)
   doc.line(m, y, pw - m, y)
   y += 6
@@ -716,34 +711,34 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   if (clientName) {
     // 6M.8 — Prominent client branding with teal accent bar
     doc.setFillColor(240, 250, 249)
-    doc.setDrawColor(...FOREST_MID)
+    doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.3)
     doc.roundedRect(m, y - 3, contentW, 14, 1.5, 1.5, 'FD')
-    doc.setFillColor(...FOREST_MID)
+    doc.setFillColor(...TEAL)
     doc.rect(m, y - 3, 2.5, 14, 'F')  // left accent
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text('Prepared for', m + 6, y + 1)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.setTextColor(...FOREST)
+    doc.setTextColor(...NAVY)
     doc.text(clientName, m + 6, y + 8)
 
     y += 15
   } else {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.setTextColor(...FOREST)
+    doc.setTextColor(...NAVY)
     doc.text('Full Portfolio Report', m, y)
     y += 6
   }
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.setTextColor(...SLATE)
+  doc.setTextColor(...GRAY)
   doc.text(date, m, y)
   if (session) {
     doc.text('Session: ' + session, m + 55, y)
@@ -770,14 +765,14 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
   const isCurrentlyInterim = isInterimPeriod()
 
-  doc.setFillColor(245, 240, 230)
-  doc.setDrawColor(...LSTONE)
+  doc.setFillColor(245, 248, 252)
+  doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
   doc.roundedRect(m, y, contentW, 18, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
-  doc.setTextColor(...FOREST)
+  doc.setTextColor(...NAVY)
   doc.text(isCurrentlyInterim ? 'SESSION RESULTS' : 'PORTFOLIO SUMMARY', m + 4, y + 5.5)
 
   let stats
@@ -830,12 +825,12 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   stats.forEach((stat, i) => {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.setTextColor(...FOREST)
+    doc.setTextColor(...NAVY)
     doc.text(stat.value, statX, statY)
     const valueWidth = doc.getTextWidth(stat.value)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text(stat.label, statX + valueWidth + 2, statY)
     statX += statWidths[i] * scale
   })
@@ -850,7 +845,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...FOREST)
+  doc.setTextColor(...NAVY)
   doc.text('TRACKED LEGISLATION', m, y)
   y += 5
 
@@ -859,7 +854,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     y = checkPageBreak(doc, y, 12, ph)
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(8.5)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text('No bills are currently tracked. Add bills from the Search page to see them here.', m + 2, y)
     y += 8
   } else {
@@ -903,21 +898,21 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     if (p > 1) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
-      doc.setTextColor(...FOREST)
-      doc.text('SHOREPINE', m, 14)
+      doc.setTextColor(...NAVY)
+      doc.text('POST & POLICY', m, 14)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
-      doc.setTextColor(...FOREST_MID)
-      doc.text('GOVERNMENT RELATIONS  \u00b7  VECTOR | WA', m + 32, 14)
+      doc.setTextColor(...TEAL)
+      doc.text('VECTOR | WA', m + 32, 14)
       // Client name on continuation pages (if present)
       if (clientName) {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
-        doc.setTextColor(...SLATE)
+        doc.setTextColor(...GRAY)
         doc.text('Prepared for: ' + clientName, pw - m, 14, { align: 'right' })
       }
       // Thin line below header
-      doc.setDrawColor(...LSTONE)
+      doc.setDrawColor(...LGRAY)
       doc.setLineWidth(0.2)
       doc.line(m, 18, pw - m, 18)
     }
@@ -925,25 +920,25 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     // ── Methodology (last page only, above footer) ──
     if (p === pageCount) {
       const methY = ph - 24
-      doc.setDrawColor(...LSTONE)
+      doc.setDrawColor(...LGRAY)
       doc.setLineWidth(0.15)
       doc.line(m, methY, pw - m, methY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(6.5)
-      doc.setTextColor(...SLATE)
+      doc.setTextColor(...GRAY)
       doc.text('Trajectory scores (0-99) calibrated against 3,411 bills from the 2025-26 WA session. 75+ = 69% became law.', m, methY + 3.5)
       doc.text('Signal tiers: HIGH (75+), MODERATE (60-74), LOW (45-59), VERY LOW (<45). Full methodology: vectorwa.com/methodology', m, methY + 7)
     }
 
     // ── Footer ──
     const fy = ph - 12
-    doc.setDrawColor(...FOREST_MID)
+    doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.4)
     doc.line(m, fy, pw - m, fy)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.setTextColor(...SLATE)
+    doc.setTextColor(...GRAY)
     doc.text('Post & Policy  |  Vector | WA  |  Legislative Intelligence', m, fy + 5)
     doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
 
