@@ -54,6 +54,34 @@ export function isInterimPeriod() {
   return now > new Date(biennium.end)
 }
 
+/** Key session cutoff dates for the current biennium */
+export function getSessionCutoffs() {
+  const b = getCurrentBiennium()
+  // Standard WA Legislature cutoff milestones (approximate)
+  // These are based on typical session calendars; update when official dates are published
+  if (b.session === '2025-2026') {
+    return {
+      session: b.session,
+      sessionStart: b.start,
+      sessionEnd: b.end,
+      policyCutoff: '2026-02-06',      // Policy committee cutoff
+      fiscalCutoff: '2026-02-17',       // Fiscal committee cutoff
+      floorCutoff: '2026-03-02',        // House of origin floor cutoff
+      oppositeFloorCutoff: '2026-03-10', // Opposite house floor cutoff
+    }
+  }
+  // Default: derive from biennium dates
+  return {
+    session: b.session,
+    sessionStart: b.start,
+    sessionEnd: b.end,
+    policyCutoff: null,
+    fiscalCutoff: null,
+    floorCutoff: null,
+    oppositeFloorCutoff: null,
+  }
+}
+
 /** Days until a date string; 0 if passed */
 export function daysUntil(dateStr) {
   const diff = new Date(dateStr) - new Date()
