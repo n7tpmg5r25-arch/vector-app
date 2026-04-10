@@ -22,14 +22,14 @@ const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
-const NAVY  = [11, 26, 18]       // Forest Ink (Shorepine #0b1a12)
-const TEAL  = [45, 107, 69]      // Forest Mid (Shorepine #2d6b45)
-const GOLD  = [184, 151, 90]     // Brass (Shorepine #b8975a)
-const GRAY  = [74, 80, 96]       // Slate (Shorepine #4a5060)
-const LGRAY = [220, 212, 196]    // Parchment stroke (Shorepine)
+const NAVY  = [10, 22, 40]
+const TEAL  = [0, 163, 150]
+const GOLD  = [180, 142, 62]
+const GRAY  = [120, 130, 145]
+const LGRAY = [200, 210, 220]
 const WHITE = [255, 255, 255]
-const RED   = [196, 71, 48]      // Ember (Shorepine #c44730)
-const MUTED = [138, 128, 112]    // Stone (Shorepine #8a8070)
+const RED   = [200, 55, 55]
+const MUTED = [160, 165, 175]
 
 // ── Score tier thresholds (match ScoreBadge from 6L.1) ───────
 const TIER_HIGH     = 75
@@ -38,7 +38,7 @@ const TIER_LOW      = 45
 
 function getScoreColor(score) {
   if (score >= TIER_HIGH)     return TEAL
-  if (score >= TIER_MODERATE) return [58, 122, 138]  // Deep Teal (Shorepine)
+  if (score >= TIER_MODERATE) return [0, 140, 130]   // teal-mid
   if (score >= TIER_LOW)      return GOLD
   return MUTED
 }
@@ -55,7 +55,7 @@ function getOutcomeColor(bill) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')        return TEAL
   if (cl === 'CARRY OVER') return GOLD
-  if (cl === 'DEAD')       return [138, 128, 112]
+  if (cl === 'DEAD')       return [150, 155, 165]
   // Active bill — use score color
   return getScoreColor(bill.final_score || 0)
 }
@@ -262,7 +262,7 @@ function drawSessionContextBar(doc, y, pw, m, contentW) {
   }
 
   // Draw bar
-  doc.setFillColor(245, 240, 230)
+  doc.setFillColor(240, 244, 250)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.15)
   doc.roundedRect(m, y, contentW, 9, 1.5, 1.5, 'FD')
@@ -432,8 +432,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   y = checkPageBreak(doc, y, cardH + 2, ph)
 
   // Card background
-  doc.setFillColor(250, 246, 238)
-  doc.setDrawColor(220, 212, 196)
+  doc.setFillColor(250, 251, 254)
+  doc.setDrawColor(225, 230, 238)
   doc.setLineWidth(0.15)
   doc.roundedRect(m, y, contentW, cardH, 2, 2, 'FD')
 
@@ -660,7 +660,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('times', 'bold')
     doc.setFontSize(18)
     doc.setTextColor(...NAVY)
-    doc.text('SHOREPINE', textX, y + 5)
+    doc.text('POST & POLICY', textX, y + 5)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
@@ -683,7 +683,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('times', 'bold')
     doc.setFontSize(22)
     doc.setTextColor(...NAVY)
-    doc.text('SHOREPINE', m, y)
+    doc.text('POST & POLICY', m, y)
     y += 7
 
     doc.setFont('helvetica', 'normal')
@@ -710,7 +710,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
   if (clientName) {
     // 6M.8 — Prominent client branding with teal accent bar
-    doc.setFillColor(245, 240, 230)
+    doc.setFillColor(240, 250, 249)
     doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.3)
     doc.roundedRect(m, y - 3, contentW, 14, 1.5, 1.5, 'FD')
@@ -765,7 +765,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
 
   const isCurrentlyInterim = isInterimPeriod()
 
-  doc.setFillColor(245, 240, 230)
+  doc.setFillColor(245, 248, 252)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
   doc.roundedRect(m, y, contentW, 18, 2, 2, 'FD')
@@ -899,7 +899,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
       doc.setTextColor(...NAVY)
-      doc.text('SHOREPINE', m, 14)
+      doc.text('POST & POLICY', m, 14)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
       doc.setTextColor(...TEAL)
@@ -939,7 +939,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...GRAY)
-    doc.text('Shorepine Government Relations  |  Vector | WA  |  Legislative Intelligence', m, fy + 5)
+    doc.text('Post & Policy  |  Vector | WA  |  Legislative Intelligence', m, fy + 5)
     doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
 
     if (pageCount > 1) {
