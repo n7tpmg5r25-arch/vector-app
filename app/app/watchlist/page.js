@@ -38,7 +38,7 @@ export default function WatchlistPage() {
             has_public_hearing, committee_passed,
             hearing_date, days_to_cutoff, status, stalled,
             prime_sponsor, prime_party, bipartisan,
-            session, companion_bill, confidence_label, pass_probability
+            session, companion_bill, confidence_label, pass_probability, ai_summary, ai_summary
           )
         `)
         .eq('user_id', user.id)
