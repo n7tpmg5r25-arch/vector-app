@@ -2,6 +2,7 @@ import './globals.css'
 import RegisterSW from './components/RegisterSW'
 
 export const metadata = {
+  metadataBase: new URL('https://vector-app-liard.vercel.app'),
   title: 'Vector | WA',
   description: 'WA Legislative Trajectory Intelligence',
   manifest: '/manifest.json',
