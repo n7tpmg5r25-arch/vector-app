@@ -8,8 +8,7 @@ export default function Footer() {
       style={{
         borderTop: '1px solid #232530',
         background: '#0e1014',
-        padding: '20px 24px',
-        marginTop: 48,
+        padding: '16px 24px 90px 24px',
         fontFamily: 'var(--font-karla, Karla, sans-serif)',
         fontSize: 12,
         lineHeight: 1.55,

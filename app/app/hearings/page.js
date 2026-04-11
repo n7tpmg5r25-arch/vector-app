@@ -75,7 +75,7 @@ export default function HearingsPage() {
   }
 
   return (
-    <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',

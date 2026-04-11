@@ -197,7 +197,7 @@ export default function HomePage() {
   const sessionYear = SESSION.split('-')[0]
 
   return (
-    <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
 
       {/* ── HEADER ────────────────────────────────────────── */}
       <div style={{
@@ -854,11 +854,6 @@ export default function HomePage() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '8px 0 4px', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>
-          Vector WA · Shorepine Government Relations · {SESSION} Session
         </div>
       </div>
 

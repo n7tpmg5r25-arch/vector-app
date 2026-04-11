@@ -103,7 +103,7 @@ export default function MembersPage() {
   if (selectedMember) {
     const tier = tierLabel(selectedMember.tier)
     return (
-      <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+      <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
         <div style={{
           background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
           padding: '52px 20px 20px',
@@ -245,7 +245,7 @@ export default function MembersPage() {
 
   // ── MEMBERS LIST VIEW ────────────────────────────────
   return (
-    <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
