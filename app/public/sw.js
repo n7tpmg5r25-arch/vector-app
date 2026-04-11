@@ -1,5 +1,5 @@
 // Vector WA Service Worker — lightweight offline shell cache
-const CACHE_NAME = 'vector-wa-v1';
+const CACHE_NAME = 'vector-wa-v2';
 
 // Pages and assets to cache for offline shell
 const SHELL_ASSETS = [
