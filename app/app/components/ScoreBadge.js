@@ -36,7 +36,7 @@ export default function ScoreBadge({ score, size = 'md', status }) {
   const dim = sizes[size] || sizes.md
 
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }}>
+    <div style={{ position: 'relative', flexShrink: 0 }} title="Nightly composite of 5 signals plus documented X factors, calibrated to the 2025 WA session. Probabilistic signal, not a prediction. See /disclaimers for full methodology.">
       <div style={{
         width: dim.width, height: dim.height,
         borderRadius: '50%',
