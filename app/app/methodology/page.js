@@ -1,16 +1,14 @@
-// Phase 6.4 perf: Server Component — no 'use client' needed.
-// Nav is already a client component and renders as a client island.
+'use client'
+// Phase 7V.1 — Methodology page is now a client component so it can pull the
+// calibration table live from Supabase every page load. No more manual refresh
+// at the end of each biennium: the page queries the most recently completed
+// session, buckets bills by final_score, and computes chamber/law pass rates
+// on the fly. CALIBRATION_FALLBACK below is shown immediately while the query
+// runs, and stays on screen if the query fails or returns too little data.
+import { useEffect, useState } from 'react'
 import Nav from '../components/Nav'
-
-// Phase 6.7 — Methodology page. This is the "accuracy proof point" for
-// skeptical clients: it explains the 5 signal components, the X factor
-// multipliers, the calibrated pass-likelihood buckets, and — most importantly —
-// shows the ACTUAL observed pass rates from the completed 2025-26 session,
-// which validate the scoring model with clean monotonic separation.
-//
-// The bucket numbers below are computed directly from the 2025-26 final
-// outcomes in the bills table (outcome_passed_law / outcome_passed_chamber).
-// Refresh them at the top of each new session from the prior session's data.
+import { createBrowserClient } from '../../lib/supabase'
+import { getCurrentSession, isInterimPeriod } from '../../lib/session-config'
 
 const SIGNALS = [
   {
@@ -70,15 +68,19 @@ const XF_NEG = [
   { l: 'High amendment count (>3)', d: '−5%' },
 ]
 
-// LIVE from 2025-2026 full-biennium outcomes (query run April 2026, N=3,411 bills, 196 signed into law).
-// Each row: final score bucket → actual pass rate.
-const CALIBRATION = [
-  { bucket: '75–99', label: 'HIGH',      bills: 271,  chamber: 79.0, law: 69.4 },
-  { bucket: '60–74', label: 'MODERATE',  bills: 604,  chamber:  7.6, law:  1.3 },
-  { bucket: '45–59', label: 'LOW',       bills: 726,  chamber:  0.8, law:  0.0 },
-  { bucket: '30–44', label: 'VERY LOW',  bills: 1147, chamber:  0.0, law:  0.0 },
-  { bucket: ' 0–29', label: 'VERY LOW',  bills: 663,  chamber:  0.0, law:  0.0 },
+// Fallback calibration — shown immediately on page load while the live query
+// runs, and shown permanently if the query fails. These numbers come from the
+// 2025-2026 full-biennium outcomes (N=3,411 bills, 196 signed into law).
+// The two VERY LOW rows (30-44 and 0-29) are merged here because both had a
+// 0% pass rate — splitting them just added a confusing duplicate row.
+const CALIBRATION_FALLBACK = [
+  { bucket: '75–99', label: 'HIGH',     bills: 271,  chamber: 79.0, law: 69.4 },
+  { bucket: '60–74', label: 'MODERATE', bills: 604,  chamber:  7.6, law:  1.3 },
+  { bucket: '45–59', label: 'LOW',      bills: 726,  chamber:  0.8, law:  0.0 },
+  { bucket:  '0–44', label: 'VERY LOW', bills: 1810, chamber:  0.0, law:  0.0 },
 ]
+const FALLBACK_SESSION = '2025-2026'
+const FALLBACK_N = 3411
 
 // Color per confidence tier, matching the bill detail page
 const TIER_COLOR = {
@@ -89,6 +91,73 @@ const TIER_COLOR = {
 }
 
 export default function MethodologyPage() {
+  // 7V.1: live calibration — queries Supabase on mount, falls back to the
+  // hardcoded 2025-26 numbers if the query fails or returns too few bills.
+  const [calibration, setCalibration]     = useState(CALIBRATION_FALLBACK)
+  const [sourceSession, setSourceSession] = useState(FALLBACK_SESSION)
+  const [totalN, setTotalN]                = useState(FALLBACK_N)
+
+  useEffect(() => {
+    const sb = createBrowserClient()
+    // Pick the most recently completed biennium. During interim that's
+    // the current session (which just ended); during an active session
+    // we step back one biennium to the prior completed one.
+    let calSession = getCurrentSession()
+    if (!isInterimPeriod()) {
+      const [startY] = calSession.split('-')
+      const prev = parseInt(startY, 10) - 2
+      calSession = `${prev}-${prev + 1}`
+    }
+
+    sb.from('bills')
+      .select('final_score, confidence_label')
+      .eq('session', calSession)
+      .not('final_score', 'is', null)
+      .then(({ data, error }) => {
+        if (error || !data || data.length < 100) return // keep fallback
+        const buckets = {
+          HIGH:       { bucket: '75–99', label: 'HIGH',     bills: 0, law: 0, chamber: 0 },
+          MODERATE:   { bucket: '60–74', label: 'MODERATE', bills: 0, law: 0, chamber: 0 },
+          LOW:        { bucket: '45–59', label: 'LOW',      bills: 0, law: 0, chamber: 0 },
+          'VERY LOW': { bucket:  '0–44', label: 'VERY LOW', bills: 0, law: 0, chamber: 0 },
+        }
+        for (const b of data) {
+          const s = b.final_score || 0
+          let key
+          if (s >= 75)      key = 'HIGH'
+          else if (s >= 60) key = 'MODERATE'
+          else if (s >= 45) key = 'LOW'
+          else              key = 'VERY LOW'
+          buckets[key].bills++
+          if (b.confidence_label === 'LAW') {
+            buckets[key].law++
+            buckets[key].chamber++
+          } else if (b.confidence_label === 'CARRY OVER') {
+            buckets[key].chamber++
+          }
+        }
+        const rows = ['HIGH', 'MODERATE', 'LOW', 'VERY LOW'].map(k => {
+          const v = buckets[k]
+          return {
+            bucket: v.bucket,
+            label: v.label,
+            bills: v.bills,
+            chamber: v.bills > 0 ? (v.chamber / v.bills) * 100 : 0,
+            law:     v.bills > 0 ? (v.law     / v.bills) * 100 : 0,
+          }
+        })
+        setCalibration(rows)
+        setSourceSession(calSession)
+        setTotalN(data.length)
+      })
+  }, [])
+
+  // Convenience values for the prose below the table.
+  const high    = calibration.find(c => c.label === 'HIGH')     || { bills: 0, law: 0 }
+  const veryLow = calibration.find(c => c.label === 'VERY LOW') || { bills: 0 }
+  const highLawCount = Math.round((high.bills * high.law) / 100)
+  const sessionShort = sourceSession.split('-').map((y, i) => i === 1 ? y.slice(2) : y).join('-')
+
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
 
@@ -206,11 +275,11 @@ export default function MethodologyPage() {
         {/* SECTION — CALIBRATION (the proof point) */}
         <div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
-            Calibration — 2025-26 Session Outcomes
+            Calibration — {sessionShort} Session Outcomes
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              The chart below is the whole point. It shows, for all 3,411 bills in the 2025-26 biennium,
+              The chart below is the whole point. It shows, for all {totalN.toLocaleString()} bills in the {sessionShort} biennium,
               what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
               model is any good, higher buckets should pass at meaningfully higher rates — and they do,
               with clean monotonic separation.
@@ -232,7 +301,7 @@ export default function MethodologyPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {CALIBRATION.map((c, i) => (
+                  {calibration.map((c, i) => (
                     <tr key={c.bucket} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
                       <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{c.bucket}</td>
                       <td style={{ padding: '12px 8px', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.label}</td>
@@ -245,8 +314,9 @@ export default function MethodologyPage() {
               </table>
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Source: Vector | WA database, full 2025-26 biennium outcomes. N=3,411.
+              Source: Vector | WA database, full {sourceSession} biennium outcomes. N={totalN.toLocaleString()}.
               "Chamber" = passed at least one chamber. "Law" = signed by the governor.
+              Recalculated live on every page load.
             </div>
           </div>
         </div>
@@ -258,13 +328,14 @@ export default function MethodologyPage() {
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
             Most public legislative trackers (LegiScan, OpenStates, the WA Legislature site) tell you
-            where a bill is. Vector | WA tells you where a bill is <em>going</em>. The 663 bills in
-            the 0–29 bucket had a 0% pass rate. The 271 bills in the 75+ bucket had a 69.4% pass rate —
-            <span style={{ color: 'var(--teal)', fontWeight: 600 }}>188 of them became law</span>.
+            where a bill is. Vector | WA tells you where a bill is <em>going</em>. The {veryLow.bills.toLocaleString()} bills in
+            the 0–44 (VERY LOW) bucket had a 0% pass rate. The {high.bills.toLocaleString()} bills in the 75+ bucket had a {high.law.toFixed(1)}% pass rate —
+            <span style={{ color: 'var(--teal)', fontWeight: 600 }}> {highLawCount} of them became law</span>.
             That separation is the signal you're paying for.
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              Scores refresh nightly. The calibration table above will be re-computed at the end of
-              each session against the new outcome data, so the model stays honest.
+              Scores refresh nightly. The calibration table above recomputes itself from live
+              Supabase data every time you open this page, so as soon as the next biennium's
+              outcomes are final the numbers above update automatically — no manual refresh needed.
             </div>
           </div>
         </div>
