@@ -1,11 +1,11 @@
 {
-  "name": "Vector WA — Legislative Intelligence",
+  "name": "Vector | WA — Legislative Intelligence",
   "short_name": "Vector WA",
-  "description": "WA Legislative Trajectory Intelligence by Post & Policy",
+  "description": "WA Legislative Trajectory Intelligence by Shorepine Government Relations",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#080c14",
-  "theme_color": "#080c14",
+  "background_color": "#0e1014",
+  "theme_color": "#0e1014",
   "orientation": "portrait-primary",
   "icons": [
     { "src": "/icons/icon-72x72.png",   "sizes": "72x72",   "type": "image/png" },
