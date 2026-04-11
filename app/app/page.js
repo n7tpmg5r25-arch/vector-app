@@ -833,7 +833,7 @@ export default function HomePage() {
 
         {/* Footer */}
         <div style={{ padding: '8px 0 4px', textAlign: 'center', fontSize: 10, color: 'var(--text-faint)' }}>
-          Vector WA · Post & Policy · {SESSION} Session
+          Vector WA · Shorepine Government Relations · {SESSION} Session
         </div>
       </div>
 
