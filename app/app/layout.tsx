@@ -1,5 +1,6 @@
 import './globals.css'
 import RegisterSW from './components/RegisterSW'
+import Footer from './components/Footer'
 
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ backgroundColor: '#0e1014' }}>
         <RegisterSW />
         {children}
+        <Footer />
       </body>
     </html>
   )
