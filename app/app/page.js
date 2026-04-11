@@ -232,18 +232,22 @@ export default function HomePage() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                aria-label="Refresh data"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
-                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                </svg>
-              </button>
+              {/* Phase 7V: hide refresh during interim — scores are frozen */}
+              {!isInterimPeriod() && (
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  aria-label="Refresh bill scores"
+                  title={refreshing ? 'Refreshing…' : 'Refresh bill scores'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
+                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => router.push('/settings')}
                 aria-label="Settings"
@@ -802,32 +806,53 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── QUICK ACTIONS ─────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {/* ── STAT STRIP (Phase 7V: nav stripped, Nav covers routing) ── */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '14px 8px',
+          display: 'flex',
+          alignItems: 'stretch',
+          justifyContent: 'space-around',
+        }}>
           {[
-            { label: 'Browse Bills', icon: '🔍', path: '/search', desc: `${totalBills.toLocaleString()} scored` },
+            { label: 'Bills Scored', value: totalBills.toLocaleString(), color: 'var(--teal)' },
+            { label: 'Tracked', value: watchlist.length.toLocaleString(), color: 'var(--gold)' },
             isInterimPeriod()
-              ? { label: 'Session Outcomes', icon: '✓', path: '/outcomes', desc: `${outcomeCounts.law} signed` }
-              : { label: 'Hearing Schedule', icon: '📅', path: '/hearings', desc: 'Calendar' },
-            { label: 'Member Lookup', icon: '👤', path: '/members', desc: 'WA Legislature' },
-            { label: 'Watchlist', icon: '🔖', path: '/watchlist', desc: `${watchlist.length} tracked` },
-          ].map(({ label, icon, path, desc }) => (
-            <button
-              key={path}
-              onClick={() => router.push(path)}
+              ? { label: 'Signed into Law', value: outcomeCounts.law.toLocaleString(), color: 'var(--teal-bright)' }
+              : { label: 'High Signal', value: topBills.filter(b => (b.final_score || 0) >= 75).length.toLocaleString(), color: 'var(--teal-bright)' },
+          ].map(({ label, value, color }, i, arr) => (
+            <div
+              key={label}
               style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)', padding: '14px',
-                textAlign: 'left', cursor: 'pointer',
-                transition: 'border-color 0.2s',
+                flex: 1,
+                textAlign: 'center',
+                padding: '2px 6px',
+                borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
-              <div style={{ fontSize: 22, marginBottom: 6 }}>{icon}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{label}</div>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>{desc}</div>
-            </button>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 22,
+                fontWeight: 700,
+                color,
+                lineHeight: 1,
+                textShadow: '0 0 12px rgba(184,151,90,0.25)',
+              }}>
+                {value}
+              </div>
+              <div style={{
+                fontSize: 9,
+                color: 'var(--text-faint)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                marginTop: 6,
+                whiteSpace: 'nowrap',
+              }}>
+                {label}
+              </div>
+            </div>
           ))}
         </div>
 
