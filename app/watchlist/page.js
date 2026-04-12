@@ -194,6 +194,23 @@ export default function WatchlistPage() {
         }
       }
 
+      // Phase 10.5: fetch amendments and fiscal note history for activity line
+      const billIds2 = billsToExport.map(d => d.bill_id)
+      let amendmentsData = []
+      let fiscalData = []
+      if (billIds2.length > 0) {
+        const { data: aData } = await supabase
+          .from('amendments')
+          .select('bill_id, amendment_number, adopted, floor_action_date')
+          .in('bill_id', billIds2)
+        amendmentsData = aData || []
+        const { data: fData } = await supabase
+          .from('fiscal_note_history')
+          .select('bill_id, detected_date, new_size, note')
+          .in('bill_id', billIds2)
+        fiscalData = fData || []
+      }
+
       await generateClientPDF({
         clientName,
         date: today,
@@ -201,6 +218,8 @@ export default function WatchlistPage() {
         scoreDeltas,
         changes,
         billNotes,
+        amendments: amendmentsData,
+        fiscalHistory: fiscalData,
       })
     } catch (err) {
       console.error('PDF export failed:', err)

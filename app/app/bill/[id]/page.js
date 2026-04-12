@@ -300,6 +300,9 @@ export default function BillDetailPage() {
   const [user, setUser]         = useState(null)
   const [shared, setShared]     = useState(false)
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
+  const [amendments, setAmendments] = useState([])
+  const [fiscalHistory, setFiscalHistory] = useState([])
+  const [timelineExpanded, setTimelineExpanded] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -337,6 +340,21 @@ export default function BillDetailPage() {
           setClientTag(trackData.client_tag || '')
         }
       }
+
+      // Phase 10.3: Fetch amendments and fiscal note history for timeline
+      const { data: amendData } = await supabase
+        .from('amendments')
+        .select('*')
+        .eq('bill_id', billId)
+        .order('floor_action_date', { ascending: false, nullsFirst: false })
+      setAmendments(amendData || [])
+
+      const { data: fiscalData } = await supabase
+        .from('fiscal_note_history')
+        .select('*')
+        .eq('bill_id', billId)
+        .order('detected_date', { ascending: false })
+      setFiscalHistory(fiscalData || [])
 
       setLoading(false)
     }
@@ -978,6 +996,133 @@ export default function BillDetailPage() {
             </div>
           </div>
         )}
+
+        {/* ── ACTIVITY TIMELINE (Phase 10.3) ─────────────── */}
+        {(() => {
+          // Build merged timeline from three sources
+          const events = []
+
+          // 1. Stage changes from snapshots (detect when stage changed between snapshots)
+          const sortedSnaps = [...snapshots].sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
+          for (let i = 1; i < sortedSnaps.length; i++) {
+            if (sortedSnaps[i].stage !== sortedSnaps[i - 1].stage) {
+              const stageLabel = PIPELINE_STAGES.find(p => p.num === sortedSnaps[i].stage)?.label || `Stage ${sortedSnaps[i].stage}`
+              events.push({
+                date: sortedSnaps[i].snapshot_date,
+                type: 'stage',
+                icon: '\u25B6',  // ▶
+                color: 'var(--teal)',
+                label: `Advanced to: ${stageLabel}`,
+                detail: `Score: ${sortedSnaps[i].score}`,
+              })
+            }
+          }
+
+          // 2. Amendments
+          for (const a of amendments) {
+            const dateStr = a.floor_action_date || a.created_at?.split('T')[0] || ''
+            events.push({
+              date: dateStr,
+              type: 'amendment',
+              icon: '\u270E',  // ✎
+              color: 'var(--gold)',
+              label: `Amendment ${a.amendment_number || ''}${a.adopted ? ' — Adopted' : a.floor_action ? ` — ${a.floor_action}` : ''}`,
+              detail: a.description || a.sponsor ? `${a.sponsor || ''}${a.description ? `: ${a.description.slice(0, 80)}` : ''}` : null,
+              url: a.document_url,
+            })
+          }
+
+          // 3. Fiscal note changes
+          for (const f of fiscalHistory) {
+            events.push({
+              date: f.detected_date,
+              type: 'fiscal',
+              icon: '\u0024',  // $
+              color: 'var(--danger, #c44730)',
+              label: f.note || `Fiscal note: ${f.new_size}`,
+              detail: [
+                f.has_state_impact ? 'State impact' : null,
+                f.has_local_impact ? 'Local impact' : null,
+              ].filter(Boolean).join(' + ') || null,
+            })
+          }
+
+          // Sort by date descending (most recent first)
+          events.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+
+          if (events.length === 0) return null
+
+          const visible = timelineExpanded ? events : events.slice(0, 5)
+          const hasMore = events.length > 5
+
+          return (
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', padding: '14px 16px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+                  Activity Timeline
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                  {events.length} event{events.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {visible.map((ev, i) => (
+                  <div key={i} style={{
+                    display: 'flex', gap: 10, padding: '8px 0',
+                    borderBottom: i < visible.length - 1 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    {/* Date */}
+                    <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', minWidth: 72, flexShrink: 0, paddingTop: 2 }}>
+                      {ev.date || '—'}
+                    </div>
+                    {/* Icon */}
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, flexShrink: 0,
+                      background: `color-mix(in srgb, ${ev.color} 12%, transparent)`,
+                      color: ev.color, border: `1px solid color-mix(in srgb, ${ev.color} 25%, transparent)`,
+                    }}>
+                      {ev.icon}
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                        {ev.url ? (
+                          <a href={ev.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal)', textDecoration: 'none' }}>
+                            {ev.label}
+                          </a>
+                        ) : ev.label}
+                      </div>
+                      {ev.detail && (
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>
+                          {ev.detail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {hasMore && (
+                <button
+                  onClick={() => setTimelineExpanded(!timelineExpanded)}
+                  style={{
+                    width: '100%', marginTop: 8, padding: '6px 0',
+                    background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                    color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {timelineExpanded ? 'Show less' : `Show all ${events.length} events`}
+                </button>
+              )}
+            </div>
+          )
+        })()}
 
         {/* ── STAGE PIPELINE ─────────────────────────────── */}
         <div style={{

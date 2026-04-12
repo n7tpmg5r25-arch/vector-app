@@ -426,7 +426,7 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
  * Renders one bill card with colored left border, title, summary, score, stage, delta, tag.
  * Returns new y position.
  */
-function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes) {
+function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes, amendments = [], fiscalHistory = []) {
   const bill = tracked.bills || {}
   const billId = tracked.bill_id
   const score = bill.final_score || 0
@@ -479,12 +479,30 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
     ? 5 + analystNoteWrapped.reduce((h, n) => h + 3 + (n.bodyLines.length * 3.2) + 2, 0)
     : 0
 
+  // Phase 10.5: Recent Activity line — compact summary of amendments + fiscal changes
+  const billAmendments = amendments.filter(a => a.bill_id === tracked.bill_id)
+  const billFiscal = fiscalHistory.filter(f => f.bill_id === tracked.bill_id)
+  let activityParts = []
+  if (billAmendments.length > 0) {
+    const adopted = billAmendments.filter(a => a.adopted).length
+    activityParts.push(billAmendments.length + ' amendment' + (billAmendments.length !== 1 ? 's' : '') +
+      (adopted > 0 ? ' (' + adopted + ' adopted)' : ''))
+  }
+  if (billFiscal.length > 0) {
+    const latest = billFiscal.sort((a, b) => (b.detected_date || '').localeCompare(a.detected_date || ''))[0]
+    activityParts.push('Fiscal note ' + (latest.new_size || 'updated') +
+      (latest.detected_date ? ' ' + latest.detected_date : ''))
+  }
+  const activityLine = activityParts.join(' | ')
+  const activityH = activityLine ? 3.5 : 0
+
   const cardH = 5 +         // top padding
                 5 +         // bill number + score line
                 titleH +    // title lines
                 summaryH +  // AI summary (if present)
                 companionH + // Phase 7W.3 companion line (if present)
                 analystNotesH + // Phase 7S analyst notes (if present)
+                activityH + // Phase 10.5 recent activity (if present)
                 4 +         // stage + delta line
                 (tag ? 4 : 0) +  // tag line (if present)
                 3           // bottom padding
@@ -622,6 +640,15 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
     })
   }
 
+  // ── Phase 10.5: Recent Activity line ──
+  if (activityLine) {
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...GOLD)
+    doc.text(activityLine, cx, cy)
+    cy += 3.5
+  }
+
   // ── Stage + Delta ──
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
@@ -746,7 +773,7 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
 // MAIN PDF GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session, billNotes }) {
+export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session, billNotes, amendments = [], fiscalHistory = [] }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
@@ -976,7 +1003,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
         y = drawGroupHeader(doc, group, y, m, contentW, ph)
       }
       group.bills.forEach(tracked => {
-        y = drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes || [])
+        y = drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes || [], amendments, fiscalHistory)
       })
       y += 2  // extra gap between groups
     })
