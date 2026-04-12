@@ -1,9 +1,20 @@
 /**
- * VECTOR | WA — Sync Script v2.5 (Phase 7D — Data Integrity)
+ * VECTOR | WA — Sync Script v2.6 (Phase 7D.2b — Substitute Bill Fix)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
+ *
+ * v2.6 CHANGES (Phase 7D.2b):
+ *  - 7D.2b.1: getLegislation() now picks the most advanced version (highest
+ *             SubstituteVersion/EngrossedVersion) instead of arr[0]. This gives
+ *             us the correct BillId (e.g. "SHB 1294") and accurate CurrentStatus.
+ *  - 7D.2b.2: processBill() uses the advanced version's BillId for
+ *             getStatusChanges() — fixes truncated histories for ~580 substituted
+ *             bills that were stuck at stage 3 with "substitute bill substituted."
+ *  - 7D.2b.3: substitute_filed detection now checks status text for
+ *             "substitute bill substituted" (was always false for most bills).
+ *  - 7D.2b.4: Cleaned up duplicate governor_action + outcome boolean lines.
  *
  * v2.5 CHANGES (Phase 7D.1):
  *  - 7D.1.1: Fixed governor-signed detection — API returns "Governor signed."
@@ -244,12 +255,25 @@ async function getRollCalls(billNumber) {
 }
 
 // Get full legislation details (for companion bill + committee)
+// Phase 7D.2b FIX: GetLegislation returns ALL versions of a bill (original +
+// substitutes + engrossments). We pick the most advanced version — the one with
+// the highest SubstituteVersion (then EngrossedVersion as tiebreak). This gives
+// us the correct BillId (e.g. "SHB 1294") for querying status changes, plus
+// the accurate CurrentStatus showing governor signing instead of substitution.
 async function getLegislation(billNumber) {
   try {
     const data = await fetchXML('LegislationService.asmx', 'GetLegislation', { biennium: BIENNIUM, billNumber });
     const items = data?.ArrayOfLegislation?.Legislation;
     const arr = Array.isArray(items) ? items : (items ? [items] : []);
-    return arr[0] || null;
+    if (arr.length <= 1) return arr[0] || null;
+    // Pick the most advanced version (highest substitute + engrossed)
+    return arr.reduce((best, cur) => {
+      const bestSub = parseInt(best.SubstituteVersion || '0');
+      const curSub  = parseInt(cur.SubstituteVersion || '0');
+      const bestEng = parseInt(best.EngrossedVersion || '0');
+      const curEng  = parseInt(cur.EngrossedVersion || '0');
+      return (curSub > bestSub || (curSub === bestSub && curEng > bestEng)) ? cur : best;
+    });
   } catch(e) { return null; }
 }
 
@@ -380,10 +404,14 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const fiscalReferral = referrals.some(s => FISCAL.some(f => (s.HistoryLine||'').toLowerCase().includes(f)));
   const doubleReferral = referrals.length >= 2;
 
-  // Substitute detection — from amendments AND raw API data
+  // Substitute detection — from amendments, raw API data, AND status text
+  // Phase 7D.2b FIX: Also check status change text for "substitute bill substituted"
+  // which is the definitive signal that a substitute was adopted. The amendment check
+  // alone was always returning false for most bills.
   const substituteFiled = amendments.some(a =>
     (a.AmendmentType || a.Description || '').toLowerCase().includes('substitute'))
-    || parseInt(raw.SubstituteVersion || '0') > 0;
+    || parseInt(raw.SubstituteVersion || '0') > 0
+    || statusTexts.some(s => s.includes('substitute bill substituted'));
   const amendmentCount = amendments.length;
 
   const allDates = statusChanges
@@ -465,7 +493,6 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
     hearing_date: hearingDate,
     last_action_date: lastDate.toISOString(),
     last_action: lastAction,  // Phase 5A: now populated
-    governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
     governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
   };
 }
@@ -702,13 +729,19 @@ async function processBill(raw, categoryRates, state, partyMap) {
     billApiId; // e.g. "HB 1001" — still better than empty string
   const category = detectCategory(title);
 
+  // Phase 7D.2b FIX: Use the advanced version's BillId (e.g. "SHB 1294") for
+  // status changes. The WSL API tracks all post-substitution events under the
+  // substitute ID. Without this, status history is truncated at "substitute bill
+  // substituted." — no floor votes, no opposite chamber, no governor signing.
+  const advancedBillId = legislation?.BillId || billApiId;
+
   // Phase 5C.3 (revised): GetLegislation's Sponsor field is just a string like
   // "(Abbarno)", not a collection. Call LegislationService/GetSponsors for the
   // real list with FirstName/LastName/Type/Order.
   const [sponsors, hearings, statusChanges, amendments, rollCalls] = await Promise.all([
     getSponsors(billApiId),
     getHearings(billNum),
-    getStatusChanges(billApiId),
+    getStatusChanges(advancedBillId),
     getAmendments(billNum),
     getRollCalls(billNum),
   ]);
@@ -833,10 +866,6 @@ async function processBill(raw, categoryRates, state, partyMap) {
   billRecord.outcome_passed_chamber = billRecord.stage >= 4;
   billRecord.outcome_passed_law = billRecord.stage >= 6;
 
-  // Phase 7D.1: Always set outcome booleans from stage (was previously a one-time backfill)
-  billRecord.outcome_passed_chamber = billRecord.stage >= 4;
-  billRecord.outcome_passed_law = billRecord.stage >= 6;
-
   // Outcome label — human-readable final status
   const cmteName = (billRecord.committee_name || '').toLowerCase();
   const isRulesQueue = cmteName.includes('rules');
@@ -867,7 +896,7 @@ async function runSync() {
   let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.4 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.6 — ${SESSION} — state: ${state}`);
 
   // 6A.1: During interim, pre-load existing bills so we can detect material changes
   let existingBillsMap = null;
@@ -1002,7 +1031,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.4 Phase 6A — interim freeze${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
+    notes: `sync-v2.6 Phase 7D.2b — substitute bill fix${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
