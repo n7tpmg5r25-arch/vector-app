@@ -11,12 +11,18 @@ export default function SettingsPage() {
   const supabase = createBrowserClient()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [billCount, setBillCount] = useState('...')
+  // Phase 7U.5: split bill counts so the current-session number stays a useful
+  // sync-health signal instead of being diluted by the historical archive.
+  const [currentSessionBills, setCurrentSessionBills] = useState('...')
+  const [historicalBills, setHistoricalBills] = useState('...')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
-    supabase.from('bills').select('id', { count: 'exact', head: true })
-      .then(({ count }) => { if (count != null) setBillCount(count.toLocaleString()) })
+    const current = getCurrentSession()
+    supabase.from('bills').select('id', { count: 'exact', head: true }).eq('session', current)
+      .then(({ count }) => { if (count != null) setCurrentSessionBills(count.toLocaleString()) })
+    supabase.from('bills').select('id', { count: 'exact', head: true }).neq('session', current)
+      .then(({ count }) => { if (count != null) setHistoricalBills(count.toLocaleString()) })
   }, [])
 
   async function signOut() {
@@ -31,7 +37,8 @@ export default function SettingsPage() {
     { label: 'Session State', value: isInterimPeriod() ? 'Interim' : 'In Session', accent: isInterimPeriod() },
     { label: 'Next Session Opens', value: nextB?.start ? formatSessionDate(nextB.start) : 'TBD' },
     { label: 'Pre-filing Starts', value: nextB?.prefilingOpens ? formatSessionDate(nextB.prefilingOpens) : 'TBD' },
-    { label: 'Bills in Database', value: billCount, mono: true },
+    { label: 'Current Session Bills', value: currentSessionBills, mono: true },
+    { label: 'Historical Archive', value: historicalBills, mono: true },
     { label: 'Scoring Engine', value: 'v3.1 \u00b7 Calibrated', mono: true },
   ]
 
@@ -102,7 +109,7 @@ export default function SettingsPage() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--teal)', marginBottom: 2 }}>Methodology</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                  How Vector | WA scores bills &mdash; signals, X factors, and 2025-26 calibration
+                  How Vector | WA scores bills &mdash; signals, X factors, and 3-biennium calibration
                 </div>
               </div>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -133,7 +140,7 @@ export default function SettingsPage() {
                 <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
               </div>
             </div>
-            Trajectory scoring engine calibrated against 3,411 bills from the completed 2025-26 biennium, with historical baselines from 8,824 bills across 2021-22 and 2023-24. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
+            Trajectory scoring engine calibrated against 8,817 bills spanning three biennia (2021-22, 2023-24, and 2025-26). Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
           </div>
         </div>
 

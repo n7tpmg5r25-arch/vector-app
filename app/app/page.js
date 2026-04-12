@@ -75,7 +75,7 @@ export default function HomePage() {
       user
         ? supabase
             .from('tracked_bills')
-            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label)')
+            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label, session)')
             .eq('user_id', user.id)
             .order('added_at', { ascending: false })
         : Promise.resolve({ data: null }),
@@ -94,7 +94,11 @@ export default function HomePage() {
     const bills = billsResult.data || []
     setTopBills(bills)
 
-    const wl = (wlResult.data || []).filter(w => w.bills)
+    // Phase 7U.5: filter watchlist to the currently-viewed biennium. Watches
+    // stay global in tracked_bills (so historical context is preserved when
+    // you flip the session picker), but the dashboard only shows watches for
+    // the session you're actually looking at.
+    const wl = (wlResult.data || []).filter(w => w.bills && w.bills.session === SESSION)
     setWatchlist(wl)
 
     // 6K.2: Fetch total bill count for quick actions grid
@@ -353,17 +357,7 @@ export default function HomePage() {
               )}
             </div>
           )}
-          {SESSION !== getCurrentSession() && (
-            <div style={{
-              marginTop: 10, padding: '8px 14px',
-              background: 'rgba(184,151,90,0.06)',
-              border: '1px solid rgba(184,151,90,0.2)',
-              borderRadius: 'var(--radius)',
-              fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
-            }}>
-              Viewing historical session. <span onClick={() => setSession(getCurrentSession())} style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Switch to current session</span>
-            </div>
-          )}
+          {/* Phase 7U.5: historical banner promoted to global SessionBanner in layout.tsx */}
 
           {/* Advocacy outlook — 6B.4: require 5+ bills, 6H.2: outcome summary during interim */}
           {isInterimPeriod() && watchlist.length >= 5 && interimWatchCounts ? (

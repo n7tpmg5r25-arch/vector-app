@@ -1,6 +1,7 @@
 import './globals.css'
 import RegisterSW from './components/RegisterSW'
 import Footer from './components/Footer'
+import SessionBanner from './components/SessionBanner'
 
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ backgroundColor: '#0e1014' }}>
         <RegisterSW />
+        <SessionBanner />
         {children}
         <Footer />
       </body>

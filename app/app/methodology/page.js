@@ -36,7 +36,7 @@ const SIGNALS = [
     name: 'Historical',
     range: '0–20',
     weight: 16,
-    description: 'Category-level pass rates calibrated from 8,824 bills across the 2021-22 and 2023-24 sessions. Tax bills behave differently than transportation bills.',
+    description: 'Category-level pass rates calibrated from 8,817 bills across three biennia (2021-22, 2023-24, and 2025-26). Tax bills behave differently than transportation bills.',
     inputs: ['Category base rate', 'Bill-number cohort adjustment (low numbers = leadership priorities)'],
   },
   {
@@ -81,6 +81,17 @@ const CALIBRATION_FALLBACK = [
 ]
 const FALLBACK_SESSION = '2025-2026'
 const FALLBACK_N = 3411
+
+// Phase 7U.5: Combined 3-biennium calibration — these are the EXACT
+// pass_probability and Wilson 95% CI values hardcoded in sync-v2.js
+// scoreBill(). They're what every score on this site resolves to.
+// Source: 8,817 bills across 2021-22 + 2023-24 + 2025-26, Phase 7U backfill.
+const COMBINED_3B = [
+  { bucket: '75–99', label: 'HIGH',     rate: '65.5%', ci: '62.4 – 68.5%' },
+  { bucket: '60–74', label: 'MODERATE', rate: '0.5%',  ci: '0.2 – 1.0%'   },
+  { bucket: '45–59', label: 'LOW',      rate: '0.05%', ci: '0.0 – 0.3%'   },
+  { bucket:  '0–44', label: 'VERY LOW', rate: '0.0%',  ci: '0.0 – 0.1%'   },
+]
 
 // Color per confidence tier, matching the bill detail page
 const TIER_COLOR = {
@@ -317,6 +328,54 @@ export default function MethodologyPage() {
               Source: Vector | WA database, full {sourceSession} biennium outcomes. N={totalN.toLocaleString()}.
               "Chamber" = passed at least one chamber. "Law" = signed by the governor.
               Recalculated live on every page load.
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION — COMBINED 3-BIENNIUM CALIBRATION (the engine truth) */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            Combined 3-Biennium Calibration
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+              The table above shows one biennium in detail. The scoring engine itself is calibrated
+              against all three biennia combined — 8,817 bills spanning 2021-22, 2023-24, and 2025-26.
+              These are the exact pass probabilities <em>every score on this site</em> resolves to,
+              with 95% Wilson confidence intervals showing the range of plausible truth given the
+              sample size in each bucket.
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                fontSize: 12,
+                borderCollapse: 'collapse',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Score</th>
+                    <th style={{ textAlign: 'left',  padding: '10px 8px',  fontWeight: 600 }}>Tier</th>
+                    <th style={{ textAlign: 'right', padding: '10px 8px',  fontWeight: 600 }}>Law Rate</th>
+                    <th style={{ textAlign: 'right', padding: '10px 16px', fontWeight: 600 }}>95% CI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMBINED_3B.map(c => (
+                    <tr key={c.bucket} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{c.bucket}</td>
+                      <td style={{ padding: '12px 8px', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.label}</td>
+                      <td style={{ padding: '12px 8px', textAlign: 'right', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.rate}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 11 }}>{c.ci}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+              Source: Vector | WA combined biennia, N=8,817. CIs computed via Wilson score interval.
+              These exact values are wired into the scoring engine's pass_probability ladder —
+              when a bill shows "65.5% chance of becoming law", this is the row it came from.
             </div>
           </div>
         </div>
