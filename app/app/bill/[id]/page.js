@@ -33,9 +33,61 @@ const PIPELINE_STAGES = [
   { num: 6, label: 'Signed' },
 ]
 
+/* ── Phase 7W.3: Companion state glyph + tooltip helpers ─────────────
+ * Five-state relational signal — see sync-v2.js COMPANION_XF_WEIGHTS. */
+const COMPANION_STATES = {
+  both_moving: {
+    glyph: '\u21C4',  // ⇄ left-right arrows
+    label: 'Both moving',
+    tooltip: 'Both this bill and its companion are advancing in parallel — the strongest bipartisan-chamber signal the data produces.',
+    tone: 'positive',
+  },
+  leading: {
+    glyph: '\u2190',  // ← left arrow (this side ahead)
+    label: 'Leading',
+    tooltip: 'This bill is further along than its companion in the other chamber. Leading pairs disproportionately become law when the trailing side catches up.',
+    tone: 'positive',
+  },
+  trailing: {
+    glyph: '\u2192',  // → right arrow (other side ahead)
+    label: 'Trailing',
+    tooltip: 'The companion in the other chamber is further along than this bill. Trailing can still converge, but the other chamber is carrying the pair.',
+    tone: 'neutral',
+  },
+  forked: {
+    glyph: '\u26A0',  // ⚠ warning sign
+    label: 'Diverged',
+    tooltip: 'The pair has diverged — one side is stalled or held while the other is still moving. Divergent pairs often end with only one side (or neither) becoming law.',
+    tone: 'negative',
+  },
+  both_stuck: {
+    glyph: '\u00B7\u00B7',  // ·· two dots (dormant)
+    label: 'Both stuck',
+    tooltip: 'Neither this bill nor its companion has advanced recently. Small residual bump over a solo bill — the existence of a companion keeps a narrow revival path open.',
+    tone: 'neutral',
+  },
+}
+
+function getCompanionStageLabel(stage) {
+  if (stage == null) return null
+  // Match PIPELINE_STAGES shape; WA bills rarely populate stage 2 or 5.
+  if (stage >= 6) return 'Signed'
+  if (stage >= 5) return 'Passed both'
+  if (stage >= 4) return 'Passed floor'
+  if (stage >= 3) return 'Out of cmte'
+  if (stage >= 2) return 'In committee'
+  return 'Introduced'
+}
+
 /* ── X-Factor tooltip descriptions ──────────────────── */
 const XF_TOOLTIPS = {
   'Companion bill':      'A matching bill was introduced in the other chamber, doubling the chances of movement.',
+  'Companion both moving':          'Both this bill and its companion are advancing in parallel — strongest bipartisan-chamber signal the data produces.',
+  'Companion leading (this bill)':  'This bill is further along than its companion. Leading pairs disproportionately become law when the other side catches up.',
+  'Companion leading (other chamber)': 'The companion is further along than this bill. Trailing can still converge, but the other chamber is carrying the pair.',
+  'Companion divergence risk':      'The pair has diverged — one side is stalled or held while the other is still moving. Divergent pairs often end with only one side (or neither) becoming law.',
+  'Companion both stuck':           'Neither this bill nor its companion has advanced recently. A small residual bump over a solo bill.',
+  'Companion (unresolved)':         'A companion bill exists, but tonight\u2019s sync hasn\u2019t classified the relationship yet.',
   'Substitute filed':    'A revised version was filed, signaling active committee engagement.',
   'Exec session passed': 'The committee held an executive session and voted the bill out.',
   '2nd chamber':         'The bill has crossed to the opposite chamber \u2014 a major milestone.',
@@ -592,43 +644,119 @@ export default function BillDetailPage() {
             {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
           </div>
 
-          {/* Companion bill cross-reference */}
-          {bill.companion_bill && (
-            <div
-              onClick={async () => {
-                // companion_bill stores values like "HB 2193" — extract just the number
-                const compNum = bill.companion_bill.replace(/^[A-Z]+\s*/i, '')
-                const { data } = await supabase
-                  .from('bills')
-                  .select('bill_id')
-                  .eq('bill_number', compNum)
-                  .eq('session', bill.session || '2025-2026')
-                  .maybeSingle()
-                if (data?.bill_id) router.push(`/bill/${data.bill_id}`)
-              }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px', marginBottom: 14,
-                background: 'rgba(184,151,90,0.06)',
-                border: '1px solid rgba(184,151,90,0.15)',
-                borderRadius: 10, cursor: 'pointer',
-                transition: 'border-color 0.2s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.4)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.15)'}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-              <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
-                Companion: {bill.companion_bill}
-              </span>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </div>
-          )}
+          {/* Phase 7W.3: Enriched companion bill pill
+              - stage label of the companion (e.g. "Out of cmte")
+              - mini score tier pill (H/M/L/VL) sized for inline display
+              - state glyph + label (both_moving / leading / trailing / forked / both_stuck)
+              - hover tooltip with the state-specific description
+              The pill only shows relational info if the companion has been
+              resolved by sync-v2.js second pass (companion_state !== null). */}
+          {bill.companion_bill && (() => {
+            const compState = bill.companion_state
+            const stateInfo = compState ? COMPANION_STATES[compState] : null
+            const compStageLabel = getCompanionStageLabel(bill.companion_stage)
+            const compScore = bill.companion_score
+            // Tier derived from companion score (matches sync-v2.js signal_tier)
+            let compTier = null
+            if (compScore != null) {
+              if (compScore >= 75) compTier = 'HIGH'
+              else if (compScore >= 60) compTier = 'MODERATE'
+              else if (compScore >= 45) compTier = 'LOW'
+              else compTier = 'VERY LOW'
+            }
+            const tierColor = {
+              'HIGH':      'var(--teal)',
+              'MODERATE':  'var(--gold)',
+              'LOW':       'rgba(184,151,90,0.5)',
+              'VERY LOW':  'var(--text-faint)',
+            }[compTier] || 'var(--text-faint)'
+            // Border color shifts by tone when state is resolved
+            const borderColorBase = stateInfo
+              ? (stateInfo.tone === 'negative' ? 'rgba(220,120,90,0.25)'
+                : stateInfo.tone === 'positive' ? 'rgba(74,196,183,0.28)'
+                : 'rgba(184,151,90,0.2)')
+              : 'rgba(184,151,90,0.15)'
+            const borderColorHover = stateInfo
+              ? (stateInfo.tone === 'negative' ? 'rgba(220,120,90,0.55)'
+                : stateInfo.tone === 'positive' ? 'rgba(74,196,183,0.6)'
+                : 'rgba(184,151,90,0.5)')
+              : 'rgba(184,151,90,0.4)'
+
+            return (
+              <div
+                title={stateInfo ? `${stateInfo.label} — ${stateInfo.tooltip}` : 'Companion bill — click to open'}
+                onClick={async () => {
+                  const compNum = bill.companion_bill.replace(/\D/g, '')
+                  const { data } = await supabase
+                    .from('bills')
+                    .select('bill_id')
+                    .eq('bill_number', compNum)
+                    .eq('session', bill.session || '2025-2026')
+                    .maybeSingle()
+                  if (data?.bill_id) router.push(`/bill/${data.bill_id}`)
+                }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '6px 12px', marginBottom: 14,
+                  background: 'rgba(184,151,90,0.06)',
+                  border: `1px solid ${borderColorBase}`,
+                  borderRadius: 10, cursor: 'pointer',
+                  transition: 'border-color 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = borderColorHover}
+                onMouseLeave={e => e.currentTarget.style.borderColor = borderColorBase}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
+                  Companion: {bill.companion_bill}
+                </span>
+                {compStageLabel && (
+                  <span style={{
+                    fontSize: 9, fontFamily: 'var(--font-mono)',
+                    color: 'var(--text-muted)', textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    padding: '2px 6px',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                  }}>
+                    {compStageLabel}
+                  </span>
+                )}
+                {compScore != null && (
+                  <span style={{
+                    fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                    color: tierColor,
+                    padding: '2px 6px',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${tierColor}`,
+                    borderRadius: 6,
+                    lineHeight: 1.1,
+                  }}>
+                    {compScore}
+                  </span>
+                )}
+                {stateInfo && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    fontSize: 10, fontFamily: 'var(--font-mono)',
+                    color: stateInfo.tone === 'negative' ? 'rgba(220,120,90,0.95)'
+                         : stateInfo.tone === 'positive' ? 'var(--teal)'
+                         : 'var(--text-muted)',
+                  }}>
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>{stateInfo.glyph}</span>
+                    <span>{stateInfo.label}</span>
+                  </span>
+                )}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </div>
+            )
+          })()}
 
           {/* Score + Score breakdown row */}
           <div style={{
