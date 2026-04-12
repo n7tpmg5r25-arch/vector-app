@@ -154,25 +154,45 @@ export default function MembersPage() {
     return true
   })
 
-  // ── EFFECTIVENESS COMPOSITE ────────────────────────────
-  // Blends avg trajectory score (40%), law pass rate (35%), committee pass rate (25%)
-  // Returns 0–100. Members with < 2 bills get a floor penalty.
+  // ── LEGISLATIVE SUCCESS COMPOSITE ─────────────────────────
+  // Answers: "If this legislator sponsors a bill, how likely is it to move?"
+  //
+  // Position Power (25%) — tier + chair status. Majority leadership & chairs
+  //   can schedule hearings, control committee agendas, whip floor votes.
+  // Committee Pass Rate (30%) — % of sponsored bills that cleared committee.
+  //   The hardest chokepoint in Olympia; most bills die here.
+  // Law Rate (25%) — % of sponsored bills signed into law.
+  //   The ultimate measure, but rare enough that it shouldn't dominate.
+  // Avg Trajectory Score (20%) — mean bill quality signal.
+  //   Kept lowest because it measures the bill, not the legislator.
+  //
+  // Volume guard: < 3 bills → 40% penalty (one lucky bill shouldn't crown you).
   function computeEffectiveness(m) {
-    const avgNorm = Math.min(m.avg_score, 100) // already 0-100
-    const lawRate = m.bill_count > 0 ? (m.laws_passed / m.bill_count) * 100 : 0
+    // Position power: tier 1 (maj leadership) = 100, tier 2 (senior) = 70,
+    // tier 3 (member) = 40, tier 4 (minority) = 20. Chair adds +20 (capped 100).
+    const tierScores = { 1: 100, 2: 70, 3: 40, 4: 20 }
+    let positionPower = tierScores[m.tier] || 40
+    if (m.is_chair) positionPower = Math.min(positionPower + 20, 100)
+
     const cmteRate = m.bill_count > 0 ? (m.committee_passes / m.bill_count) * 100 : 0
-    let eff = avgNorm * 0.40 + lawRate * 0.35 + cmteRate * 0.25
-    if (m.bill_count < 2) eff *= 0.5 // low-volume penalty
-    return Math.round(Math.min(eff, 100))
+    const lawRate  = m.bill_count > 0 ? (m.laws_passed / m.bill_count) * 100 : 0
+    const avgNorm  = Math.min(m.avg_score, 100)
+
+    let score = positionPower * 0.25 + cmteRate * 0.30 + lawRate * 0.25 + avgNorm * 0.20
+    if (m.bill_count < 3) score *= 0.6 // low-volume penalty
+    return Math.round(Math.min(score, 100))
   }
 
-  // Map effectiveness 0–100 to a color on the Vector palette (dark bg-friendly)
+  // Map success score 0–100 to Vector palette (dark bg-friendly)
   function effColor(score) {
-    if (score >= 60) return { bg: 'rgba(122,171,110,0.55)', text: '#c8e6c0' }     // sage green — high
-    if (score >= 40) return { bg: 'rgba(58,122,138,0.50)', text: '#a2d4dd' }       // deep teal — moderate
-    if (score >= 20) return { bg: 'rgba(196,122,48,0.40)', text: '#e4c89a' }       // amber — low
-    return { bg: 'rgba(138,128,112,0.25)', text: '#a09888' }                       // stone — very low
+    if (score >= 55) return { bg: 'rgba(122,171,110,0.55)', text: '#c8e6c0', label: 'High' }       // sage green
+    if (score >= 35) return { bg: 'rgba(58,122,138,0.50)', text: '#a2d4dd', label: 'Moderate' }     // deep teal
+    if (score >= 18) return { bg: 'rgba(196,122,48,0.40)', text: '#e4c89a', label: 'Low' }          // amber
+    return { bg: 'rgba(138,128,112,0.25)', text: '#a09888', label: 'Very Low' }                     // stone
   }
+
+  // Popover state for mobile tap
+  const [popover, setPopover] = useState(null) // { name, x, y, member }
 
   const tierLabel = (tier) => {
     if (tier === 1) return { text: 'Majority Leadership', color: 'var(--teal)', bg: 'var(--teal-pale)', border: 'rgba(184,151,90,0.2)' }
@@ -438,7 +458,7 @@ export default function MembersPage() {
 
       {/* ── HEATMAP VIEW ──────────────────────────────── */}
       {viewMode === 'heatmap' && (
-        <div style={{ padding: '12px 16px' }}>
+        <div style={{ padding: '12px 16px' }} onClick={() => setPopover(null)}>
           {loading ? (
             <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>
           ) : (() => {
@@ -446,36 +466,85 @@ export default function MembersPage() {
               .sort((a, b) => b.effectiveness - a.effectiveness)
             const houseMembers = chamber === 'Senate' ? [] : withEff.filter(m => m.chamber === 'House')
             const senateMembers = chamber === 'House' ? [] : withEff.filter(m => m.chamber === 'Senate')
-            const maxEff = Math.max(...withEff.map(m => m.effectiveness), 1)
 
             const renderCell = (m) => {
               const { bg, text } = effColor(m.effectiveness)
               const initials = m.name.split(' ').map(n => n[0]).slice(-2).join('')
+              const isActive = popover && popover.name === m.name
               return (
                 <div
                   key={m.name}
-                  onClick={() => selectMember(m)}
-                  title={`${m.name} — Effectiveness: ${m.effectiveness}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (isActive) { selectMember(m); setPopover(null) }
+                    else {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      setPopover({ name: m.name, member: m, x: rect.left + rect.width / 2, y: rect.top })
+                    }
+                  }}
                   style={{
-                    width: 44, height: 44, borderRadius: 6,
+                    width: 40, height: 40, borderRadius: 6,
                     background: bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', position: 'relative',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: isActive ? '1.5px solid var(--teal)' : '1px solid rgba(255,255,255,0.06)',
                     transition: 'transform 0.15s, box-shadow 0.15s',
                     fontSize: 10, fontWeight: 700, color: text,
                     fontFamily: 'var(--font-mono)',
+                    transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                    zIndex: isActive ? 10 : 1,
+                    boxShadow: isActive ? '0 4px 16px rgba(0,0,0,0.4)' : 'none',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.15)'; e.currentTarget.style.zIndex = '10'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)' }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; e.currentTarget.style.boxShadow = 'none' }}
+                  onMouseEnter={e => { if (!popover) { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.zIndex = '10' }}}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1' }}}
                 >
                   {initials}
+                  {m.is_chair && <div style={{
+                    position: 'absolute', top: -3, right: -3,
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: 'var(--gold)', border: '1.5px solid var(--bg)',
+                  }}/>}
                   <div style={{
                     position: 'absolute', bottom: -1, right: -1,
                     fontSize: 7, fontWeight: 600, color: 'var(--text-faint)',
                     background: 'rgba(14,16,20,0.85)', borderRadius: '4px 0 4px 0',
                     padding: '1px 3px', lineHeight: 1,
                   }}>{m.effectiveness}</div>
+                </div>
+              )
+            }
+
+            // ── TOP 5 CALLOUT ──
+            const renderTop5 = (label, list) => {
+              const top = list.slice(0, 5)
+              if (!top.length) return null
+              return (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+                    Top {label}
+                  </div>
+                  {top.map((m, i) => {
+                    const { bg, text } = effColor(m.effectiveness)
+                    return (
+                      <div key={m.name} onClick={() => selectMember(m)} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
+                        borderRadius: 6, cursor: 'pointer', marginBottom: 2,
+                        background: i === 0 ? 'rgba(122,171,110,0.08)' : 'transparent',
+                        transition: 'background 0.15s',
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = i === 0 ? 'rgba(122,171,110,0.08)' : 'transparent'}
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', width: 14, textAlign: 'right' }}>{i + 1}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+                          {m.name}
+                          {m.is_chair && <span style={{ fontSize: 7, marginLeft: 5, padding: '1px 4px', background: 'var(--gold-pale)', color: 'var(--gold)', borderRadius: 4, verticalAlign: 'middle' }}>CHAIR</span>}
+                        </span>
+                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: text, fontWeight: 700 }}>{m.effectiveness}</span>
+                        <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>{m.laws_passed}L · {m.committee_passes}C · {m.bill_count}B</span>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             }
@@ -490,7 +559,7 @@ export default function MembersPage() {
                   {label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({list.length})</span>
                 </div>
                 <div style={{
-                  display: 'flex', flexWrap: 'wrap', gap: 4,
+                  display: 'flex', flexWrap: 'wrap', gap: 3,
                   justifyContent: 'center',
                 }}>
                   {list.map(renderCell)}
@@ -501,19 +570,39 @@ export default function MembersPage() {
             return (
               <>
                 {/* Legend */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, justifyContent: 'center' }}>
-                  <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>EFFECTIVENESS</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>LEGISLATIVE SUCCESS</span>
                   {[
-                    { label: '60+', ...effColor(70) },
-                    { label: '40–59', ...effColor(50) },
-                    { label: '20–39', ...effColor(30) },
-                    { label: '<20', ...effColor(10) },
+                    { label: '55+', ...effColor(60) },
+                    { label: '35–54', ...effColor(40) },
+                    { label: '18–34', ...effColor(25) },
+                    { label: '<18', ...effColor(10) },
                   ].map(l => (
-                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
-                      <span style={{ fontSize: 9, color: l.text }}>{l.label}</span>
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <div style={{ width: 9, height: 9, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
+                      <span style={{ fontSize: 8, color: l.text }}>{l.label}</span>
                     </div>
                   ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--gold)' }}/>
+                    <span style={{ fontSize: 8, color: 'var(--text-faint)' }}>Chair</span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', marginBottom: 14, opacity: 0.7 }}>
+                  Tap cell for info · tap again to open detail
+                </div>
+
+                {/* Top 5 per chamber */}
+                <div style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', padding: '10px 12px', marginBottom: 14,
+                  display: 'flex', gap: 16,
+                }}>
+                  {houseMembers.length > 0 && <div style={{ flex: 1 }}>{renderTop5('House', houseMembers)}</div>}
+                  {houseMembers.length > 0 && senateMembers.length > 0 && (
+                    <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }}/>
+                  )}
+                  {senateMembers.length > 0 && <div style={{ flex: 1 }}>{renderTop5('Senate', senateMembers)}</div>}
                 </div>
 
                 {/* Chamber grids */}
@@ -532,10 +621,10 @@ export default function MembersPage() {
                   borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'center', gap: 24,
                 }}>
                   {[
-                    { label: 'High (60+)', count: withEff.filter(m => m.effectiveness >= 60).length, color: 'rgba(122,171,110,0.9)' },
-                    { label: 'Moderate', count: withEff.filter(m => m.effectiveness >= 40 && m.effectiveness < 60).length, color: 'rgba(58,122,138,0.9)' },
-                    { label: 'Low', count: withEff.filter(m => m.effectiveness >= 20 && m.effectiveness < 40).length, color: 'rgba(196,122,48,0.9)' },
-                    { label: 'Very Low', count: withEff.filter(m => m.effectiveness < 20).length, color: 'rgba(138,128,112,0.7)' },
+                    { label: 'High (55+)', count: withEff.filter(m => m.effectiveness >= 55).length, color: 'rgba(122,171,110,0.9)' },
+                    { label: 'Moderate', count: withEff.filter(m => m.effectiveness >= 35 && m.effectiveness < 55).length, color: 'rgba(58,122,138,0.9)' },
+                    { label: 'Low', count: withEff.filter(m => m.effectiveness >= 18 && m.effectiveness < 35).length, color: 'rgba(196,122,48,0.9)' },
+                    { label: 'Very Low', count: withEff.filter(m => m.effectiveness < 18).length, color: 'rgba(138,128,112,0.7)' },
                   ].map(s => (
                     <div key={s.label} style={{ textAlign: 'center' }}>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: s.color }}>{s.count}</div>
@@ -544,6 +633,59 @@ export default function MembersPage() {
                   ))}
                 </div>
               </>
+            )
+          })()}
+
+          {/* ── POPOVER (appears above tapped cell) ── */}
+          {popover && (() => {
+            const m = popover.member
+            const { bg, text, label: tierLbl } = effColor(m.effectiveness)
+            const tierInfo = tierLabel(m.tier)
+            return (
+              <div style={{
+                position: 'fixed', zIndex: 100,
+                left: Math.min(Math.max(popover.x - 110, 8), window.innerWidth - 228),
+                top: Math.max(popover.y - 110, 8),
+                width: 220, padding: '10px 12px',
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{m.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                      {m.chamber} · {m.party === 'D' ? 'Dem' : m.party === 'R' ? 'Rep' : m.party}
+                      {m.is_chair && ' · Chair'}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)',
+                    color: text, lineHeight: 1,
+                  }}>{m.effectiveness}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 6, background: bg, color: text }}>{tierLbl}</span>
+                  <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 6, background: tierInfo.bg, color: tierInfo.color, border: `1px solid ${tierInfo.border}` }}>{tierInfo.text}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, marginBottom: 8 }}>
+                  {[
+                    { v: m.bill_count, l: 'Bills' },
+                    { v: m.committee_passes, l: 'Cmte' },
+                    { v: m.laws_passed, l: 'Laws' },
+                    { v: m.avg_score, l: 'Avg' },
+                  ].map(s => (
+                    <div key={s.l} style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>{s.v}</div>
+                      <div style={{ fontSize: 7, color: 'var(--text-faint)', textTransform: 'uppercase' }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => { selectMember(m); setPopover(null) }} style={{
+                  width: '100%', padding: '6px 0', border: '1px solid rgba(184,151,90,0.3)',
+                  borderRadius: 6, background: 'rgba(184,151,90,0.08)', color: 'var(--teal)',
+                  fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                }}>View Full Profile</button>
+              </div>
             )
           })()}
         </div>
