@@ -22,6 +22,7 @@ export default function MembersPage() {
   const [party, setParty]             = useState('All')
   const [query, setQuery]             = useState('')
   const [selectedSession, setSelectedSession] = useState(DEFAULT_SESSION)
+  const [viewMode, setViewMode]             = useState('list') // 'list' | 'heatmap'
 
   useEffect(() => {
     async function load() {
@@ -152,6 +153,26 @@ export default function MembersPage() {
     if (query.trim() && !m.name.toLowerCase().includes(query.toLowerCase())) return false
     return true
   })
+
+  // ── EFFECTIVENESS COMPOSITE ────────────────────────────
+  // Blends avg trajectory score (40%), law pass rate (35%), committee pass rate (25%)
+  // Returns 0–100. Members with < 2 bills get a floor penalty.
+  function computeEffectiveness(m) {
+    const avgNorm = Math.min(m.avg_score, 100) // already 0-100
+    const lawRate = m.bill_count > 0 ? (m.laws_passed / m.bill_count) * 100 : 0
+    const cmteRate = m.bill_count > 0 ? (m.committee_passes / m.bill_count) * 100 : 0
+    let eff = avgNorm * 0.40 + lawRate * 0.35 + cmteRate * 0.25
+    if (m.bill_count < 2) eff *= 0.5 // low-volume penalty
+    return Math.round(Math.min(eff, 100))
+  }
+
+  // Map effectiveness 0–100 to a color on the Vector palette (dark bg-friendly)
+  function effColor(score) {
+    if (score >= 60) return { bg: 'rgba(122,171,110,0.55)', text: '#c8e6c0' }     // sage green — high
+    if (score >= 40) return { bg: 'rgba(58,122,138,0.50)', text: '#a2d4dd' }       // deep teal — moderate
+    if (score >= 20) return { bg: 'rgba(196,122,48,0.40)', text: '#e4c89a' }       // amber — low
+    return { bg: 'rgba(138,128,112,0.25)', text: '#a09888' }                       // stone — very low
+  }
 
   const tierLabel = (tier) => {
     if (tier === 1) return { text: 'Majority Leadership', color: 'var(--teal)', bg: 'var(--teal-pale)', border: 'rgba(184,151,90,0.2)' }
@@ -356,8 +377,24 @@ export default function MembersPage() {
             <option value="all">All Sessions</option>
           </select>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {filtered.length} legislators · {selectedSession === 'all' ? 'Career View' : selectedSession}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {filtered.length} legislators · {selectedSession === 'all' ? 'Career View' : selectedSession}
+          </div>
+          <div style={{ display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
+            {[
+              { key: 'list', label: 'List', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg> },
+              { key: 'heatmap', label: 'Heatmap', icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> },
+            ].map(v => (
+              <button key={v.key} onClick={() => setViewMode(v.key)} style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6,
+                fontSize: 10, fontWeight: 500, border: 'none', cursor: 'pointer',
+                background: viewMode === v.key ? 'var(--bg-surface)' : 'transparent',
+                color: viewMode === v.key ? 'var(--teal)' : 'var(--text-faint)',
+                transition: 'all 0.15s',
+              }}>{v.icon}{v.label}</button>
+            ))}
+          </div>
         </div>
 
         <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -399,7 +436,121 @@ export default function MembersPage() {
         </div>
       </div>
 
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* ── HEATMAP VIEW ──────────────────────────────── */}
+      {viewMode === 'heatmap' && (
+        <div style={{ padding: '12px 16px' }}>
+          {loading ? (
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>
+          ) : (() => {
+            const withEff = filtered.map(m => ({ ...m, effectiveness: computeEffectiveness(m) }))
+              .sort((a, b) => b.effectiveness - a.effectiveness)
+            const houseMembers = chamber === 'Senate' ? [] : withEff.filter(m => m.chamber === 'House')
+            const senateMembers = chamber === 'House' ? [] : withEff.filter(m => m.chamber === 'Senate')
+            const maxEff = Math.max(...withEff.map(m => m.effectiveness), 1)
+
+            const renderCell = (m) => {
+              const { bg, text } = effColor(m.effectiveness)
+              const initials = m.name.split(' ').map(n => n[0]).slice(-2).join('')
+              return (
+                <div
+                  key={m.name}
+                  onClick={() => selectMember(m)}
+                  title={`${m.name} — Effectiveness: ${m.effectiveness}`}
+                  style={{
+                    width: 44, height: 44, borderRadius: 6,
+                    background: bg,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', position: 'relative',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    transition: 'transform 0.15s, box-shadow 0.15s',
+                    fontSize: 10, fontWeight: 700, color: text,
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.15)'; e.currentTarget.style.zIndex = '10'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; e.currentTarget.style.boxShadow = 'none' }}
+                >
+                  {initials}
+                  <div style={{
+                    position: 'absolute', bottom: -1, right: -1,
+                    fontSize: 7, fontWeight: 600, color: 'var(--text-faint)',
+                    background: 'rgba(14,16,20,0.85)', borderRadius: '4px 0 4px 0',
+                    padding: '1px 3px', lineHeight: 1,
+                  }}>{m.effectiveness}</div>
+                </div>
+              )
+            }
+
+            const renderChamber = (label, list) => (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 600, color: 'var(--text-faint)',
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  marginBottom: 8, textAlign: 'center',
+                }}>
+                  {label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({list.length})</span>
+                </div>
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap', gap: 4,
+                  justifyContent: 'center',
+                }}>
+                  {list.map(renderCell)}
+                </div>
+              </div>
+            )
+
+            return (
+              <>
+                {/* Legend */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, justifyContent: 'center' }}>
+                  <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>EFFECTIVENESS</span>
+                  {[
+                    { label: '60+', ...effColor(70) },
+                    { label: '40–59', ...effColor(50) },
+                    { label: '20–39', ...effColor(30) },
+                    { label: '<20', ...effColor(10) },
+                  ].map(l => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
+                      <span style={{ fontSize: 9, color: l.text }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Chamber grids */}
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  {houseMembers.length > 0 && renderChamber('House', houseMembers)}
+                  {houseMembers.length > 0 && senateMembers.length > 0 && (
+                    <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch', flexShrink: 0 }}/>
+                  )}
+                  {senateMembers.length > 0 && renderChamber('Senate', senateMembers)}
+                </div>
+
+                {/* Summary stats */}
+                <div style={{
+                  marginTop: 16, padding: '10px 14px',
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'center', gap: 24,
+                }}>
+                  {[
+                    { label: 'High (60+)', count: withEff.filter(m => m.effectiveness >= 60).length, color: 'rgba(122,171,110,0.9)' },
+                    { label: 'Moderate', count: withEff.filter(m => m.effectiveness >= 40 && m.effectiveness < 60).length, color: 'rgba(58,122,138,0.9)' },
+                    { label: 'Low', count: withEff.filter(m => m.effectiveness >= 20 && m.effectiveness < 40).length, color: 'rgba(196,122,48,0.9)' },
+                    { label: 'Very Low', count: withEff.filter(m => m.effectiveness < 20).length, color: 'rgba(138,128,112,0.7)' },
+                  ].map(s => (
+                    <div key={s.label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: s.color }}>{s.count}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── LIST VIEW ──────────────────────────────── */}
+      {viewMode === 'list' && <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {loading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>
         ) : filtered.map((member, idx) => {
@@ -459,7 +610,7 @@ export default function MembersPage() {
             </div>
           )
         })}
-      </div>
+      </div>}
       <Nav/>
     </div>
   )
