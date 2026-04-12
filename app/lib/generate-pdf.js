@@ -426,7 +426,7 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
  * Renders one bill card with colored left border, title, summary, score, stage, delta, tag.
  * Returns new y position.
  */
-function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
+function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes) {
   const bill = tracked.bills || {}
   const billId = tracked.bill_id
   const score = bill.final_score || 0
@@ -449,6 +449,9 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   // Phase 7W.3: companion status line (null if no companion)
   const companionLine = getCompanionLine(bill)
 
+  // Phase 7S: client-visible analyst notes for this bill
+  const clientNotes = (billNotes || []).filter(n => n.bill_id === tracked.bill_id && n.visibility === 'client')
+
   // Pre-calculate wrapped text heights
   const cardContentW = contentW - 10  // 5mm left border area + 5mm right padding
   const titleLines = doc.splitTextToSize(title, cardContentW)
@@ -464,11 +467,24 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   const truncIndicatorH = summaryTruncated ? 2.5 : 0
   const summaryH = summaryLines.length > 0 ? (summaryLines.length * lineH) + 2 + summaryInterimCaveat + truncIndicatorH : 0
   const companionH = companionLine ? 3.5 : 0  // Phase 7W.3
+
+  // Phase 7S: pre-wrap analyst note lines
+  const analystNoteWrapped = clientNotes.map(n => {
+    const dateLine = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const bodyLines = doc.splitTextToSize(n.body, cardContentW - 4)
+    return { dateLine, bodyLines }
+  })
+  // Height: 4 (label + rule) + per note (3 date + bodyLines * 3.2 + 2 gap)
+  const analystNotesH = clientNotes.length > 0
+    ? 5 + analystNoteWrapped.reduce((h, n) => h + 3 + (n.bodyLines.length * 3.2) + 2, 0)
+    : 0
+
   const cardH = 5 +         // top padding
                 5 +         // bill number + score line
                 titleH +    // title lines
                 summaryH +  // AI summary (if present)
                 companionH + // Phase 7W.3 companion line (if present)
+                analystNotesH + // Phase 7S analyst notes (if present)
                 4 +         // stage + delta line
                 (tag ? 4 : 0) +  // tag line (if present)
                 3           // bottom padding
@@ -570,6 +586,40 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
     }
     doc.text(companionLine, cx, cy)
     cy += 3.5
+  }
+
+  // ── Phase 7S: Analyst Note blocks (client-visible only) ──
+  if (clientNotes.length > 0) {
+    cy += 1
+    // Forest rule line
+    doc.setDrawColor(...TEAL)
+    doc.setLineWidth(0.3)
+    doc.line(cx, cy, cx + 30, cy)
+    cy += 3
+    // "Analyst Note" label in Brass
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...GOLD)
+    doc.text('Analyst Note', cx, cy)
+    cy += 1
+
+    analystNoteWrapped.forEach(({ dateLine, bodyLines }) => {
+      cy += 2
+      // Date stamp (small, muted)
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(6)
+      doc.setTextColor(...MUTED)
+      doc.text(dateLine, cx + 2, cy)
+      cy += 3
+      // Note body in Forest on Parchment
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+      doc.setTextColor(...NAVY)
+      bodyLines.forEach(line => {
+        doc.text(line, cx + 2, cy)
+        cy += 3.2
+      })
+    })
   }
 
   // ── Stage + Delta ──
@@ -696,7 +746,7 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
 // MAIN PDF GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session }) {
+export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session, billNotes }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
@@ -926,7 +976,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
         y = drawGroupHeader(doc, group, y, m, contentW, ph)
       }
       group.bills.forEach(tracked => {
-        y = drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph)
+        y = drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes || [])
       })
       y += 2  // extra gap between groups
     })

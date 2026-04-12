@@ -203,6 +203,12 @@ export default function BillDetailPage() {
   const [clientTag, setClientTag] = useState('')
   const [user, setUser]         = useState(null)
   const [shared, setShared]     = useState(false)
+  // Phase 7S: Analyst Notes
+  const [billNotes, setBillNotes]       = useState([])
+  const [noteBody, setNoteBody]         = useState('')
+  const [noteVis, setNoteVis]           = useState('internal')
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [savingNote, setSavingNote]     = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -239,6 +245,15 @@ export default function BillDetailPage() {
           setNotes(trackData.notes || '')
           setClientTag(trackData.client_tag || '')
         }
+
+        // Phase 7S: fetch analyst notes for this bill
+        const { data: notesData } = await supabase
+          .from('bill_notes')
+          .select('*')
+          .eq('bill_id', billId)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        setBillNotes(notesData || [])
       }
 
       setLoading(false)
@@ -285,6 +300,60 @@ export default function BillDetailPage() {
       setShared(true)
       setTimeout(() => setShared(false), 2000)
     } catch { /* fallback: no-op */ }
+  }
+
+  // ── Phase 7S: Analyst Note CRUD ──────────────────────
+  async function saveNote() {
+    if (!user || !noteBody.trim()) return
+    setSavingNote(true)
+    if (editingNoteId) {
+      // Update existing note
+      const { data } = await supabase
+        .from('bill_notes')
+        .update({ body: noteBody.trim(), visibility: noteVis })
+        .eq('id', editingNoteId)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+      if (data) {
+        setBillNotes(prev => prev.map(n => n.id === editingNoteId ? data : n))
+      }
+      setEditingNoteId(null)
+    } else {
+      // Insert new note
+      const { data } = await supabase
+        .from('bill_notes')
+        .insert({ bill_id: billId, user_id: user.id, body: noteBody.trim(), visibility: noteVis })
+        .select()
+        .single()
+      if (data) {
+        setBillNotes(prev => [data, ...prev])
+      }
+    }
+    setNoteBody('')
+    setNoteVis('internal')
+    setSavingNote(false)
+  }
+
+  function startEditNote(note) {
+    setEditingNoteId(note.id)
+    setNoteBody(note.body)
+    setNoteVis(note.visibility)
+  }
+
+  function cancelEditNote() {
+    setEditingNoteId(null)
+    setNoteBody('')
+    setNoteVis('internal')
+  }
+
+  async function deleteNote(noteId) {
+    await supabase
+      .from('bill_notes')
+      .delete()
+      .eq('id', noteId)
+      .eq('user_id', user.id)
+    setBillNotes(prev => prev.filter(n => n.id !== noteId))
   }
 
   if (loading) return (
@@ -937,6 +1006,133 @@ export default function BillDetailPage() {
               cursor: 'pointer', opacity: saving ? 0.6 : 1,
               boxShadow: 'var(--teal-glow)',
             }}>{saving ? 'Saving...' : 'Save Notes'}</button>
+          </div>
+        )}
+
+        {/* ── ANALYST NOTES (Phase 7S) ─────────────────── */}
+        {user && (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+              Analyst Notes
+            </div>
+
+            {/* Editor */}
+            <div style={{ marginBottom: 14 }}>
+              <textarea
+                value={noteBody}
+                onChange={e => setNoteBody(e.target.value)}
+                placeholder="Intelligence note — who you talked to, what the chair signaled, strategy..."
+                rows={3}
+                style={{
+                  width: '100%', padding: '8px 12px', background: 'var(--bg)',
+                  border: '1px solid var(--border)', borderRadius: 8,
+                  fontSize: 13, color: 'var(--text-primary)', outline: 'none',
+                  resize: 'vertical', lineHeight: 1.5,
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                {/* Visibility toggle */}
+                <div style={{
+                  display: 'flex', borderRadius: 8, overflow: 'hidden',
+                  border: '1px solid var(--border)',
+                }}>
+                  {['internal', 'client'].map(v => (
+                    <button key={v} onClick={() => setNoteVis(v)} style={{
+                      padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                      letterSpacing: '0.05em', textTransform: 'uppercase',
+                      background: noteVis === v
+                        ? (v === 'internal' ? 'rgba(138,128,112,0.15)' : 'rgba(184,151,90,0.15)')
+                        : 'transparent',
+                      color: noteVis === v
+                        ? (v === 'internal' ? 'var(--text-muted)' : 'var(--gold)')
+                        : 'var(--text-faint)',
+                      transition: 'all 0.15s',
+                    }}>{v}</button>
+                  ))}
+                </div>
+                <div style={{ flex: 1 }}/>
+                {editingNoteId && (
+                  <button onClick={cancelEditNote} style={{
+                    padding: '7px 14px', background: 'transparent',
+                    border: '1px solid var(--border)', borderRadius: 8,
+                    fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer',
+                  }}>Cancel</button>
+                )}
+                <button onClick={saveNote} disabled={savingNote || !noteBody.trim()} style={{
+                  padding: '7px 18px',
+                  background: noteVis === 'client' ? 'var(--gold)' : 'var(--teal)',
+                  color: 'var(--bg)', border: 'none', borderRadius: 8,
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  opacity: (savingNote || !noteBody.trim()) ? 0.5 : 1,
+                  boxShadow: noteVis === 'client' ? 'var(--gold-glow)' : 'var(--teal-glow)',
+                  transition: 'all 0.15s',
+                }}>
+                  {savingNote ? 'Saving...' : editingNoteId ? 'Update Note' : 'Add Note'}
+                </button>
+              </div>
+            </div>
+
+            {/* Notes list */}
+            {billNotes.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', textAlign: 'center', padding: '12px 0' }}>
+                No analyst notes yet. Add your first note above.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {billNotes.map(note => (
+                  <div key={note.id} style={{
+                    padding: '10px 12px',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    borderLeft: `3px solid ${note.visibility === 'client' ? 'var(--gold)' : 'rgba(138,128,112,0.4)'}`,
+                    borderRadius: 8,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <span style={{
+                        fontSize: 9, padding: '2px 7px', borderRadius: 8,
+                        fontFamily: 'var(--font-mono)', fontWeight: 600,
+                        letterSpacing: '0.05em', textTransform: 'uppercase',
+                        background: note.visibility === 'client' ? 'rgba(184,151,90,0.12)' : 'rgba(138,128,112,0.12)',
+                        color: note.visibility === 'client' ? 'var(--gold)' : 'var(--text-muted)',
+                        border: `1px solid ${note.visibility === 'client' ? 'rgba(184,151,90,0.25)' : 'rgba(138,128,112,0.2)'}`,
+                      }}>{note.visibility}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                        {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {note.updated_at !== note.created_at && ' (edited)'}
+                      </span>
+                      <div style={{ flex: 1 }}/>
+                      <button onClick={(e) => { e.stopPropagation(); startEditNote(note) }} style={{
+                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+                        color: 'var(--text-faint)', fontSize: 11, transition: 'color 0.15s',
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--teal)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }} style={{
+                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
+                        color: 'var(--text-faint)', fontSize: 11, transition: 'color 0.15s',
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {note.body}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

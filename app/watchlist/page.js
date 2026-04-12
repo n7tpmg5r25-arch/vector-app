@@ -20,6 +20,11 @@ export default function WatchlistPage() {
   const [changesDismissed, setChangesDismissed] = useState(false)
   const [loading, setLoading]               = useState(true)
   const [exporting, setExporting]           = useState(false)
+  // Phase 7S: quick-note state
+  const [notesBillId, setNotesBillId]       = useState(null)
+  const [quickNote, setQuickNote]           = useState('')
+  const [savingQuickNote, setSavingQuickNote] = useState(false)
+  const [billNoteMeta, setBillNoteMeta]     = useState({})  // { bill_id: { count, lastUpdated } }
 
   useEffect(() => {
     async function load() {
@@ -112,7 +117,27 @@ export default function WatchlistPage() {
         }
       }
 
-      /* ── 4. Update last_viewed_at to NOW ── */
+      /* ── 4. Phase 7S: fetch note counts per bill ── */
+      if (billIds.length > 0) {
+        const { data: allNotes } = await supabase
+          .from('bill_notes')
+          .select('bill_id, created_at, updated_at')
+          .eq('user_id', user.id)
+          .in('bill_id', billIds)
+          .order('updated_at', { ascending: false })
+        if (allNotes) {
+          const meta = {}
+          allNotes.forEach(n => {
+            if (!meta[n.bill_id]) {
+              meta[n.bill_id] = { count: 0, lastUpdated: n.updated_at }
+            }
+            meta[n.bill_id].count++
+          })
+          setBillNoteMeta(meta)
+        }
+      }
+
+      /* ── 5. Update last_viewed_at to NOW ── */
       await supabase
         .from('tracked_bills')
         .update({ last_viewed_at: new Date().toISOString() })
@@ -152,18 +177,62 @@ export default function WatchlistPage() {
       const billsToExport = sorted // uses current filter
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
+      // Phase 7S: fetch client-visible analyst notes for all tracked bills
+      const { data: { user } } = await supabase.auth.getUser()
+      let billNotes = []
+      if (user) {
+        const billIds = billsToExport.map(d => d.bill_id)
+        if (billIds.length > 0) {
+          const { data: notesData } = await supabase
+            .from('bill_notes')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('visibility', 'client')
+            .in('bill_id', billIds)
+            .order('created_at', { ascending: false })
+          billNotes = notesData || []
+        }
+      }
+
       await generateClientPDF({
         clientName,
         date: today,
         bills: billsToExport,
         scoreDeltas,
         changes,
+        billNotes,
       })
     } catch (err) {
       console.error('PDF export failed:', err)
       alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
     }
     setExporting(false)
+  }
+
+  /* ── Phase 7S: quick-note save handler ── */
+  const saveQuickNote = async () => {
+    if (!notesBillId || !quickNote.trim()) return
+    setSavingQuickNote(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('bill_notes')
+        .insert({ bill_id: notesBillId, user_id: user.id, body: quickNote.trim(), visibility: 'internal' })
+        .select()
+        .single()
+      if (data) {
+        setBillNoteMeta(prev => ({
+          ...prev,
+          [notesBillId]: {
+            count: (prev[notesBillId]?.count || 0) + 1,
+            lastUpdated: data.updated_at,
+          }
+        }))
+      }
+    }
+    setQuickNote('')
+    setNotesBillId(null)
+    setSavingQuickNote(false)
   }
 
   /* ── Which bills have changes (filtered to current view) ── */
@@ -446,6 +515,32 @@ export default function WatchlistPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <div style={{ fontSize: 14, color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(212,168,75,0.3))' }}>🔖</div>
+                {/* Phase 7S: quick-note pencil icon */}
+                <button
+                  onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                    color: notesBillId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
+                    opacity: notesBillId === bill_id ? 1 : 0.5, transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => { if (notesBillId !== bill_id) e.currentTarget.style.opacity = '0.5' }}
+                  title="Quick note"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                {/* Note count badge */}
+                {billNoteMeta[bill_id] && (
+                  <span style={{
+                    fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)',
+                    textAlign: 'center', lineHeight: 1.2,
+                  }}>
+                    {billNoteMeta[bill_id].count} note{billNoteMeta[bill_id].count !== 1 ? 's' : ''}
+                  </span>
+                )}
                 <a
                   href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`}
                   target="_blank" rel="noopener noreferrer"
@@ -461,6 +556,49 @@ export default function WatchlistPage() {
                 </a>
               </div>
             </div>
+
+            {/* Phase 7S: inline quick-note editor */}
+            {notesBillId === bill_id && (
+              <div onClick={e => e.stopPropagation()} style={{
+                marginTop: 10, padding: '10px 12px',
+                background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: 8,
+              }}>
+                <textarea
+                  value={quickNote}
+                  onChange={e => setQuickNote(e.target.value)}
+                  placeholder="Quick internal note..."
+                  rows={2}
+                  autoFocus
+                  style={{
+                    width: '100%', padding: '6px 10px', background: 'transparent',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                    fontSize: 12, color: 'var(--text-primary)', outline: 'none',
+                    resize: 'vertical', lineHeight: 1.5,
+                  }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <span style={{
+                    fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)',
+                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                    padding: '2px 8px', background: 'rgba(138,128,112,0.12)',
+                    borderRadius: 6, border: '1px solid rgba(138,128,112,0.2)',
+                  }}>INTERNAL</span>
+                  <div style={{ flex: 1 }}/>
+                  <button onClick={() => { setNotesBillId(null); setQuickNote('') }} style={{
+                    padding: '5px 12px', background: 'transparent',
+                    border: '1px solid var(--border)', borderRadius: 6,
+                    fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
+                  }}>Cancel</button>
+                  <button onClick={saveQuickNote} disabled={savingQuickNote || !quickNote.trim()} style={{
+                    padding: '5px 14px', background: 'var(--teal)', color: 'var(--bg)',
+                    border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                    cursor: 'pointer', opacity: (savingQuickNote || !quickNote.trim()) ? 0.5 : 1,
+                    boxShadow: 'var(--teal-glow)',
+                  }}>{savingQuickNote ? 'Saving...' : 'Save'}</button>
+                </div>
+              </div>
+            )}
           </div>
         )})}
 
