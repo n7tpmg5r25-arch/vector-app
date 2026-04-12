@@ -6,7 +6,8 @@ import { getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
+const SESSIONS = ['2025-2026', '2023-2024', '2021-2022']
+const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
 
 export default function MembersPage() {
   const router = useRouter()
@@ -20,37 +21,70 @@ export default function MembersPage() {
   const [chamber, setChamber]         = useState('All')
   const [party, setParty]             = useState('All')
   const [query, setQuery]             = useState('')
+  const [selectedSession, setSelectedSession] = useState(DEFAULT_SESSION)
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('bills')
-        .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name')
-        .eq('session', SESSION)
-        .not('prime_sponsor', 'is', null)
+      setLoading(true)
+      const isAll = selectedSession === 'all'
 
-      if (!data) { setLoading(false); return }
+      // Fetch bills — if "All Sessions", fetch from all bienniums
+      let allData = []
+      if (isAll) {
+        for (const s of SESSIONS) {
+          const { data } = await supabase
+            .from('bills')
+            .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name, outcome_passed_law, session')
+            .eq('session', s)
+            .not('prime_sponsor', 'is', null)
+          if (data) allData = allData.concat(data)
+        }
+      } else {
+        const { data } = await supabase
+          .from('bills')
+          .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name, outcome_passed_law, session')
+          .eq('session', selectedSession)
+          .not('prime_sponsor', 'is', null)
+        if (data) allData = data
+      }
+
+      if (!allData.length) { setMembers([]); setLoading(false); return }
 
       const map = {}
-      for (const bill of data) {
+      for (const bill of allData) {
         const name = bill.prime_sponsor
         if (!name) continue
         if (!map[name]) {
           map[name] = {
             name, party: bill.prime_party || '?', chamber: bill.chamber || '?',
             is_chair: bill.is_committee_chair || false, tier: bill.sponsor_tier || 3,
-            bill_count: 0, committee_passes: 0, hearing_count: 0, scores: [], top_score: 0,
+            bill_count: 0, committee_passes: 0, hearing_count: 0, laws_passed: 0,
+            scores: [], top_score: 0,
             committees: new Set(),
+            // Per-biennium breakdown for "All Sessions" view
+            bySession: {},
           }
         }
-        map[name].bill_count++
-        map[name].scores.push(bill.final_score || 0)
-        if (bill.committee_passed) map[name].committee_passes++
-        if (bill.has_public_hearing) map[name].hearing_count++
-        if ((bill.final_score || 0) > map[name].top_score) map[name].top_score = bill.final_score || 0
-        if (bill.prime_party) map[name].party = bill.prime_party
-        if (bill.chamber) map[name].chamber = bill.chamber
-        if (bill.committee_name) map[name].committees.add(bill.committee_name)
+        const m = map[name]
+        m.bill_count++
+        m.scores.push(bill.final_score || 0)
+        if (bill.committee_passed) m.committee_passes++
+        if (bill.has_public_hearing) m.hearing_count++
+        if (bill.outcome_passed_law) m.laws_passed++
+        if ((bill.final_score || 0) > m.top_score) m.top_score = bill.final_score || 0
+        if (bill.prime_party) m.party = bill.prime_party
+        if (bill.chamber) m.chamber = bill.chamber
+        if (bill.committee_name) m.committees.add(bill.committee_name)
+
+        // Track per-session stats
+        const sess = bill.session || selectedSession
+        if (!m.bySession[sess]) {
+          m.bySession[sess] = { bill_count: 0, committee_passes: 0, laws_passed: 0, scores: [] }
+        }
+        m.bySession[sess].bill_count++
+        m.bySession[sess].scores.push(bill.final_score || 0)
+        if (bill.committee_passed) m.bySession[sess].committee_passes++
+        if (bill.outcome_passed_law) m.bySession[sess].laws_passed++
       }
 
       const list = Object.values(map).map(m => ({
@@ -58,25 +92,52 @@ export default function MembersPage() {
         committees: [...m.committees],
         avg_score: m.scores.length > 0
           ? Math.round(m.scores.reduce((a, b) => a + b, 0) / m.scores.length) : 0,
+        pass_rate: m.bill_count > 0
+          ? Math.round((m.committee_passes / m.bill_count) * 100) : 0,
+        bySession: Object.fromEntries(
+          Object.entries(m.bySession).map(([s, d]) => [s, {
+            ...d,
+            avg_score: d.scores.length > 0
+              ? Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length) : 0,
+            pass_rate: d.bill_count > 0
+              ? Math.round((d.committee_passes / d.bill_count) * 100) : 0,
+          }])
+        ),
       })).sort((a, b) => b.bill_count - a.bill_count)
 
       setMembers(list)
       setLoading(false)
     }
     load()
-  }, [])
+  }, [selectedSession])
 
   const loadMemberBills = useCallback(async (name) => {
     setBillsLoading(true)
-    const { data } = await supabase
-      .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label')
-      .eq('session', SESSION)
-      .eq('prime_sponsor', name)
-      .order('final_score', { ascending: false })
-    setMemberBills(data || [])
+    const isAll = selectedSession === 'all'
+    if (isAll) {
+      let allData = []
+      for (const s of SESSIONS) {
+        const { data } = await supabase
+          .from('bills')
+          .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label, session, outcome_passed_law')
+          .eq('session', s)
+          .eq('prime_sponsor', name)
+          .order('final_score', { ascending: false })
+        if (data) allData = allData.concat(data)
+      }
+      allData.sort((a, b) => (b.final_score || 0) - (a.final_score || 0))
+      setMemberBills(allData)
+    } else {
+      const { data } = await supabase
+        .from('bills')
+        .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label, session, outcome_passed_law')
+        .eq('session', selectedSession)
+        .eq('prime_sponsor', name)
+        .order('final_score', { ascending: false })
+      setMemberBills(data || [])
+    }
     setBillsLoading(false)
-  }, [supabase])
+  }, [supabase, selectedSession])
 
   function selectMember(m) {
     setSelected(m)
@@ -167,21 +228,42 @@ export default function MembersPage() {
         </div>
 
         <div style={{ padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
             {[
               { label: 'Bills', value: selectedMember.bill_count, color: 'var(--teal)' },
               { label: 'Cmte Passes', value: selectedMember.committee_passes, color: 'var(--teal-mid)' },
+              { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? '#4ade80' : 'var(--text-muted)' },
               { label: 'Avg Score', value: selectedMember.avg_score, color: selectedMember.avg_score >= 45 ? 'var(--teal)' : selectedMember.avg_score >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
               }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
               </div>
             ))}
           </div>
+
+          {/* Per-biennium breakdown when viewing All Sessions */}
+          {selectedSession === 'all' && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                Per-Session Breakdown
+              </div>
+              {SESSIONS.filter(s => selectedMember.bySession[s]).map(s => {
+                const d = selectedMember.bySession[s]
+                return (
+                  <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', minWidth: 72 }}>{s}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-mid)', flex: 1 }}>
+                      {d.bill_count} bills · {d.committee_passes} cmte · {d.laws_passed} laws · avg {d.avg_score}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {selectedMember.committees && selectedMember.committees.length > 0 && (
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
@@ -201,7 +283,7 @@ export default function MembersPage() {
           )}
 
           <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-            Sponsored Bills · {SESSION}
+            Sponsored Bills · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
           </div>
 
           {billsLoading ? (
@@ -225,6 +307,9 @@ export default function MembersPage() {
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                   <span style={{ marginLeft: 8, color: 'var(--text-faint)' }}>{STAGE_LABELS[bill.stage] || 'Intro'}</span>
+                  {selectedSession === 'all' && bill.session && (
+                    <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--teal)', opacity: 0.7 }}>{bill.session}</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                   {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
@@ -253,11 +338,26 @@ export default function MembersPage() {
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
-          Members
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+            Members
+          </div>
+          <select
+            value={selectedSession}
+            onChange={e => { setSelectedSession(e.target.value); setSelected(null); setMemberBills([]) }}
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '5px 10px', fontSize: 11,
+              color: 'var(--teal)', fontFamily: 'var(--font-mono)',
+              cursor: 'pointer', outline: 'none',
+            }}
+          >
+            {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="all">All Sessions</option>
+          </select>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {filtered.length} legislators · {SESSION}
+          {filtered.length} legislators · {selectedSession === 'all' ? 'Career View' : selectedSession}
         </div>
 
         <div style={{ position: 'relative', marginBottom: 10 }}>

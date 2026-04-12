@@ -1029,6 +1029,18 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
     }
   }
 
+  // Phase UI.1: is_committee_chair — true when the bill's prime sponsor IS a
+  // committee chair (any committee, not just the bill's assigned committee).
+  if (chairMap && chairMap.size > 0 && billRecord.prime_sponsor && billRecord.prime_sponsor !== 'Unknown') {
+    const sponsorLower = billRecord.prime_sponsor.toLowerCase();
+    for (const [, info] of chairMap) {
+      if (info.chair && info.chair.toLowerCase() === sponsorLower) {
+        billRecord.is_committee_chair = true;
+        break;
+      }
+    }
+  }
+
   // Phase 8: Political Dynamics — sponsor_track_record
   if (trackMap && trackMap.size > 0 && billRecord.prime_sponsor && billRecord.prime_sponsor !== 'Unknown') {
     const rec = trackMap.get(billRecord.prime_sponsor);
@@ -1080,7 +1092,7 @@ async function runSync() {
     while (true) {
       const { data, error: pgErr } = await supabase
         .from('bills')
-        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action, fiscal_note_size')
+        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action, fiscal_note_size, is_committee_chair, chair_alignment')
         .eq('session', SESSION)
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (pgErr || !data || data.length === 0) break;
@@ -1170,7 +1182,9 @@ async function runSync() {
               existing.has_public_hearing !== billRecord.has_public_hearing ||
               existing.stalled !== billRecord.stalled ||
               existing.held_in_rules !== billRecord.held_in_rules ||
-              existing.last_action !== billRecord.last_action;
+              existing.last_action !== billRecord.last_action ||
+              existing.is_committee_chair !== billRecord.is_committee_chair ||
+              existing.chair_alignment !== billRecord.chair_alignment;
             if (!materialChange) {
               billsSkipped++;
               return; // No change — keep existing scores

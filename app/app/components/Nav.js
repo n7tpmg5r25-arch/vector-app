@@ -35,18 +35,23 @@ const NAV = [
       </svg>
     ),
   },
-  // 6B.3: During interim, show Outcomes instead of Hearings (hearings table is empty)
+  // UI.1.3: During interim, show Committees instead of Hearings (hearings empty, outcomes merged into Search)
+  // During active session, show Hearings as before
   {
-    get path() { return (typeof window !== 'undefined' && isInterimPeriod()) ? '/outcomes' : '/hearings' },
-    get label() { return (typeof window !== 'undefined' && isInterimPeriod()) ? 'Outcomes' : 'Hearings' },
+    get path() { return (typeof window !== 'undefined' && isInterimPeriod()) ? '/committees' : '/hearings' },
+    get label() { return (typeof window !== 'undefined' && isInterimPeriod()) ? 'Cmtes' : 'Hearings' },
     icon: (active) => {
       const interim = typeof window !== 'undefined' && isInterimPeriod()
       return interim ? (
+        // Building icon for Committees
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
           stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
           strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
+          <path d="M3 21h18"/>
+          <path d="M5 21V7l7-4 7 4v14"/>
+          <path d="M9 21v-6h6v6"/>
+          <path d="M9 9h1"/><path d="M14 9h1"/>
+          <path d="M9 13h1"/><path d="M14 13h1"/>
         </svg>
       ) : (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"

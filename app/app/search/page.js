@@ -33,6 +33,7 @@ function SearchContent() {
   const [chamber, setChamber] = useState('All')
   const [stage, setStage] = useState(0)
   const [sortBy, setSortBy] = useState('score')
+  const [outcome, setOutcome] = useState('All')
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const PAGE_SIZE = 50
@@ -75,6 +76,7 @@ function SearchContent() {
     if (category !== 'All') q = q.eq('category', category)
     if (chamber !== 'All') q = q.eq('chamber', chamber)
     if (stage > 0) q = q.eq('stage', stage)
+    if (outcome !== 'All') q = q.eq('confidence_label', outcome)
     if (query.trim()) {
       q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%`)
     }
@@ -92,12 +94,12 @@ function SearchContent() {
     }
 
     setLoading(false)
-  }, [query, category, chamber, stage, sortBy, page])
+  }, [query, category, chamber, stage, sortBy, outcome, page])
 
   useEffect(() => {
     setPage(0)
     fetchBills(true)
-  }, [query, category, chamber, stage, sortBy])
+  }, [query, category, chamber, stage, sortBy, outcome])
 
   // Bulk watch all displayed bills
   async function bulkWatchAll() {
@@ -270,6 +272,26 @@ function SearchContent() {
             <option value="action">Recent</option>
           </select>
         </div>
+
+        {/* Outcome filter chips — interim only (replaces Outcomes page in nav) */}
+        {isInterimPeriod() && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            {[
+              { label: 'All Outcomes', value: 'All' },
+              { label: 'Signed into Law', value: 'LAW', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
+              { label: 'Passed Chamber', value: 'CARRY OVER', color: 'var(--gold)', bg: 'var(--gold-pale)' },
+              { label: 'Dead', value: 'DEAD', color: 'var(--text-faint)', bg: 'rgba(255,255,255,0.04)' },
+            ].map(o => (
+              <button key={o.value} onClick={() => setOutcome(o.value)} style={{
+                padding: '4px 12px', borderRadius: 16, fontSize: 11, flexShrink: 0,
+                background: outcome === o.value ? (o.bg || 'var(--teal)') : 'transparent',
+                color: outcome === o.value ? (o.color || 'var(--bg)') : 'var(--text-muted)',
+                border: `1px solid ${outcome === o.value ? (o.color || 'var(--teal)') : 'var(--border)'}`,
+                cursor: 'pointer', fontWeight: outcome === o.value ? 600 : 400,
+              }}>{o.label}</button>
+            ))}
+          </div>
+        )}
 
         {/* Category chips */}
         <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
