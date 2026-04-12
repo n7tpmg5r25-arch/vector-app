@@ -68,6 +68,44 @@ const SESSION_CALENDAR = {
   session_start:    process.env.SESSION_START     || '2027-01-13',
 };
 
+// ── PHASE 7W: COMPANION STATE WEIGHTS ────────────────────────────────────────
+// Five-state relational signal weights for the companion X-factor.
+// `l` = short label used on the bill detail X-factor pill
+// `d` = additive weight applied to the X-factor multiplier (xf += d)
+// `tip` = one-sentence hover explanation for the bill detail tooltip
+//
+// IMPORTANT: these weights are intuition, not calibration. Phase 7U must
+// recalibrate them against actual 2021-22 / 2023-24 pair outcomes (which
+// side became law, which side died, conditional on state). Do not edit
+// them here without updating rescore-all.js and running a full rescore.
+const COMPANION_XF_WEIGHTS = {
+  both_moving: {
+    l: 'Companion both moving',
+    d: 0.15,
+    tip: 'Both this bill and its companion are advancing in parallel — the strongest bipartisan-chamber signal the data produces.',
+  },
+  leading: {
+    l: 'Companion leading (this bill)',
+    d: 0.08,
+    tip: 'This bill is further along than its companion in the other chamber. Leading pairs disproportionately become law when the trailing side catches up.',
+  },
+  trailing: {
+    l: 'Companion leading (other chamber)',
+    d: 0.05,
+    tip: 'The companion in the other chamber is further along than this bill. Trailing can still converge, but the other chamber is carrying the pair.',
+  },
+  forked: {
+    l: 'Companion divergence risk',
+    d: -0.05,
+    tip: 'The pair has diverged — one side is stalled or held while the other is still moving. Divergent pairs often end with only one side (or neither) becoming law.',
+  },
+  both_stuck: {
+    l: 'Companion both stuck',
+    d: 0.02,
+    tip: 'Neither this bill nor its companion has advanced recently. Small residual bump over a solo bill — the existence of a companion keeps a narrow revival path open.',
+  },
+};
+
 // ── SESSION STATE ─────────────────────────────────────────────────────────────
 function getSessionState() {
   const today = new Date();
@@ -577,7 +615,24 @@ function scoreBill(bill, categoryRates, sessionState) {
   const xf_factors = [];
 
   // Positive X factors
-  if (bill.companion_bill) { xf += 0.10; xf_factors.push({ l: 'Companion bill', d: 0.10, pos: true }); }
+  // Phase 7W.2: Companion bill is no longer a flat +0.10 — it's a 5-state
+  // relational signal (both_moving / leading / trailing / forked / both_stuck).
+  // Weights are intuition, not calibration — Phase 7U will recalibrate these
+  // against historical 2021-22 / 2023-24 pair outcomes. See COMPANION_XF_WEIGHTS
+  // at the top of the file for centralised state→weight mapping.
+  if (bill.companion_bill && bill.companion_state) {
+    const cxf = COMPANION_XF_WEIGHTS[bill.companion_state];
+    if (cxf && cxf.d !== 0) {
+      xf += cxf.d;
+      xf_factors.push({ l: cxf.l, d: cxf.d, pos: cxf.d > 0 });
+    }
+  } else if (bill.companion_bill) {
+    // Companion exists but state not yet resolved (e.g. nightly sync hasn't
+    // run the second pass yet). Fall back to a neutral +0.05 so the signal
+    // isn't lost entirely.
+    xf += 0.05;
+    xf_factors.push({ l: 'Companion (unresolved)', d: 0.05, pos: true });
+  }
   if (bill.substitute_filed) { xf += 0.05; xf_factors.push({ l: 'Substitute filed', d: 0.05, pos: true }); }
   if (bill.has_executive_session && bill.committee_passed) { xf += 0.06; xf_factors.push({ l: 'Exec session passed', d: 0.06, pos: true }); }
   if ((bill.stage || 1) >= 4) { xf += 0.08; xf_factors.push({ l: '2nd chamber', d: 0.08, pos: true }); }
@@ -656,7 +711,14 @@ function scoreBill(bill, categoryRates, sessionState) {
 }
 
 // ── PROCESS SINGLE BILL ───────────────────────────────────────────────────────
-async function processBill(raw, categoryRates, state, partyMap) {
+// Phase 7W.1: priorCompanionStateMap is a Map<bill_id, companion_state> loaded
+// at the top of runSync() from yesterday's data. It lets scoreBill() apply the
+// state-aware companion X-factor on the first pass, even though the definitive
+// state for TODAY won't be computed until resolveCompanionStates() runs at the
+// end of the sync. This introduces a deliberate 1-day lag on state *changes*,
+// which we accept because (a) state changes are rare in practice and (b) the
+// lag is smaller than the X-factor delta for a single state flip.
+async function processBill(raw, categoryRates, state, partyMap, priorCompanionStateMap) {
   const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
   if (!billNum) return null;
 
@@ -788,6 +850,15 @@ async function processBill(raw, categoryRates, state, partyMap) {
     billRecord.stalled = true;
   }
 
+  // Phase 7W.1: hydrate yesterday's companion_state so scoreBill() can apply
+  // the state-aware companion X-factor. If no prior state exists (new bill, or
+  // first run after deploy), scoreBill() falls through to the "unresolved"
+  // branch (+0.05). The resolver at the end of runSync() writes the authoritative
+  // state for today.
+  if (priorCompanionStateMap && billRecord.companion_bill) {
+    billRecord.companion_state = priorCompanionStateMap.get(billRecord.bill_id) || null;
+  }
+
   // Score with calibrated rates + session state awareness (6.13.2)
   const scores = scoreBill(billRecord, categoryRates, state);
   billRecord.trajectory_score = scores.base_total;
@@ -818,6 +889,150 @@ async function processBill(raw, categoryRates, state, partyMap) {
   }
 
   return { billRecord, scores };
+}
+
+// ── PHASE 7W.1: RESOLVE COMPANION STATES ─────────────────────────────────────
+// Second-pass resolver that computes companion_stage, companion_score, and
+// companion_state for every bill in the given session that has a non-null
+// companion_bill. This runs AFTER the main upsert loop so both sides of every
+// pair are fresh in the DB.
+//
+// Priority order (first match wins):
+//   1. forked       — one side stalled/held AND stage delta >= 2
+//   2. both_moving  — both stage >= 3, OR both days_since_action BETWEEN 1 AND 14
+//   3. leading      — this bill's stage > companion's stage
+//   4. trailing     — this bill's stage < companion's stage
+//   5. both_stuck   — both stage <= 2
+//
+// Matching uses digit-only extraction on companion_bill to handle non-standard
+// formats ("EHB 1052", "SB 5930 (ESS)", etc.) — we strip everything non-numeric
+// and match against bill_number in the same session.
+//
+// Mirrors the SQL backfill applied in Phase 7W.1 migration exactly.
+async function resolveCompanionStates(session) {
+  const startTime = Date.now();
+  console.log(`[${new Date().toISOString()}] 7W.1: resolving companion states for ${session}`);
+
+  // Pull every bill in the session with the fields we need to derive state
+  const bills = [];
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  while (true) {
+    const { data, error: pgErr } = await supabase
+      .from('bills')
+      .select('bill_id, bill_number, companion_bill, stage, final_score, stalled, held_in_rules, days_since_action')
+      .eq('session', session)
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (pgErr) { console.error('  resolveCompanionStates load error:', pgErr.message); return; }
+    if (!data || data.length === 0) break;
+    bills.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    page++;
+  }
+  console.log(`  Loaded ${bills.length} bills`);
+
+  // Index by digit-only bill_number so we can resolve "EHB 1052" → "1052"
+  const byNumber = new Map();
+  for (const b of bills) {
+    const digits = String(b.bill_number || '').replace(/\D/g, '');
+    if (!digits) continue;
+    if (!byNumber.has(digits)) byNumber.set(digits, []);
+    byNumber.get(digits).push(b);
+  }
+
+  let resolved = 0, cleared = 0, errors = 0, unchanged = 0;
+  const updates = [];
+
+  for (const b of bills) {
+    if (!b.companion_bill) {
+      // No companion — make sure fields are NULL
+      updates.push({ bill_id: b.bill_id, companion_stage: null, companion_score: null, companion_state: null });
+      cleared++;
+      continue;
+    }
+
+    const compDigits = String(b.companion_bill).replace(/\D/g, '');
+    if (!compDigits) {
+      updates.push({ bill_id: b.bill_id, companion_stage: null, companion_score: null, companion_state: null });
+      cleared++;
+      continue;
+    }
+
+    // Find the companion (same session, different bill_id, matching digits)
+    const candidates = byNumber.get(compDigits) || [];
+    const comp = candidates.find(c => c.bill_id !== b.bill_id);
+    if (!comp) {
+      updates.push({ bill_id: b.bill_id, companion_stage: null, companion_score: null, companion_state: null });
+      cleared++;
+      continue;
+    }
+
+    const myStage  = b.stage || 1;
+    const cStage   = comp.stage || 1;
+    const myStuck  = !!(b.stalled || b.held_in_rules);
+    const cStuck   = !!(comp.stalled || comp.held_in_rules);
+    const myDays   = b.days_since_action || 0;
+    const cDays    = comp.days_since_action || 0;
+
+    // Derive state — priority order matches the SQL backfill
+    let state;
+    const delta = Math.abs(myStage - cStage);
+
+    // 1. forked — one stalled/held AND stage delta >= 2
+    if ((myStuck || cStuck) && delta >= 2) {
+      state = 'forked';
+    }
+    // 2. both_moving — both advanced (stage >= 3) OR both recently active (days 1-14)
+    else if ((myStage >= 3 && cStage >= 3) || (myDays >= 1 && myDays <= 14 && cDays >= 1 && cDays <= 14)) {
+      state = 'both_moving';
+    }
+    // 3. leading — this bill is further along
+    else if (myStage > cStage) {
+      state = 'leading';
+    }
+    // 4. trailing — companion is further along
+    else if (myStage < cStage) {
+      state = 'trailing';
+    }
+    // 5. both_stuck — both early-stage, no clear leader
+    else if (myStage <= 2 && cStage <= 2) {
+      state = 'both_stuck';
+    }
+    // Fallback — equal mid/late stages with no momentum signal
+    else {
+      state = 'both_stuck';
+    }
+
+    updates.push({
+      bill_id: b.bill_id,
+      companion_stage: cStage,
+      companion_score: comp.final_score ?? null,
+      companion_state: state,
+    });
+    resolved++;
+  }
+
+  // Batch write back — small batches to stay under Supabase row limits
+  const BATCH = 100;
+  for (let i = 0; i < updates.length; i += BATCH) {
+    const chunk = updates.slice(i, i + BATCH);
+    for (const u of chunk) {
+      const { error: uErr } = await supabase
+        .from('bills')
+        .update({
+          companion_stage: u.companion_stage,
+          companion_score: u.companion_score,
+          companion_state: u.companion_state,
+        })
+        .eq('bill_id', u.bill_id);
+      if (uErr) errors++;
+      else unchanged++;
+    }
+  }
+
+  const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`  7W.1 resolver: ${resolved} resolved, ${cleared} cleared, ${errors} errors (${duration}s)`);
+  return { resolved, cleared, errors };
 }
 
 // ── MAIN SYNC ─────────────────────────────────────────────────────────────────
@@ -858,6 +1073,28 @@ async function runSync() {
   const partyMap = await fetchBienniumSponsorParties();
   console.log(`  Loaded party map: ${partyMap.size} sponsors`);
 
+  // Phase 7W.1: Pre-load yesterday's companion_state map so first-pass scoring
+  // can apply the state-aware X-factor. This is independent of the interim
+  // change-detection map — it covers both interim and active modes.
+  const priorCompanionStateMap = new Map();
+  {
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error: pgErr } = await supabase
+        .from('bills')
+        .select('bill_id, companion_state')
+        .eq('session', SESSION)
+        .not('companion_state', 'is', null)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (pgErr || !data || data.length === 0) break;
+      data.forEach(b => priorCompanionStateMap.set(b.bill_id, b.companion_state));
+      if (data.length < PAGE_SIZE) break;
+      page++;
+    }
+    console.log(`  Loaded ${priorCompanionStateMap.size} prior companion_state entries`);
+  }
+
   let allBills;
   try {
     allBills = await getAllBillsSummary();
@@ -886,7 +1123,7 @@ async function runSync() {
 
     await Promise.all(batch.map(async raw => {
       try {
-        const result = await processBill(raw, categoryRates, state, partyMap);
+        const result = await processBill(raw, categoryRates, state, partyMap, priorCompanionStateMap);
         if (!result) return;
         const { billRecord, scores } = result;
 
@@ -954,6 +1191,15 @@ async function runSync() {
     if (i + BATCH < allBills.length) await new Promise(r => setTimeout(r, 500));
   }
 
+  // Phase 7W.1: second-pass companion state resolution — runs AFTER the main
+  // upsert loop so both sides of every pair are fresh. Current-session only.
+  try {
+    await resolveCompanionStates(SESSION);
+  } catch (e) {
+    console.error('  7W.1 resolver error:', e.message);
+    errors.push({ bill: 'companion_resolver', err: e.message });
+  }
+
   const duration = Date.now() - startTime;
   const mins = (duration / 60000).toFixed(1);
   console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${errors.length} errors (${mins} min)`);
@@ -963,13 +1209,13 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.4 Phase 6A — interim freeze${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
+    notes: `sync-v2.4 Phase 7W.1 — companion state resolver${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
 }
 
-module.exports = { runSync, processBill, scoreBill, loadCalibratedWeights, getHardcodedWeights, fetchBienniumSponsorParties, getAllBillsSummary, getSessionState };
+module.exports = { runSync, processBill, scoreBill, resolveCompanionStates, loadCalibratedWeights, getHardcodedWeights, fetchBienniumSponsorParties, getAllBillsSummary, getSessionState };
 
 if (require.main === module) {
   runSync().catch(console.error);

@@ -26,6 +26,19 @@ const supabase = createClient(
 
 const SESSION = '2025-2026';
 
+// ── PHASE 7W.2: COMPANION STATE WEIGHTS ──────────────────────────────────────
+// Mirrors sync-v2.js COMPANION_XF_WEIGHTS exactly. Keep in sync — if you edit
+// the weights in one place, edit them in the other and run rescore-all.js.
+// These weights are intuition, not calibration; Phase 7U must recalibrate them
+// against historical 2021-22 / 2023-24 pair outcomes.
+const COMPANION_XF_WEIGHTS = {
+  both_moving: { l: 'Companion both moving',          d:  0.15 },
+  leading:     { l: 'Companion leading (this bill)',  d:  0.08 },
+  trailing:    { l: 'Companion leading (other chamber)', d: 0.05 },
+  forked:      { l: 'Companion divergence risk',      d: -0.05 },
+  both_stuck:  { l: 'Companion both stuck',           d:  0.02 },
+};
+
 // ── CALIBRATED RATES (full biennium April 8, 2026 — 3,411 bills, 196 LAW) ──
 const BUCKET_RATES = {
   '0-30': 0.000, '30-45': 0.000, '45-60': 0.000,
@@ -96,7 +109,18 @@ function scoreBill(bill) {
   let xf = 1.0;
   const xf_factors = [];
 
-  if (bill.companion_bill) { xf += 0.10; xf_factors.push({ l: 'Companion bill', d: 0.10, pos: true }); }
+  // Phase 7W.2: state-aware companion X-factor (5 states instead of flat +0.10)
+  if (bill.companion_bill && bill.companion_state) {
+    const cxf = COMPANION_XF_WEIGHTS[bill.companion_state];
+    if (cxf && cxf.d !== 0) {
+      xf += cxf.d;
+      xf_factors.push({ l: cxf.l, d: cxf.d, pos: cxf.d > 0 });
+    }
+  } else if (bill.companion_bill) {
+    // Companion exists but state not yet resolved — neutral fallback
+    xf += 0.05;
+    xf_factors.push({ l: 'Companion (unresolved)', d: 0.05, pos: true });
+  }
   if (bill.substitute_filed) { xf += 0.05; xf_factors.push({ l: 'Substitute filed', d: 0.05, pos: true }); }
   if (bill.has_executive_session && bill.committee_passed) { xf += 0.06; xf_factors.push({ l: 'Exec session passed', d: 0.06, pos: true }); }
   if ((bill.stage || 1) >= 4) { xf += 0.08; xf_factors.push({ l: '2nd chamber', d: 0.08, pos: true }); }
@@ -258,7 +282,7 @@ async function main() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: Date.now() - startTime,
-    notes: 'rescore-all: Phase 1.6 + Phase 2 recalibrated rates',
+    notes: 'rescore-all: Phase 7W.2 companion state weights',
   });
 }
 

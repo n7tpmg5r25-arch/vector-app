@@ -107,6 +107,47 @@ function getStagePlainText(bill) {
   return 'Introduced in ' + chamber
 }
 
+/** Phase 7W.3: Companion status line for a bill card.
+ *  Returns a single-line description of the companion relationship, or null
+ *  if the bill has no companion (so the card skips the line entirely).
+ *  Format: "Companion HB 2193 (Out of cmte, score 68) — Both moving"
+ *  Matches the five-state relational signal set by sync-v2.js resolver. */
+function getCompanionLine(bill) {
+  if (!bill.companion_bill) return null
+
+  const COMP_STATE_LABELS = {
+    both_moving: 'Both moving',
+    leading:     'Leading',
+    trailing:    'Trailing',
+    forked:      'Diverged',
+    both_stuck:  'Both stuck',
+  }
+
+  const compStage = bill.companion_stage
+  const compScore = bill.companion_score
+  const compState = bill.companion_state
+  const stateLabel = compState ? COMP_STATE_LABELS[compState] : null
+
+  // Companion stage short label (mirrors PDF stage vocabulary, not the bill page one)
+  let stageLabel = null
+  if (compStage != null) {
+    if (compStage >= 6)      stageLabel = 'Signed'
+    else if (compStage >= 4) stageLabel = 'Passed floor'
+    else if (compStage >= 3) stageLabel = 'Out of cmte'
+    else if (compStage >= 2) stageLabel = 'In committee'
+    else                     stageLabel = 'Introduced'
+  }
+
+  // Build "(stage, score X)" parenthetical — only include fields we actually have
+  const parenParts = []
+  if (stageLabel) parenParts.push(stageLabel)
+  if (compScore != null) parenParts.push('score ' + compScore)
+  const paren = parenParts.length ? ' (' + parenParts.join(', ') + ')' : ''
+
+  const prefix = 'Companion ' + bill.companion_bill + paren
+  return stateLabel ? prefix + ' -- ' + stateLabel : prefix
+}
+
 /** Delta narrative for a bill card. Returns empty string for terminal bills (no redundancy). */
 function getDeltaNarrative(billId, bill, scoreDeltas, changes) {
   const cl = (bill.confidence_label || '').toUpperCase()
@@ -405,6 +446,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   const stageLine = getStagePlainText(bill)
   const deltaText = getDeltaNarrative(billId, bill, scoreDeltas, changes)
   const delta = scoreDeltas[billId] || 0
+  // Phase 7W.3: companion status line (null if no companion)
+  const companionLine = getCompanionLine(bill)
 
   // Pre-calculate wrapped text heights
   const cardContentW = contentW - 10  // 5mm left border area + 5mm right padding
@@ -420,10 +463,12 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
   const summaryInterimCaveat = (summaryLines.length > 0 && isInterimPeriod()) ? 3 : 0
   const truncIndicatorH = summaryTruncated ? 2.5 : 0
   const summaryH = summaryLines.length > 0 ? (summaryLines.length * lineH) + 2 + summaryInterimCaveat + truncIndicatorH : 0
+  const companionH = companionLine ? 3.5 : 0  // Phase 7W.3
   const cardH = 5 +         // top padding
                 5 +         // bill number + score line
                 titleH +    // title lines
                 summaryH +  // AI summary (if present)
+                companionH + // Phase 7W.3 companion line (if present)
                 4 +         // stage + delta line
                 (tag ? 4 : 0) +  // tag line (if present)
                 3           // bottom padding
@@ -510,6 +555,21 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph) {
       cy += 2.5
     }
     cy += 1
+  }
+
+  // ── Phase 7W.3: Companion line ──
+  if (companionLine) {
+    // Tone-color the divergence case (forked) so the page reader notices it
+    const forked = bill.companion_state === 'forked'
+    doc.setFont('helvetica', forked ? 'bold' : 'italic')
+    doc.setFontSize(6.5)
+    if (forked) {
+      doc.setTextColor(170, 80, 60)  // muted red
+    } else {
+      doc.setTextColor(110, 115, 125)
+    }
+    doc.text(companionLine, cx, cy)
+    cy += 3.5
   }
 
   // ── Stage + Delta ──
