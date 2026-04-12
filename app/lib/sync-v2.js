@@ -693,7 +693,14 @@ function extractSponsors(sponsors, partyMap) {
   };
 }
 
-// ── SCORING ENGINE v2 ─────────────────────────────────────────────────────────
+// ── SCORING ENGINE v2.9 ──────────────────────────────────────────────────────
+// v2.9 changes (Apr 12, 2026):
+//   - Fiscal scoring INVERTED: large=13 (was 4), none=6 (was 15), medium=2 (was 8)
+//     Data: large fiscal bills have 44.6% law rate vs 16.2% for no-fiscal
+//   - Companion XF: now stage-conditional (companion_stage >= 4), was unconditional +10%
+//   - Double referral XF penalty REMOVED (75% law rate = positive signal, not negative)
+//   - Fiscal referral XF: only applied when solo (no double referral); 1.2% law rate
+//   - Confidence recalibrated: HIGH pass_prob 75.9% (was 84.0%)
 function scoreBill(bill, categoryRates, sessionState) {
   // COMMITTEE (0-25)
   let committee = 3;
@@ -739,9 +746,12 @@ function scoreBill(bill, categoryRates, sessionState) {
   else if (bn > 600) historical -= 1;
   historical = Math.max(0, Math.min(historical, 20));
 
-  // FISCAL (0-15) — differentiated by fiscal_note_size
-  const fiscalMap = { 'none': 15, 'small': 12, 'medium': 8, 'large': 4, 'very large': 1 };
-  const fiscal = fiscalMap[bill.fiscal_note_size] ?? 8;
+  // FISCAL (0-15) — v2.9 recalibration (Apr 2026, 8062 bills)
+  // Actual law rates: large 44.6%, small 28.8%, none 16.2%, medium 1.3%
+  // "large" = fiscal note + fiscal referral + double referral → priority legislation
+  // "medium" = fiscal note + fiscal referral only → friction signal, rarely advances
+  const fiscalMap = { 'large': 13, 'small': 10, 'none': 6, 'medium': 2 };
+  const fiscal = fiscalMap[bill.fiscal_note_size] ?? 6;
 
   // STAGE ADVANCEMENT BONUS — the key ceiling fix
   const stageBonus = { 1: 0, 2: 3, 3: 8, 4: 15, 5: 20, 6: 25 };
@@ -754,7 +764,12 @@ function scoreBill(bill, categoryRates, sessionState) {
   const xf_factors = [];
 
   // Positive X factors
-  if (bill.companion_bill) { xf += 0.10; xf_factors.push({ l: 'Companion bill', d: 0.10, pos: true }); }
+  // v2.9: Companion signal is stage-conditional. Data shows 0% lift at stages 1-5;
+  // raw companion flag correlates NEGATIVELY with outcomes in the 60-74 zone (57% of
+  // DEAD vs 5% of LAW). Only apply bonus when companion is also advancing (stage 4+).
+  if (bill.companion_bill && (bill.companion_stage || 0) >= 4) {
+    xf += 0.08; xf_factors.push({ l: 'Companion advancing', d: 0.08, pos: true });
+  }
   if (bill.substitute_filed) { xf += 0.05; xf_factors.push({ l: 'Substitute filed', d: 0.05, pos: true }); }
   if (bill.has_executive_session && bill.committee_passed) { xf += 0.06; xf_factors.push({ l: 'Exec session passed', d: 0.06, pos: true }); }
   if ((bill.stage || 1) >= 4) { xf += 0.08; xf_factors.push({ l: '2nd chamber', d: 0.08, pos: true }); }
@@ -764,9 +779,13 @@ function scoreBill(bill, categoryRates, sessionState) {
   }
 
   // Negative X factors
-  if (bill.double_referral) { xf -= 0.08; xf_factors.push({ l: 'Double referral', d: -0.08, pos: false }); }
+  // v2.9: double_referral penalty REMOVED — data shows 75% law rate when true.
+  // Double-referred bills are priority legislation. Signal captured by fiscal scoring.
   if ((bill.amendment_count || 0) > 3) { xf -= 0.05; xf_factors.push({ l: 'High amendments', d: -0.05, pos: false }); }
-  if (bill.fiscal_referral) { xf -= 0.06; xf_factors.push({ l: 'Fiscal referral', d: -0.06, pos: false }); }
+  // v2.9: fiscal_referral only penalized when NOT double-referred (1.2% law rate solo)
+  if (bill.fiscal_referral && !bill.double_referral) {
+    xf -= 0.08; xf_factors.push({ l: 'Fiscal referral (solo)', d: -0.08, pos: false });
+  }
   if (bill.stalled) { xf -= 0.10; xf_factors.push({ l: 'Stalled', d: -0.10, pos: false }); }
   if (bill.held_in_rules) { xf -= 0.20; xf_factors.push({ l: 'Held in Rules', d: -0.20, pos: false }); }
   if (!bill.majority_sponsor && !bill.bipartisan) {
@@ -787,7 +806,8 @@ function scoreBill(bill, categoryRates, sessionState) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — Phase 7D.3 recalibration (April 12, 2026 — 8,062 bills-only, 2,155 LAW, 3 bienniums)
+  // CONFIDENCE — v2.9 recalibration (April 12, 2026 — 8,062 bills-only, 2,155 LAW, 3 bienniums)
+  // Recalibrated after fiscal inversion, companion/referral XF fixes.
   // pass_prob = "probability of becoming law" based on actual became-law rates per bucket (bills only)
   let pass_prob, conf_label, conf_low, conf_high;
 
@@ -808,11 +828,12 @@ function scoreBill(bill, categoryRates, sessionState) {
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    // 84.0% of 75+ bills became law (2134/2541) — Wilson CI 82.5-85.4%
-    pass_prob = 0.840; conf_label = 'HIGH'; conf_low = 0.825; conf_high = 0.854;
+    // v2.9: 75.9% of 75+ bills became law (2138/2818) — Wilson CI 74.3-77.5%
+    // LAW/(LAW+DEAD) accuracy: 96.0% (2138/2228). CARRY OVER = pending outcome.
+    pass_prob = 0.759; conf_label = 'HIGH'; conf_low = 0.743; conf_high = 0.775;
   } else if (final_score >= 60) {
-    // 1.8% of 60-74 bills became law (21/1140) — Wilson CI 1.2-2.8%
-    pass_prob = 0.018; conf_label = 'MODERATE'; conf_low = 0.012; conf_high = 0.028;
+    // v2.9: 1.8% of 60-74 bills became law (15/838) — Wilson CI 1.1-2.9%
+    pass_prob = 0.018; conf_label = 'MODERATE'; conf_low = 0.011; conf_high = 0.029;
   } else if (final_score >= 45 && bill.committee_passed) {
     // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
     // 0% became law in 45-59 bucket, but small chamber-pass signal remains
@@ -1270,7 +1291,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.8 Phase 10 — amendment tracking${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored`,
+    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
