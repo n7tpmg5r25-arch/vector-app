@@ -154,7 +154,7 @@ export default function HomePage() {
   // 6D.1: Discover which sessions have data for the dropdown
   async function loadSessions() {
     // Grab one bill per known session to check if data exists
-    const known = ['2027-2028', '2025-2026']  // newest first
+    const known = ['2027-2028', '2025-2026', '2023-2024', '2021-2022']  // newest first
     const found = []
     for (const s of known) {
       const { count } = await supabase

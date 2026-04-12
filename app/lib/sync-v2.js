@@ -106,8 +106,9 @@ function getHardcodedWeights() {
       "Criminal Justice": 0.044, "Technology": 0.036, "Education": 0.034,
     },
     bucket_pass_rates: {
-      "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
-      "60-75": 0.013, "75-100": 0.694,
+      // Phase 7U.4 — 3-biennium empirical rates (2021-22, 2023-24, 2025-26; 8,817 bills)
+      "0-30": 0.000, "30-45": 0.000, "45-60": 0.001,
+      "60-75": 0.005, "75-100": 0.655,
     },
   };
 }
@@ -609,8 +610,9 @@ function scoreBill(bill, categoryRates, sessionState) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — recalibrated against FULL 2025-26 biennium (April 8, 2026 — 3,411 bills, 196 LAW)
+  // CONFIDENCE — recalibrated against 3 biennia (Phase 7U.4, 2026-04-11 — 8,817 bills, 607 LAW)
   // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
+  // Bounds are Wilson 95% CIs. Reference (pre-7U.4, 2025-26 only): 75+ = 0.694, 60+ = 0.013, 45+ = 0.008
   let pass_prob, conf_label, conf_low, conf_high;
 
   // 6.13.2: SESSION-STATE AWARENESS — once sine die hits, bills that didn't
@@ -630,19 +632,20 @@ function scoreBill(bill, categoryRates, sessionState) {
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    // 69.4% of 75+ bills became law (188/271)
-    pass_prob = 0.694; conf_label = 'HIGH'; conf_low = 0.640; conf_high = 0.750;
+    // Phase 7U.4: 65.5% of 75+ bills became law (600/916) across 3 biennia
+    pass_prob = 0.655; conf_label = 'HIGH'; conf_low = 0.624; conf_high = 0.685;
   } else if (final_score >= 60) {
-    // 1.3% of 60-74 bills became law (8/604)
-    pass_prob = 0.013; conf_label = 'MODERATE'; conf_low = 0.004; conf_high = 0.026;
+    // Phase 7U.4: 0.5% of 60-74 bills became law (6/1262) across 3 biennia
+    pass_prob = 0.005; conf_label = 'MODERATE'; conf_low = 0.002; conf_high = 0.010;
   } else if (final_score >= 45 && bill.committee_passed) {
-    // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
-    // 0% became law in 45-59 bucket, but 0.8% passed a chamber — tiny nonzero signal
-    pass_prob = 0.008; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.020;
+    // Phase 7U.4: 0.05% of 45-59 bills became law (1/1819) across 3 biennia
+    // LOW tier kept distinct — cleared committee is a categorical UX signal
+    pass_prob = 0.001; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.003;
   } else if (final_score >= 45) {
-    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
+    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.003;
   } else {
-    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
+    // Phase 7U.4: 0/4750 bills in 0-44 became law across 3 biennia
+    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.001;
   }
 
   return {
@@ -966,7 +969,7 @@ async function runSync() {
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
 }
 
-module.exports = { runSync, processBill, scoreBill };
+module.exports = { runSync, processBill, scoreBill, loadCalibratedWeights, getHardcodedWeights, fetchBienniumSponsorParties, getAllBillsSummary, getSessionState };
 
 if (require.main === module) {
   runSync().catch(console.error);
