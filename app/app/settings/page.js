@@ -96,17 +96,14 @@ export default function SettingsPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-alerts`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ type: 'test', user_id: user.id }),
-        }
-      )
+      const resp = await fetch('/api/send-test-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({}),
+      })
       const data = await resp.json()
       setTestResult(data.ok ? 'sent' : (data.error || 'Failed'))
     } catch (err) {
