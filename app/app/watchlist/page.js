@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -11,6 +12,10 @@ const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 export default function WatchlistPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+  // Phase 7U.5: track the currently-viewed biennium so the watchlist mirrors
+  // the home page session picker. Watches remain global in tracked_bills; we
+  // filter to the active session client-side after the join.
+  const [SESSION] = useSession()
   const [watched, setWatched]               = useState([])
   const [clients, setClients]               = useState([])
   const [activeClient, setActiveClient]     = useState('All')
@@ -44,7 +49,10 @@ export default function WatchlistPage() {
         .eq('user_id', user.id)
         .order('added_at', { ascending: false })
 
-      const items = (data || []).filter(d => d.bills)
+      // Phase 7U.5: filter to the currently-viewed biennium. When the user
+      // switches sessions via the session picker, this page re-runs load()
+      // because SESSION is a dep of the useEffect below.
+      const items = (data || []).filter(d => d.bills && d.bills.session === SESSION)
       setWatched(items)
 
       const allClients = [...new Set(items.map(d => d.client_tag).filter(Boolean))]
@@ -122,7 +130,7 @@ export default function WatchlistPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [SESSION])
 
   /* ── Filtering & sorting ── */
   const clientFiltered = activeClient === 'All'

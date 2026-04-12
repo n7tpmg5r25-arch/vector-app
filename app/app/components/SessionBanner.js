@@ -12,14 +12,23 @@
  * Clicking "Switch to current session" resets useSession back to the
  * live biennium and reloads the current page so fresh data loads.
  */
+import { useEffect, useState } from 'react'
 import { useSession } from '../../lib/useSession'
 import { getCurrentSession } from '../../lib/session-config'
 
 export default function SessionBanner() {
   const [session, setSession] = useSession()
+  // Phase 7U.5 hotfix: wait for client-side mount before deciding whether to
+  // render. useSession's initializer returns getCurrentSession() during SSR
+  // (no window) but reads localStorage on the client — that mismatch can
+  // cause React 18 to discard the client value during hydration and the
+  // banner never appears. Gating on `mounted` makes this safe.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   const current = getCurrentSession()
 
-  if (session === current) return null
+  if (!mounted || session === current) return null
 
   return (
     <div style={{

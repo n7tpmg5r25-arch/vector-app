@@ -19,9 +19,9 @@ export default function SettingsPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
     const current = getCurrentSession()
-    supabase.from('bills').select('id', { count: 'exact', head: true }).eq('session', current)
+    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', current)
       .then(({ count }) => { if (count != null) setCurrentSessionBills(count.toLocaleString()) })
-    supabase.from('bills').select('id', { count: 'exact', head: true }).neq('session', current)
+    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).neq('session', current)
       .then(({ count }) => { if (count != null) setHistoricalBills(count.toLocaleString()) })
   }, [])
 
