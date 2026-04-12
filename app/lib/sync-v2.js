@@ -466,6 +466,7 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
     last_action_date: lastDate.toISOString(),
     last_action: lastAction,  // Phase 5A: now populated
     governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
+    governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
   };
 }
 
@@ -827,6 +828,10 @@ async function processBill(raw, categoryRates, state, partyMap) {
   billRecord.confidence_label = scores.conf_label;
   billRecord.confidence_low = scores.conf_low;
   billRecord.confidence_high = scores.conf_high;
+
+  // Phase 7D.1: Always set outcome booleans from stage (was previously a one-time backfill)
+  billRecord.outcome_passed_chamber = billRecord.stage >= 4;
+  billRecord.outcome_passed_law = billRecord.stage >= 6;
 
   // Phase 7D.1: Always set outcome booleans from stage (was previously a one-time backfill)
   billRecord.outcome_passed_chamber = billRecord.stage >= 4;
