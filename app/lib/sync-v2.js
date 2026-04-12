@@ -1268,6 +1268,8 @@ async function runSync() {
             confidence_label: scores.conf_label,
             xf_factors: scores.xf_factors,
             snapshot_date: today,
+            days_since_action: billRecord.days_since_action,
+            fiscal_note_size: billRecord.fiscal_note_size,
           }, { onConflict: 'bill_id,snapshot_date' });
 
         if (!sErr) snapshotsWritten++;
