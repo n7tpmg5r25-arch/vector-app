@@ -19,9 +19,9 @@ export default function SettingsPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
     const current = getCurrentSession()
-    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', current)
+    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', current).eq('legislation_type', 'bill')
       .then(({ count }) => { if (count != null) setCurrentSessionBills(count.toLocaleString()) })
-    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).neq('session', current)
+    supabase.from('bills').select('bill_id', { count: 'exact', head: true }).neq('session', current).eq('legislation_type', 'bill')
       .then(({ count }) => { if (count != null) setHistoricalBills(count.toLocaleString()) })
   }, [])
 
@@ -140,7 +140,7 @@ export default function SettingsPage() {
                 <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
               </div>
             </div>
-            Trajectory scoring engine calibrated against 8,817 bills spanning three biennia (2021-22, 2023-24, and 2025-26). Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
+            Trajectory scoring engine calibrated against 8,062 bills spanning three biennia (2021-22, 2023-24, and 2025-26). Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
           </div>
         </div>
 

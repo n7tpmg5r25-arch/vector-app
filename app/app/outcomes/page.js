@@ -39,8 +39,9 @@ export default function OutcomesPage() {
       while (true) {
         const { data, error } = await supabase
           .from('bills')
-          .select('bill_id, bill_number, title, final_score, stage, chamber, category, prime_sponsor, prime_party, confidence_label, stalled, signal_tier')
+          .select('bill_id, bill_number, title, final_score, stage, chamber, category, prime_sponsor, prime_party, confidence_label, stalled, signal_tier, governor_action')
           .eq('session', SESSION)
+          .eq('legislation_type', 'bill')
           .not('final_score', 'is', null)
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
         if (error || !data || data.length === 0) break
@@ -75,6 +76,8 @@ export default function OutcomesPage() {
   const lawCount = bills.filter(b => b.confidence_label === 'LAW').length
   const carryCount = bills.filter(b => b.confidence_label === 'CARRY OVER').length
   const deadCount = bills.filter(b => b.confidence_label === 'DEAD').length
+  const vetoCount = bills.filter(b => b.governor_action === 'vetoed').length
+  const partialVetoCount = bills.filter(b => b.governor_action === 'partial_veto').length
 
   function toggleSort(field) {
     if (sortBy === field) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -115,7 +118,7 @@ export default function OutcomesPage() {
           Session Outcomes
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {SESSION} Biennium · {bills.length} bills scored
+          {SESSION} Biennium · {bills.length} bills{vetoCount + partialVetoCount > 0 ? ` · ${vetoCount} vetoed · ${partialVetoCount} partial vetoes` : ''}
         </div>
 
         {!isInterim && (

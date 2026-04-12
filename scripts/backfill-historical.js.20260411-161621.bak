@@ -1,0 +1,321 @@
+﻿/**
+ * Phase 7U.1 - Historical Biennium Backfill
+ *
+ * Pulls a full WA State biennium from the WSL API using sync-v2's enrichment
+ * pipeline, then commits one baseline trajectory snapshot per bill using the
+ * CURRENT scoring formula.
+ *
+ * Historical biennia are forced to 'interim' state so end-of-session
+ * outcome labeling runs. CARRY OVER bills are relabeled DEAD because
+ * concluded biennia have no next session to carry into.
+ *
+ * NOTE: sync-v2's getAllBillsSummary() passes extra biennium+agency params
+ * to GetLegislationByYear that return HTTP 500 for historical years.
+ * This script uses a local summary fetcher with just year=YYYY.
+ */
+
+const path = require('path');
+
+// Load env BEFORE requiring sync-v2
+try { require('dotenv').config({ path: path.join(__dirname, '..', '.env') }); } catch (e) {}
+try { require('dotenv').config({ path: path.join(__dirname, '..', 'app', '.env') }); } catch (e) {}
+try { require('dotenv').config({ path: path.join(__dirname, '..', 'app', '.env.local') }); } catch (e) {}
+
+if (!process.env.CURRENT_BIENNIUM || !process.env.CURRENT_YEAR) {
+  console.error('[backfill] CURRENT_BIENNIUM and CURRENT_YEAR must be set.');
+  process.exit(1);
+}
+
+const BIENNIUM      = process.env.CURRENT_BIENNIUM;
+const YEAR          = process.env.CURRENT_YEAR;
+const SESSION       = (parseInt(YEAR) - 1) + '-' + YEAR;
+const SINE_DIE      = process.env.SINE_DIE      || (YEAR + '-03-07');
+const SESSION_START = process.env.SESSION_START || ((parseInt(YEAR) - 1) + '-01-09');
+
+console.log('[backfill] -------------------------------------');
+console.log('[backfill] Historical backfill for ' + SESSION);
+console.log('[backfill] BIENNIUM:      ' + BIENNIUM);
+console.log('[backfill] Session:       ' + SESSION_START + ' to ' + SINE_DIE);
+console.log('[backfill] Snapshot date: ' + SINE_DIE);
+console.log('[backfill] -------------------------------------');
+
+// Require sync-v2 AFTER env is set
+let syncV2;
+try {
+  syncV2 = require('../app/lib/sync-v2');
+} catch (e) {
+  console.error('[backfill] Failed to require sync-v2.js:', e.message);
+  process.exit(1);
+}
+
+const processBill                 = syncV2.processBill;
+const scoreBill                   = syncV2.scoreBill;
+const loadCalibratedWeights       = syncV2.loadCalibratedWeights;
+const getHardcodedWeights         = syncV2.getHardcodedWeights;
+const fetchBienniumSponsorParties = syncV2.fetchBienniumSponsorParties;
+
+const missing = [];
+if (typeof processBill                 !== 'function') missing.push('processBill');
+if (typeof scoreBill                   !== 'function') missing.push('scoreBill');
+if (typeof loadCalibratedWeights       !== 'function') missing.push('loadCalibratedWeights');
+if (typeof getHardcodedWeights         !== 'function') missing.push('getHardcodedWeights');
+if (typeof fetchBienniumSponsorParties !== 'function') missing.push('fetchBienniumSponsorParties');
+if (missing.length) {
+  console.error('[backfill] sync-v2 missing exports:', missing.join(', '));
+  console.error('[backfill] Run apply-7U-patches.ps1 first.');
+  process.exit(1);
+}
+
+// Local summary fetcher (historical biennia workaround)
+const fetch  = require('node-fetch');
+const xml2js = require('xml2js');
+const WA_BASE = process.env.WA_API_BASE || 'https://wslwebservices.leg.wa.gov';
+const PARSER  = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
+
+async function fetchWithRetryLocal(url, retries) {
+  retries = retries || 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(function () { controller.abort(); }, 30000);
+      const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }, signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) await new Promise(function (r) { setTimeout(r, 1000 * attempt); });
+    }
+  }
+  throw lastErr;
+}
+
+async function fetchSummariesForYear(year) {
+  const url = WA_BASE + '/LegislationService.asmx/GetLegislationByYear?year=' + year;
+  const res = await fetchWithRetryLocal(url);
+  const xml = await res.text();
+  const parsed = await PARSER.parseStringPromise(xml);
+  const raw = parsed && parsed.ArrayOfLegislationInfo && parsed.ArrayOfLegislationInfo.LegislationInfo;
+  return Array.isArray(raw) ? raw : (raw ? [raw] : []);
+}
+
+async function getAllBillsSummaryLocal() {
+  const parts = BIENNIUM.split('-');
+  const years = [parts[0], '20' + parts[1]];
+  const all = [];
+  for (let i = 0; i < years.length; i++) {
+    const yr = years[i];
+    console.log('[backfill]   fetching year=' + yr + '...');
+    const list = await fetchSummariesForYear(yr);
+    console.log('[backfill]   year=' + yr + ': ' + list.length + ' bills');
+    for (let j = 0; j < list.length; j++) all.push(list[j]);
+  }
+  const seen = new Set();
+  const deduped = [];
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i];
+    const key = (b.OriginalAgency || b.Agency || 'X') + '_' + b.BillNumber;
+    if (!seen.has(key)) { seen.add(key); deduped.push(b); }
+  }
+  return deduped;
+}
+
+// Supabase client
+const createClient = require('@supabase/supabase-js').createClient;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('[backfill] Supabase credentials missing.');
+  process.exit(1);
+}
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Helpers
+function overrideHistoricalLabel(billRecord) {
+  if (billRecord.confidence_label !== 'CARRY OVER') return false;
+  billRecord.confidence_label = 'DEAD';
+  billRecord.pass_probability = 0;
+  billRecord.confidence_low   = 0;
+  billRecord.confidence_high  = 0;
+  return true;
+}
+
+function computeSignalTier(final_score) {
+  if (final_score >= 75) return 'HIGH';
+  if (final_score >= 60) return 'MODERATE';
+  if (final_score >= 45) return 'LOW';
+  return 'VERY LOW';
+}
+
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+async function main() {
+  const t0 = Date.now();
+  const STATE = 'interim';
+
+  let calibration;
+  try { calibration = await loadCalibratedWeights(); }
+  catch (e) { calibration = getHardcodedWeights(); }
+  const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
+  console.log('[backfill] Loaded ' + Object.keys(categoryRates).length + ' category rates');
+
+  // Pre-load existing bill_ids for idempotency
+  const existing = new Set();
+  let page = 0;
+  const PAGE_SIZE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id')
+      .eq('session', SESSION)
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) { console.error('[backfill] existing query error:', error.message); process.exit(1); }
+    if (!data || !data.length) break;
+    data.forEach(function (r) { existing.add(r.bill_id); });
+    if (data.length < PAGE_SIZE) break;
+    page++;
+  }
+  console.log('[backfill] ' + existing.size + ' bills already present for ' + SESSION + ' - will be skipped');
+
+  // Fetch summaries using local fetcher
+  console.log('[backfill] Fetching bill list for biennium ' + BIENNIUM + '...');
+  let summaries;
+  try {
+    summaries = await getAllBillsSummaryLocal();
+  } catch (e) {
+    console.error('[backfill] getAllBillsSummaryLocal failed:', e.message);
+    process.exit(1);
+  }
+  console.log('[backfill] WSL returned ' + summaries.length + ' bill summaries (deduped)');
+
+  // Preload sponsor parties
+  console.log('[backfill] Fetching biennium sponsor party index...');
+  let partyMap;
+  try {
+    partyMap = await fetchBienniumSponsorParties();
+  } catch (e) {
+    console.log('[backfill] sponsor party fetch failed:', e.message);
+    partyMap = {};
+  }
+  console.log('[backfill] Party index: ' + Object.keys(partyMap || {}).length + ' members');
+
+  // Filter to new bills
+  let toProcess = summaries.filter(function (s) {
+    const num = s.BillNumber;
+    if (!num) return false;
+    const n = parseInt(num, 10);
+    if (!isNaN(n) && n >= 9000) return false;
+    return !existing.has(SESSION + '-' + num);
+  });
+
+  const limit = parseInt(process.env.BACKFILL_LIMIT || '0', 10);
+  if (limit > 0 && toProcess.length > limit) {
+    console.log('[backfill] BACKFILL_LIMIT=' + limit + ' - capping from ' + toProcess.length);
+    toProcess = toProcess.slice(0, limit);
+  }
+  console.log('[backfill] ' + toProcess.length + ' new bills to process');
+
+  const stats = {
+    processed: 0, inserted_bills: 0, inserted_snapshots: 0,
+    relabeled_from_carry_over: 0, skipped_null: 0, errors: []
+  };
+
+  const BATCH_SIZE = 10;
+  const BATCH_DELAY_MS = 500;
+
+  for (let i = 0; i < toProcess.length; i += BATCH_SIZE) {
+    const batch = toProcess.slice(i, i + BATCH_SIZE);
+
+    await Promise.all(batch.map(async function (raw) {
+      const billNum = raw.BillNumber;
+      const billId = SESSION + '-' + billNum;
+      try {
+        const result = await processBill(raw, categoryRates, STATE, partyMap);
+        if (!result) { stats.skipped_null++; return; }
+        const billRecord = result.billRecord;
+        const scores = result.scores;
+
+        if (overrideHistoricalLabel(billRecord)) stats.relabeled_from_carry_over++;
+        billRecord.signal_tier = computeSignalTier(scores.final_score);
+
+        const billErr = (await supabase.from('bills').upsert(billRecord, { onConflict: 'bill_id' })).error;
+        if (billErr) { stats.errors.push({ billId: billId, error: 'bill upsert: ' + billErr.message }); return; }
+        stats.inserted_bills++;
+
+        const snapshot = {
+          bill_id:          billRecord.bill_id,
+          session:          SESSION,
+          score:            scores.final_score,
+          base_total:       scores.base_total,
+          xf_multiplier:    scores.xf_multiplier,
+          stage:            billRecord.stage,
+          committee_score:  scores.committee,
+          sponsor_score:    scores.sponsor,
+          momentum_score:   scores.momentum,
+          historical_score: scores.historical,
+          fiscal_score:     scores.fiscal,
+          pass_probability: billRecord.pass_probability,
+          confidence_label: billRecord.confidence_label,
+          xf_factors:       scores.xf_factors,
+          snapshot_date:    SINE_DIE
+        };
+
+        const snapErr = (await supabase.from('trajectory_snapshots').upsert(snapshot, { onConflict: 'bill_id,snapshot_date' })).error;
+        if (snapErr) { stats.errors.push({ billId: billId, error: 'snapshot upsert: ' + snapErr.message }); return; }
+        stats.inserted_snapshots++;
+      } catch (e) {
+        stats.errors.push({ billId: billId, error: e.message || String(e) });
+      }
+    }));
+
+    stats.processed += batch.length;
+    if (Math.floor(i / BATCH_SIZE) % 10 === 0) {
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
+      console.log('[backfill] [' + elapsed + 's] ' + stats.processed + '/' + toProcess.length + ' - ' + stats.inserted_bills + ' inserted, ' + stats.errors.length + ' errors');
+    }
+    if (i + BATCH_SIZE < toProcess.length) await sleep(BATCH_DELAY_MS);
+  }
+
+  const durationMs = Date.now() - t0;
+  const logErr = (await supabase.from('sync_log').insert({
+    session:           SESSION,
+    bills_fetched:     summaries.length,
+    bills_updated:     0,
+    bills_new:         stats.inserted_bills,
+    snapshots_written: stats.inserted_snapshots,
+    errors:            stats.errors.length ? stats.errors.slice(0, 50) : null,
+    duration_ms:       durationMs,
+    notes:             'Phase 7U.1 historical backfill (BIENNIUM=' + BIENNIUM + '); CARRY OVER to DEAD: ' + stats.relabeled_from_carry_over
+  })).error;
+  if (logErr) console.log('[backfill] sync_log insert warning:', logErr.message);
+
+  console.log('');
+  console.log('[backfill] =====================================');
+  console.log('[backfill] Session:            ' + SESSION);
+  console.log('[backfill] WSL bills:          ' + summaries.length);
+  console.log('[backfill] Already present:    ' + existing.size);
+  console.log('[backfill] Processed:          ' + stats.processed);
+  console.log('[backfill] New bills inserted: ' + stats.inserted_bills);
+  console.log('[backfill] Snapshots written:  ' + stats.inserted_snapshots);
+  console.log('[backfill] CARRY OVER to DEAD: ' + stats.relabeled_from_carry_over);
+  console.log('[backfill] Skipped (null):     ' + stats.skipped_null);
+  console.log('[backfill] Errors:             ' + stats.errors.length);
+  console.log('[backfill] Duration:           ' + (durationMs / 1000).toFixed(0) + 's');
+  console.log('[backfill] =====================================');
+
+  if (stats.errors.length) {
+    console.log('[backfill] first 5 errors:');
+    stats.errors.slice(0, 5).forEach(function (e) {
+      console.log('  - ' + e.billId + ': ' + e.error);
+    });
+  }
+
+  process.exit(stats.errors.length > toProcess.length * 0.1 ? 1 : 0);
+}
+
+main().catch(function (e) {
+  console.error('[backfill] FATAL:', e);
+  process.exit(1);
+});

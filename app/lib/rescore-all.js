@@ -24,7 +24,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-const SESSION = '2025-2026';
+const SESSION = process.env.BIENNIUM || '2025-2026';
 
 // ── PHASE 7W.2: COMPANION STATE WEIGHTS ──────────────────────────────────────
 // Mirrors sync-v2.js COMPANION_XF_WEIGHTS exactly. Keep in sync — if you edit
@@ -39,18 +39,18 @@ const COMPANION_XF_WEIGHTS = {
   both_stuck:  { l: 'Companion both stuck',           d:  0.02 },
 };
 
-// ── CALIBRATED RATES (full biennium April 8, 2026 — 3,411 bills, 196 LAW) ──
+// ── CALIBRATED RATES (Phase 7D.3 — April 12, 2026 — 8,062 bills-only, 2,155 LAW, 3 bienniums) ──
 const BUCKET_RATES = {
   '0-30': 0.000, '30-45': 0.000, '45-60': 0.000,
-  '60-75': 0.013, '75-100': 0.694,
+  '60-75': 0.018, '75-100': 0.840,
 };
 
 const CATEGORY_RATES = {
-  'Natural Resources': 0.195, 'Government Operations': 0.098, 'Agriculture': 0.098,
-  'Employment / Labor': 0.096, 'Transportation': 0.092, 'Veterans / Military': 0.070,
-  'Business / Commerce': 0.068, 'Health': 0.062, 'Environment': 0.054,
-  'Housing': 0.052, 'Budget / Appropriations': 0.046, 'Other': 0.045,
-  'Criminal Justice': 0.044, 'Technology': 0.036, 'Education': 0.034,
+  'Natural Resources': 0.358, 'Other': 0.348, 'Employment / Labor': 0.343,
+  'Veterans / Military': 0.313, 'Agriculture': 0.286, 'Business / Commerce': 0.267,
+  'Health': 0.266, 'Transportation': 0.244, 'Housing': 0.244,
+  'Criminal Justice': 0.242, 'Education': 0.235, 'Government Operations': 0.232,
+  'Environment': 0.222, 'Technology': 0.192, 'Budget / Appropriations': 0.190,
 };
 
 // ── SCORING ENGINE (same as sync-v2.js) ─────────────────────────────────────
@@ -152,7 +152,7 @@ function scoreBill(bill) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));
 
-  // CONFIDENCE — aligned with sync-v2.4 (recalibrated full biennium April 6, 2026)
+  // CONFIDENCE — aligned with sync-v2.js Phase 7D.3 (April 12, 2026 — 8,062 bills-only, 3 bienniums)
   // 6A.5: Also compute signal_tier (always score-based, regardless of session state)
   let pass_prob, conf_label, conf_low, conf_high;
 
@@ -282,7 +282,7 @@ async function main() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: Date.now() - startTime,
-    notes: 'rescore-all: Phase 7W.2 companion state weights',
+    notes: `rescore-all: Phase 7D.3 bills-only recalibration (${SESSION})`,
   });
 }
 

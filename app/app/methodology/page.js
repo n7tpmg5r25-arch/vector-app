@@ -36,7 +36,7 @@ const SIGNALS = [
     name: 'Historical',
     range: '0–20',
     weight: 16,
-    description: 'Category-level pass rates calibrated from 8,817 bills across three biennia (2021-22, 2023-24, and 2025-26). Tax bills behave differently than transportation bills.',
+    description: 'Category-level pass rates calibrated from 8,062 bills across three biennia (2021-22, 2023-24, and 2025-26). Tax bills behave differently than transportation bills.',
     inputs: ['Category base rate', 'Bill-number cohort adjustment (low numbers = leadership priorities)'],
   },
   {
@@ -69,27 +69,27 @@ const XF_NEG = [
 ]
 
 // Fallback calibration — shown immediately on page load while the live query
-// runs, and shown permanently if the query fails. These numbers come from the
-// 2025-2026 full-biennium outcomes (N=3,411 bills, 196 signed into law).
+// runs, and shown permanently if the query fails. Phase 7D.3: bills-only
+// across 3 bienniums (N=8,062 bills, 2,155 signed into law).
 // The two VERY LOW rows (30-44 and 0-29) are merged here because both had a
 // 0% pass rate — splitting them just added a confusing duplicate row.
 const CALIBRATION_FALLBACK = [
-  { bucket: '75–99', label: 'HIGH',     bills: 271,  chamber: 79.0, law: 69.4 },
-  { bucket: '60–74', label: 'MODERATE', bills: 604,  chamber:  7.6, law:  1.3 },
-  { bucket: '45–59', label: 'LOW',      bills: 726,  chamber:  0.8, law:  0.0 },
-  { bucket:  '0–44', label: 'VERY LOW', bills: 1810, chamber:  0.0, law:  0.0 },
+  { bucket: '75–99', label: 'HIGH',     bills: 2541, chamber: 89.5, law: 84.0 },
+  { bucket: '60–74', label: 'MODERATE', bills: 1140, chamber:  5.2, law:  1.8 },
+  { bucket: '45–59', label: 'LOW',      bills: 810,  chamber:  0.4, law:  0.0 },
+  { bucket:  '0–44', label: 'VERY LOW', bills: 3571, chamber:  0.0, law:  0.0 },
 ]
-const FALLBACK_SESSION = '2025-2026'
-const FALLBACK_N = 3411
+const FALLBACK_SESSION = '3 bienniums (2021-2026)'
+const FALLBACK_N = 8062
 
-// Phase 7U.5: Combined 3-biennium calibration — these are the EXACT
-// pass_probability and Wilson 95% CI values hardcoded in sync-v2.js
+// Phase 7D.3: Combined 3-biennium calibration (BILLS ONLY) — these are the
+// EXACT pass_probability and Wilson 95% CI values hardcoded in sync-v2.js
 // scoreBill(). They're what every score on this site resolves to.
-// Source: 8,817 bills across 2021-22 + 2023-24 + 2025-26, Phase 7U backfill.
+// Source: 8,062 bills across 2021-22 + 2023-24 + 2025-26 (excludes 755 resolutions/memorials).
 const COMBINED_3B = [
-  { bucket: '75–99', label: 'HIGH',     rate: '65.5%', ci: '62.4 – 68.5%' },
-  { bucket: '60–74', label: 'MODERATE', rate: '0.5%',  ci: '0.2 – 1.0%'   },
-  { bucket: '45–59', label: 'LOW',      rate: '0.05%', ci: '0.0 – 0.3%'   },
+  { bucket: '75–99', label: 'HIGH',     rate: '84.0%', ci: '82.5 – 85.4%' },
+  { bucket: '60–74', label: 'MODERATE', rate: '1.8%',  ci: '1.2 – 2.8%'   },
+  { bucket: '45–59', label: 'LOW',      rate: '0.0%',  ci: '0.0 – 0.5%'   },
   { bucket:  '0–44', label: 'VERY LOW', rate: '0.0%',  ci: '0.0 – 0.1%'   },
 ]
 
@@ -340,7 +340,7 @@ export default function MethodologyPage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
               The table above shows one biennium in detail. The scoring engine itself is calibrated
-              against all three biennia combined — 8,817 bills spanning 2021-22, 2023-24, and 2025-26.
+              against all three biennia combined — 8,062 bills spanning 2021-22, 2023-24, and 2025-26.
               These are the exact pass probabilities <em>every score on this site</em> resolves to,
               with 95% Wilson confidence intervals showing the range of plausible truth given the
               sample size in each bucket.
@@ -373,9 +373,9 @@ export default function MethodologyPage() {
               </table>
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Source: Vector | WA combined biennia, N=8,817. CIs computed via Wilson score interval.
+              Source: Vector | WA combined biennia (bills only), N=8,062. CIs computed via Wilson score interval.
               These exact values are wired into the scoring engine's pass_probability ladder —
-              when a bill shows "65.5% chance of becoming law", this is the row it came from.
+              when a bill shows "84% chance of becoming law", this is the row it came from.
             </div>
           </div>
         </div>

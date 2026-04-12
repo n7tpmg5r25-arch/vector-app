@@ -986,7 +986,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(6.5)
       doc.setTextColor(...GRAY)
-      doc.text('Trajectory scores (0-99) calibrated against 3,411 bills from the 2025-26 WA session. 75+ = 69% became law.', m, methY + 3.5)
+      doc.text('Trajectory scores (0-99) calibrated against 8,062 bills across 3 WA biennia (2021-2026). 75+ = 84% became law.', m, methY + 3.5)
       doc.text('Signal tiers: HIGH (75+), MODERATE (60-74), LOW (45-59), VERY LOW (<45). Full methodology: vectorwa.com/methodology', m, methY + 7)
     }
 

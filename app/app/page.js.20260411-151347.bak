@@ -75,7 +75,7 @@ export default function HomePage() {
       user
         ? supabase
             .from('tracked_bills')
-            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label, session)')
+            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label)')
             .eq('user_id', user.id)
             .order('added_at', { ascending: false })
         : Promise.resolve({ data: null }),
@@ -94,23 +94,19 @@ export default function HomePage() {
     const bills = billsResult.data || []
     setTopBills(bills)
 
-    // Phase 7U.5: filter watchlist to the currently-viewed biennium. Watches
-    // stay global in tracked_bills (so historical context is preserved when
-    // you flip the session picker), but the dashboard only shows watches for
-    // the session you're actually looking at.
-    const wl = (wlResult.data || []).filter(w => w.bills && w.bills.session === SESSION)
+    const wl = (wlResult.data || []).filter(w => w.bills)
     setWatchlist(wl)
 
-    // 6K.2: Fetch total bill count for quick actions grid (7D.3: bills only, excludes resolutions/memorials)
-    const totalRes = await supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill')
+    // 6K.2: Fetch total bill count for quick actions grid
+    const totalRes = await supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION)
     setTotalBills(totalRes.count || 0)
 
-    // 6B.1: Count session outcomes for interim display (7D.3: bills only)
+    // 6B.1: Count session outcomes for interim display
     if (isInterimPeriod()) {
       const [lawRes, coRes, deadRes] = await Promise.all([
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'LAW'),
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'CARRY OVER'),
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'DEAD'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'LAW'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'CARRY OVER'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('confidence_label', 'DEAD'),
       ])
       setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
     }
@@ -158,7 +154,7 @@ export default function HomePage() {
   // 6D.1: Discover which sessions have data for the dropdown
   async function loadSessions() {
     // Grab one bill per known session to check if data exists
-    const known = ['2027-2028', '2025-2026', '2023-2024', '2021-2022']  // newest first
+    const known = ['2027-2028', '2025-2026']  // newest first
     const found = []
     for (const s of known) {
       const { count } = await supabase
@@ -357,7 +353,17 @@ export default function HomePage() {
               )}
             </div>
           )}
-          {/* Phase 7U.5: historical banner promoted to global SessionBanner in layout.tsx */}
+          {SESSION !== getCurrentSession() && (
+            <div style={{
+              marginTop: 10, padding: '8px 14px',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.2)',
+              borderRadius: 'var(--radius)',
+              fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
+            }}>
+              Viewing historical session. <span onClick={() => setSession(getCurrentSession())} style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}>Switch to current session</span>
+            </div>
+          )}
 
           {/* Advocacy outlook — 6B.4: require 5+ bills, 6H.2: outcome summary during interim */}
           {isInterimPeriod() && watchlist.length >= 5 && interimWatchCounts ? (

@@ -1,29 +1,9 @@
 /**
- * VECTOR | WA — Sync Script v2.6 (Phase 7D.2b — Substitute Bill Fix)
+ * VECTOR | WA — Sync Script v2.4 (Phase 6A — Score Stability & Baseline Reset)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
- *
- * v2.6 CHANGES (Phase 7D.2b):
- *  - 7D.2b.1: getLegislation() now picks the most advanced version (highest
- *             SubstituteVersion/EngrossedVersion) instead of arr[0]. This gives
- *             us the correct BillId (e.g. "SHB 1294") and accurate CurrentStatus.
- *  - 7D.2b.2: processBill() uses the advanced version's BillId for
- *             getStatusChanges() — fixes truncated histories for ~580 substituted
- *             bills that were stuck at stage 3 with "substitute bill substituted."
- *  - 7D.2b.3: substitute_filed detection now checks status text for
- *             "substitute bill substituted" (was always false for most bills).
- *  - 7D.2b.4: Cleaned up duplicate governor_action + outcome boolean lines.
- *
- * v2.5 CHANGES (Phase 7D.1):
- *  - 7D.1.1: Fixed governor-signed detection — API returns "Governor signed."
- *            not "signed by governor". Was missing ~65% of enacted laws.
- *  - 7D.1.2: Added governor_action column (signed/vetoed/partial_veto/null)
- *  - 7D.1.3: Added legislation_type column from WSL ShortLegislationType
- *  - 7D.1.4: Added introduction_year column from GetLegislationByYear year param
- *  - 7D.1.5: outcome_passed_law / outcome_passed_chamber now set every sync
- *            (was one-time backfill — 128 stage-6 bills had null)
  *
  * v2.4 CHANGES (Phase 6A):
  *  - 6A.1: Interim score freeze — skip rescoring when no material data changed
@@ -115,19 +95,19 @@ async function loadCalibratedWeights() {
 }
 
 function getHardcodedWeights() {
-  // Phase 7D.3 recalibration (April 12, 2026 — 8,062 bills-only across 3 bienniums, 2,155 LAW)
-  // law_rate = became-law / total-bills-in-category (excludes resolutions/memorials)
+  // Recalibrated after Step 6.14 category expansion (April 7, 2026 — 3,411 bills, 14 categories)
+  // law_rate = became-law / total-in-bucket
   return {
     category_rates: {
-      "Natural Resources": 0.358, "Other": 0.348, "Employment / Labor": 0.343,
-      "Veterans / Military": 0.313, "Agriculture": 0.286, "Business / Commerce": 0.267,
-      "Health": 0.266, "Transportation": 0.244, "Housing": 0.244,
-      "Criminal Justice": 0.242, "Education": 0.235, "Government Operations": 0.232,
-      "Environment": 0.222, "Technology": 0.192, "Budget / Appropriations": 0.190,
+      "Natural Resources": 0.195, "Government Operations": 0.098, "Agriculture": 0.098,
+      "Employment / Labor": 0.096, "Transportation": 0.092, "Veterans / Military": 0.070,
+      "Business / Commerce": 0.068, "Health": 0.062, "Environment": 0.054,
+      "Housing": 0.052, "Budget / Appropriations": 0.046, "Other": 0.045,
+      "Criminal Justice": 0.044, "Technology": 0.036, "Education": 0.034,
     },
     bucket_pass_rates: {
       "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
-      "60-75": 0.018, "75-100": 0.840,
+      "60-75": 0.013, "75-100": 0.694,
     },
   };
 }
@@ -183,11 +163,8 @@ async function getAllBillsSummary() {
       fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'House' }),
       fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'Senate' }),
     ]);
-    // Phase 7D.1: Tag each bill with its introduction year
-    const hArr = toArr(h).map(b => ({ ...b, _introYear: parseInt(yr) }));
-    const sArr = toArr(s).map(b => ({ ...b, _introYear: parseInt(yr) }));
-    all.push(...hArr, ...sArr);
-    console.log(`  Year ${yr}: ${hArr.length} House + ${sArr.length} Senate bills`);
+    all.push(...toArr(h), ...toArr(s));
+    console.log(`  Year ${yr}: ${toArr(h).length} House + ${toArr(s).length} Senate bills`);
   }
 
   // Deduplicate by BillNumber+Agency in case any bill appears in both years
@@ -255,25 +232,12 @@ async function getRollCalls(billNumber) {
 }
 
 // Get full legislation details (for companion bill + committee)
-// Phase 7D.2b FIX: GetLegislation returns ALL versions of a bill (original +
-// substitutes + engrossments). We pick the most advanced version — the one with
-// the highest SubstituteVersion (then EngrossedVersion as tiebreak). This gives
-// us the correct BillId (e.g. "SHB 1294") for querying status changes, plus
-// the accurate CurrentStatus showing governor signing instead of substitution.
 async function getLegislation(billNumber) {
   try {
     const data = await fetchXML('LegislationService.asmx', 'GetLegislation', { biennium: BIENNIUM, billNumber });
     const items = data?.ArrayOfLegislation?.Legislation;
     const arr = Array.isArray(items) ? items : (items ? [items] : []);
-    if (arr.length <= 1) return arr[0] || null;
-    // Pick the most advanced version (highest substitute + engrossed)
-    return arr.reduce((best, cur) => {
-      const bestSub = parseInt(best.SubstituteVersion || '0');
-      const curSub  = parseInt(cur.SubstituteVersion || '0');
-      const bestEng = parseInt(best.EngrossedVersion || '0');
-      const curEng  = parseInt(cur.EngrossedVersion || '0');
-      return (curSub > bestSub || (curSub === bestSub && curEng > bestEng)) ? cur : best;
-    });
+    return arr[0] || null;
   } catch(e) { return null; }
 }
 
@@ -372,17 +336,7 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const heldInRules = joined.includes('held') && joined.includes('rules') && !pulledFromRules;
   const passedFloor = joined.includes('third reading, passed') || joined.includes('passed third reading');
   const passedOpposite = joined.includes('passed to senate') || joined.includes('passed to house') || joined.includes('delivered to governor');
-  // Phase 7D.1 FIX: WSL API returns "Governor signed." not "signed by governor"
-  // Old check missed ~65% of laws. Now matches both word orders + veto variants.
-  const signedByGov = joined.includes('governor signed') || joined.includes('signed by governor') || joined.includes('effective date') || joined.includes('chaptered');
-  const vetoedByGov = joined.includes('governor vetoed') || joined.includes('vetoed by governor');
-  const partialVeto = joined.includes('governor partially vetoed') || joined.includes('partially vetoed by governor');
-
-  // Phase 7D.1: governor_action — signed trumps partial_veto trumps vetoed
-  let governorAction = null;
-  if (signedByGov) governorAction = 'signed';
-  if (partialVeto) governorAction = 'partial_veto';
-  if (vetoedByGov && !partialVeto) governorAction = 'vetoed';
+  const signedByGov = joined.includes('signed by governor') || joined.includes('effective date') || joined.includes('chaptered');
 
   // 6.13.4 FIX: GetHearings API returns 0 for all bills, and WA status
   // changes don't include "public hearing" events (hearings are tracked in
@@ -404,14 +358,10 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const fiscalReferral = referrals.some(s => FISCAL.some(f => (s.HistoryLine||'').toLowerCase().includes(f)));
   const doubleReferral = referrals.length >= 2;
 
-  // Substitute detection — from amendments, raw API data, AND status text
-  // Phase 7D.2b FIX: Also check status change text for "substitute bill substituted"
-  // which is the definitive signal that a substitute was adopted. The amendment check
-  // alone was always returning false for most bills.
+  // Substitute detection — from amendments AND raw API data
   const substituteFiled = amendments.some(a =>
     (a.AmendmentType || a.Description || '').toLowerCase().includes('substitute'))
-    || parseInt(raw.SubstituteVersion || '0') > 0
-    || statusTexts.some(s => s.includes('substitute bill substituted'));
+    || parseInt(raw.SubstituteVersion || '0') > 0;
   const amendmentCount = amendments.length;
 
   const allDates = statusChanges
@@ -493,7 +443,6 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
     hearing_date: hearingDate,
     last_action_date: lastDate.toISOString(),
     last_action: lastAction,  // Phase 5A: now populated
-    governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
   };
 }
 
@@ -660,8 +609,8 @@ function scoreBill(bill, categoryRates, sessionState) {
   xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
   const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
 
-  // CONFIDENCE — Phase 7D.3 recalibration (April 12, 2026 — 8,062 bills-only, 2,155 LAW, 3 bienniums)
-  // pass_prob = "probability of becoming law" based on actual became-law rates per bucket (bills only)
+  // CONFIDENCE — recalibrated against FULL 2025-26 biennium (April 8, 2026 — 3,411 bills, 196 LAW)
+  // pass_prob = "probability of becoming law" based on actual became-law rates per bucket
   let pass_prob, conf_label, conf_low, conf_high;
 
   // 6.13.2: SESSION-STATE AWARENESS — once sine die hits, bills that didn't
@@ -681,15 +630,15 @@ function scoreBill(bill, categoryRates, sessionState) {
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {
-    // 84.0% of 75+ bills became law (2134/2541) — Wilson CI 82.5-85.4%
-    pass_prob = 0.840; conf_label = 'HIGH'; conf_low = 0.825; conf_high = 0.854;
+    // 69.4% of 75+ bills became law (188/271)
+    pass_prob = 0.694; conf_label = 'HIGH'; conf_low = 0.640; conf_high = 0.750;
   } else if (final_score >= 60) {
-    // 1.8% of 60-74 bills became law (21/1140) — Wilson CI 1.2-2.8%
-    pass_prob = 0.018; conf_label = 'MODERATE'; conf_low = 0.012; conf_high = 0.028;
+    // 1.3% of 60-74 bills became law (8/604)
+    pass_prob = 0.013; conf_label = 'MODERATE'; conf_low = 0.004; conf_high = 0.026;
   } else if (final_score >= 45 && bill.committee_passed) {
     // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
-    // 0% became law in 45-59 bucket, but small chamber-pass signal remains
-    pass_prob = 0.005; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.015;
+    // 0% became law in 45-59 bucket, but 0.8% passed a chamber — tiny nonzero signal
+    pass_prob = 0.008; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.020;
   } else if (final_score >= 45) {
     pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
   } else {
@@ -729,19 +678,13 @@ async function processBill(raw, categoryRates, state, partyMap) {
     billApiId; // e.g. "HB 1001" — still better than empty string
   const category = detectCategory(title);
 
-  // Phase 7D.2b FIX: Use the advanced version's BillId (e.g. "SHB 1294") for
-  // status changes. The WSL API tracks all post-substitution events under the
-  // substitute ID. Without this, status history is truncated at "substitute bill
-  // substituted." — no floor votes, no opposite chamber, no governor signing.
-  const advancedBillId = legislation?.BillId || billApiId;
-
   // Phase 5C.3 (revised): GetLegislation's Sponsor field is just a string like
   // "(Abbarno)", not a collection. Call LegislationService/GetSponsors for the
   // real list with FirstName/LastName/Type/Order.
   const [sponsors, hearings, statusChanges, amendments, rollCalls] = await Promise.all([
     getSponsors(billApiId),
     getHearings(billNum),
-    getStatusChanges(advancedBillId),
+    getStatusChanges(billApiId),
     getAmendments(billNum),
     getRollCalls(billNum),
   ]);
@@ -803,14 +746,6 @@ async function processBill(raw, categoryRates, state, partyMap) {
     }
   }
 
-  // Phase 7D.1: Extract legislation_type from ShortLegislationType (nested object from xml2js)
-  const shortLegType = (raw.ShortLegislationType?.ShortLegislationType || '').toUpperCase();
-  const legTypeMap = { B: 'bill', R: 'resolution', JR: 'joint_resolution', JM: 'joint_memorial', CR: 'concurrent_resolution', GA: 'gubernatorial_appointment', I: 'initiative' };
-  const legislationType = legTypeMap[shortLegType] || null;
-
-  // Phase 7D.1: introduction_year tagged by getAllBillsSummary
-  const introductionYear = raw._introYear || null;
-
   const billRecord = {
     bill_id: billId,
     bill_number: billNum,
@@ -823,8 +758,6 @@ async function processBill(raw, categoryRates, state, partyMap) {
     bill_number_seq: parseInt(billNum) || 9999,
     companion_bill: companionBill,
     last_action: features.last_action,  // Phase 5A: now populated from status changes
-    legislation_type: legislationType,          // Phase 7D.1
-    introduction_year: introductionYear,        // Phase 7D.1
     ...sponsorData,
     ...features,
     raw_data: {
@@ -862,10 +795,6 @@ async function processBill(raw, categoryRates, state, partyMap) {
   billRecord.confidence_low = scores.conf_low;
   billRecord.confidence_high = scores.conf_high;
 
-  // Phase 7D.1: Always set outcome booleans from stage (was previously a one-time backfill)
-  billRecord.outcome_passed_chamber = billRecord.stage >= 4;
-  billRecord.outcome_passed_law = billRecord.stage >= 6;
-
   // Outcome label — human-readable final status
   const cmteName = (billRecord.committee_name || '').toLowerCase();
   const isRulesQueue = cmteName.includes('rules');
@@ -896,7 +825,7 @@ async function runSync() {
   let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.6 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.4 — ${SESSION} — state: ${state}`);
 
   // 6A.1: During interim, pre-load existing bills so we can detect material changes
   let existingBillsMap = null;
@@ -1031,7 +960,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.6 Phase 7D.2b — substitute bill fix${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
+    notes: `sync-v2.4 Phase 6A — interim freeze${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };
