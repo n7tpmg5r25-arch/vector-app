@@ -16,8 +16,41 @@ export default function SettingsPage() {
   const [currentSessionBills, setCurrentSessionBills] = useState('...')
   const [historicalBills, setHistoricalBills] = useState('...')
 
+  // Phase 9: Notification preferences
+  const [notifEmail, setNotifEmail] = useState('')
+  const [digestEnabled, setDigestEnabled] = useState(true)
+  const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const [digestDay, setDigestDay] = useState('monday')
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifSaved, setNotifSaved] = useState(false)
+  const [notifLoaded, setNotifLoaded] = useState(false)
+  const [testSending, setTestSending] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user)
+      if (user) {
+        // Load notification preferences
+        supabase
+          .from('notification_preferences')
+          .select('*')
+          .eq('user_id', user.id)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setNotifEmail(data.email || '')
+              setDigestEnabled(data.digest_enabled)
+              setAlertsEnabled(data.alerts_enabled)
+              setDigestDay(data.digest_day || 'monday')
+            } else {
+              // Default to user's auth email
+              setNotifEmail(user.email || '')
+            }
+            setNotifLoaded(true)
+          })
+      }
+    })
     const current = getCurrentSession()
     supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', current).eq('legislation_type', 'bill')
       .then(({ count }) => { if (count != null) setCurrentSessionBills(count.toLocaleString()) })
@@ -31,6 +64,57 @@ export default function SettingsPage() {
     router.push('/login')
   }
 
+  async function saveNotifPrefs() {
+    if (!user || !notifEmail.trim()) return
+    setNotifSaving(true)
+    setNotifSaved(false)
+
+    const prefs = {
+      user_id: user.id,
+      email: notifEmail.trim(),
+      digest_enabled: digestEnabled,
+      alerts_enabled: alertsEnabled,
+      digest_day: digestDay,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error } = await supabase
+      .from('notification_preferences')
+      .upsert(prefs, { onConflict: 'user_id' })
+
+    setNotifSaving(false)
+    if (!error) {
+      setNotifSaved(true)
+      setTimeout(() => setNotifSaved(false), 3000)
+    }
+  }
+
+  async function sendTestEmail() {
+    if (!user) return
+    setTestSending(true)
+    setTestResult(null)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-alerts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ type: 'test', user_id: user.id }),
+        }
+      )
+      const data = await resp.json()
+      setTestResult(data.ok ? 'sent' : (data.error || 'Failed'))
+    } catch (err) {
+      setTestResult('Network error')
+    }
+    setTestSending(false)
+  }
+
   const nextB = getNextBiennium()
   const SESSION_INFO = [
     { label: 'Current Session', value: getCurrentSession() },
@@ -40,6 +124,16 @@ export default function SettingsPage() {
     { label: 'Current Session Bills', value: currentSessionBills, mono: true },
     { label: 'Historical Archive', value: historicalBills, mono: true },
     { label: 'Scoring Engine', value: 'v3.1 \u00b7 Calibrated', mono: true },
+  ]
+
+  const DAYS = [
+    { value: 'monday', label: 'Monday' },
+    { value: 'tuesday', label: 'Tuesday' },
+    { value: 'wednesday', label: 'Wednesday' },
+    { value: 'thursday', label: 'Thursday' },
+    { value: 'friday', label: 'Friday' },
+    { value: 'saturday', label: 'Saturday' },
+    { value: 'sunday', label: 'Sunday' },
   ]
 
   return (
@@ -70,6 +164,162 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Notifications — Phase 9 */}
+        {notifLoaded && (
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>Notifications</div>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+
+              {/* Email address */}
+              <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                  Notification email
+                </label>
+                <input
+                  type="email"
+                  value={notifEmail}
+                  onChange={e => setNotifEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  style={{
+                    width: '100%', padding: '8px 12px',
+                    background: 'rgba(14,16,20,0.6)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6, color: 'var(--text-primary)',
+                    fontSize: 14, outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Weekly digest toggle */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px', borderBottom: '1px solid var(--border)',
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>Weekly digest</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Summary of watchlist changes</div>
+                </div>
+                <button
+                  onClick={() => setDigestEnabled(!digestEnabled)}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: digestEnabled ? 'var(--teal)' : 'var(--border)',
+                    position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 9,
+                    background: 'white',
+                    position: 'absolute', top: 3,
+                    left: digestEnabled ? 23 : 3,
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+
+              {/* Digest day picker (only if digest enabled) */}
+              {digestEnabled && (
+                <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                    Digest day
+                  </label>
+                  <select
+                    value={digestDay}
+                    onChange={e => setDigestDay(e.target.value)}
+                    style={{
+                      width: '100%', padding: '8px 12px',
+                      background: 'rgba(14,16,20,0.6)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6, color: 'var(--text-primary)',
+                      fontSize: 14, outline: 'none',
+                    }}
+                  >
+                    {DAYS.map(d => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Per-event alerts toggle */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px',
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>Per-event alerts</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Outcome changes, hearings, Rules pulls</div>
+                </div>
+                <button
+                  onClick={() => setAlertsEnabled(!alertsEnabled)}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: alertsEnabled ? 'var(--teal)' : 'var(--border)',
+                    position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 9,
+                    background: 'white',
+                    position: 'absolute', top: 3,
+                    left: alertsEnabled ? 23 : 3,
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Save + Test buttons */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button
+                onClick={saveNotifPrefs}
+                disabled={notifSaving || !notifEmail.trim()}
+                style={{
+                  flex: 1, padding: '10px',
+                  background: notifSaved ? 'rgba(45,107,69,0.15)' : 'var(--teal)',
+                  border: notifSaved ? '1px solid rgba(45,107,69,0.3)' : 'none',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 13, fontWeight: 600,
+                  color: notifSaved ? 'var(--teal)' : '#fff',
+                  cursor: notifSaving ? 'wait' : 'pointer',
+                  opacity: (!notifEmail.trim() || notifSaving) ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {notifSaving ? 'Saving...' : notifSaved ? 'Saved' : 'Save Preferences'}
+              </button>
+              <button
+                onClick={sendTestEmail}
+                disabled={testSending || !notifEmail.trim()}
+                style={{
+                  padding: '10px 16px',
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 13, fontWeight: 500,
+                  color: 'var(--text-muted)',
+                  cursor: testSending ? 'wait' : 'pointer',
+                  opacity: (!notifEmail.trim() || testSending) ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {testSending ? 'Sending...' : 'Send Test'}
+              </button>
+            </div>
+            {testResult && (
+              <div style={{
+                marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12,
+                background: testResult === 'sent' ? 'rgba(45,107,69,0.1)' : 'rgba(200,50,50,0.1)',
+                color: testResult === 'sent' ? 'var(--teal)' : 'var(--danger)',
+                border: `1px solid ${testResult === 'sent' ? 'rgba(45,107,69,0.2)' : 'rgba(200,50,50,0.2)'}`,
+              }}>
+                {testResult === 'sent' ? 'Test email sent — check your inbox.' : `Error: ${testResult}`}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Session info */}
         <div>

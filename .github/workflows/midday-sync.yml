@@ -1,0 +1,103 @@
+name: Mid-Day Session Sync
+
+on:
+  schedule:
+    # Noon Pacific = 7 PM UTC (PDT) / 8 PM UTC (PST)
+    # Weekdays only (Mon-Fri)
+    - cron: '0 19 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger from Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Check if session is active
+        id: session_check
+        run: |
+          # 2025-2026 session ended March 12, 2026
+          # 2027-2028 session starts January 13, 2027, ends ~March 10, 2028
+          # During interim: skip mid-day sync entirely
+          TODAY=$(date -u +%Y-%m-%d)
+
+          # Check if we're in the 2027-28 session window
+          if [[ "$TODAY" >= "2027-01-13" && "$TODAY" <= "2028-03-10" ]]; then
+            echo "In 2027-2028 session. Running mid-day sync."
+            echo "active=true" >> $GITHUB_OUTPUT
+            echo "biennium=2027-28" >> $GITHUB_OUTPUT
+            echo "year=2028" >> $GITHUB_OUTPUT
+            echo "session_start=2027-01-13" >> $GITHUB_OUTPUT
+            echo "committee_cutoff=2028-02-07" >> $GITHUB_OUTPUT
+            echo "floor_cutoff=2028-02-21" >> $GITHUB_OUTPUT
+            echo "opposite_cutoff=2028-03-05" >> $GITHUB_OUTPUT
+            echo "sine_die=2028-03-10" >> $GITHUB_OUTPUT
+          else
+            echo "Not in active session ($TODAY). Skipping mid-day sync."
+            echo "active=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: steps.session_check.outputs.active == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install root dependencies
+        if: steps.session_check.outputs.active == 'true'
+        run: npm ci
+
+      - name: Install app dependencies
+        if: steps.session_check.outputs.active == 'true'
+        working-directory: ./app
+        run: npm ci
+
+      - name: Run sync
+        if: steps.session_check.outputs.active == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: ${{ steps.session_check.outputs.biennium }}
+          CURRENT_YEAR: ${{ steps.session_check.outputs.year }}
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          SESSION_START: ${{ steps.session_check.outputs.session_start }}
+          COMMITTEE_CUTOFF: ${{ steps.session_check.outputs.committee_cutoff }}
+          FLOOR_CUTOFF: ${{ steps.session_check.outputs.floor_cutoff }}
+          OPPOSITE_CUTOFF: ${{ steps.session_check.outputs.opposite_cutoff }}
+          SINE_DIE: ${{ steps.session_check.outputs.sine_die }}
+        run: node app/lib/sync-v2.js
+
+      - name: Run alert detection
+        if: steps.session_check.outputs.active == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-alerts.js
+
+      - name: Send alert emails (if events pending)
+        if: steps.session_check.outputs.active == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Checking for pending alert events..."
+          RESULT=$(curl -s -w "\n%{http_code}" \
+            "${SUPABASE_URL}/functions/v1/send-alerts" \
+            -H "Content-Type: application/json" \
+            -H "x-function-secret: ${FUNCTION_SECRET}" \
+            -d '{"type": "event-batch"}')
+          HTTP_CODE=$(echo "$RESULT" | tail -1)
+          BODY=$(echo "$RESULT" | head -n -1)
+          echo "send-alerts: HTTP $HTTP_CODE — $BODY"
+
+      - name: Report result
+        if: always()
+        run: |
+          if [ "${{ steps.session_check.outputs.active }}" == "true" ]; then
+            echo "Mid-day sync completed at $(date -u)"
+          else
+            echo "Skipped — interim period"
+          fi
