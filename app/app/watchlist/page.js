@@ -48,7 +48,8 @@ export default function WatchlistPage() {
             has_public_hearing, committee_passed,
             hearing_date, days_to_cutoff, status, stalled,
             prime_sponsor, prime_party, bipartisan,
-            session, companion_bill, confidence_label, pass_probability, ai_summary, ai_summary
+            session, companion_bill, confidence_label, pass_probability, ai_summary,
+            bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record
           )
         `)
         .eq('user_id', user.id)
@@ -539,6 +540,16 @@ export default function WatchlistPage() {
                   )}
                   {!bill.bipartisan && (
                     <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>Minority Only</span>
+                  )}
+                  {/* Phase 8: Dynamics headline */}
+                  {bill.bipartisan_index > 0.3 && (
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal)', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'rgba(184,151,90,0.08)', border: '1px solid rgba(184,151,90,0.2)' }}>Bipartisan</span>
+                  )}
+                  {bill.chair_alignment === 'aligned' && (
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal-mid)', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.15)' }}>Chair-backed</span>
+                  )}
+                  {bill.chair_alignment === 'opposed' && (
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--danger)', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'rgba(196,71,48,0.06)', border: '1px solid rgba(196,71,48,0.15)' }}>Chair-blocked</span>
                   )}
                 </div>
                 {notes && (

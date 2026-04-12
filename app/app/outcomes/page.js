@@ -39,7 +39,7 @@ export default function OutcomesPage() {
       while (true) {
         const { data, error } = await supabase
           .from('bills')
-          .select('bill_id, bill_number, title, final_score, stage, chamber, category, prime_sponsor, prime_party, confidence_label, stalled, signal_tier, governor_action')
+          .select('bill_id, bill_number, title, final_score, stage, chamber, category, prime_sponsor, prime_party, confidence_label, stalled, signal_tier, governor_action, bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record')
           .eq('session', SESSION)
           .eq('legislation_type', 'bill')
           .not('final_score', 'is', null)
@@ -227,12 +227,25 @@ export default function OutcomesPage() {
               <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {bill.title || `Bill ${bill.bill_number}`}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>{bill.category || 'Other'}</span>
                 <span>·</span>
                 <span>{bill.prime_sponsor || 'Unknown'}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}</span>
                 <span>·</span>
                 <span>{STAGE_SHORT[bill.stage] || 'Intro'}</span>
+                {/* Phase 8: Dynamics headline pill */}
+                {bill.bipartisan_index > 0.3 && (
+                  <span style={{ padding: '1px 6px', borderRadius: 8, background: 'rgba(184,151,90,0.08)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.2)', fontWeight: 500 }}>Bipartisan</span>
+                )}
+                {bill.bipartisan_index != null && bill.bipartisan_index < 0.1 && (
+                  <span style={{ padding: '1px 6px', borderRadius: 8, background: 'rgba(100,120,140,0.06)', color: 'var(--text-faint)', border: '1px solid rgba(100,120,140,0.15)' }}>Partisan</span>
+                )}
+                {bill.chair_alignment === 'aligned' && (
+                  <span style={{ padding: '1px 6px', borderRadius: 8, background: 'rgba(184,151,90,0.06)', color: 'var(--teal-mid)', border: '1px solid rgba(184,151,90,0.15)' }}>Chair-backed</span>
+                )}
+                {bill.chair_alignment === 'opposed' && (
+                  <span style={{ padding: '1px 6px', borderRadius: 8, background: 'rgba(196,71,48,0.06)', color: 'var(--danger)', border: '1px solid rgba(196,71,48,0.15)' }}>Chair-blocked</span>
+                )}
               </div>
             </div>
           </div>

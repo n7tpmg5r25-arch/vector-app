@@ -897,6 +897,88 @@ export default function BillDetailPage() {
           </div>
         )}
 
+        {/* ── POLITICAL DYNAMICS (Phase 8) ─────────────────── */}
+        {(bill.bipartisan_index != null || bill.chair_alignment || bill.sponsor_track_record != null || bill.cross_aisle_count > 0) && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '14px 16px',
+            opacity: ['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 0.55 : 1,
+            transition: 'opacity 0.2s',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+                Political Dynamics
+              </div>
+              <a href="/methodology#political-dynamics" style={{ fontSize: 9, color: 'var(--text-faint)', textDecoration: 'none', fontFamily: 'var(--font-mono)' }}>
+                How it works →
+              </a>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {/* Bipartisan / Partisan badge */}
+              {bill.bipartisan_index != null && (() => {
+                const bpi = bill.bipartisan_index
+                const label = bpi > 0.3 ? 'BIPARTISAN' : bpi < 0.1 ? 'PARTISAN' : 'MIXED'
+                const color = bpi > 0.3 ? 'var(--teal)' : bpi < 0.1 ? 'var(--text-faint)' : 'var(--gold)'
+                const bg = bpi > 0.3 ? 'rgba(184,151,90,0.08)' : bpi < 0.1 ? 'rgba(100,120,140,0.06)' : 'rgba(255,201,74,0.06)'
+                const border = bpi > 0.3 ? 'rgba(184,151,90,0.2)' : bpi < 0.1 ? 'rgba(100,120,140,0.15)' : 'rgba(255,201,74,0.15)'
+                return (
+                  <div title={`Bipartisan Index: ${Math.round(bpi * 100)}% of co-sponsors are from the opposite party of the prime sponsor. Above 30% = Bipartisan, below 10% = Partisan.`} style={{
+                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
+                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
+                  }}>
+                    {label} · {Math.round(bpi * 100)}%
+                  </div>
+                )
+              })()}
+
+              {/* Chair Alignment badge */}
+              {bill.chair_alignment && (() => {
+                const a = bill.chair_alignment
+                const label = a === 'aligned' ? 'CHAIR ALIGNED' : a === 'opposed' ? 'CHAIR OPPOSED' : 'CHAIR MIXED'
+                const color = a === 'aligned' ? 'var(--teal)' : a === 'opposed' ? 'var(--danger)' : 'var(--gold)'
+                const bg = a === 'aligned' ? 'rgba(184,151,90,0.08)' : a === 'opposed' ? 'rgba(196,71,48,0.06)' : 'rgba(255,201,74,0.06)'
+                const border = a === 'aligned' ? 'rgba(184,151,90,0.2)' : a === 'opposed' ? 'rgba(196,71,48,0.2)' : 'rgba(255,201,74,0.15)'
+                return (
+                  <div title={`Chair Alignment: The committee chair ${a === 'aligned' ? 'shares' : 'does not share'} the prime sponsor's party. Aligned chairs are more likely to schedule hearings and move bills through committee.`} style={{
+                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
+                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
+                  }}>
+                    {label}
+                  </div>
+                )
+              })()}
+
+              {/* Cross-Aisle Support badge */}
+              {bill.cross_aisle_count > 0 && (
+                <div title={`Cross-Aisle Support: ${bill.cross_aisle_count} co-sponsor${bill.cross_aisle_count !== 1 ? 's' : ''} from the opposing party. More cross-aisle support signals broader political viability.`} style={{
+                  padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
+                  background: 'rgba(184,151,90,0.06)', color: 'var(--teal-mid)',
+                  border: '1px solid rgba(184,151,90,0.15)', cursor: 'help',
+                }}>
+                  CROSS-AISLE · {bill.cross_aisle_count}
+                </div>
+              )}
+
+              {/* Sponsor Track Record badge */}
+              {bill.sponsor_track_record != null && (() => {
+                const tr = bill.sponsor_track_record
+                const pct = Math.round(tr * 100)
+                const color = pct >= 30 ? 'var(--teal)' : pct >= 15 ? 'var(--gold)' : 'var(--text-faint)'
+                const bg = pct >= 30 ? 'rgba(184,151,90,0.08)' : pct >= 15 ? 'rgba(255,201,74,0.06)' : 'rgba(100,120,140,0.06)'
+                const border = pct >= 30 ? 'rgba(184,151,90,0.2)' : pct >= 15 ? 'rgba(255,201,74,0.15)' : 'rgba(100,120,140,0.15)'
+                return (
+                  <div title={`Sponsor Track Record: The prime sponsor's historical pass rate is ${pct}% across prior sessions. Higher rates indicate sponsors who consistently get bills signed into law.`} style={{
+                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
+                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
+                  }}>
+                    TRACK RECORD · {pct}%
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
+
         {/* ── STAGE PIPELINE ─────────────────────────────── */}
         <div style={{
           background: 'var(--bg-card)', border: '1px solid var(--border)',

@@ -1,9 +1,20 @@
 /**
- * VECTOR | WA — Sync Script v2.6 (Phase 7D.2b — Substitute Bill Fix)
+ * VECTOR | WA — Sync Script v2.7 (Phase 8 — Political Dynamics Layer)
  * lib/sync-v2.js
  *
  * Fetches all WA Legislature bills, scores them with the calibrated
  * trajectory model, and writes results to Supabase.
+ *
+ * v2.7 CHANGES (Phase 8 — Political Dynamics):
+ *  - 8.1: fetchCommitteeChairs() — calls CommitteeService.asmx/GetCommittees
+ *         to build Map<committeeName, {chair, party}> for chair_alignment signal
+ *  - 8.2: fetchSponsorTrackRecords() — queries bills from prior sessions to
+ *         compute sponsor pass rates (outcome_passed_law / total bills introduced)
+ *  - 8.3: extractSponsors() now returns bipartisan_index (float 0-1) and
+ *         cross_aisle_count (int) from enriched party data
+ *  - 8.4: processBill() computes chair_alignment and sponsor_track_record
+ *         from pre-loaded maps passed in via runSync()
+ *  - 8.5: runSync() pre-loads committeeChairMap + sponsorTrackMap at start
  *
  * v2.6 CHANGES (Phase 7D.2b):
  *  - 7D.2b.1: getLegislation() now picks the most advanced version (highest
@@ -527,11 +538,116 @@ async function fetchBienniumSponsorParties() {
   }
 }
 
+// ── COMMITTEE CHAIR MAP (Phase 8) ────────────────────────────────────────────
+// Calls CommitteeService.asmx/GetCommittees to build a map:
+//   Map<normalizedCommitteeName, { chair: string, party: 'D'|'R'|'' }>
+// Used to compute chair_alignment in processBill(). Called once at sync start.
+async function fetchCommitteeChairs(partyMap) {
+  try {
+    const data = await fetchXML('CommitteeService.asmx', 'GetCommittees', { biennium: BIENNIUM });
+    const items = data?.ArrayOfCommittee?.Committee;
+    if (!items) { console.warn('  [chair-map] No committees returned'); return new Map(); }
+    const arr = Array.isArray(items) ? items : [items];
+    const map = new Map();
+    for (const c of arr) {
+      const name = (c.Name || c.LongName || '').trim();
+      if (!name) continue;
+      // GetCommittees includes Members with roles. Find the Chair.
+      const members = c.Members?.CommitteeMember;
+      const memArr = Array.isArray(members) ? members : (members ? [members] : []);
+      // Chairs have Title containing "Chair" but NOT "Vice Chair"
+      const chair = memArr.find(m => {
+        const title = (m.Title || '').toLowerCase();
+        return title.includes('chair') && !title.includes('vice');
+      });
+      if (chair) {
+        const chairName = `${chair.FirstName || ''} ${chair.LastName || ''}`.trim();
+        // Lookup party from the biennium-wide party map
+        const chairId = chair.Id || chair.MemberId;
+        let chairParty = '';
+        if (chairId && partyMap.has(String(chairId))) {
+          chairParty = partyMap.get(String(chairId));
+        } else if (chair.Party) {
+          chairParty = chair.Party.startsWith('D') ? 'D' : chair.Party.startsWith('R') ? 'R' : '';
+        }
+        // Normalize key: lowercase, trim, strip " Committee" suffix
+        const key = name.toLowerCase().replace(/ committee$/i, '').trim();
+        map.set(key, { chair: chairName, party: chairParty });
+      }
+    }
+    console.log(`  Loaded committee chair map: ${map.size} committees`);
+    return map;
+  } catch(e) {
+    console.warn(`  [chair-map] fetch failed: ${e.message} — continuing without chair data`);
+    return new Map();
+  }
+}
+
+// ── SPONSOR TRACK RECORD MAP (Phase 8) ──────────────────────────────────────
+// Pre-queries bills from PRIOR sessions to build:
+//   Map<sponsorName, { passed: number, total: number, rate: float }>
+// Uses outcome_passed_law (set every sync since Phase 7D.1) from earlier biennia.
+async function fetchSponsorTrackRecords() {
+  try {
+    // Determine prior sessions. Current session = SESSION (e.g. '2025-2026').
+    // Prior sessions are the two preceding biennia.
+    const startYear = parseInt(SESSION.split('-')[0]);
+    const priorSessions = [];
+    for (let i = 1; i <= 2; i++) {
+      const py = startYear - (i * 2);
+      priorSessions.push(`${py}-${py + 1}`);
+    }
+    console.log(`  [track-record] Querying prior sessions: ${priorSessions.join(', ')}`);
+
+    // Fetch prime_sponsor + outcome for all bills in prior sessions
+    let allPrior = [];
+    for (const sess of priorSessions) {
+      let page = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('bills')
+          .select('prime_sponsor, outcome_passed_law')
+          .eq('session', sess)
+          .eq('legislation_type', 'bill')
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        allPrior = allPrior.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        page++;
+      }
+    }
+
+    // Group by sponsor
+    const map = new Map();
+    for (const b of allPrior) {
+      const name = b.prime_sponsor;
+      if (!name || name === 'Unknown') continue;
+      if (!map.has(name)) map.set(name, { passed: 0, total: 0 });
+      const rec = map.get(name);
+      rec.total++;
+      if (b.outcome_passed_law) rec.passed++;
+    }
+
+    // Compute rate
+    for (const [name, rec] of map) {
+      rec.rate = rec.total > 0 ? rec.passed / rec.total : 0;
+    }
+
+    console.log(`  Loaded sponsor track records: ${map.size} sponsors from ${allPrior.length} prior bills`);
+    return map;
+  } catch(e) {
+    console.warn(`  [track-record] fetch failed: ${e.message} — continuing without track records`);
+    return new Map();
+  }
+}
+
 // ── SPONSOR EXTRACTION ────────────────────────────────────────────────────────
 function extractSponsors(sponsors, partyMap) {
   if (!sponsors || sponsors.length === 0) return {
     prime_sponsor: 'Unknown', prime_party: '', majority_sponsor: false,
     bipartisan: false, cosponsor_count: 0, sponsor_tier: 4, is_committee_chair: false,
+    bipartisan_index: null, cross_aisle_count: 0,
   };
 
   // Phase 6.11 — Enrich each sponsor's Party from the biennium-wide roster map
@@ -555,14 +671,25 @@ function extractSponsors(sponsors, partyMap) {
   const fullName = `${prime.FirstName||''} ${prime.LastName||''}`.trim()
                    || prime.Name
                    || 'Unknown';
+  // Phase 8: Compute bipartisan_index and cross_aisle_count from enriched party data
+  const crossAisle = rest.filter(s => {
+    const sp = (s.Party || '').trim();
+    return sp !== '' && sp !== party;
+  });
+  const crossAisleCount = crossAisle.length;
+  // bipartisan_index = opposite-party cosponsors / total cosponsors (null if no cosponsors)
+  const bipartisanIndex = rest.length > 0 ? crossAisleCount / rest.length : null;
+
   return {
     prime_sponsor: fullName,
     prime_party: party,
     majority_sponsor: party === 'D',  // Democrats hold majority in WA 2025-28
-    bipartisan: rest.some(s => (s.Party||'') !== party && (s.Party||'') !== ''),
+    bipartisan: crossAisleCount > 0,
     cosponsor_count: rest.length,
     sponsor_tier: party === 'D' ? 3 : 4,
     is_committee_chair: false,  // populated separately via committee roster sync
+    bipartisan_index: bipartisanIndex,      // Phase 8: float 0-1
+    cross_aisle_count: crossAisleCount,     // Phase 8: int
   };
 }
 
@@ -704,7 +831,7 @@ function scoreBill(bill, categoryRates, sessionState) {
 }
 
 // ── PROCESS SINGLE BILL ───────────────────────────────────────────────────────
-async function processBill(raw, categoryRates, state, partyMap) {
+async function processBill(raw, categoryRates, state, partyMap, chairMap, trackMap) {
   const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
   if (!billNum) return null;
 
@@ -866,6 +993,29 @@ async function processBill(raw, categoryRates, state, partyMap) {
   billRecord.outcome_passed_chamber = billRecord.stage >= 4;
   billRecord.outcome_passed_law = billRecord.stage >= 6;
 
+  // Phase 8: Political Dynamics — chair_alignment
+  if (chairMap && chairMap.size > 0 && committeeName) {
+    const cmteKey = committeeName.toLowerCase().replace(/ committee$/i, '').trim();
+    const chairInfo = chairMap.get(cmteKey);
+    if (chairInfo && chairInfo.party && billRecord.prime_party) {
+      if (chairInfo.party === billRecord.prime_party) {
+        billRecord.chair_alignment = 'aligned';
+      } else {
+        billRecord.chair_alignment = 'opposed';
+      }
+    } else {
+      billRecord.chair_alignment = null; // unknown — no party data
+    }
+  }
+
+  // Phase 8: Political Dynamics — sponsor_track_record
+  if (trackMap && trackMap.size > 0 && billRecord.prime_sponsor && billRecord.prime_sponsor !== 'Unknown') {
+    const rec = trackMap.get(billRecord.prime_sponsor);
+    if (rec && rec.total >= 1) {
+      billRecord.sponsor_track_record = Math.round(rec.rate * 1000) / 1000; // 3 decimal places
+    }
+  }
+
   // Outcome label — human-readable final status
   const cmteName = (billRecord.committee_name || '').toLowerCase();
   const isRulesQueue = cmteName.includes('rules');
@@ -896,7 +1046,7 @@ async function runSync() {
   let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
   const errors = [];
 
-  console.log(`[${new Date().toISOString()}] Sync v2.6 — ${SESSION} — state: ${state}`);
+  console.log(`[${new Date().toISOString()}] Sync v2.7 — ${SESSION} — state: ${state}`);
 
   // 6A.1: During interim, pre-load existing bills so we can detect material changes
   let existingBillsMap = null;
@@ -926,6 +1076,12 @@ async function runSync() {
   const partyMap = await fetchBienniumSponsorParties();
   console.log(`  Loaded party map: ${partyMap.size} sponsors`);
 
+  // Phase 8: Committee chair map (needs partyMap for chair party lookup)
+  const chairMap = await fetchCommitteeChairs(partyMap);
+
+  // Phase 8: Sponsor track record from prior sessions
+  const trackMap = await fetchSponsorTrackRecords();
+
   let allBills;
   try {
     allBills = await getAllBillsSummary();
@@ -954,7 +1110,7 @@ async function runSync() {
 
     await Promise.all(batch.map(async raw => {
       try {
-        const result = await processBill(raw, categoryRates, state, partyMap);
+        const result = await processBill(raw, categoryRates, state, partyMap, chairMap, trackMap);
         if (!result) return;
         const { billRecord, scores } = result;
 
@@ -1031,7 +1187,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.6 Phase 7D.2b — substitute bill fix${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
+    notes: `sync-v2.7 Phase 8 — political dynamics layer${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''}`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, errors };

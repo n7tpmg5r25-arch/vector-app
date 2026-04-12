@@ -475,6 +475,70 @@ export default function MethodologyPage() {
           </div>
         </div>
 
+        {/* SECTION — POLITICAL DYNAMICS (Phase 8) */}
+        <div id="political-dynamics">
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            Political Dynamics
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+              Beyond the trajectory score, Vector computes four political dynamics signals that answer
+              a different question: not "how far has this bill moved?" but "who is moving it, and how
+              much friction does it face?" These are derived from data Vector already collects — no AI
+              sentiment analysis, no external APIs beyond the WA Legislature's own data.
+            </div>
+            {[
+              {
+                name: 'Bipartisan Index',
+                range: '0–100%',
+                description: 'The percentage of co-sponsors from the opposite party of the prime sponsor. A bill introduced by a Democrat with 4 Republican co-sponsors out of 10 total has a 40% bipartisan index. Above 30% is labeled Bipartisan, below 10% is Partisan, and between is Mixed.',
+                limitation: 'Does not detect hostile cross-aisle co-sponsorship — a Republican co-sponsoring a Democratic bill to weaken it in committee would still count as "bipartisan." Also cannot distinguish sincere support from political cover.',
+              },
+              {
+                name: 'Cross-Aisle Count',
+                range: '0–N',
+                description: 'The raw count of co-sponsors from the opposing party. While bipartisan index measures proportion, cross-aisle count measures breadth — a bill with 8 opposite-party co-sponsors has stronger signal than one with 1, even if both have the same index.',
+                limitation: 'Co-sponsorship is cheap to give and doesn\'t guarantee a floor vote. Some legislators co-sponsor broadly as a courtesy.',
+              },
+              {
+                name: 'Chair Alignment',
+                range: 'Aligned / Opposed',
+                description: 'Whether the current committee chair shares the prime sponsor\'s party. Committee chairs have enormous power in WA — they decide whether a bill gets a hearing, when it gets scheduled, and whether it moves to executive session. An aligned chair removes a major friction point.',
+                limitation: 'Chair party alone doesn\'t capture personal relationships, policy preferences, or committee dynamics. A Democratic chair might block a fellow Democrat\'s bill for caucus-strategy reasons.',
+              },
+              {
+                name: 'Sponsor Track Record',
+                range: '0–100%',
+                description: 'The prime sponsor\'s historical pass rate — what fraction of their bills across the prior two biennia were signed into law. A sponsor with a 35% track record has consistently gotten bills across the finish line; one with 5% is either new or tends to introduce aspirational legislation.',
+                limitation: 'New legislators have no track record (the field will be blank). Experienced legislators who introduce many bills may show a lower rate even if they pass more bills in absolute terms. Track record from prior sessions may not predict performance under a different Governor or shifted majorities.',
+              },
+            ].map((s, i) => (
+              <div key={s.name} style={{
+                padding: '14px 16px',
+                borderBottom: i < 3 ? '1px solid var(--border)' : 'none',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--teal)' }}>{s.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                    {s.range}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 8 }}>
+                  {s.description}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-faint)', lineHeight: 1.5, fontStyle: 'italic' }}>
+                  Limitation: {s.limitation}
+                </div>
+              </div>
+            ))}
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+              Political dynamics signals are informational — they are not factored into the trajectory
+              score or pass probability. They provide context a lobbyist would want alongside the numbers:
+              who built the coalition, who controls the committee, and how effective is the sponsor.
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <Nav />
