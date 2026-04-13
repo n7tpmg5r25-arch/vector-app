@@ -290,37 +290,31 @@ export default function WatchlistPage() {
             Watchlist
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Subscribe to Calendar button */}
+            {/* Subscribe to Calendar — direct webcal:// link */}
             {filtered.length > 0 && (
-              <button
-                onClick={async () => {
+              <a
+                href="#"
+                onClick={async (e) => {
+                  e.preventDefault()
                   const { data: { session: sess } } = await supabase.auth.getSession()
                   if (!sess?.access_token) { alert('Please log in to subscribe.'); return }
                   const base = window.location.origin
-                  const url = `webcal://${base.replace(/^https?:\/\//, '')}/api/calendar/watchlist.ics?token=${sess.access_token}`
-                  try {
-                    await navigator.clipboard.writeText(url)
-                    setCalCopied(true)
-                    setTimeout(() => setCalCopied(false), 3000)
-                  } catch {
-                    window.open(url)
-                  }
+                  window.location.href = `webcal://${base.replace(/^https?:\/\//, '')}/api/calendar/watchlist.ics?token=${sess.access_token}`
                 }}
                 style={{
                   padding: '4px 12px', borderRadius: 14, fontSize: 10, fontWeight: 600,
-                  background: 'transparent',
-                  color: calCopied ? 'var(--teal)' : 'var(--gold)',
-                  border: `1px solid ${calCopied ? 'rgba(184,151,90,0.5)' : 'rgba(184,151,90,0.35)'}`,
+                  background: 'transparent', color: 'var(--gold)',
+                  border: '1px solid rgba(184,151,90,0.35)',
                   cursor: 'pointer', transition: 'all 0.15s',
                   display: 'flex', alignItems: 'center', gap: 4,
-                  fontFamily: 'var(--font-mono)',
+                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
                 }}
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                {calCopied ? 'Copied!' : 'Subscribe'}
-              </button>
+                Subscribe
+              </a>
             )}
             {/* Export Report button */}
             {filtered.length > 0 && (

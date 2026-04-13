@@ -433,8 +433,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   const tierLabel = bill.confidence_label || getScoreTierLabel(score)
   const borderColor = getOutcomeColor(bill)
   const title = getBillTitle(bill)
-  // Clean AI summary: strip markdown headers and leading whitespace per line
-  const rawSummary = (bill.ai_summary || '').trim()
+  // Clean summary: prefer custom_summary (operator-edited) over ai_summary
+  const rawSummary = (bill.custom_summary || bill.ai_summary || '').trim()
   const summary = rawSummary
     .split('\n')
     .filter(line => !line.trim().startsWith('#'))   // remove markdown headers

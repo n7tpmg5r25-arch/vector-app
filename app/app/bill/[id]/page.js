@@ -303,6 +303,9 @@ export default function BillDetailPage() {
   const [amendments, setAmendments] = useState([])
   const [fiscalHistory, setFiscalHistory] = useState([])
   const [timelineExpanded, setTimelineExpanded] = useState(false)
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [summaryDraft, setSummaryDraft] = useState('')
+  const [savingSummary, setSavingSummary] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -625,22 +628,122 @@ export default function BillDetailPage() {
           </div>
         </div>
 
-        {/* ── AI SUMMARY ──────────────────────────────── */}
-        {bill.ai_summary && (
+        {/* ── AI SUMMARY (editable) ──────────────────── */}
+        {(bill.custom_summary || bill.ai_summary) && (
           <div style={{
             background: 'rgba(184,151,90,0.03)',
             border: '1px solid rgba(184,151,90,0.12)',
             borderRadius: 'var(--radius-lg)',
             padding: '14px 16px',
           }}>
-            <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal-mid)', fontWeight: 600, letterSpacing: '0.08em', marginBottom: 8 }}>
-              PLAIN ENGLISH SUMMARY
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal-mid)', fontWeight: 600, letterSpacing: '0.08em' }}>
+                PLAIN ENGLISH SUMMARY
+                {bill.custom_summary && (
+                  <span style={{ marginLeft: 8, color: 'var(--gold)', fontWeight: 400 }}>· EDITED</span>
+                )}
+              </div>
+              {user && !editingSummary && (
+                <button
+                  onClick={() => {
+                    setSummaryDraft(bill.custom_summary || bill.ai_summary || '')
+                    setEditingSummary(true)
+                  }}
+                  style={{
+                    fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--gold)',
+                    background: 'none', border: '1px solid rgba(184,151,90,0.25)',
+                    borderRadius: 6, padding: '3px 10px', cursor: 'pointer',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  EDIT
+                </button>
+              )}
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-              {bill.ai_summary}
-            </div>
+
+            {editingSummary ? (
+              <>
+                <textarea
+                  value={summaryDraft}
+                  onChange={e => setSummaryDraft(e.target.value)}
+                  style={{
+                    width: '100%', minHeight: 180, fontSize: 13, lineHeight: 1.6,
+                    color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.15)',
+                    border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8,
+                    padding: '10px 12px', fontFamily: 'inherit', resize: 'vertical',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button
+                    disabled={savingSummary}
+                    onClick={async () => {
+                      setSavingSummary(true)
+                      const supabase = createBrowserClient()
+                      await supabase.from('bills').update({
+                        custom_summary: summaryDraft,
+                        summary_locked: true,
+                      }).eq('bill_id', bill.bill_id)
+                      setBill(prev => ({ ...prev, custom_summary: summaryDraft, summary_locked: true }))
+                      setEditingSummary(false)
+                      setSavingSummary(false)
+                    }}
+                    style={{
+                      fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                      color: '#fff', background: 'var(--teal)', border: 'none',
+                      borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                      opacity: savingSummary ? 0.5 : 1,
+                    }}
+                  >
+                    {savingSummary ? 'SAVING…' : 'SAVE'}
+                  </button>
+                  {bill.custom_summary && (
+                    <button
+                      disabled={savingSummary}
+                      onClick={async () => {
+                        setSavingSummary(true)
+                        const supabase = createBrowserClient()
+                        await supabase.from('bills').update({
+                          custom_summary: null,
+                          summary_locked: false,
+                        }).eq('bill_id', bill.bill_id)
+                        setBill(prev => ({ ...prev, custom_summary: null, summary_locked: false }))
+                        setEditingSummary(false)
+                        setSavingSummary(false)
+                      }}
+                      style={{
+                        fontSize: 10, fontFamily: 'var(--font-mono)',
+                        color: 'var(--danger)', background: 'none',
+                        border: '1px solid rgba(196,71,48,0.3)',
+                        borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                      }}
+                    >
+                      RESET TO AI
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEditingSummary(false)}
+                    style={{
+                      fontSize: 10, fontFamily: 'var(--font-mono)',
+                      color: 'var(--text-faint)', background: 'none',
+                      border: '1px solid rgba(184,151,90,0.15)',
+                      borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
+                {bill.custom_summary || bill.ai_summary}
+              </div>
+            )}
+
             <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(184,151,90,0.1)', fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.05em', lineHeight: 1.5 }}>
-              Generated by a large language model from this bill's official text. Not reviewed by a human. <a href="/disclaimers" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>Full disclaimers</a>.
+              {bill.custom_summary
+                ? <>Edited by operator. Original AI summary available via "Reset to AI". <a href="/disclaimers" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>Disclaimers</a>.</>
+                : <>Generated by a large language model from this bill's official text. Not reviewed by a human. <a href="/disclaimers" style={{ color: 'var(--gold)', textDecoration: 'underline' }}>Full disclaimers</a>.</>
+              }
             </div>
           </div>
         )}

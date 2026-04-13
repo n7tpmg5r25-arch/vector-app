@@ -98,7 +98,7 @@ function SearchContent() {
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, ai_summary, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
+      .select('bill_id, bill_number, title, ai_summary, custom_summary, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -107,7 +107,7 @@ function SearchContent() {
     if (stage > 0) q = q.eq('stage', stage)
     if (outcome !== 'All') q = q.eq('confidence_label', outcome)
     if (query.trim()) {
-      q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%,ai_summary.ilike.%${query}%`)
+      q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%,ai_summary.ilike.%${query}%,custom_summary.ilike.%${query}%`)
     }
 
     if (sortBy === 'score') q = q.order('final_score', { ascending: false })
@@ -388,7 +388,7 @@ function SearchContent() {
                 </div>
                 {/* Show summary snippet when keyword matched in ai_summary */}
                 {(() => {
-                  const snip = query.trim().length >= 3 ? getSummarySnippet(bill.ai_summary, query.trim()) : null
+                  const snip = query.trim().length >= 3 ? getSummarySnippet(bill.custom_summary || bill.ai_summary, query.trim()) : null
                   if (!snip) return null
                   const { snippet, matchStart, matchLen } = snip
                   return (
