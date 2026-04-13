@@ -21,6 +21,35 @@ const STAGES = [
   { label: 'Signed', value: 6 },
 ]
 
+/** Highlight matched keyword in text. Returns React elements with <mark> wrapping. */
+function highlightMatch(text, term) {
+  if (!text || !term || term.length < 3) return text
+  const idx = text.toLowerCase().indexOf(term.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark style={{ background: 'rgba(184,151,90,0.25)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
+        {text.slice(idx, idx + term.length)}
+      </mark>
+      {text.slice(idx + term.length)}
+    </>
+  )
+}
+
+/** Get a snippet from ai_summary around the matched keyword. */
+function getSummarySnippet(summary, term) {
+  if (!summary || !term || term.length < 3) return null
+  const idx = summary.toLowerCase().indexOf(term.toLowerCase())
+  if (idx === -1) return null
+  const start = Math.max(0, idx - 60)
+  const end = Math.min(summary.length, idx + term.length + 60)
+  const prefix = start > 0 ? '...' : ''
+  const suffix = end < summary.length ? '...' : ''
+  const snippet = summary.slice(start, end)
+  return { snippet: prefix + snippet + suffix, matchStart: idx - start + prefix.length, matchLen: term.length }
+}
+
 function SearchContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,7 +98,7 @@ function SearchContent() {
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
+      .select('bill_id, bill_number, title, ai_summary, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -78,7 +107,7 @@ function SearchContent() {
     if (stage > 0) q = q.eq('stage', stage)
     if (outcome !== 'All') q = q.eq('confidence_label', outcome)
     if (query.trim()) {
-      q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%`)
+      q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%,ai_summary.ilike.%${query}%`)
     }
 
     if (sortBy === 'score') q = q.order('final_score', { ascending: false })
@@ -245,7 +274,7 @@ function SearchContent() {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search by title or bill number..."
+            placeholder="Search by title, bill number, or keyword..."
             style={{
               width: '100%', padding: '10px 14px 10px 36px',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -253,6 +282,11 @@ function SearchContent() {
               color: 'var(--text-primary)', outline: 'none',
             }}
           />
+          {query.trim().length >= 3 && (
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4, paddingLeft: 2 }}>
+              Searching title, bill number, and AI summary
+            </div>
+          )}
         </div>
 
         {/* Filters */}
@@ -347,8 +381,26 @@ function SearchContent() {
                   )}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
+                  {query.trim().length >= 3
+                    ? highlightMatch(bill.title || bill.committee_name || `Bill ${bill.bill_number}`, query.trim())
+                    : (bill.title || bill.committee_name || `Bill ${bill.bill_number}`)
+                  }
                 </div>
+                {/* Show summary snippet when keyword matched in ai_summary */}
+                {(() => {
+                  const snip = query.trim().length >= 3 ? getSummarySnippet(bill.ai_summary, query.trim()) : null
+                  if (!snip) return null
+                  const { snippet, matchStart, matchLen } = snip
+                  return (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {snippet.slice(0, matchStart)}
+                      <mark style={{ background: 'rgba(184,151,90,0.25)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
+                        {snippet.slice(matchStart, matchStart + matchLen)}
+                      </mark>
+                      {snippet.slice(matchStart + matchLen)}
+                    </div>
+                  )
+                })()}
                 <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
                   {bill.has_public_hearing && (
                     <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>&#9679; Hearing</span>

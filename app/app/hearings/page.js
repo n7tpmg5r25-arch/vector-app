@@ -18,6 +18,7 @@ export default function HearingsPage() {
   const [loading, setLoading]       = useState(true)
   const [chamber, setChamber]       = useState('All')
   const [view, setView]             = useState('upcoming')
+  const [calCopied, setCalCopied]   = useState(false)
   const isInterim = typeof window !== 'undefined' ? isInterimPeriod() : true
 
   useEffect(() => {
@@ -83,8 +84,39 @@ export default function HearingsPage() {
         padding: '52px 16px 14px',
         position: 'sticky', top: 0, zIndex: 50,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
-          Hearings
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+            Hearings
+          </div>
+          <button
+            onClick={async () => {
+              const { data: { session: sess } } = await supabase.auth.getSession()
+              if (!sess?.access_token) { alert('Please log in to subscribe.'); return }
+              const base = window.location.origin
+              const url = `webcal://${base.replace(/^https?:\/\//, '')}/api/calendar/hearings.ics?token=${sess.access_token}`
+              try {
+                await navigator.clipboard.writeText(url)
+                setCalCopied(true)
+                setTimeout(() => setCalCopied(false), 3000)
+              } catch {
+                window.open(url)
+              }
+            }}
+            style={{
+              padding: '4px 12px', borderRadius: 14, fontSize: 10, fontWeight: 600,
+              background: 'transparent',
+              color: calCopied ? 'var(--teal)' : 'var(--gold)',
+              border: `1px solid ${calCopied ? 'rgba(184,151,90,0.5)' : 'rgba(184,151,90,0.35)'}`,
+              cursor: 'pointer', transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            {calCopied ? 'Copied!' : 'Subscribe'}
+          </button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           Committee schedules · WA Legislature
