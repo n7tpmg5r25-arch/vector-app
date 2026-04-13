@@ -35,8 +35,15 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ── Thresholds ───────────────────────────────────────────────────────────────
-const EXPECTED_BILL_COUNT = 3400;          // full biennium (2025+2026); was 2855 when only fetching 2026
-const BILL_COUNT_TOLERANCE = 0.15;         // ±15% — allows 2,890..3,910
+// Session-aware: mature sessions (2025-2026) have tight bounds; new sessions
+// (2027-2028 during pre-filing) have relaxed bounds since bills trickle in.
+const SESSION_THRESHOLDS = {
+  '2025-2026': { expectedBills: 3400, tolerance: 0.15 },
+  // Add future sessions here as they mature; during pre-filing, use defaults
+};
+const defaults = SESSION_THRESHOLDS[SESSION] || { expectedBills: null, tolerance: null };
+const EXPECTED_BILL_COUNT = defaults.expectedBills;   // null = skip count check for new sessions
+const BILL_COUNT_TOLERANCE = defaults.tolerance;
 const MIN_TITLE_PCT = 0.99;                // 99% must have titles
 const MIN_SPONSOR_PCT = 0.99;              // 99% must have real prime_sponsor (not "Unknown")
 const MIN_PARTY_PCT = 0.95;                // 95% must have prime_party in (D,R)
@@ -59,7 +66,7 @@ async function run() {
 
   if (countErr) {
     fail('bill_count_query', countErr.message);
-  } else {
+  } else if (EXPECTED_BILL_COUNT) {
     const lo = Math.floor(EXPECTED_BILL_COUNT * (1 - BILL_COUNT_TOLERANCE));
     const hi = Math.ceil(EXPECTED_BILL_COUNT * (1 + BILL_COUNT_TOLERANCE));
     if (totalBills < lo || totalBills > hi) {
@@ -67,6 +74,9 @@ async function run() {
     } else {
       pass('bill_count', `${totalBills} bills in [${lo}..${hi}]`);
     }
+  } else {
+    // New session — no expected count yet, just log what we have
+    pass('bill_count', `${totalBills} bills (new session, no baseline yet)`);
   }
 
   // Short-circuit if we can't even count bills

@@ -23,12 +23,17 @@ const BIENNIUMS = [
 
 // ── Derived helpers ───────────────────────────────────────
 
-/** Current biennium session string, e.g. '2025-2026' or '2027-2028' */
+/** Current biennium session string, e.g. '2025-2026' or '2027-2028'
+ *  Switches to the next biennium when pre-filing opens (typically Dec 1),
+ *  NOT when the session starts (Jan 13). Pre-filing is when lobbyists
+ *  begin scanning new bills — the app should default to the new session
+ *  as soon as there's something to see. */
 export function getCurrentSession() {
   const now = new Date()
-  // Walk backwards; first biennium whose start <= today wins
+  // Walk backwards; first biennium whose pre-filing date (or start) <= today wins
   for (let i = BIENNIUMS.length - 1; i >= 0; i--) {
-    if (now >= new Date(BIENNIUMS[i].start)) return BIENNIUMS[i].session
+    const trigger = BIENNIUMS[i].prefilingOpens || BIENNIUMS[i].start
+    if (now >= new Date(trigger)) return BIENNIUMS[i].session
   }
   return BIENNIUMS[0].session
 }
