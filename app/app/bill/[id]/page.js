@@ -734,8 +734,37 @@ export default function BillDetailPage() {
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
-                {bill.custom_summary || bill.ai_summary}
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                {(bill.custom_summary || bill.ai_summary || '').split('\n').map((line, i) => {
+                  const trimmed = line.trim()
+                  // Section headers: **EXECUTIVE SUMMARY**, **WHO IS AFFECTED**, etc.
+                  const headerMatch = trimmed.match(/^\*\*(.+?)\*\*$/)
+                  if (headerMatch) {
+                    return (
+                      <div key={i} style={{
+                        fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                        color: 'var(--teal)', letterSpacing: '0.06em',
+                        marginTop: i > 0 ? 14 : 0, marginBottom: 4,
+                        textTransform: 'uppercase',
+                      }}>
+                        {headerMatch[1]}
+                      </div>
+                    )
+                  }
+                  // Blank lines become spacing
+                  if (!trimmed) return <div key={i} style={{ height: 6 }} />
+                  // Paragraph text — handle inline **bold** within text
+                  const parts = trimmed.split(/\*\*(.+?)\*\*/)
+                  return (
+                    <p key={i} style={{ margin: '0 0 4px 0' }}>
+                      {parts.map((part, j) =>
+                        j % 2 === 1
+                          ? <strong key={j} style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{part}</strong>
+                          : <span key={j}>{part}</span>
+                      )}
+                    </p>
+                  )
+                })}
               </div>
             )}
 
