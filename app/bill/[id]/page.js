@@ -315,7 +315,7 @@ export default function BillDetailPage() {
     } else {
       const { data } = await supabase
         .from('tracked_bills')
-        .insert({ bill_id: billId, user_id: user.id, notes, client_tag: clientTag })
+        .insert({ bill_id: billId, user_id: user.id, client_tag: clientTag })
         .select()
         .single()
       setTracked(data)
