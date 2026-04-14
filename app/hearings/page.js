@@ -35,7 +35,7 @@ export default function HearingsPage() {
         .select(`
           id, committee_name, hearing_date, location, tvw_link, testimony_deadline, session,
           bill_id,
-          bills(bill_id, bill_number, title, final_score, chamber, committee_name, stage)
+          bills(bill_id, bill_number, title, final_score, chamber, committee_name, stage, confidence_label)
         `)
         .order('hearing_date', { ascending: true })
         .limit(100)
@@ -45,7 +45,7 @@ export default function HearingsPage() {
       // Fallback: bills with hearing_date from the 2025-26 session
       const { data: billRows } = await supabase
         .from('bills')
-        .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, hearing_date, has_public_hearing, committee_passed, prime_sponsor, prime_party')
+        .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, hearing_date, has_public_hearing, committee_passed, prime_sponsor, prime_party, confidence_label')
         .eq('session', '2025-2026')
         .eq('has_public_hearing', true)
         .not('hearing_date', 'is', null)
@@ -153,7 +153,7 @@ export default function HearingsPage() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <ScoreBadge score={h.bills?.final_score} size="sm"/>
+                  <ScoreBadge score={h.bills?.final_score} size="sm" status={h.bills?.confidence_label}/>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                       {h.bills?.chamber === 'House' ? 'HB' : 'SB'} {h.bills?.bill_number}
@@ -227,7 +227,7 @@ export default function HearingsPage() {
                 onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-sm)'}
                 onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
               >
-                <ScoreBadge score={bill.final_score} size="sm"/>
+                <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>

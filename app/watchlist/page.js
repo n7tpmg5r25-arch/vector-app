@@ -476,7 +476,7 @@ export default function WatchlistPage() {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ position: 'relative' }}>
-                <ScoreBadge score={bill.final_score} size="md"/>
+                <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
                 {delta != null && delta !== 0 && (
                   <span style={{
                     position: 'absolute', top: -6, right: -10,

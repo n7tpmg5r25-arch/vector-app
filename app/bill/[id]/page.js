@@ -582,7 +582,7 @@ export default function BillDetailPage() {
             borderRadius: 'var(--radius)',
             padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
           }}>
-            <ScoreBadge score={score} size="lg"/>
+            <ScoreBadge score={score} size="lg" status={confLabel}/>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>
                 Trajectory Score

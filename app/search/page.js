@@ -41,7 +41,7 @@ function SearchContent() {
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -157,7 +157,7 @@ function SearchContent() {
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
-            <ScoreBadge score={bill.final_score} size="sm"/>
+            <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
                 {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}

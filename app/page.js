@@ -56,7 +56,7 @@ export default function HomePage() {
 
     const { data: bills } = await supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date, confidence_label')
       .eq('session', SESSION)
       .not('final_score', 'is', null)
       .order('final_score', { ascending: false })
@@ -66,7 +66,7 @@ export default function HomePage() {
     if (user) {
       const { data: wl } = await supabase
         .from('tracked_bills')
-        .select(`bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing)`)
+        .select(`bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, confidence_label)`)
         .eq('user_id', user.id)
         .order('added_at', { ascending: false })
       setWatchlist(wl?.filter(w => w.bills) || [])
@@ -343,7 +343,7 @@ export default function HomePage() {
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
               >
                 <div style={{ position: 'relative' }}>
-                  <ScoreBadge score={bill.final_score} size="md"/>
+                  <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
                   {delta != null && delta !== 0 && (
                     <span style={{
                       position: 'absolute', top: -6, right: -10,
@@ -437,7 +437,7 @@ export default function HomePage() {
                 }}>{idx + 1}</div>
 
                 <div style={{ position: 'relative' }}>
-                  <ScoreBadge score={bill.final_score} size="sm"/>
+                  <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
                   {delta != null && delta !== 0 && (
                     <span style={{
                       position: 'absolute', top: -5, right: -10,

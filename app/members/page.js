@@ -75,7 +75,7 @@ export default function MembersPage() {
     setBillsLoading(true)
     const { data } = await supabase
       .from('bills')
-      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label')
       .eq('session', '2025-2026')
       .eq('prime_sponsor', name)
       .order('final_score', { ascending: false })
@@ -194,7 +194,7 @@ export default function MembersPage() {
                 marginBottom: 6,
               }}
             >
-              <ScoreBadge score={bill.final_score} size="sm"/>
+              <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
