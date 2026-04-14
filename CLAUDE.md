@@ -14,6 +14,15 @@ Vector | WA is a solo-operator legislative intelligence app for Washington State
 - `docs/DISASTER-RECOVERY.md` — new-machine playbook, 45-minute target
 - `setup-new-machine.ps1` — automated Windows setup script
 
+## App Directory Structure
+Live pages are in `app/app/`, NOT `app/`. Shared infrastructure stays at `app/` level:
+- `app/app/` — all page routes (watchlist, bill/[id], search, etc.) and components (Nav, ScoreBadge, etc.)
+- `app/lib/` — shared utilities (supabase, session-config, generate-pdf, sync, etc.)
+- `app/layout.js` + `app/globals.css` — root layout and styles
+- `app/auth/callback/` — server-side auth route
+
+**When editing pages or components, always edit files in `app/app/`, never at the `app/` level.**
+
 ## Important Rules
 - Vercel deploys from the repo root, NOT from `app/` subfolder
 - Supabase edge functions are deployed via MCP/dashboard, not git push. Re-inline `_shared/email-template.ts` before deploying.
