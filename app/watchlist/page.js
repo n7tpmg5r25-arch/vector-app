@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -20,11 +21,10 @@ export default function WatchlistPage() {
   const [changesDismissed, setChangesDismissed] = useState(false)
   const [loading, setLoading]               = useState(true)
   const [exporting, setExporting]           = useState(false)
-  // Phase 7S: quick-note state
-  const [notesBillId, setNotesBillId]       = useState(null)
-  const [quickNote, setQuickNote]           = useState('')
-  const [savingQuickNote, setSavingQuickNote] = useState(false)
-  const [billNoteMeta, setBillNoteMeta]     = useState({})  // { bill_id: { count, lastUpdated } }
+  // 7Z.9: Quick-note inline editor state
+  const [quickNoteOpen, setQuickNoteOpen]   = useState(null)  // bill_id or null
+  const [quickNoteBody, setQuickNoteBody]   = useState('')
+  const [quickNoteSaving, setQuickNoteSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -35,7 +35,7 @@ export default function WatchlistPage() {
       const { data } = await supabase
         .from('tracked_bills')
         .select(`
-          bill_id, client_tag, notes, added_at, last_viewed_at,
+          bill_id, client_tag, added_at, last_viewed_at,
           bills (
             bill_id, bill_number, title, final_score,
             stage, chamber, category, committee_name,
@@ -48,7 +48,25 @@ export default function WatchlistPage() {
         .eq('user_id', user.id)
         .order('added_at', { ascending: false })
 
-      const items = (data || []).filter(d => d.bills)
+      const rawItems = (data || []).filter(d => d.bills)
+
+      // 7Z.9: Fetch latest bill_note per tracked bill (replaces tracked_bills.notes)
+      const trackedIds = rawItems.map(d => d.bill_id)
+      let latestNotes = {}
+      if (trackedIds.length > 0) {
+        const { data: notesData } = await supabase
+          .from('bill_notes')
+          .select('bill_id, body, visibility, created_at')
+          .eq('user_id', user.id)
+          .in('bill_id', trackedIds)
+          .order('created_at', { ascending: false })
+        if (notesData) {
+          notesData.forEach(n => {
+            if (!latestNotes[n.bill_id]) latestNotes[n.bill_id] = n
+          })
+        }
+      }
+      const items = rawItems.map(d => ({ ...d, latestNote: latestNotes[d.bill_id] || null }))
       setWatched(items)
 
       const allClients = [...new Set(items.map(d => d.client_tag).filter(Boolean))]
@@ -61,99 +79,102 @@ export default function WatchlistPage() {
         return d.last_viewed_at < earliest ? d.last_viewed_at : earliest
       }, null)
 
-      /* ── 3. Fetch snapshots for deltas + change detection ── */
+      /* ── 3 & 4. Phase 6.4 perf: Fetch snapshots + update last_viewed_at in parallel ── */
       const billIds = items.map(d => d.bill_id)
-      if (billIds.length > 0) {
-        const { data: snaps } = await supabase
-          .from('trajectory_snapshots')
-          .select('bill_id, score, stage, snapshot_date')
-          .in('bill_id', billIds)
-          .order('snapshot_date', { ascending: false })
+      const [snapsResult] = await Promise.all([
+        billIds.length > 0
+          ? supabase
+              .from('trajectory_snapshots')
+              .select('bill_id, score, stage, snapshot_date')
+              .in('bill_id', billIds)
+              .order('snapshot_date', { ascending: false })
+          : Promise.resolve({ data: null }),
+        supabase
+          .from('tracked_bills')
+          .update({ last_viewed_at: new Date().toISOString() })
+          .eq('user_id', user.id),
+      ])
 
-        if (snaps) {
-          const byBill = {}
-          snaps.forEach(s => {
-            if (!byBill[s.bill_id]) byBill[s.bill_id] = []
-            byBill[s.bill_id].push(s)
-          })
+      const snaps = snapsResult.data
+      if (snaps) {
+        const byBill = {}
+        snaps.forEach(s => {
+          if (!byBill[s.bill_id]) byBill[s.bill_id] = []
+          byBill[s.bill_id].push(s)
+        })
 
-          // Score deltas: latest vs previous snapshot
-          const deltas = {}
+        // Score deltas: latest vs previous snapshot
+        const deltas = {}
+        Object.entries(byBill).forEach(([bid, arr]) => {
+          if (arr.length >= 2) {
+            deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
+          }
+        })
+        setScoreDeltas(deltas)
+
+        // Change detection: latest vs snapshot at last_viewed_at
+        if (lastViewed) {
+          const lastViewedDate = lastViewed.slice(0, 10) // YYYY-MM-DD
+          const detected = {}
+
           Object.entries(byBill).forEach(([bid, arr]) => {
-            if (arr.length >= 2) {
-              deltas[bid] = (arr[0].score || 0) - (arr[1].score || 0)
-            }
-          })
-          setScoreDeltas(deltas)
+            const latest = arr[0]
+            const oldSnap = arr.find(s => s.snapshot_date <= lastViewedDate)
 
-          // Change detection: latest vs snapshot at last_viewed_at
-          if (lastViewed) {
-            const lastViewedDate = lastViewed.slice(0, 10) // YYYY-MM-DD
-            const detected = {}
+            if (oldSnap && latest && latest.snapshot_date !== oldSnap.snapshot_date) {
+              const scoreDiff = (latest.score || 0) - (oldSnap.score || 0)
+              const stageChanged = latest.stage !== oldSnap.stage
 
-            Object.entries(byBill).forEach(([bid, arr]) => {
-              const latest = arr[0]
-              // Find the snapshot that was current when user last visited
-              const oldSnap = arr.find(s => s.snapshot_date <= lastViewedDate)
-
-              if (oldSnap && latest && latest.snapshot_date !== oldSnap.snapshot_date) {
-                const scoreDiff = (latest.score || 0) - (oldSnap.score || 0)
-                const stageChanged = latest.stage !== oldSnap.stage
-
-                if (scoreDiff !== 0 || stageChanged) {
-                  detected[bid] = {
-                    oldScore: oldSnap.score,
-                    newScore: latest.score,
-                    scoreDiff,
-                    oldStage: oldSnap.stage,
-                    newStage: latest.stage,
-                    stageChanged,
-                  }
+              if (scoreDiff !== 0 || stageChanged) {
+                detected[bid] = {
+                  oldScore: oldSnap.score,
+                  newScore: latest.score,
+                  scoreDiff,
+                  oldStage: oldSnap.stage,
+                  newStage: latest.stage,
+                  stageChanged,
                 }
               }
-            })
-            setChanges(detected)
-          }
-        }
-      }
-
-      /* ── 4. Phase 7S: fetch note counts per bill ── */
-      if (billIds.length > 0) {
-        const { data: allNotes } = await supabase
-          .from('bill_notes')
-          .select('bill_id, created_at, updated_at')
-          .eq('user_id', user.id)
-          .in('bill_id', billIds)
-          .order('updated_at', { ascending: false })
-        if (allNotes) {
-          const meta = {}
-          allNotes.forEach(n => {
-            if (!meta[n.bill_id]) {
-              meta[n.bill_id] = { count: 0, lastUpdated: n.updated_at }
             }
-            meta[n.bill_id].count++
           })
-          setBillNoteMeta(meta)
+          setChanges(detected)
         }
       }
-
-      /* ── 5. Update last_viewed_at to NOW ── */
-      await supabase
-        .from('tracked_bills')
-        .update({ last_viewed_at: new Date().toISOString() })
-        .eq('user_id', user.id)
 
       setLoading(false)
     }
     load()
   }, [])
 
+  // 7Z.9: Quick-note save handler
+  async function saveQuickNote(billId) {
+    if (!quickNoteBody.trim()) return
+    setQuickNoteSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setQuickNoteSaving(false); return }
+    const { data } = await supabase
+      .from('bill_notes')
+      .insert({ bill_id: billId, user_id: user.id, body: quickNoteBody.trim(), visibility: 'internal' })
+      .select()
+      .single()
+    if (data) {
+      setWatched(prev => prev.map(d =>
+        d.bill_id === billId ? { ...d, latestNote: data } : d
+      ))
+    }
+    setQuickNoteBody('')
+    setQuickNoteOpen(null)
+    setQuickNoteSaving(false)
+  }
+
   /* ── Filtering & sorting ── */
   const clientFiltered = activeClient === 'All'
     ? watched
     : watched.filter(d => d.client_tag === activeClient)
   const filtered = atRiskOnly
-    ? clientFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled)
+    ? (isInterimPeriod()
+      ? clientFiltered.filter(d => d.bills?.confidence_label === 'DEAD')
+      : clientFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled))
     : clientFiltered
 
   const sorted = [...filtered].sort((a, b) => {
@@ -177,81 +198,20 @@ export default function WatchlistPage() {
       const billsToExport = sorted // uses current filter
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
-      // Phase 7S: fetch client-visible analyst notes for all tracked bills
-      const { data: { user } } = await supabase.auth.getUser()
-      let billNotes = []
-      if (user) {
-        const billIds = billsToExport.map(d => d.bill_id)
-        if (billIds.length > 0) {
-          const { data: notesData } = await supabase
-            .from('bill_notes')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('visibility', 'client')
-            .in('bill_id', billIds)
-            .order('created_at', { ascending: false })
-          billNotes = notesData || []
-        }
-      }
-
-      // Phase 10.5: fetch amendments and fiscal note history for activity line
-      const billIds2 = billsToExport.map(d => d.bill_id)
-      let amendmentsData = []
-      let fiscalData = []
-      if (billIds2.length > 0) {
-        const { data: aData } = await supabase
-          .from('amendments')
-          .select('bill_id, amendment_number, adopted, floor_action_date')
-          .in('bill_id', billIds2)
-        amendmentsData = aData || []
-        const { data: fData } = await supabase
-          .from('fiscal_note_history')
-          .select('bill_id, detected_date, new_size, note')
-          .in('bill_id', billIds2)
-        fiscalData = fData || []
-      }
-
+      const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
       await generateClientPDF({
         clientName,
         date: today,
         bills: billsToExport,
         scoreDeltas,
         changes,
-        billNotes,
-        amendments: amendmentsData,
-        fiscalHistory: fiscalData,
+        session: sessionLabel,
       })
     } catch (err) {
       console.error('PDF export failed:', err)
       alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
     }
     setExporting(false)
-  }
-
-  /* ── Phase 7S: quick-note save handler ── */
-  const saveQuickNote = async () => {
-    if (!notesBillId || !quickNote.trim()) return
-    setSavingQuickNote(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase
-        .from('bill_notes')
-        .insert({ bill_id: notesBillId, user_id: user.id, body: quickNote.trim(), visibility: 'internal' })
-        .select()
-        .single()
-      if (data) {
-        setBillNoteMeta(prev => ({
-          ...prev,
-          [notesBillId]: {
-            count: (prev[notesBillId]?.count || 0) + 1,
-            lastUpdated: data.updated_at,
-          }
-        }))
-      }
-    }
-    setQuickNote('')
-    setNotesBillId(null)
-    setSavingQuickNote(false)
   }
 
   /* ── Which bills have changes (filtered to current view) ── */
@@ -304,11 +264,15 @@ export default function WatchlistPage() {
 
         {filtered.length > 0 && (
           <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-            {[
+            {(isInterimPeriod() ? [
+              { label: 'Passed', value: filtered.filter(d => d.bills?.confidence_label === 'LAW').length, color: 'var(--teal)' },
+              { label: 'Passed Chamber', value: filtered.filter(d => d.bills?.confidence_label === 'CARRY OVER').length, color: 'var(--gold)' },
+              { label: 'Dead', value: filtered.filter(d => d.bills?.confidence_label === 'DEAD').length, color: 'var(--text-muted)' },
+            ] : [
               { label: 'Avg Score', value: avgScore, color: avgScore >= 45 ? 'var(--teal)' : avgScore >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
               { label: 'High Score', value: highCount, color: highCount > 0 ? 'var(--teal)' : 'var(--text-muted)' },
               { label: 'Hearings', value: hearingCount, color: hearingCount > 0 ? 'var(--teal-mid)' : 'var(--text-muted)' },
-            ].map(({ label, value, color }) => (
+            ]).map(({ label, value, color }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(0,229,204,0.3)' : 'none' }}>{value}</span>
                 <span style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
@@ -351,7 +315,7 @@ export default function WatchlistPage() {
               border: `1px solid ${atRiskOnly ? 'rgba(255,82,82,0.3)' : 'transparent'}`,
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
-            }}>\u26a0 At Risk</button>
+            }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
           </div>
         )}
       </div>
@@ -360,7 +324,7 @@ export default function WatchlistPage() {
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
 
         {/* ── WHAT'S CHANGED SECTION ── */}
-        {!loading && showChanges && (
+        {!loading && !isInterimPeriod() && showChanges && (
           <div style={{
             background: 'linear-gradient(135deg, rgba(0,229,204,0.06), rgba(0,229,204,0.02))',
             border: '1px solid rgba(0,229,204,0.2)',
@@ -388,7 +352,7 @@ export default function WatchlistPage() {
                   cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
                 }}
                 aria-label="Dismiss changes"
-              >\u00d7</button>
+              >{'×'}</button>
             </div>
 
             {changedBills.map(({ bill_id, bills: bill }) => {
@@ -418,7 +382,7 @@ export default function WatchlistPage() {
                         color: change.scoreDiff > 0 ? 'var(--teal)' : 'var(--danger)',
                         border: `1px solid ${change.scoreDiff > 0 ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
                       }}>
-                        Score {change.oldScore} \u2192 {change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
+                        Score {change.oldScore} {'→'}{change.newScore} ({change.scoreDiff > 0 ? '+' : ''}{change.scoreDiff})
                       </span>
                     )}
                     {change.stageChanged && (
@@ -429,7 +393,7 @@ export default function WatchlistPage() {
                         color: change.newStage > change.oldStage ? 'var(--teal)' : 'var(--danger)',
                         border: `1px solid ${change.newStage > change.oldStage ? 'rgba(0,229,204,0.25)' : 'rgba(255,82,82,0.25)'}`,
                       }}>
-                        Stage {STAGE_SHORT[change.oldStage] || '?'} \u2192 {STAGE_SHORT[change.newStage] || '?'}
+                        Stage {STAGE_SHORT[change.oldStage] || '?'} {'→'}{STAGE_SHORT[change.newStage] || '?'}
                       </span>
                     )}
                   </div>
@@ -457,7 +421,7 @@ export default function WatchlistPage() {
               boxShadow: 'var(--teal-glow)',
             }}>Browse Bills</button>
           </div>
-        ) : sorted.map(({ bill_id, client_tag, notes, bills: bill }, idx) => {
+        ) : sorted.map(({ bill_id, client_tag, latestNote, bills: bill }, idx) => {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
@@ -468,7 +432,11 @@ export default function WatchlistPage() {
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '14px',
               cursor: 'pointer', transition: 'border-color 0.2s',
-              borderLeft: bill.stalled ? '3px solid var(--danger)' : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
+              borderLeft: bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
+                : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
+                : bill.confidence_label === 'CARRY OVER' ? '3px solid var(--gold)'
+                : bill.stalled ? '3px solid var(--danger)'
+                : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,229,204,0.3)'}
@@ -476,8 +444,8 @@ export default function WatchlistPage() {
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ position: 'relative' }}>
-                <ScoreBadge score={bill.final_score} size="md"/>
-                {delta != null && delta !== 0 && (
+                <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
+                {!isInterimPeriod() && delta != null && delta !== 0 && (
                   <span style={{
                     position: 'absolute', top: -6, right: -10,
                     fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
@@ -504,7 +472,22 @@ export default function WatchlistPage() {
                       {client_tag}
                     </span>
                   )}
-                  {bill.stalled && (
+                  {bill.confidence_label === 'LAW' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(0,229,204,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                      Signed into Law
+                    </span>
+                  )}
+                  {bill.confidence_label === 'CARRY OVER' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,168,75,0.25)', borderRadius: 10, fontWeight: 500 }}>
+                      Passed Chamber
+                    </span>
+                  )}
+                  {bill.confidence_label === 'DEAD' && (
+                    <span style={{ fontSize: 9, padding: '1px 7px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-faint)', border: '1px solid var(--border)', borderRadius: 10 }}>
+                      Dead
+                    </span>
+                  )}
+                  {bill.stalled && !bill.confidence_label && (
                     <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--danger-pale)', color: 'var(--danger)', border: '1px solid rgba(255,82,82,0.25)', borderRadius: 10 }}>
                       Stalled
                     </span>
@@ -515,51 +498,39 @@ export default function WatchlistPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   {bill.has_public_hearing && (
-                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>\u25cf HEARING</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>{'●'} HEARING</span>
                   )}
                   {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>\u2713 CMTE PASS</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{'✓'} CMTE PASS</span>
                   )}
                   {!bill.bipartisan && (
                     <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>Minority Only</span>
                   )}
                 </div>
-                {notes && (
+                {/* 7Z.9: Show latest note from bill_notes table */}
+                {latestNote && (
                   <div style={{
                     fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic',
                     marginTop: 6, lineHeight: 1.4,
-                    borderLeft: '2px solid var(--border)', paddingLeft: 8,
-                  }}>{notes}</div>
+                    borderLeft: `2px solid ${latestNote.visibility === 'client' ? 'var(--teal-dim)' : 'var(--border)'}`, paddingLeft: 8,
+                  }}>
+                    {latestNote.body}
+                    {latestNote.visibility === 'client' && (
+                      <span style={{ fontSize: 8, color: 'var(--teal)', marginLeft: 6, fontStyle: 'normal', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>client</span>
+                    )}
+                  </div>
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <div style={{ fontSize: 14, color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(212,168,75,0.3))' }}>🔖</div>
-                {/* Phase 7S: quick-note pencil icon */}
+                {/* 7Z.9: Quick-note pencil icon */}
                 <button
-                  onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
-                    color: notesBillId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
-                    opacity: notesBillId === bill_id ? 1 : 0.5, transition: 'all 0.15s',
-                  }}
+                  onClick={e => { e.stopPropagation(); setQuickNoteOpen(quickNoteOpen === bill_id ? null : bill_id); setQuickNoteBody('') }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, opacity: quickNoteOpen === bill_id ? 1 : 0.4, transition: 'opacity 0.2s', fontSize: 12 }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => { if (notesBillId !== bill_id) e.currentTarget.style.opacity = '0.5' }}
+                  onMouseLeave={e => { if (quickNoteOpen !== bill_id) e.currentTarget.style.opacity = '0.4' }}
                   title="Quick note"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
-                {/* Note count badge */}
-                {billNoteMeta[bill_id] && (
-                  <span style={{
-                    fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)',
-                    textAlign: 'center', lineHeight: 1.2,
-                  }}>
-                    {billNoteMeta[bill_id].count} note{billNoteMeta[bill_id].count !== 1 ? 's' : ''}
-                  </span>
-                )}
+                >✏️</button>
                 <a
                   href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`}
                   target="_blank" rel="noopener noreferrer"
@@ -575,46 +546,26 @@ export default function WatchlistPage() {
                 </a>
               </div>
             </div>
-
-            {/* Phase 7S: inline quick-note editor */}
-            {notesBillId === bill_id && (
+            {/* 7Z.9: Inline quick-note form */}
+            {quickNoteOpen === bill_id && (
               <div onClick={e => e.stopPropagation()} style={{
                 marginTop: 10, padding: '10px 12px',
-                background: 'var(--bg)', border: '1px solid var(--border)',
-                borderRadius: 8,
+                background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
               }}>
                 <textarea
-                  value={quickNote}
-                  onChange={e => setQuickNote(e.target.value)}
-                  placeholder="Quick internal note..."
-                  rows={2}
-                  autoFocus
-                  style={{
-                    width: '100%', padding: '6px 10px', background: 'transparent',
-                    border: '1px solid var(--border)', borderRadius: 6,
-                    fontSize: 12, color: 'var(--text-primary)', outline: 'none',
-                    resize: 'vertical', lineHeight: 1.5,
-                  }}
+                  value={quickNoteBody} onChange={e => setQuickNoteBody(e.target.value)}
+                  placeholder="Quick note (saves as internal)..."
+                  rows={2} autoFocus
+                  style={{ width: '100%', padding: '6px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, color: 'var(--text-primary)', outline: 'none', resize: 'none', lineHeight: 1.5 }}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                  <span style={{
-                    fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)',
-                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                    padding: '2px 8px', background: 'rgba(138,128,112,0.12)',
-                    borderRadius: 6, border: '1px solid rgba(138,128,112,0.2)',
-                  }}>INTERNAL</span>
-                  <div style={{ flex: 1 }}/>
-                  <button onClick={() => { setNotesBillId(null); setQuickNote('') }} style={{
-                    padding: '5px 12px', background: 'transparent',
-                    border: '1px solid var(--border)', borderRadius: 6,
-                    fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
-                  }}>Cancel</button>
-                  <button onClick={saveQuickNote} disabled={savingQuickNote || !quickNote.trim()} style={{
-                    padding: '5px 14px', background: 'var(--teal)', color: 'var(--bg)',
-                    border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                    cursor: 'pointer', opacity: (savingQuickNote || !quickNote.trim()) ? 0.5 : 1,
-                    boxShadow: 'var(--teal-glow)',
-                  }}>{savingQuickNote ? 'Saving...' : 'Save'}</button>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
+                  <button onClick={e => { e.stopPropagation(); setQuickNoteOpen(null); setQuickNoteBody('') }}
+                    style={{ padding: '4px 12px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                  >Cancel</button>
+                  <button onClick={e => { e.stopPropagation(); saveQuickNote(bill_id) }}
+                    disabled={quickNoteSaving || !quickNoteBody.trim()}
+                    style={{ padding: '4px 14px', background: 'var(--teal)', color: 'var(--bg)', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: (quickNoteSaving || !quickNoteBody.trim()) ? 0.5 : 1 }}
+                  >{quickNoteSaving ? '...' : 'Save'}</button>
                 </div>
               </div>
             )}

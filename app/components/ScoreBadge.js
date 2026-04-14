@@ -27,11 +27,12 @@ export default function ScoreBadge({ score, size = 'md', status }) {
     : s >= 45 ? 'rgba(196,122,48,0.4)'
     : 'var(--border)'
 
+  // 7Z.9: Bumped badgeFontSize for LAW/DEAD/PASSED readability (was 6/7/8/9)
   const sizes = {
-    sm: { width: 36, height: 36, fontSize: 13, borderWidth: 1.5, badgeFontSize: 6 },
-    md: { width: 46, height: 46, fontSize: 17, borderWidth: 2, badgeFontSize: 7 },
-    lg: { width: 64, height: 64, fontSize: 26, borderWidth: 2.5, badgeFontSize: 8 },
-    xl: { width: 80, height: 80, fontSize: 32, borderWidth: 3, badgeFontSize: 9 },
+    sm: { width: 36, height: 36, fontSize: 13, borderWidth: 1.5, badgeFontSize: 8 },
+    md: { width: 46, height: 46, fontSize: 17, borderWidth: 2, badgeFontSize: 9 },
+    lg: { width: 64, height: 64, fontSize: 26, borderWidth: 2.5, badgeFontSize: 11 },
+    xl: { width: 80, height: 80, fontSize: 32, borderWidth: 3, badgeFontSize: 12 },
   }
   const dim = sizes[size] || sizes.md
 
@@ -61,7 +62,7 @@ export default function ScoreBadge({ score, size = 'md', status }) {
         <span style={{
           position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
           fontSize: dim.badgeFontSize, fontFamily: 'var(--font-mono)', fontWeight: 700,
-          padding: '1px 5px', borderRadius: 6, whiteSpace: 'nowrap',
+          padding: '2px 6px', borderRadius: 6, whiteSpace: 'nowrap',
           letterSpacing: '0.04em', textTransform: 'uppercase',
           background: isLaw ? 'rgba(122,171,110,0.15)' : isCarryOver ? 'rgba(184,151,90,0.12)' : 'rgba(255,255,255,0.06)',
           color: isLaw ? '#7aab6e' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)',
