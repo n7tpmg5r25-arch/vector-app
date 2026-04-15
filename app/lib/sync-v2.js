@@ -288,6 +288,38 @@ async function getLegislation(billNumber) {
   } catch(e) { return null; }
 }
 
+// ── RCW CITES (Phase 11.3) ────────────────────────────────────────────────────
+// WSL's GetLegislation returns RCWCites as one of:
+//   - null / missing (most bills)
+//   - a single RCWCite object
+//   - an array of RCWCite objects
+// xml2js flattens single-item collections to objects, so we normalize here.
+// Each cite may have Title (e.g. "82.08.020"), Chapter ("82.08"), Section ("020").
+// Returns a stable array or null. Display-only — NOT a scoring input.
+function extractRcwCites(legislation) {
+  if (!legislation) return null;
+  const node = legislation.RCWCites?.RCWCite ?? legislation.RCWCites;
+  if (!node) return null;
+  const arr = Array.isArray(node) ? node : [node];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    if (!c || typeof c !== 'object') continue;
+    const chapter = (c.Chapter || '').toString().trim();
+    const section = (c.Section || '').toString().trim();
+    // Title is WSL's pre-formatted cite label ("82.08.020" or "82.08"); fall back
+    // to chapter[.section] if Title missing.
+    let title = (c.Title || '').toString().trim();
+    if (!title) title = section ? `${chapter}.${section}` : chapter;
+    if (!title) continue;
+    const cite = title.startsWith('RCW') ? title : `RCW ${title}`;
+    if (seen.has(cite)) continue;
+    seen.add(cite);
+    out.push({ cite, title, chapter: chapter || null, section: section || null });
+  }
+  return out.length > 0 ? out : null;
+}
+
 function makeBillId(raw) {
   const agency = raw.OriginalAgency || raw.Agency || 'House';
   const num = raw.BillNumber || '';
@@ -973,6 +1005,7 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
     last_action: features.last_action,  // Phase 5A: now populated from status changes
     legislation_type: legislationType,          // Phase 7D.1
     introduction_year: introductionYear,        // Phase 7D.1
+    rcw_cites: extractRcwCites(legislation),    // Phase 11.3 (display-only)
     ...sponsorData,
     ...features,
     raw_data: {

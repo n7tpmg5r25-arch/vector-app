@@ -301,6 +301,7 @@ export default function BillDetailPage() {
   const [user, setUser]         = useState(null)
   const [shared, setShared]     = useState(false)
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
+  const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
   const [amendments, setAmendments] = useState([])
   const [fiscalHistory, setFiscalHistory] = useState([])
   const [timelineExpanded, setTimelineExpanded] = useState(false)
@@ -325,6 +326,18 @@ export default function BillDetailPage() {
         .eq('bill_id', billId)
         .single()
       setBill(billData)
+
+      // Phase 11.3: Historic veto context for this bill's category (closed
+      // biennia only). Display-only; not a scoring input. UI enforces n>=15
+      // floor before showing.
+      if (billData?.category) {
+        const { data: vetoRow } = await supabase
+          .from('bill_category_veto_rates')
+          .select('*')
+          .eq('category', billData.category)
+          .maybeSingle()
+        if (vetoRow && vetoRow.reached_governor >= 15) setVetoCtx(vetoRow)
+      }
 
       const { data: snapData } = await supabase
         .from('trajectory_snapshots')
@@ -976,6 +989,63 @@ export default function BillDetailPage() {
               </div>
             )
           })()}
+
+          {/* ── Phase 11.3: RCW cites + historic veto context ───────────────
+              Both are display-only, decision-grade context strips. Shown
+              inline under the companion pill so the analyst sees them before
+              the score card loads the interpretive narrative. */}
+          {Array.isArray(bill.rcw_cites) && bill.rcw_cites.length > 0 && (
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Cited RCWs
+              </span>
+              {bill.rcw_cites.map((c, i) => (
+                <a
+                  key={`${c.cite}-${i}`}
+                  href={`https://app.leg.wa.gov/RCW/default.aspx?cite=${encodeURIComponent(c.title)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${c.cite} on leg.wa.gov`}
+                  style={{
+                    fontSize: 10, fontFamily: 'var(--font-mono)',
+                    color: 'var(--teal)', textDecoration: 'none',
+                    padding: '3px 8px',
+                    background: 'rgba(74,196,183,0.06)',
+                    border: '1px solid rgba(74,196,183,0.22)',
+                    borderRadius: 10,
+                  }}
+                >
+                  {c.title}
+                </a>
+              ))}
+            </div>
+          )}
+
+          {vetoCtx && (
+            <div
+              title={`Of ${vetoCtx.reached_governor} ${vetoCtx.category} bills that reached the governor in 2021–2024, ${vetoCtx.veto_count} were vetoed (${vetoCtx.full_veto_count} full, ${vetoCtx.partial_veto_count} partial). Historic context only — not a scoring input.`}
+              style={{
+                marginBottom: 12,
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '6px 10px',
+                fontSize: 11, fontFamily: 'var(--font-mono)',
+                color: 'var(--text-muted)',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+              }}
+            >
+              <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Historic veto context
+              </span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                {vetoCtx.veto_rate_pct}%
+              </span>
+              <span>
+                of <em>{vetoCtx.category}</em> bills vetoed at the governor ({vetoCtx.veto_count} of {vetoCtx.reached_governor}, 2021–2024)
+              </span>
+            </div>
+          )}
 
           {/* Score + Score breakdown row */}
           <div style={{
