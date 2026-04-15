@@ -15,9 +15,22 @@ export default function LoginPage() {
     setError('')
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        shouldCreateUser: false,
+      }
     })
-    if (error) setError(error.message)
+    if (error) {
+      // Supabase returns a generic error when signup is disabled for unknown emails.
+      // Show a clearer message so you know what's happening.
+      if (error.message?.toLowerCase().includes('signups not allowed') ||
+          error.message?.toLowerCase().includes('signup is disabled') ||
+          error.message?.toLowerCase().includes('user not found')) {
+        setError('This email is not authorized for access. Contact Shorepine Government Relations.')
+      } else {
+        setError(error.message)
+      }
+    }
     else setSent(true)
     setLoading(false)
   }
