@@ -1364,6 +1364,25 @@ async function runSync() {
     console.error('  [meetings sync failed, continuing]:', e.message);
   }
 
+  // ── PHASE 11.5: CALENDAR PRESSURE ──────────────────────────────────────────
+  // Third pass: now that committee_meetings + meeting_agenda_items are fresh
+  // for the next 14 days, compute per-bill "calendar pressure" — the count of
+  // agenda items across that bill's committee's meetings in the next 7 days.
+  // Proxy for how crowded the chair's docket is. Writes to bills.calendar_pressure
+  // (display-only column) AND calendar_pressure_snapshots (historical curve for
+  // post-2027 calibration). scoreBill() DOES NOT read these — pure data-only
+  // instrumentation. rescore-all.js DOES NOT read these either. Safe during freeze.
+  let pressureBillsUpdated = 0;
+  let pressureSnapshotsWritten = 0;
+  try {
+    const pStats = await computeCalendarPressure(supabase, SESSION);
+    pressureBillsUpdated = pStats.billsUpdated;
+    pressureSnapshotsWritten = pStats.snapshotsWritten;
+    console.log(`  Calendar pressure: ${pressureBillsUpdated} bills updated, ${pressureSnapshotsWritten} snapshots written`);
+  } catch (e) {
+    console.error('  [calendar pressure failed, continuing]:', e.message);
+  }
+
   await supabase.from('sync_log').insert({
     session: SESSION, bills_fetched: billsFetched, bills_updated: billsUpdated,
     snapshots_written: snapshotsWritten,
@@ -1498,7 +1517,183 @@ async function resolveCompanionPairs(supabase, session) {
   return { pairsResolved: updates.length, snapshotsWritten };
 }
 
-module.exports = { runSync, processBill, scoreBill, resolveCompanionPairs };
+// ── PHASE 11.5: CALENDAR PRESSURE ────────────────────────────────────────────
+// For every bill in the session whose committee has scheduled meeting(s) in
+// the next 7 days, sum the agenda items across those meetings — that's the
+// "calendar pressure" the chair is carrying. Writes bills.calendar_pressure +
+// bills.calendar_pressure_next_meeting, and upserts one calendar_pressure_snapshots
+// row per bill per day (idempotent via UNIQUE (bill_id, snapshot_date)).
+//
+// Bills whose committee has zero meetings in the window get pressure=0 (not
+// null) so the UI can distinguish "we computed it, it's quiet" from "never
+// computed". During interim almost everything will be 0 — that's correct.
+//
+// scoreBill() DOES NOT read bills.calendar_pressure. rescore-all.js DOES NOT
+// read it. This is purely descriptive. Freeze-safe.
+async function computeCalendarPressure(supabase, session) {
+  const today = new Date();
+  const windowEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const ymd = d => d.toISOString().slice(0, 10);
+  const windowStart = ymd(today);
+  const windowEndStr = ymd(windowEnd);
+  const snapshotDate = windowStart;
+
+  // 1. Pull the session's bills — only need bill_id + committee_id.
+  const allBills = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, committee_id')
+      .eq('session', session)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch bills for pressure: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allBills.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  // 2. Pull all meetings in the 7-day window, with their agenda-item counts.
+  //    committee_meetings.committee_id is a bigint (committees.id), whereas
+  //    bills.committee_id is a text code (e.g. "WAYS"). We join through the
+  //    committees table to bridge the two — pull the meetings first, then
+  //    count their agenda rows in a single query per committee.
+  const { data: meetings, error: mErr } = await supabase
+    .from('committee_meetings')
+    .select('id, committee_id, committee_name, chamber, meeting_date')
+    .gte('meeting_date', windowStart)
+    .lte('meeting_date', windowEndStr);
+  if (mErr) throw new Error(`fetch meetings: ${mErr.message}`);
+
+  const meetingIds = (meetings || []).map(m => m.id);
+  // Count agenda items per meeting
+  const itemCounts = new Map();
+  if (meetingIds.length) {
+    const { data: items, error: iErr } = await supabase
+      .from('meeting_agenda_items')
+      .select('meeting_id')
+      .in('meeting_id', meetingIds);
+    if (iErr) throw new Error(`fetch agenda items: ${iErr.message}`);
+    for (const it of items || []) {
+      itemCounts.set(it.meeting_id, (itemCounts.get(it.meeting_id) || 0) + 1);
+    }
+  }
+
+  // 3. Also pull committees so we can map bills.committee_id (text) → committees.id (bigint).
+  //    bills.committee_id is stored as the WSL committee code (e.g., "WAYS"), but
+  //    committee_meetings joins through committees.id. We match on committee name
+  //    via bills.committee_name ↔ committees.name + chamber, since that's how
+  //    sync-meetings.js resolves the link (see ensureCommittee()).
+  const { data: committees } = await supabase
+    .from('committees')
+    .select('id, name, chamber');
+  const cByKey = new Map();
+  for (const c of committees || []) cByKey.set(`${c.name}|${c.chamber}`, c.id);
+
+  // To bridge bills → committees, re-read bills with committee_name + chamber.
+  // One extra fetch is cheap vs. the alternative of storing committees.id on bills.
+  const billMeta = new Map();
+  let from2 = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, committee_name, chamber')
+      .eq('session', session)
+      .range(from2, from2 + PAGE - 1);
+    if (error) throw new Error(`fetch bill committee names: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const b of data) billMeta.set(b.bill_id, b);
+    if (data.length < PAGE) break;
+    from2 += PAGE;
+  }
+
+  // Per-committee rollup: total agenda items + earliest meeting date in window.
+  const committeeRollup = new Map(); // committees.id → { total, nextDate }
+  for (const m of meetings || []) {
+    if (!m.committee_id) continue;
+    const n = itemCounts.get(m.id) || 0;
+    const cur = committeeRollup.get(m.committee_id) || { total: 0, nextDate: null };
+    cur.total += n;
+    if (!cur.nextDate || m.meeting_date < cur.nextDate) cur.nextDate = m.meeting_date;
+    committeeRollup.set(m.committee_id, cur);
+  }
+
+  // 4. For each bill, look up its committee's rollup. Build updates + snapshots.
+  const updates = []; // { bill_id, pressure, next, committeeBigintId }
+  for (const b of allBills) {
+    const meta = billMeta.get(b.bill_id);
+    if (!meta || !meta.committee_name || !meta.chamber) continue;
+    const cid = cByKey.get(`${meta.committee_name}|${meta.chamber}`)
+             || cByKey.get(`${meta.committee_name}|Joint`)
+             || null;
+    if (!cid) continue;
+    const roll = committeeRollup.get(cid) || { total: 0, nextDate: null };
+    updates.push({
+      bill_id: b.bill_id,
+      pressure: roll.total,
+      next: roll.nextDate,
+      committeeBigintId: cid,
+    });
+  }
+
+  // 5. Batch-update bills — group by (pressure, next_meeting) like the companion
+  //    resolver does, so we issue O(buckets) UPDATEs instead of O(bills).
+  const byBucket = new Map();
+  for (const u of updates) {
+    const key = `${u.pressure}::${u.next || 'null'}`;
+    if (!byBucket.has(key)) byBucket.set(key, { pressure: u.pressure, next: u.next, ids: [] });
+    byBucket.get(key).ids.push(u.bill_id);
+  }
+  let billsUpdated = 0;
+  for (const bucket of byBucket.values()) {
+    // Chunk the IN list to stay well under Postgres parameter limits.
+    const CHUNK = 500;
+    for (let i = 0; i < bucket.ids.length; i += CHUNK) {
+      const slice = bucket.ids.slice(i, i + CHUNK);
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          calendar_pressure: bucket.pressure,
+          calendar_pressure_next_meeting: bucket.next,
+        })
+        .in('bill_id', slice);
+      if (error) throw new Error(`bills pressure update: ${error.message}`);
+      billsUpdated += slice.length;
+    }
+  }
+
+  // 6. Snapshot inserts — only write rows where pressure > 0 to keep the
+  //    snapshots table lean (during session that's maybe 300-500 rows/night;
+  //    during interim, near-zero rows). Idempotent via UNIQUE (bill_id, snapshot_date).
+  const snapRows = updates
+    .filter(u => u.pressure > 0)
+    .map(u => ({
+      bill_id: u.bill_id,
+      committee_id: u.committeeBigintId,
+      pressure: u.pressure,
+      next_meeting_date: u.next,
+      window_start: windowStart,
+      window_end: windowEndStr,
+      snapshot_date: snapshotDate,
+    }));
+
+  let snapshotsWritten = 0;
+  const SNAP_CHUNK = 500;
+  for (let i = 0; i < snapRows.length; i += SNAP_CHUNK) {
+    const slice = snapRows.slice(i, i + SNAP_CHUNK);
+    const { error } = await supabase
+      .from('calendar_pressure_snapshots')
+      .upsert(slice, { onConflict: 'bill_id,snapshot_date', ignoreDuplicates: false });
+    if (error) throw new Error(`calendar_pressure_snapshots upsert: ${error.message}`);
+    snapshotsWritten += slice.length;
+  }
+
+  return { billsUpdated, snapshotsWritten };
+}
+
+module.exports = { runSync, processBill, scoreBill, resolveCompanionPairs, computeCalendarPressure };
 
 if (require.main === module) {
   runSync().catch(console.error);

@@ -52,7 +52,8 @@ export default function WatchlistPage() {
             hearing_date, days_to_cutoff, status, stalled,
             prime_sponsor, prime_party, bipartisan,
             session, companion_bill, confidence_label, pass_probability, ai_summary,
-            bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record
+            bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record,
+            calendar_pressure, calendar_pressure_next_meeting
           )
         `)
         .eq('user_id', user.id)
@@ -602,6 +603,21 @@ export default function WatchlistPage() {
                   {bill.chair_alignment === 'opposed' && (
                     <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--danger)', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'rgba(196,71,48,0.06)', border: '1px solid rgba(196,71,48,0.15)' }}>Chair-blocked</span>
                   )}
+                  {/* Phase 11.5: Calendar pressure — display-only, threshold 20 */}
+                  {bill.calendar_pressure != null && bill.calendar_pressure >= 20 && bill.calendar_pressure_next_meeting && (() => {
+                    const next = new Date(bill.calendar_pressure_next_meeting + 'T00:00:00')
+                    const daysOut = Math.round((next - new Date()) / (1000 * 60 * 60 * 24))
+                    if (daysOut < 0 || daysOut > 7) return null
+                    const nextLabel = next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    return (
+                      <span
+                        title={`${bill.calendar_pressure} agenda items across ${bill.committee_name || 'the committee'}'s scheduled meetings in the next 7 days. Next meeting: ${nextLabel}.`}
+                        style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--gold)', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'rgba(196,122,48,0.08)', border: '1px solid rgba(196,122,48,0.25)', cursor: 'help' }}
+                      >
+                        ◐ Crowded docket · {bill.calendar_pressure}
+                      </span>
+                    )
+                  })()}
                 </div>
                 {notes && (
                   <div style={{

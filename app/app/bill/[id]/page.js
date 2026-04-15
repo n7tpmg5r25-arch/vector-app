@@ -1123,6 +1123,39 @@ export default function BillDetailPage() {
             )
           })()}
 
+          {/* ── Phase 11.5: Calendar pressure badge ─────────────────────────
+              Compact chip showing "Crowded docket — N items this week" when
+              this bill's committee is carrying 20+ agenda items across its
+              scheduled meetings in the next 7 days. Purely descriptive — the
+              scoring engine does NOT read bills.calendar_pressure; this is
+              instrumentation for post-2027 calibration. */}
+          {bill.calendar_pressure != null && bill.calendar_pressure >= 20 && bill.calendar_pressure_next_meeting && (() => {
+            const next = new Date(bill.calendar_pressure_next_meeting + 'T00:00:00')
+            const daysOut = Math.round((next - new Date()) / (1000 * 60 * 60 * 24))
+            if (daysOut < 0 || daysOut > 7) return null
+            const nextLabel = next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            return (
+              <div
+                title={`${bill.calendar_pressure} agenda items across ${bill.committee_name || 'the committee'}'s scheduled meetings in the next 7 days. Next meeting: ${nextLabel}.`}
+                style={{
+                  marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '3px 9px',
+                  background: 'rgba(196,122,48,0.08)',
+                  border: '1px solid rgba(196,122,48,0.28)',
+                  borderRadius: 10,
+                  fontSize: 10, fontFamily: 'var(--font-mono)',
+                  color: 'var(--gold)', letterSpacing: '0.02em',
+                  cursor: 'help',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>◐ Crowded docket</span>
+                <span style={{ opacity: 0.8 }}>
+                  {bill.calendar_pressure} items this week · next {nextLabel}
+                </span>
+              </div>
+            )
+          })()}
+
           {/* ── Phase 11.3: RCW cites + historic veto context ───────────────
               Both are display-only, decision-grade context strips. Shown
               inline under the companion pill so the analyst sees them before
