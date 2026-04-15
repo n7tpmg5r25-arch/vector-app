@@ -25,11 +25,14 @@ const COLORS = {
 
 // ── Event type badges ──────────────────────────────────────
 const EVENT_BADGES: Record<string, { label: string; color: string }> = {
-  outcome_change:     { label: 'Outcome Change',    color: COLORS.successGreen },
-  imminent_hearing:   { label: 'Hearing Scheduled', color: COLORS.brass },
-  rules_pull:         { label: 'Rules Pull',        color: COLORS.alertAmber },
-  amendment_posted:   { label: 'Amendment Filed',   color: COLORS.brass },
-  fiscal_note_change: { label: 'Fiscal Note',       color: COLORS.alertAmber },
+  outcome_change:              { label: 'Outcome Change',    color: COLORS.successGreen },
+  imminent_hearing:            { label: 'Hearing Scheduled', color: COLORS.brass },
+  rules_pull:                  { label: 'Rules Pull',        color: COLORS.alertAmber },
+  amendment_posted:            { label: 'Amendment Filed',   color: COLORS.brass },
+  fiscal_note_change:          { label: 'Fiscal Note',       color: COLORS.alertAmber },
+  // Phase 11.2
+  hearing_scheduled:           { label: 'Hearing Scheduled', color: COLORS.brass },
+  committee_meeting_scheduled: { label: 'Committee Meeting', color: COLORS.forestDeep },
 };
 
 // ── Shared wrapper ─────────────────────────────────────────
@@ -88,6 +91,46 @@ interface AlertEvent {
   bill_number?: string;
   bill_title?: string;
   bill_id?: string;
+  // Phase 11.2: joined from committee_meetings
+  meeting?: {
+    committee_name?: string | null;
+    chamber?: string | null;
+    meeting_date?: string | null;
+    meeting_time?: string | null;
+    location?: string | null;
+    meeting_type?: string | null;
+    agenda_url?: string | null;
+    is_joint?: boolean | null;
+  } | null;
+}
+
+// Phase 11.2 — format a meeting datetime as "Thu 10am" / "Thu 10:30am"
+function formatMeetingWhen(date?: string | null, time?: string | null): string {
+  if (!date) return '';
+  const d = new Date(date + 'T00:00:00');
+  const day = d.toLocaleDateString('en-US', { weekday: 'short' });
+  if (!time) return day;
+  const [hRaw, mRaw] = time.split(':').map(Number);
+  const h = hRaw % 12 || 12;
+  const ampm = hRaw >= 12 ? 'pm' : 'am';
+  const mm = mRaw ? `:${String(mRaw).padStart(2, '0')}` : '';
+  return `${day} ${h}${mm}${ampm}`;
+}
+
+// Phase 11.2 — specific subject for single-hearing alert
+export function buildHearingSubject(evt: AlertEvent): string | null {
+  if (evt.event_type !== 'hearing_scheduled') return null;
+  const d = (evt.event_data || {}) as Record<string, string>;
+  const m = evt.meeting || {};
+  const billNum = evt.bill_number || d.bill_number || '';
+  const committee = m.committee_name || d.committee_name || '';
+  const when = formatMeetingWhen(
+    m.meeting_date || d.meeting_date,
+    m.meeting_time || d.meeting_time,
+  );
+  if (!billNum || !committee) return null;
+  const whenPart = when ? ` (${when})` : '';
+  return `New hearing: ${billNum} — ${committee}${whenPart}`;
 }
 
 export function buildAlertEmail(events: AlertEvent[], appUrl: string): { subject: string; html: string } {
@@ -96,10 +139,46 @@ export function buildAlertEmail(events: AlertEvent[], appUrl: string): { subject
 
   const cards = events.map(evt => {
     const badge = EVENT_BADGES[evt.event_type] || { label: evt.event_type, color: COLORS.slate };
-    const billNum = evt.bill_number || (evt.event_data as Record<string, string>).bill_number || '';
+    const d = (evt.event_data || {}) as Record<string, string>;
+    const m = evt.meeting || {};
+    const billNum = evt.bill_number || d.bill_number || '';
     const title = evt.bill_title || '';
     const description = describeEvent(evt);
-    const billLink = evt.bill_id ? `${appUrl}/app/bill/${encodeURIComponent(evt.bill_id)}` : '#';
+
+    // Phase 11.2 — meeting events render a richer card with committee / time /
+    // location / agenda link. Link target: bill detail if bill_id present,
+    // otherwise committee slug page is not known here so fall back to /committees.
+    const isMeetingEvent = evt.event_type === 'hearing_scheduled' || evt.event_type === 'committee_meeting_scheduled';
+    const billLink = evt.bill_id
+      ? `${appUrl}/app/bill/${encodeURIComponent(evt.bill_id)}`
+      : `${appUrl}/app/committees`;
+
+    const headerText = billNum
+      ? `${billNum}${title ? ` — ${truncate(title, 60)}` : ''}`
+      : (m.committee_name || d.committee_name || 'Committee meeting');
+
+    let metaHtml = '';
+    if (isMeetingEvent) {
+      const when = formatMeetingWhen(
+        m.meeting_date || d.meeting_date,
+        m.meeting_time || d.meeting_time,
+      );
+      const committee = m.committee_name || d.committee_name || '';
+      const mtype = m.meeting_type || d.meeting_type || '';
+      const location = m.location || d.location || '';
+      const agenda = m.agenda_url || d.agenda_url || '';
+      const joint = (m.is_joint || d.is_joint) ? ' · <strong>Joint</strong>' : '';
+      const bits = [
+        committee ? `<strong>${committee}</strong>` : '',
+        when,
+        mtype,
+        location,
+      ].filter(Boolean).join(' · ');
+      metaHtml = `
+        <p style="margin:8px 0 0; font-size:13px; color:${COLORS.slate};">${bits}${joint}</p>
+        ${agenda ? `<p style="margin:6px 0 0; font-size:12px;"><a href="${agenda}" style="color:${COLORS.forestDeep}; text-decoration:underline;">View agenda</a></p>` : ''}
+      `;
+    }
 
     return `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px; border:1px solid ${COLORS.cardBorder}; border-left:4px solid ${badge.color}; border-radius:4px;">
@@ -108,9 +187,10 @@ export function buildAlertEmail(events: AlertEvent[], appUrl: string): { subject
             <span style="display:inline-block; background-color:${badge.color}; color:${COLORS.white}; font-size:11px; font-weight:600; padding:2px 8px; border-radius:3px; letter-spacing:0.5px; text-transform:uppercase;">${badge.label}</span>
           </p>
           <p style="margin:0 0 4px; font-size:15px; font-weight:600; color:${COLORS.forestDeep};">
-            <a href="${billLink}" style="color:${COLORS.forestDeep}; text-decoration:none;">${billNum}${title ? ` — ${truncate(title, 60)}` : ''}</a>
+            <a href="${billLink}" style="color:${COLORS.forestDeep}; text-decoration:none;">${headerText}</a>
           </p>
           <p style="margin:0; font-size:14px; color:${COLORS.forestText};">${description}</p>
+          ${metaHtml}
         </td></tr>
       </table>`;
   }).join('');
@@ -298,6 +378,13 @@ function describeEvent(evt: AlertEvent): string {
     }
     case 'fiscal_note_change':
       return d.note || `Fiscal note status changed to ${d.new_size || 'unknown'}.`;
+    case 'hearing_scheduled': {
+      const itemType = d.item_type || 'Hearing';
+      return `${itemType} scheduled on your watchlist bill.`;
+    }
+    case 'committee_meeting_scheduled': {
+      return `New meeting scheduled on a committee you follow.`;
+    }
     default:
       return `${evt.event_type} detected.`;
   }

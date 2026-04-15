@@ -118,7 +118,9 @@ function parseMeeting(m) {
     meeting_datetime: `${meetingDate}T${meetingTime || '00:00:00'}`,
     location,
     meeting_type: meetingType,
-    agenda_url: null,
+    // Phase 11.2 — capture agenda PDF / public access link. WSL field names vary
+    // across services; try the common ones and leave null if none present.
+    agenda_url: m?.AgendaPdfUrl || m?.AgendaUrl || m?.PublicAccessLink || m?.Url || null,
     notes: m?.Notes || null,
     session: SESSION,
   };

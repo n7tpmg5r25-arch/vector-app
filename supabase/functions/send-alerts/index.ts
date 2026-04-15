@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildAlertEmail, buildTestEmail } from "../_shared/email-template.ts";
+import { buildAlertEmail, buildTestEmail, buildHearingSubject } from "../_shared/email-template.ts";
 
 /**
  * VECTOR | WA — Send Alerts Edge Function (Phase 9)
@@ -95,7 +95,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Event batch mode (default) ───────────────────────
-    // Fetch unsent alert events with bill details
+    // Fetch unsent alert events with bill + meeting details.
+    // Left join on bills (committee_meeting_scheduled events have no bill_id)
+    // and on committee_meetings (Phase 11.2 hearing/meeting events).
     const { data: events, error: evtErr } = await supabase
       .from('alert_events')
       .select(`
@@ -104,7 +106,9 @@ Deno.serve(async (req: Request) => {
         user_id,
         event_type,
         event_data,
-        bills!inner ( bill_number, title )
+        meeting_id,
+        bills ( bill_number, title ),
+        committee_meetings ( committee_name, chamber, meeting_date, meeting_time, location, meeting_type, agenda_url, is_joint )
       `)
       .is('sent_at', null)
       .order('detected_at', { ascending: true });
@@ -154,9 +158,17 @@ Deno.serve(async (req: Request) => {
         bill_number: e.bills?.bill_number,
         bill_title: e.bills?.title,
         bill_id: e.bill_id,
+        meeting: e.committee_meetings || null,
       }));
 
-      const { subject, html } = buildAlertEmail(alertData, APP_URL);
+      // Phase 11.2 smart subject: single hearing_scheduled event → specific subject.
+      // Anything else (batch >1, or non-hearing event) → default digest subject.
+      let built = buildAlertEmail(alertData, APP_URL);
+      if (alertData.length === 1 && alertData[0].event_type === 'hearing_scheduled') {
+        const override = buildHearingSubject(alertData[0]);
+        if (override) built = { ...built, subject: override };
+      }
+      const { subject, html } = built;
       const result = await sendViaResend(resendKey, fromEmail, prefs.email, subject, html);
 
       // Mark events as sent

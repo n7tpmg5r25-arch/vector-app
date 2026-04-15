@@ -11,6 +11,12 @@
  *   3. rules_pull        — pulled_from_rules flipped false → true
  *   4. amendment_posted  — new amendment appeared on a tracked bill (Phase 10)
  *   5. fiscal_note_change — fiscal note status changed on a tracked bill (Phase 10)
+ *   6. hearing_scheduled — hearing scheduled for a watchlist bill (Phase 11.2)
+ *   7. committee_meeting_scheduled — new meeting for a followed committee (Phase 11.2)
+ *
+ * Phase 11.2 dedup: persistent via unique partial indexes on
+ * (user_id, meeting_id, bill_id) and (user_id, meeting_id). Inserts use
+ * onConflict ignoreDuplicates so re-syncs and reschedules don't re-fire.
  *
  * Score deltas and routine stage advances are NOT per-event alerts;
  * those go into the weekly digest only.
@@ -269,25 +275,179 @@ async function detectAlerts() {
     console.log(`  Checked fiscal notes: ${allFiscalChanges.length} changes detected.`);
   }
 
+  // 4f. Hearing scheduled for a watchlist bill (Phase 11.2)
+  //     Window = meetings created in last 30h (covers twice-daily sync cadence).
+  //     Dedup is enforced by the unique partial index alert_events_hearing_dedup;
+  //     inserts here just need to not crash on conflict.
+  const trackedBillIds = new Set(tracked.filter(t => t.alert_enabled !== false).map(t => t.bill_id));
+  const trackedByBill = new Map();
+  for (const t of tracked) trackedByBill.set(t.bill_id, t);
+  const hearingEvents = [];
+  if (trackedBillIds.size > 0) {
+    const cutoff = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+    const { data: hearingRows, error: hErr } = await supabase
+      .from('meeting_agenda_items')
+      .select(`
+        meeting_id,
+        bill_id,
+        item_type,
+        created_at,
+        committee_meetings!inner (
+          id, committee_name, chamber, meeting_date, meeting_time,
+          location, meeting_type, agenda_url, is_joint
+        )
+      `)
+      .in('bill_id', Array.from(trackedBillIds))
+      .gte('created_at', cutoff)
+      .gte('committee_meetings.meeting_date', new Date().toISOString().split('T')[0]);
+
+    if (hErr) {
+      console.warn('  [hearing_scheduled query failed]:', hErr.message);
+    } else {
+      for (const r of hearingRows || []) {
+        const t = trackedByBill.get(r.bill_id);
+        if (!t) continue;
+        const cm = r.committee_meetings;
+        hearingEvents.push({
+          bill_id: r.bill_id,
+          user_id: t.user_id,
+          event_type: 'hearing_scheduled',
+          meeting_id: r.meeting_id,
+          event_data: {
+            bill_number: t.bills?.bill_number || null,
+            meeting_id: r.meeting_id,
+            committee_name: cm?.committee_name || null,
+            chamber: cm?.chamber || null,
+            meeting_date: cm?.meeting_date || null,
+            meeting_time: cm?.meeting_time || null,
+            meeting_type: cm?.meeting_type || null,
+            location: cm?.location || null,
+            agenda_url: cm?.agenda_url || null,
+            is_joint: cm?.is_joint || false,
+            item_type: r.item_type || null,
+          },
+        });
+      }
+    }
+    console.log(`  Checked hearings: ${hearingEvents.length} candidate events for watchlist bills.`);
+  }
+
+  // 4g. New meeting for a followed committee (Phase 11.2)
+  const { data: follows, error: fErr } = await supabase
+    .from('user_followed_committees')
+    .select('user_id, committee_id')
+    .eq('alerts_enabled', true);
+
+  const committeeEvents = [];
+  if (fErr) {
+    console.warn('  [followed_committees query failed]:', fErr.message);
+  } else if (follows && follows.length > 0) {
+    // Group follows by committee for fan-out
+    const followByCmte = new Map();
+    for (const f of follows) {
+      const list = followByCmte.get(f.committee_id) || [];
+      list.push(f.user_id);
+      followByCmte.set(f.committee_id, list);
+    }
+
+    const cutoff = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+    const { data: newMtgs, error: mErr } = await supabase
+      .from('committee_meetings')
+      .select('id, committee_id, committee_name, chamber, meeting_date, meeting_time, location, meeting_type, agenda_url, is_joint, created_at')
+      .in('committee_id', Array.from(followByCmte.keys()))
+      .gte('created_at', cutoff)
+      .gte('meeting_date', new Date().toISOString().split('T')[0]);
+
+    if (mErr) {
+      console.warn('  [new_meetings query failed]:', mErr.message);
+    } else {
+      for (const m of newMtgs || []) {
+        const userIds = followByCmte.get(m.committee_id) || [];
+        for (const uid of userIds) {
+          committeeEvents.push({
+            bill_id: null,
+            user_id: uid,
+            event_type: 'committee_meeting_scheduled',
+            meeting_id: m.id,
+            event_data: {
+              meeting_id: m.id,
+              committee_name: m.committee_name,
+              chamber: m.chamber,
+              meeting_date: m.meeting_date,
+              meeting_time: m.meeting_time,
+              meeting_type: m.meeting_type,
+              location: m.location,
+              agenda_url: m.agenda_url,
+              is_joint: m.is_joint,
+            },
+          });
+        }
+      }
+    }
+    console.log(`  Checked followed committees: ${committeeEvents.length} candidate events.`);
+  }
+
   // 5. Insert events
-  if (newEvents.length === 0) {
+  //    Phase 9 events → .insert() (legacy; dedup via 24h window)
+  //    Phase 11.2 events → .insert() with ignoreDuplicates via unique indexes
+  const phase9Events = newEvents;
+  const phase11Events = [...hearingEvents, ...committeeEvents];
+
+  if (phase9Events.length === 0 && phase11Events.length === 0) {
     console.log('No alert events detected.');
   } else {
-    console.log(`Detected ${newEvents.length} alert event(s):`);
-    for (const e of newEvents) {
-      console.log(`  - ${e.event_type}: ${e.event_data.bill_number || e.bill_id}`);
+    if (phase9Events.length > 0) {
+      console.log(`Detected ${phase9Events.length} Phase 9 alert event(s):`);
+      for (const e of phase9Events) {
+        console.log(`  - ${e.event_type}: ${e.event_data.bill_number || e.bill_id}`);
+      }
+      const { error: insertErr } = await supabase
+        .from('alert_events')
+        .insert(phase9Events);
+      if (insertErr) {
+        console.error('Error inserting Phase 9 alert events:', insertErr.message);
+        process.exit(1);
+      }
+      console.log(`Inserted ${phase9Events.length} Phase 9 alert event(s).`);
     }
 
-    const { error: insertErr } = await supabase
-      .from('alert_events')
-      .insert(newEvents);
+    if (phase11Events.length > 0) {
+      // Unique partial indexes absorb re-runs. upsert + ignoreDuplicates uses
+      // the (user_id, meeting_id, bill_id) / (user_id, meeting_id) indexes.
+      // We split by event_type to match each onConflict target.
+      const hearingBatch = phase11Events.filter(e => e.event_type === 'hearing_scheduled');
+      const committeeBatch = phase11Events.filter(e => e.event_type === 'committee_meeting_scheduled');
 
-    if (insertErr) {
-      console.error('Error inserting alert events:', insertErr.message);
-      process.exit(1);
+      if (hearingBatch.length > 0) {
+        const { error: hInsErr, count: hInsCount } = await supabase
+          .from('alert_events')
+          .upsert(hearingBatch, {
+            onConflict: 'user_id,meeting_id,bill_id',
+            ignoreDuplicates: true,
+            count: 'exact',
+          });
+        if (hInsErr) {
+          console.warn('  [hearing_scheduled upsert failed]:', hInsErr.message);
+        } else {
+          console.log(`  Inserted ${hInsCount ?? 0} hearing_scheduled event(s) (duplicates ignored).`);
+        }
+      }
+
+      if (committeeBatch.length > 0) {
+        const { error: cInsErr, count: cInsCount } = await supabase
+          .from('alert_events')
+          .upsert(committeeBatch, {
+            onConflict: 'user_id,meeting_id',
+            ignoreDuplicates: true,
+            count: 'exact',
+          });
+        if (cInsErr) {
+          console.warn('  [committee_meeting_scheduled upsert failed]:', cInsErr.message);
+        } else {
+          console.log(`  Inserted ${cInsCount ?? 0} committee_meeting_scheduled event(s) (duplicates ignored).`);
+        }
+      }
     }
-
-    console.log(`Inserted ${newEvents.length} alert event(s).`);
   }
 
   const duration = Date.now() - start;

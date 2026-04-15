@@ -36,6 +36,10 @@ export default function CommitteeDetail() {
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // Phase 11.2 — follow state
+  const [user, setUser] = useState(null)
+  const [follow, setFollow] = useState(null) // { alerts_enabled } or null
+  const [followBusy, setFollowBusy] = useState(false)
 
   useEffect(() => {
     if (!slug) return
@@ -49,6 +53,19 @@ export default function CommitteeDetail() {
 
       if (!cmte) { setNotFound(true); setLoading(false); return }
       setCommittee(cmte)
+
+      // Phase 11.2 — load user + current follow state
+      const { data: { user: u } } = await supabase.auth.getUser()
+      setUser(u)
+      if (u) {
+        const { data: fr } = await supabase
+          .from('user_followed_committees')
+          .select('alerts_enabled')
+          .eq('user_id', u.id)
+          .eq('committee_id', cmte.id)
+          .maybeSingle()
+        setFollow(fr || null)
+      }
 
       const today = new Date().toISOString().split('T')[0]
 
@@ -78,6 +95,45 @@ export default function CommitteeDetail() {
     }
     load()
   }, [slug])
+
+  // Phase 11.2 — follow toggles
+  async function handleFollow() {
+    if (!user || !committee || followBusy) return
+    setFollowBusy(true)
+    const { error } = await supabase
+      .from('user_followed_committees')
+      .upsert(
+        { user_id: user.id, committee_id: committee.id, alerts_enabled: true },
+        { onConflict: 'user_id,committee_id' },
+      )
+    if (!error) setFollow({ alerts_enabled: true })
+    setFollowBusy(false)
+  }
+
+  async function handleUnfollow() {
+    if (!user || !committee || followBusy) return
+    setFollowBusy(true)
+    const { error } = await supabase
+      .from('user_followed_committees')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('committee_id', committee.id)
+    if (!error) setFollow(null)
+    setFollowBusy(false)
+  }
+
+  async function handleToggleAlerts() {
+    if (!user || !committee || !follow || followBusy) return
+    setFollowBusy(true)
+    const next = !follow.alerts_enabled
+    const { error } = await supabase
+      .from('user_followed_committees')
+      .update({ alerts_enabled: next })
+      .eq('user_id', user.id)
+      .eq('committee_id', committee.id)
+    if (!error) setFollow({ ...follow, alerts_enabled: next })
+    setFollowBusy(false)
+  }
 
   if (notFound) {
     return (
@@ -116,6 +172,62 @@ export default function CommitteeDetail() {
         {committee && (
           <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
             {committee.chamber} {committee.is_rules ? '· Rules / Floor Queue' : ''}
+          </div>
+        )}
+
+        {/* Phase 11.2 — Follow / alerts toggle */}
+        {committee && user && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {!follow ? (
+              <button
+                onClick={handleFollow}
+                disabled={followBusy}
+                style={{
+                  padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                  background: 'var(--teal)', color: 'var(--bg)', border: 'none',
+                  borderRadius: 6, cursor: followBusy ? 'wait' : 'pointer',
+                  fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                + Follow Committee
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleUnfollow}
+                  disabled={followBusy}
+                  style={{
+                    padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                    background: 'transparent', color: 'var(--teal)',
+                    border: '1px solid var(--teal)', borderRadius: 6,
+                    cursor: followBusy ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  ✓ Following
+                </button>
+                <button
+                  onClick={handleToggleAlerts}
+                  disabled={followBusy}
+                  title={follow.alerts_enabled
+                    ? 'Alerts on — you will be emailed when new meetings are scheduled'
+                    : 'Alerts off — committee appears in your follows but no emails'}
+                  style={{
+                    padding: '6px 10px', fontSize: 10,
+                    background: follow.alerts_enabled ? 'rgba(184,151,90,0.15)' : 'var(--bg-card)',
+                    color: follow.alerts_enabled ? 'var(--gold)' : 'var(--text-faint)',
+                    border: '1px solid ' + (follow.alerts_enabled ? 'rgba(184,151,90,0.4)' : 'var(--border)'),
+                    borderRadius: 6, cursor: followBusy ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  🔔 Alerts: {follow.alerts_enabled ? 'On' : 'Off'}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
