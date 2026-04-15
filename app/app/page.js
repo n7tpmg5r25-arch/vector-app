@@ -219,15 +219,10 @@ export default function HomePage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* Logo row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <img src="/logo.png" alt="Vector | WA" style={{ height: 28, width: 'auto' }} />
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--teal)', letterSpacing: '-0.01em', lineHeight: 1, textShadow: '0 0 20px rgba(184,151,90,0.3)' }}>
-                  VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14 }}>| WA</span>
-                </div>
-                <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
-                  Legislative Trajectories
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <img src="/logo-wordmark.png" alt="Vector | WA" style={{ height: 32, width: 'auto' }} />
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
+                Legislative Trajectories
               </div>
             </div>
 
