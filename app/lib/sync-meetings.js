@@ -142,6 +142,40 @@ function parseAgendaItem(item, idx) {
 
 // --- Upsert ------------------------------------------------------------------
 
+// 11.1.1 — generate slug from name + chamber, matching the migration's logic
+function slugify(name, chamber) {
+  const s = (name || '')
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+  return `${chamber.toLowerCase()}-${s}`.slice(0, 80);
+}
+
+// 11.1.1 — auto-create committees row on first-seen so Joint committees (and
+// any new committee WSL schedules that isn't in our backfill) have a clickable
+// detail page. Idempotent via slug unique constraint.
+async function ensureCommittee(supabase, cmap, name, chamber) {
+  const key = `${name}|${chamber}`;
+  if (cmap.has(key)) return cmap.get(key);
+  if (!name || !chamber) return null;
+
+  const slug = slugify(name, chamber);
+  const { data, error } = await supabase
+    .from('committees')
+    .upsert({ name, chamber, slug, agency: chamber, active: true }, { onConflict: 'slug' })
+    .select('id')
+    .single();
+  if (error || !data) {
+    console.warn(`  [committee ensure failed for ${key}]:`, error?.message);
+    return null;
+  }
+  cmap.set(key, data.id);
+  return data.id;
+}
+
 async function upsertMeetings(supabase, meetings) {
   // Committee lookup
   const { data: committees } = await supabase
@@ -166,8 +200,13 @@ async function upsertMeetings(supabase, meetings) {
   let insertedAgenda = 0;
   const upsertedBillIds = new Set();
 
+  let newCommittees = 0;
   for (const m of meetings) {
-    const committeeId = cmap.get(`${m.committee_name}|${m.chamber}`) || null;
+    let committeeId = cmap.get(`${m.committee_name}|${m.chamber}`) || null;
+    if (!committeeId) {
+      committeeId = await ensureCommittee(supabase, cmap, m.committee_name, m.chamber);
+      if (committeeId) newCommittees++;
+    }
 
     const { data: row, error: mErr } = await supabase
       .from('committee_meetings')
@@ -247,7 +286,7 @@ async function upsertMeetings(supabase, meetings) {
       .eq('bill_id', billId);
   }
 
-  return { insertedMeetings, insertedAgenda, linkedBills: upsertedBillIds.size };
+  return { insertedMeetings, insertedAgenda, linkedBills: upsertedBillIds.size, newCommittees };
 }
 
 // --- Phase 11.2 hooks --------------------------------------------------------
@@ -294,7 +333,8 @@ async function syncCommitteeMeetings(supabaseClient) {
   const result = await upsertMeetings(supabase, allMeetings);
   console.log(
     `  ✓ Upserted ${result.insertedMeetings} meetings, ` +
-    `${result.insertedAgenda} agenda items, ${result.linkedBills} bills linked`
+    `${result.insertedAgenda} agenda items, ${result.linkedBills} bills linked` +
+    (result.newCommittees ? `, ${result.newCommittees} new committee rows` : '')
   );
   return result;
 }
