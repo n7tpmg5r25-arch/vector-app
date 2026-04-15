@@ -1335,6 +1335,25 @@ async function runSync() {
   const mins = (duration / 60000).toFixed(1);
   console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${amendmentsStored} amendments, ${fiscalChangesDetected} fiscal changes, ${errors.length} errors (${mins} min)`);
 
+  // ── PHASE 11.4: COMPANION PAIR RESOLUTION + SNAPSHOTS ───────────────────────
+  // Second pass: now that every bill in the session has its latest stage/score
+  // in the DB, walk pairs and classify relational state (both_moving / leading /
+  // trailing / forked / both_stuck). Write companion_state + companion_score
+  // back onto bills, and insert one row per bill per night into
+  // companion_snapshots. No WSL calls. scoreBill() is untouched — the live
+  // in-session scoring path reads companion_stage (unchanged); only the Cowork
+  // rescore-all.js reads companion_state, and that is manual + frozen until
+  // post-2027-session per the scoring freeze.
+  let pairsResolved = 0;
+  let companionSnapshotsWritten = 0;
+  try {
+    const pairStats = await resolveCompanionPairs(supabase, SESSION);
+    pairsResolved = pairStats.pairsResolved;
+    companionSnapshotsWritten = pairStats.snapshotsWritten;
+    console.log(`  Companion pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} snapshots written`);
+  } catch (e) {
+    console.error('  [companion resolver failed, continuing]:', e.message);
+  }
 
   // Phase 11.1 - Committee Meetings sync (after bills, before sync_log)
   try {
@@ -1350,13 +1369,136 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored`,
+    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored | pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} companion snapshots`,
   });
 
-  return { billsFetched, billsUpdated, snapshotsWritten, errors };
+  return { billsFetched, billsUpdated, snapshotsWritten, pairsResolved, companionSnapshotsWritten, errors };
 }
 
-module.exports = { runSync, processBill, scoreBill };
+// ── PHASE 11.4: COMPANION PAIR RESOLUTION ────────────────────────────────────
+// Classifies each companion pair into one of five states and writes the result
+// back to bills.companion_state / companion_score. Also inserts one row per
+// bill per day into companion_snapshots (idempotent on bill_id + snapshot_date).
+//
+// State definitions (same semantics as COMPANION_STATES in the UI):
+//   both_moving  — both pair members advanced in the last 14 days
+//   leading      — this bill's stage > companion's, this bill moved in last 14d
+//   trailing     — companion's stage > this bill's, companion moved in last 14d
+//   forked       — stages diverge AND neither moved in last 14 days
+//   both_stuck   — same stage, or both stalled ≥ 14 days (default interim state)
+//
+// During interim (like the current April 2026 window), almost everything
+// classifies as both_stuck. That is accurate — nothing is moving. Session
+// re-opens and the pairs reshuffle naturally.
+async function resolveCompanionPairs(supabase, session) {
+  const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+  const STALL_CUTOFF = new Date(Date.now() - FOURTEEN_DAYS_MS);
+
+  // Pull every bill in the session that has a companion value. We also fetch
+  // last_action_date so we can reason about who moved recently. Select in
+  // pages so we don't blow past the default 1000-row ceiling.
+  const allBills = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, bill_number, session, stage, final_score, companion_bill, last_action_date')
+      .eq('session', session)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch bills for pair resolution: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allBills.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  // Index by normalized bill number for quick pair lookup
+  const normNum = v => (v || '').toString().replace(/\D/g, '');
+  const byNumber = new Map();
+  for (const b of allBills) byNumber.set(normNum(b.bill_number), b);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const updates = []; // { bill_id, companion_state, companion_score }
+  const snapshots = []; // companion_snapshots rows
+
+  for (const b of allBills) {
+    if (!b.companion_bill) continue;
+    const mate = byNumber.get(normNum(b.companion_bill));
+    if (!mate) continue; // companion not yet synced (cross-session or orphan)
+
+    const myStage = b.stage || 0;
+    const mateStage = mate.stage || 0;
+    const myMoved = b.last_action_date && new Date(b.last_action_date) >= STALL_CUTOFF;
+    const mateMoved = mate.last_action_date && new Date(mate.last_action_date) >= STALL_CUTOFF;
+
+    let state;
+    if (myStage === mateStage) {
+      // Same stage — both moving if both moved recently, else both stuck
+      state = (myMoved && mateMoved) ? 'both_moving' : 'both_stuck';
+    } else if (myStage > mateStage) {
+      // This bill is further along
+      if (myMoved && mateMoved) state = 'both_moving';
+      else if (myMoved) state = 'leading';
+      else if (!myMoved && !mateMoved) state = 'forked'; // diverged + stalled
+      else state = 'trailing'; // mate moved, we didn't — mate is catching up
+    } else {
+      // Companion is further along
+      if (myMoved && mateMoved) state = 'both_moving';
+      else if (mateMoved) state = 'trailing';
+      else if (!myMoved && !mateMoved) state = 'forked';
+      else state = 'leading'; // we moved, mate didn't — we're closing the gap
+    }
+
+    updates.push({
+      bill_id: b.bill_id,
+      companion_state: state,
+      companion_score: mate.final_score ?? null,
+    });
+    snapshots.push({
+      bill_id: b.bill_id,
+      companion_bill_id: mate.bill_id,
+      companion_stage: mateStage,
+      companion_score: mate.final_score ?? null,
+      companion_state: state,
+      snapshot_date: today,
+    });
+  }
+
+  // Batch-write the bills updates. Supabase JS doesn't have a true bulk-update
+  // by PK across differing values, so we group by (state, score) and issue one
+  // update per bucket keyed on bill_id list. For 700-ish pairs with ~5 states
+  // × handful of score values this stays well under 100 roundtrips.
+  const byBucket = new Map();
+  for (const u of updates) {
+    const key = `${u.companion_state}::${u.companion_score ?? 'null'}`;
+    if (!byBucket.has(key)) byBucket.set(key, { state: u.companion_state, score: u.companion_score, ids: [] });
+    byBucket.get(key).ids.push(u.bill_id);
+  }
+  for (const bucket of byBucket.values()) {
+    const { error } = await supabase
+      .from('bills')
+      .update({ companion_state: bucket.state, companion_score: bucket.score })
+      .in('bill_id', bucket.ids);
+    if (error) throw new Error(`bills companion_state update: ${error.message}`);
+  }
+
+  // Snapshot inserts — idempotent via unique (bill_id, snapshot_date)
+  let snapshotsWritten = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < snapshots.length; i += CHUNK) {
+    const slice = snapshots.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from('companion_snapshots')
+      .upsert(slice, { onConflict: 'bill_id,snapshot_date', ignoreDuplicates: false });
+    if (error) throw new Error(`companion_snapshots upsert: ${error.message}`);
+    snapshotsWritten += slice.length;
+  }
+
+  return { pairsResolved: updates.length, snapshotsWritten };
+}
+
+module.exports = { runSync, processBill, scoreBill, resolveCompanionPairs };
 
 if (require.main === module) {
   runSync().catch(console.error);

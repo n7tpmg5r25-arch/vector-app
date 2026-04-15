@@ -302,6 +302,7 @@ export default function BillDetailPage() {
   const [shared, setShared]     = useState(false)
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
+  const [companionSnaps, setCompanionSnaps] = useState([]) // Phase 11.4: companion stage over last 30 days
   const [amendments, setAmendments] = useState([])
   const [fiscalHistory, setFiscalHistory] = useState([])
   const [timelineExpanded, setTimelineExpanded] = useState(false)
@@ -337,6 +338,20 @@ export default function BillDetailPage() {
           .eq('category', billData.category)
           .maybeSingle()
         if (vetoRow && vetoRow.reached_governor >= 15) setVetoCtx(vetoRow)
+      }
+
+      // Phase 11.4: Companion snapshots over the last 30 days for the Parallel
+      // Track widget. Only fetched when a companion exists. Display-only.
+      if (billData?.companion_bill) {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          .toISOString().slice(0, 10)
+        const { data: compSnaps } = await supabase
+          .from('companion_snapshots')
+          .select('snapshot_date, companion_stage, companion_score, companion_state')
+          .eq('bill_id', billId)
+          .gte('snapshot_date', thirtyDaysAgo)
+          .order('snapshot_date', { ascending: true })
+        setCompanionSnaps(compSnaps || [])
       }
 
       const { data: snapData } = await supabase
@@ -986,6 +1001,124 @@ export default function BillDetailPage() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
+              </div>
+            )
+          })()}
+
+          {/* ── Phase 11.4: Parallel Track widget ──────────────────────────
+              Dual-lane sparkline — this bill's stage vs. companion's stage
+              over the last 30 days. Renders when a companion exists AND at
+              least two companion snapshots have accumulated. Purely
+              descriptive; no scoring tie-in. */}
+          {bill.companion_bill && companionSnaps.length >= 2 && (() => {
+            // Build per-day stage series for each lane. Missing days
+            // carry-forward the previous stage so the line is continuous.
+            const today = new Date()
+            const days = []
+            for (let i = 29; i >= 0; i--) {
+              const d = new Date(today)
+              d.setDate(d.getDate() - i)
+              days.push(d.toISOString().slice(0, 10))
+            }
+            const mySnapMap = new Map(snapshots.map(s => [s.snapshot_date, s.stage]))
+            const compSnapMap = new Map(companionSnaps.map(s => [s.snapshot_date, s.companion_stage]))
+
+            let lastMine = null, lastComp = null
+            const mySeries = [], compSeries = []
+            for (const d of days) {
+              if (mySnapMap.has(d)) lastMine = mySnapMap.get(d)
+              if (compSnapMap.has(d)) lastComp = compSnapMap.get(d)
+              mySeries.push(lastMine)
+              compSeries.push(lastComp)
+            }
+
+            const W = 280, H = 64, PAD_X = 4, PAD_Y = 6
+            const stageFloor = 1, stageCeil = 6
+            const xStep = (W - PAD_X * 2) / (days.length - 1)
+            const yFor = stage => {
+              if (stage == null) return null
+              const clamped = Math.max(stageFloor, Math.min(stageCeil, stage))
+              const pct = (clamped - stageFloor) / (stageCeil - stageFloor)
+              return H - PAD_Y - pct * (H - PAD_Y * 2)
+            }
+            const buildPath = series => {
+              let d = ''
+              series.forEach((s, i) => {
+                const y = yFor(s)
+                if (y == null) return
+                const x = PAD_X + i * xStep
+                d += d === '' ? `M ${x} ${y}` : ` L ${x} ${y}`
+              })
+              return d
+            }
+
+            // State-derived color + readout (use the most recent snapshot's state)
+            const latestState = companionSnaps[companionSnaps.length - 1]?.companion_state
+            const stateInfo = latestState ? COMPANION_STATES[latestState] : null
+            const lineColor = stateInfo
+              ? (stateInfo.tone === 'positive' ? 'var(--teal)'
+                : stateInfo.tone === 'negative' ? 'rgba(220,120,90,0.95)'
+                : 'var(--gold)')
+              : 'var(--text-muted)'
+
+            const readout = (() => {
+              if (latestState === 'both_moving') return 'Both chambers moving in lockstep.'
+              if (latestState === 'leading') return `This bill leads ${bill.companion_bill} by stage.`
+              if (latestState === 'trailing') return `${bill.companion_bill} is out ahead in the other chamber.`
+              if (latestState === 'forked') return `Pair has diverged — neither side has moved in ≥14 days.`
+              if (latestState === 'both_stuck') return 'Both sides holding. Interim or pre-cutoff pause.'
+              return 'Companion pair — state pending.'
+            })()
+
+            return (
+              <div style={{
+                marginBottom: 14, padding: '10px 12px',
+                background: 'rgba(184,151,90,0.04)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}>
+                  <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    Parallel track · last 30 days
+                  </span>
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                    {readout}
+                  </span>
+                </div>
+                <svg width={W} height={H} style={{ display: 'block', width: '100%', maxWidth: W, height: H }}>
+                  {/* Stage gridlines */}
+                  {[1, 3, 4, 6].map(s => {
+                    const y = yFor(s)
+                    return (
+                      <line key={s} x1={PAD_X} y1={y} x2={W - PAD_X} y2={y}
+                        stroke="var(--border)" strokeWidth="0.5" strokeDasharray="2,3" opacity="0.4" />
+                    )
+                  })}
+                  {/* Companion lane — thinner, behind */}
+                  <path d={buildPath(compSeries)} fill="none"
+                    stroke={lineColor} strokeWidth="1.25" opacity="0.55"
+                    strokeDasharray="3,2" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* This bill lane — solid, on top */}
+                  <path d={buildPath(mySeries)} fill="none"
+                    stroke={lineColor} strokeWidth="1.75"
+                    strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div style={{
+                  display: 'flex', gap: 14, marginTop: 6,
+                  fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)',
+                }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 14, height: 2, background: lineColor, display: 'inline-block' }} />
+                    {bill.bill_number}
+                  </span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 14, height: 2, background: lineColor, opacity: 0.55, display: 'inline-block', borderTop: `1px dashed ${lineColor}` }} />
+                    {bill.companion_bill}
+                  </span>
+                </div>
               </div>
             )
           })()}
