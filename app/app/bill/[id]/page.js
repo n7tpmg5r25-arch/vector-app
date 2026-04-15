@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '../../../lib/supabase'
 import ScoreBadge from '../../components/ScoreBadge'
+import MeetingBadge from '../../components/MeetingBadge'
 import Nav from '../../components/Nav'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
@@ -848,6 +849,7 @@ export default function BillDetailPage() {
         <div>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>{bill.chamber === 'House' ? 'HB' : 'SB'}{bill.bill_number}</span>
+            <MeetingBadge billId={bill.bill_id} />
             {!bill.bipartisan && (
               <span style={{ fontSize: 9, padding: '2px 8px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10 }}>
                 Minority Only

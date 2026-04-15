@@ -6,6 +6,7 @@ import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
+import MeetingBadge from '../components/MeetingBadge'
 
 const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -455,6 +456,7 @@ export default function WatchlistPage() {
                     minWidth: 56, fontWeight: 500,
                   }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                    <MeetingBadge billId={bill.bill_id} compact />
                   </span>
                   <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                     {change.scoreDiff !== 0 && (
@@ -546,6 +548,7 @@ export default function WatchlistPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                    <MeetingBadge billId={bill.bill_id} compact />
                   </span>
                   <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                     {STAGE_SHORT[bill.stage] || 'Intro'}

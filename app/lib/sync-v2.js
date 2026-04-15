@@ -1302,6 +1302,16 @@ async function runSync() {
   const mins = (duration / 60000).toFixed(1);
   console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${amendmentsStored} amendments, ${fiscalChangesDetected} fiscal changes, ${errors.length} errors (${mins} min)`);
 
+
+  // Phase 11.1 - Committee Meetings sync (after bills, before sync_log)
+  try {
+    const { syncCommitteeMeetings } = require('./sync-meetings');
+    const mtg = await syncCommitteeMeetings(supabase);
+    console.log(`  Meetings: ${mtg.insertedMeetings} upserted, ${mtg.insertedAgenda} agenda items, ${mtg.linkedBills} bills linked`);
+  } catch (e) {
+    console.error('  [meetings sync failed, continuing]:', e.message);
+  }
+
   await supabase.from('sync_log').insert({
     session: SESSION, bills_fetched: billsFetched, bills_updated: billsUpdated,
     snapshots_written: snapshotsWritten,
