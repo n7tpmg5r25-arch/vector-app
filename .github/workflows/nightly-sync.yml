@@ -130,6 +130,31 @@ jobs:
           echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
 
 
+      # ── Phase 11.6: CSI sign-in scraper ────────────────────────────────
+      # Runs after sync-v2 so meeting_agenda_items is fresh. Descriptive-only:
+      # writes csi_sign_ins + csi_scrape_log. scoreBill() does NOT read it.
+      # Phase 11.7 (Jan 2027) wires the data into the UI.
+      - name: Install Playwright (CSI scraper)
+        if: success()
+        run: |
+          npm i --no-save playwright@^1.47.0
+          npx playwright install --with-deps chromium
+
+      - name: Scrape CSI sign-ins
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_YEAR: '2026'
+        run: node scripts/scrape-csi.js --days-back 2 --days-forward 1
+
+      - name: Assert CSI scraper health
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/assert-csi-freshness.js
+
       - name: Run alert detection
         if: success()
         env:

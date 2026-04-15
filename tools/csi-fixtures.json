@@ -1,0 +1,11 @@
+[
+  {
+    "_note": "Hand-picked 2025-26 hearings where Colin remembers the room. Edit min/max after first scrape to lock in a regression band. Used by scripts/backtest-csi.js --fixtures.",
+    "bill_id": "HB 1589",
+    "hearing_date": "2025-01-21",
+    "chamber": "House",
+    "pro":   { "min": 1,  "max": 10000 },
+    "con":   { "min": 0,  "max": 10000 },
+    "other": { "min": 0,  "max": 10000 }
+  }
+]
