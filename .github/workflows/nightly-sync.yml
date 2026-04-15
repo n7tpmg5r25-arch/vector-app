@@ -90,46 +90,6 @@ jobs:
           fi
           node app/lib/assert-sync-quality.js
 
-      - name: Summarize bills with AI
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
-        run: |
-          echo "Starting AI summary pass..."
-          REMAINING="more"
-          TOTAL=0
-          CALLS=0
-          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 80 ]; do
-            CALLS=$((CALLS + 1))
-            RESULT=$(curl -s -w "\n%{http_code}" \
-              "${SUPABASE_URL}/functions/v1/summarize-bills" \
-              -H "Content-Type: application/json" \
-              -H "x-function-secret: ${FUNCTION_SECRET}")
-            HTTP_CODE=$(echo "$RESULT" | tail -1)
-            BODY=$(echo "$RESULT" | head -n -1)
-            echo "Call $CALLS: HTTP $HTTP_CODE - $BODY"
-
-            if [ "$HTTP_CODE" != "200" ]; then
-              echo "Edge function returned $HTTP_CODE, stopping."
-              break
-            fi
-
-            SUMMARIZED=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summarized',0))" 2>/dev/null || echo "0")
-            REMAINING=$(echo "$BODY" | python3 -c "import sys,json; r=json.load(sys.stdin).get('remaining',0); print(r)" 2>/dev/null || echo "0")
-            TOTAL=$((TOTAL + SUMMARIZED))
-
-            if [ "$SUMMARIZED" = "0" ]; then
-              echo "No bills summarized this call, stopping."
-              break
-            fi
-
-            # Brief pause between calls
-            sleep 2
-          done
-          echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
-
-
       # ── Phase 11.6: CSI sign-in scraper ────────────────────────────────
       # Runs after sync-v2 so meeting_agenda_items is fresh. Descriptive-only:
       # writes csi_sign_ins + csi_scrape_log. scoreBill() does NOT read it.
@@ -177,6 +137,50 @@ jobs:
           HTTP_CODE=$(echo "$RESULT" | tail -1)
           BODY=$(echo "$RESULT" | head -n -1)
           echo "send-alerts: HTTP $HTTP_CODE - $BODY"
+
+      # AI summarization runs LAST so it can't block critical steps (sync,
+      # CSI, alerts) if it runs long. Capped at 30 calls (~750 bills/night)
+      # to keep total job under ~60 min steady-state and under the 2,000
+      # min/month free-tier ceiling. Backlog clears over a few nights.
+      - name: Summarize bills with AI
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Starting AI summary pass..."
+          REMAINING="more"
+          TOTAL=0
+          CALLS=0
+          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 30 ]; do
+            CALLS=$((CALLS + 1))
+            RESULT=$(curl -s -w "\n%{http_code}" \
+              "${SUPABASE_URL}/functions/v1/summarize-bills" \
+              -H "Content-Type: application/json" \
+              -H "x-function-secret: ${FUNCTION_SECRET}")
+            HTTP_CODE=$(echo "$RESULT" | tail -1)
+            BODY=$(echo "$RESULT" | head -n -1)
+            echo "Call $CALLS: HTTP $HTTP_CODE - $BODY"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Edge function returned $HTTP_CODE, stopping."
+              break
+            fi
+
+            SUMMARIZED=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summarized',0))" 2>/dev/null || echo "0")
+            REMAINING=$(echo "$BODY" | python3 -c "import sys,json; r=json.load(sys.stdin).get('remaining',0); print(r)" 2>/dev/null || echo "0")
+            TOTAL=$((TOTAL + SUMMARIZED))
+
+            if [ "$SUMMARIZED" = "0" ]; then
+              echo "No bills summarized this call, stopping."
+              break
+            fi
+
+            # Brief pause between calls
+            sleep 2
+          done
+          echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
+
       - name: Report result
         if: always()
         run: echo "Sync completed at $(date -u)"
