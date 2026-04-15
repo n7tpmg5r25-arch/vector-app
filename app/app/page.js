@@ -220,11 +220,7 @@ export default function HomePage() {
           {/* Logo row */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <svg width="28" height="24" viewBox="0 0 56 48" fill="none">
-                <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-                <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
-              </svg>
+              <img src="/logo.png" alt="Vector | WA" style={{ height: 28, width: 'auto' }} />
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--teal)', letterSpacing: '-0.01em', lineHeight: 1, textShadow: '0 0 20px rgba(184,151,90,0.3)' }}>
                   VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14 }}>| WA</span>

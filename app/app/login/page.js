@@ -39,20 +39,15 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div style={{ marginBottom: 48, textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 12, filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.3))' }}>
-          <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-          <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
-        </svg>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 28, fontWeight: 700,
-          color: 'var(--teal)',
-          letterSpacing: '-0.02em',
-          textShadow: '0 0 24px rgba(184,151,90,0.3)',
-        }}>
-          VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 22 }}>| WA</span>
-        </div>
+        <img
+          src="/logo-wordmark.png"
+          alt="Vector | WA"
+          style={{
+            maxWidth: 280, width: '100%', height: 'auto',
+            marginBottom: 10,
+            filter: 'drop-shadow(0 0 18px rgba(184,151,90,0.2))',
+          }}
+        />
         <div style={{
           fontFamily: 'var(--font-body)',
           fontSize: 12, color: 'var(--text-faint)',
