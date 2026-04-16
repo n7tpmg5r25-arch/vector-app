@@ -574,19 +574,45 @@ async function fetchBienniumSponsorParties() {
 // Calls CommitteeService.asmx/GetCommittees to build a map:
 //   Map<normalizedCommitteeName, { chair: string, party: 'D'|'R'|'' }>
 // Used to compute chair_alignment in processBill(). Called once at sync start.
+// Also returns rosterData[] for syncCommitteeRosters() to persist.
 async function fetchCommitteeChairs(partyMap) {
   try {
     const data = await fetchXML('CommitteeService.asmx', 'GetCommittees', { biennium: BIENNIUM });
     const items = data?.ArrayOfCommittee?.Committee;
-    if (!items) { console.warn('  [chair-map] No committees returned'); return new Map(); }
+    if (!items) { console.warn('  [chair-map] No committees returned'); return { chairMap: new Map(), rosterData: [] }; }
     const arr = Array.isArray(items) ? items : [items];
     const map = new Map();
+    const rosterData = [];
     for (const c of arr) {
       const name = (c.Name || c.LongName || '').trim();
       if (!name) continue;
+      const agency = (c.Agency || '').trim(); // "House" or "Senate"
       // GetCommittees includes Members with roles. Find the Chair.
       const members = c.Members?.CommitteeMember;
       const memArr = Array.isArray(members) ? members : (members ? [members] : []);
+
+      // Collect full roster for this committee
+      for (const m of memArr) {
+        const mName = `${m.FirstName || ''} ${m.LastName || ''}`.trim();
+        if (!mName) continue;
+        const mId = m.Id || m.MemberId || null;
+        const title = (m.Title || '').trim() || 'Member';
+        let mParty = '';
+        if (mId && partyMap.has(String(mId))) {
+          mParty = partyMap.get(String(mId));
+        } else if (m.Party) {
+          mParty = m.Party.startsWith('D') ? 'D' : m.Party.startsWith('R') ? 'R' : '';
+        }
+        rosterData.push({
+          committee_name: name,
+          chamber: agency || null,
+          member_name: mName,
+          member_id: mId ? String(mId) : null,
+          title,
+          party: mParty,
+        });
+      }
+
       // Chairs have Title containing "Chair" but NOT "Vice Chair"
       const chair = memArr.find(m => {
         const title = (m.Title || '').toLowerCase();
@@ -607,11 +633,82 @@ async function fetchCommitteeChairs(partyMap) {
         map.set(key, { chair: chairName, party: chairParty });
       }
     }
-    console.log(`  Loaded committee chair map: ${map.size} committees`);
-    return map;
+    console.log(`  Loaded committee chair map: ${map.size} committees, ${rosterData.length} member slots`);
+    return { chairMap: map, rosterData };
   } catch(e) {
     console.warn(`  [chair-map] fetch failed: ${e.message} — continuing without chair data`);
-    return new Map();
+    return { chairMap: new Map(), rosterData: [] };
+  }
+}
+
+// ── COMMITTEE ROSTER SYNC ────────────────────────────────────────────────────
+// Persists full committee membership to committee_members table.
+// Called once per sync after fetchCommitteeChairs().
+// Strategy: delete existing rows per committee, then bulk insert fresh roster.
+async function syncCommitteeRosters(rosterData) {
+  if (!rosterData || rosterData.length === 0) {
+    console.log('  [roster] No roster data to sync');
+    return;
+  }
+  try {
+    // Load committees lookup: name|chamber → id
+    const { data: committees } = await supabase
+      .from('committees')
+      .select('id, name, chamber');
+    const cByKey = new Map();
+    for (const c of committees || []) cByKey.set(`${c.name}|${c.chamber}`, c.id);
+
+    // Group roster rows by committee and resolve to committee_id
+    const rows = [];
+    const unmatchedCommittees = new Set();
+    for (const r of rosterData) {
+      const key = `${r.committee_name}|${r.chamber}`;
+      const committeeId = cByKey.get(key);
+      if (!committeeId) {
+        unmatchedCommittees.add(key);
+        continue;
+      }
+      rows.push({
+        committee_id: committeeId,
+        member_name: r.member_name,
+        member_id: r.member_id,
+        title: r.title,
+        party: r.party,
+      });
+    }
+    if (unmatchedCommittees.size > 0) {
+      console.log(`  [roster] ${unmatchedCommittees.size} committees not in DB (normal for inactive/renamed): ${[...unmatchedCommittees].slice(0, 5).join(', ')}${unmatchedCommittees.size > 5 ? '...' : ''}`);
+    }
+    if (rows.length === 0) {
+      console.log('  [roster] No matched rows to upsert');
+      return;
+    }
+
+    // Clear existing roster then bulk insert fresh data
+    const committeeIds = [...new Set(rows.map(r => r.committee_id))];
+    const { error: delErr } = await supabase
+      .from('committee_members')
+      .delete()
+      .in('committee_id', committeeIds);
+    if (delErr) console.warn(`  [roster] delete error: ${delErr.message}`);
+
+    // Batch insert in chunks of 200
+    const CHUNK = 200;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const { error: insErr } = await supabase
+        .from('committee_members')
+        .insert(chunk);
+      if (insErr) {
+        console.warn(`  [roster] insert error (batch ${Math.floor(i/CHUNK)}): ${insErr.message}`);
+      } else {
+        inserted += chunk.length;
+      }
+    }
+    console.log(`  [roster] Synced ${inserted} member slots across ${committeeIds.length} committees`);
+  } catch(e) {
+    console.warn(`  [roster] sync failed: ${e.message} — non-blocking`);
   }
 }
 
@@ -1168,7 +1265,11 @@ async function runSync() {
   console.log(`  Loaded party map: ${partyMap.size} sponsors`);
 
   // Phase 8: Committee chair map (needs partyMap for chair party lookup)
-  const chairMap = await fetchCommitteeChairs(partyMap);
+  // Also returns full roster data for committee_members table sync
+  const { chairMap, rosterData } = await fetchCommitteeChairs(partyMap);
+
+  // Sync committee rosters to DB (non-blocking — failures don't stop sync)
+  await syncCommitteeRosters(rosterData);
 
   // Phase 8: Sponsor track record from prior sessions
   const trackMap = await fetchSponsorTrackRecords();

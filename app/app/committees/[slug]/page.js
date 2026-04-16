@@ -1,11 +1,11 @@
 'use client'
 /**
- * Vector | WA — /committees/[slug] (Phase 11.1)
+ * Vector | WA — /committees/[slug] (Phase 11.1 + roster)
  *
  * Committee detail page. Order of information (top → bottom):
  *   1. Upcoming meetings (PRIMARY)
  *   2. Tracked bills in this committee (SECONDARY)
- *   3. Roster (TERTIARY — stub until Phase 11.3)
+ *   3. Roster — committee members with role badges
  */
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -34,6 +34,7 @@ export default function CommitteeDetail() {
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
   const [bills, setBills] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   // Phase 11.2 — follow state
@@ -90,6 +91,14 @@ export default function CommitteeDetail() {
         .order('final_score', { ascending: false })
         .limit(100)
       setBills(bs || [])
+
+      // 4. Committee roster
+      const { data: mem } = await supabase
+        .from('committee_members')
+        .select('member_name, member_id, title, party')
+        .eq('committee_id', cmte.id)
+        .order('title', { ascending: true })
+      setMembers(mem || [])
 
       setLoading(false)
     }
@@ -336,11 +345,65 @@ export default function CommitteeDetail() {
             )}
           </Section>
 
-          {/* SECTION 3 — ROSTER (STUB) */}
-          <Section title="Roster" subtitle="coming in Phase 11.3">
-            <EmptyCard muted>
-              Member roster and chair/ranking-member assignments land in Phase 11.3. For now, use the Members page.
-            </EmptyCard>
+          {/* SECTION 3 — COMMITTEE ROSTER */}
+          <Section title="Roster" subtitle={members.length > 0 ? `${members.length} members` : ''}>
+            {members.length === 0 ? (
+              <EmptyCard muted>No roster data available for this committee.</EmptyCard>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {/* Sort: Chair first, then Vice Chair, Ranking, then alphabetical */}
+                {[...members].sort((a, b) => {
+                  const order = t => {
+                    const tl = (t || '').toLowerCase()
+                    if (tl.includes('chair') && !tl.includes('vice')) return 0
+                    if (tl.includes('vice chair')) return 1
+                    if (tl.includes('ranking')) return 2
+                    return 3
+                  }
+                  const d = order(a.title) - order(b.title)
+                  return d !== 0 ? d : a.member_name.localeCompare(b.member_name)
+                }).map((m, i) => {
+                  const isLeadership = (m.title || '').toLowerCase().includes('chair') ||
+                    (m.title || '').toLowerCase().includes('ranking')
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px', borderRadius: 6,
+                      background: isLeadership ? 'rgba(184,151,90,0.04)' : 'var(--bg-card)',
+                      border: '1px solid ' + (isLeadership ? 'rgba(184,151,90,0.15)' : 'var(--border)'),
+                    }}>
+                      {/* Party dot */}
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                        background: m.party === 'D' ? '#4A90D9' : m.party === 'R' ? '#D94A4A' : 'var(--text-faint)',
+                      }} title={m.party === 'D' ? 'Democrat' : m.party === 'R' ? 'Republican' : ''} />
+                      {/* Name */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{
+                          fontSize: 13, color: 'var(--text-primary)', fontWeight: isLeadership ? 600 : 400,
+                        }}>{m.member_name}</span>
+                      </div>
+                      {/* Role badge */}
+                      {m.title && m.title !== 'Member' && (
+                        <span style={{
+                          fontSize: 9, padding: '2px 7px', borderRadius: 8, flexShrink: 0,
+                          fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.02em',
+                          textTransform: 'uppercase',
+                          color: (m.title || '').toLowerCase().includes('chair') && !(m.title || '').toLowerCase().includes('vice')
+                            ? 'var(--gold)'
+                            : 'var(--text-muted)',
+                          border: '1px solid ' + (
+                            (m.title || '').toLowerCase().includes('chair') && !(m.title || '').toLowerCase().includes('vice')
+                              ? 'rgba(184,151,90,0.4)'
+                              : 'var(--border)'
+                          ),
+                        }}>{m.title}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Section>
         </>
       )}
