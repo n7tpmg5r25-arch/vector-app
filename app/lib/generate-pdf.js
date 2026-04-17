@@ -790,57 +790,54 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   let y = 16
 
   /* ================================================================
-     HEADER (with logo)
+     HEADER (vector mark + text, no raster logo)
      ================================================================ */
 
-  const logoData = await loadImageAsBase64('/logo.png')
+  // Draw a simple vector "V" + gold triangle — matches the app's inline SVG
+  // icon. No raster PNG so there's nothing to break if a logo file is missing.
+  {
+    const logoX = m
+    const logoY = y - 3
+    const logoH = 14
+    const s = logoH / 48  // viewBox is 0..48 in height
 
-  if (logoData) {
-    const logoH = 22
-    const logoW = logoH * 0.82
-    doc.addImage(logoData, 'PNG', m, y - 4, logoW, logoH)
+    // Teal V (two strokes: left = V, right = emphasized)
+    doc.setDrawColor(...TEAL)
+    doc.setLineCap('round')
+    doc.setLineJoin('round')
+    doc.setLineWidth(2.0 * s * 48 / 22)
+    doc.line(logoX + 4 * s,  logoY + 4 * s,  logoX + 28 * s, logoY + 44 * s)
+    doc.line(logoX + 28 * s, logoY + 44 * s, logoX + 52 * s, logoY + 4 * s)
+    doc.setLineWidth(1.6 * s * 48 / 22)
+    doc.line(logoX + 28 * s, logoY + 44 * s, logoX + 52 * s, logoY + 20 * s)
 
-    const textX = m + logoW + 4
+    // Gold triangle at the arrow tip (52,14)(58,22)(44,22)
+    doc.setFillColor(...GOLD)
+    doc.triangle(
+      logoX + 52 * s, logoY + 14 * s,
+      logoX + 58 * s, logoY + 22 * s,
+      logoX + 44 * s, logoY + 22 * s,
+      'F'
+    )
+
+    const textX = logoX + 62 * s + 3
 
     doc.setFont('times', 'bold')
     doc.setFontSize(18)
     doc.setTextColor(...NAVY)
-    doc.text('SHOREPINE', textX, y + 5)
+    doc.text('SHOREPINE', textX, y + 3)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(...TEAL)
-    doc.text('VECTOR | WA', textX, y + 11)
+    doc.text('VECTOR | WA', textX, y + 9)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...GRAY)
-    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 11, { align: 'right' })
+    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 9, { align: 'right' })
 
-    y += logoH + 2
-  } else {
-    // Fallback: text-only header
-    doc.setDrawColor(...TEAL)
-    doc.setLineWidth(1.2)
-    doc.line(m, y, pw - m, y)
-    y += 8
-
-    doc.setFont('times', 'bold')
-    doc.setFontSize(22)
-    doc.setTextColor(...NAVY)
-    doc.text('SHOREPINE', m, y)
-    y += 7
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(...TEAL)
-    doc.text('VECTOR | WA', m, y)
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(...GRAY)
-    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y, { align: 'right' })
-    y += 4
+    y += logoH
   }
 
   // Thin separator

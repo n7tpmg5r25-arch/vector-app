@@ -166,17 +166,25 @@ function LoginPageInner() {
         pointerEvents: 'none',
       }}/>
 
-      {/* Logo */}
+      {/* Logo — inline SVG (matches home page mark) */}
       <div style={{ marginBottom: 32, textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <img
-          src="/logo-wordmark.png"
-          alt="Vector | WA"
-          style={{
-            maxWidth: 260, width: '100%', height: 'auto',
-            marginBottom: 8,
-            filter: 'drop-shadow(0 0 18px rgba(184,151,90,0.2))',
-          }}
-        />
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+          <svg width="44" height="38" viewBox="0 0 56 48" fill="none" aria-hidden="true"
+            style={{ filter: 'drop-shadow(0 0 18px rgba(184,151,90,0.25))' }}>
+            <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
+            <polygon points="52,14 58,22 44,22" fill="var(--gold, #b8975a)"/>
+          </svg>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 30, fontWeight: 700, color: 'var(--teal)',
+              letterSpacing: '-0.01em', lineHeight: 1,
+            }}>
+              VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 22 }}>| WA</span>
+            </div>
+          </div>
+        </div>
         <div style={{
           fontFamily: 'var(--font-body)',
           fontSize: 12, color: 'var(--text-faint)',
