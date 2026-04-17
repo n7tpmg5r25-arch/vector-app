@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
       body = {};
     }
 
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'alerts@shorepinegr.com';
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'alerts@shorepine.org';
 
     // ── Test email mode ──────────────────────────────────
     if (body.type === 'test') {

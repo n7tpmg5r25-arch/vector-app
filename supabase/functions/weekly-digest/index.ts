@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'alerts@shorepinegr.com';
+    const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'alerts@shorepine.org';
 
     // ── Date range ───────────────────────────────────────
     const now = new Date();

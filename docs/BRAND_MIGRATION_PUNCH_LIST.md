@@ -64,6 +64,59 @@ Brand guide v1.1 reference. Tracks the multi-wave migration after the 2026-04-16
 - **`bill_notes.visibility` enum rename** (`'client'` → `'shared'`). UI labels already dropped the word; the enum rename is a separate migration with backfill that can land on its own schedule. Tracking under P2c if/when pursued.
 - **Phase 12 client portal** — likely scrapped per brand pivot (see memory).
 
-## Next wave — P2b (signup rework)
+## P2b — Signup rework (shipped 2026-04-16)
 
-The signup/auth flow still says "Contact Shorepine Civic Tech" for unauthorized emails. With the free, nonpartisan positioning, we want open signup (or a clear waitlist) rather than a gated "contact us" flow. Scoped separately.
+Posture decision: **waitlist now, open signup at Aug 1 2027 public launch** (per brand guide v1.1 §18). Magic-link sign-in unchanged for already-provisioned users; password auth deferred to post-launch.
+
+### 1. DB — `public.waitlist` table
+
+- Migration `brand_p2b_create_waitlist` applied via Supabase MCP.
+- Columns: `id`, `email` (unique), `source`, `confirmation_token` (unique), `confirmed_at`, `created_at`, `converted_at`, `unsubscribed_at`, `ip_hash`, `user_agent`.
+- Indexes on `created_at DESC`, `confirmed_at WHERE NOT NULL`, and `(ip_hash, created_at) WHERE NOT NULL`.
+- RLS enabled. One policy: `"public can join waitlist"` — `FOR INSERT TO anon, authenticated WITH CHECK (...)` enforcing lowercase/trimmed email + regex + ≤320 chars. No SELECT/UPDATE/DELETE policies — service_role bypasses RLS for admin read and confirmation update. Verified via `SET LOCAL role TO anon`: INSERT succeeds, SELECT returns 0 rows.
+
+### 2. Edge function — `waitlist-signup`
+
+- Deployed via Supabase MCP (version 1). `verify_jwt: false`; auth via `x-function-secret` header (same pattern as `send-alerts` / `weekly-digest`).
+- `_shared/email-template.ts` **inlined** per CLAUDE.md rule — the confirmation email uses the same Forest/Brass/Parchment print palette as alerts and digests.
+- Only responsibility: send the Resend confirmation email with a confirm URL. Does not write to the DB.
+
+### 3. API routes
+
+- `POST /api/waitlist` (`app/app/api/waitlist/route.js`) — public, no auth. Honeypot field (`hp`), email regex, per-IP rate limit (5/hr via service-role COUNT on `ip_hash`), INSERT via **anon key + RLS** (no service_role on internet-facing surface), then calls `waitlist-signup` edge function with `FUNCTION_SECRET`. Always returns generic success (never leaks membership).
+- `GET /api/waitlist/confirm?token=…` (`app/app/api/waitlist/confirm/route.js`) — sets `confirmed_at` via service_role (narrow, token-gated). Redirects to `/login?waitlist=confirmed` / `invalid` / `already_confirmed` / `error`.
+
+### 4. Login page rewrite — `app/app/login/page.js`
+
+- Dropped the "Contact Shorepine Civic Tech" message. Error now reads: *"This email isn't on the access list yet. Public accounts open August 2027 — join the waitlist below to be notified."*
+- Two-card layout: waitlist card (brass CTA) above sign-in card (teal CTA, existing magic-link flow). `useSearchParams()` wrapped in `<Suspense>` for Next 16.
+- Copy reviewed against brand guide v1.1 §7: "Vector | WA is free. Public accounts open August 2027. Leave your email and we'll notify you the day signup opens." / "No spam. No tracking. We'll email you once when signup opens, then you're off the list." Footer: "Nonpartisan · We don't lobby."
+
+### 5. Admin view — `app/app/admin/waitlist/page.js`
+
+- Server component. Auth gate: must be signed in AND user.id is in `ADMIN_USER_IDS` (hardcoded Colin's UID from security audit memory). Otherwise redirects.
+- Reads via service_role server-side. Counts (total / confirmed / pending), filter tabs, CSV download. `dynamic = 'force-dynamic'`.
+
+### 6. Stale email default cleanup
+
+- `supabase/functions/send-alerts/index.ts:54` and `supabase/functions/weekly-digest/index.ts:48`: fallback `RESEND_FROM_EMAIL` default changed from `alerts@shorepinegr.com` → `alerts@shorepine.org`. `RESEND_FROM_EMAIL` env var is set in prod so the default never fires; these will propagate on the next deploy of each function.
+
+### Security checklist
+
+- Public POST uses anon key + INSERT-only RLS → no service_role on the internet surface.
+- Confirmation + admin routes use service_role server-side (token-gated or UID-gated).
+- Rate limit 5/hr per IP hash (SHA-256 with `WAITLIST_IP_SALT` env; `vector-wa-waitlist-v1` fallback).
+- Honeypot silently absorbs bot submissions.
+- Supabase dashboard signup stays OFF (`shouldCreateUser: false` retained on sign-in path).
+- service_role key rotation still deferred to pre-Jan-2028 per `project_security_audit_2026_04_14`.
+
+### Deploy
+
+- Migration + edge function already live (via Supabase MCP).
+- Next.js changes land on `git push` to main from repo root — Vercel auto-deploys.
+
+### Deferred
+
+- P2c: `bill_notes.visibility` enum rename (still deferred).
+- Turnstile / hCaptcha: defer to Aug 2027 launch when signup opens.
+- Promote `ADMIN_USER_IDS` hardcode to an `admins` table or user metadata flag if a collaborator joins.
