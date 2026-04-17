@@ -1,7 +1,7 @@
 # PORTABILITY.md — Vector | WA
 
 > Last updated: 2026-04-12 (Phase 7T)
-> Maintainer: Colin Foote, Shorepine Government Relations
+> Maintainer: Colin Foote, Shorepine Civic Tech
 
 This document maps every service, secret, file, and process that makes Vector | WA run. If you're reading this because the original laptop is gone, start with DISASTER-RECOVERY.md instead — it's the step-by-step version.
 

@@ -11,14 +11,14 @@ export const metadata = {
   },
   openGraph: {
     title: 'Vector | WA',
-    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
     siteName: 'Vector | WA',
     type: 'website',
   },
   twitter: {
     card: 'summary',
     title: 'Vector | WA',
-    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
   },
 }
 

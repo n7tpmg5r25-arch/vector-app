@@ -1076,8 +1076,8 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...GRAY)
-    doc.text('Shorepine Government Relations  |  Vector | WA  |  Legislative Intelligence', m, fy + 5)
-    doc.text('CONFIDENTIAL', pw - m, fy + 5, { align: 'right' })
+    doc.text('Shorepine Civic Tech  |  Vector | WA  |  Free Legislative Intelligence', m, fy + 5)
+    doc.text('vectorwa.org', pw - m, fy + 5, { align: 'right' })
 
     if (pageCount > 1) {
       doc.setFontSize(6.5)

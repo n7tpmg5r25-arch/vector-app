@@ -15,7 +15,7 @@ export const metadata = {
   },
   openGraph: {
     title: 'Vector | WA',
-    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
     siteName: 'Vector | WA',
     type: 'website',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA Legislative Trajectories' }],
@@ -24,7 +24,7 @@ export const metadata = {
     card: 'summary_large_image',
     images: ['/og-image.png'],
     title: 'Vector | WA',
-    description: 'WA Legislative Trajectory Intelligence by Shorepine Government Relations',
+    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
   },
 }
 

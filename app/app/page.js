@@ -322,7 +322,7 @@ export default function HomePage() {
               fontSize: 11, color: 'var(--text-muted)',
               fontFamily: 'var(--font-mono)',
             }}>
-              Solo Practice
+              Free &amp; Nonpartisan
             </div>
           </div>
 

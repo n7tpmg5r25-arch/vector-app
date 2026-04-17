@@ -257,7 +257,7 @@ export default function MethodologyPage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 12 }}>
               X Factors multiply the base score by between 0.50× and 1.50× based on procedural signals
-              that aren't captured by the five base signals. These are the things a seasoned lobbyist
+              that aren't captured by the five base signals. These are the things a seasoned legislative analyst
               watches — not just what happened, but what's <em>about</em> to happen.
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -533,7 +533,7 @@ export default function MethodologyPage() {
             ))}
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
               Political dynamics signals are informational — they are not factored into the trajectory
-              score or pass probability. They provide context a lobbyist would want alongside the numbers:
+              score or pass probability. They provide context an analyst would want alongside the numbers:
               who built the coalition, who controls the committee, and how effective is the sponsor.
             </div>
           </div>

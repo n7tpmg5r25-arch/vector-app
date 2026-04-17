@@ -26,7 +26,7 @@ export default function LoginPage() {
       if (error.message?.toLowerCase().includes('signups not allowed') ||
           error.message?.toLowerCase().includes('signup is disabled') ||
           error.message?.toLowerCase().includes('user not found')) {
-        setError('This email is not authorized for access. Contact Shorepine Government Relations.')
+        setError('This email is not authorized for access. Contact Shorepine Civic Tech.')
       } else {
         setError(error.message)
       }
@@ -145,7 +145,7 @@ export default function LoginPage() {
         color: 'var(--text-faint)', textAlign: 'center',
         position: 'relative', zIndex: 1,
       }}>
-        Private access only · Vector WA &copy; 2026
+        Vector | WA &copy; 2026 Shorepine Civic Tech
       </div>
     </div>
   )

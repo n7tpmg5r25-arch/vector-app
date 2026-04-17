@@ -64,7 +64,7 @@ export default function DisclaimersPage() {
         </h1>
 
         <P>
-          Vector | WA is an analytic tool built and operated by Shorepine Government Relations for tracking bills in the Washington State Legislature. This page explains what the product is, where the data comes from, how the signals are generated, and what Vector | WA is not.
+          Vector | WA is a free legislative tracking and intelligence tool built and operated by Shorepine Civic Tech, a nonpartisan civic technology company based in Olympia, Washington. This page explains what the product is, where the data comes from, how the signals are generated, and what Vector | WA is not.
         </P>
 
         <H2>Data sources and freshness</H2>
@@ -84,7 +84,7 @@ export default function DisclaimersPage() {
 
         <H2>Model uncertainty</H2>
         <P>
-          A trajectory score is a signal about where a bill is likely heading based on its procedural record. It is not a prediction, a guarantee, or a probability in the strict statistical sense. Bills with identical scores can and do reach different outcomes. Shorepine Government Relations makes no representation that any score will correspond to any particular legislative result.
+          A trajectory score is a signal about where a bill is likely heading based on its procedural record. It is not a prediction, a guarantee, or a probability in the strict statistical sense. Bills with identical scores can and do reach different outcomes. Shorepine Civic Tech makes no representation that any score will correspond to any particular legislative result.
         </P>
 
         <H2>Interim-period framing</H2>
@@ -92,17 +92,15 @@ export default function DisclaimersPage() {
           Between legislative sessions, trajectory scores reflect a bill's terminal position in the most recent session, not its prospects in the next one. Carry-over and prefile activity are labeled separately. Users should treat interim scores as historical, not predictive.
         </P>
 
-        <H2>Not legal or lobbying advice</H2>
+        <H2>Not legal advice</H2>
         <P>
-          Vector | WA is an intelligence product. It is not legal advice, not a lobbying solicitation, and not a substitute for counsel. Nothing on this site creates an attorney-client or lobbyist-client relationship. Users taking action on a bill (registering a position, directing a client, filing testimony) should consult qualified counsel and the Public Disclosure Commission's current guidance.
+          Vector | WA is an intelligence tool. It is not legal advice and not a substitute for counsel. Shorepine Civic Tech does not lobby, endorse candidates, take partisan positions, or recommend how users should act on legislative information. We provide the data and the tools. What people do with them is their own civic business.
         </P>
 
-        {/* Lobbyist registration section intentionally omitted until 2027-08-01.
-            Shorepine Government Relations LLC forms April 2027, PDC lobbyist
-            registration happens July 2027. Scheduled task
-            "vector-wa-restore-pdc-lobbyist-section" will restore this copy on
-            2027-08-01 once the actual PDC filing is on record. Do not re-add
-            before then - the claim would be false advertising. */}
+        <H2>Nonpartisan commitment</H2>
+        <P>
+          Shorepine Civic Tech does not hold and will not seek lobbyist registration under RCW 42.17A. The company does not represent clients before the Legislature or state agencies. This is a permanent structural commitment, not a current policy.
+        </P>
 
         <H2>Corrections and contact</H2>
         <P>

@@ -84,7 +84,7 @@ function buildVEvent({ date, summary, description, location, uid }) {
 function wrapCalendar(events) {
   let cal = 'BEGIN:VCALENDAR\r\n'
   cal += 'VERSION:2.0\r\n'
-  cal += 'PRODID:-//Vector WA//Shorepine Government Relations//EN\r\n'
+  cal += 'PRODID:-//Vector WA//Shorepine Civic Tech//EN\r\n'
   cal += 'CALSCALE:GREGORIAN\r\n'
   cal += 'METHOD:PUBLISH\r\n'
   cal += 'X-WR-CALNAME:Vector WA Hearings\r\n'
