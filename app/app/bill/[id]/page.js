@@ -312,7 +312,7 @@ export default function BillDetailPage() {
   // Phase 7S: Analyst notes (bill_notes table)
   const [billNotes, setBillNotes]       = useState([])
   const [noteBody, setNoteBody]         = useState('')
-  const [noteVis, setNoteVis]           = useState('internal')
+  const [noteVis, setNoteVis]           = useState('private')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [savingNote, setSavingNote]     = useState(false)
 
@@ -465,7 +465,7 @@ export default function BillDetailPage() {
       }
     }
     setNoteBody('')
-    setNoteVis('internal')
+    setNoteVis('private')
     setSavingNote(false)
   }
 
@@ -478,7 +478,7 @@ export default function BillDetailPage() {
   function cancelEditNote() {
     setEditingNoteId(null)
     setNoteBody('')
-    setNoteVis('internal')
+    setNoteVis('private')
   }
 
   async function deleteNote(noteId) {
@@ -1954,18 +1954,18 @@ export default function BillDetailPage() {
                   border: '1px solid var(--border)',
                 }}>
                   {[
-                    { value: 'internal', label: 'private' },
-                    { value: 'client', label: 'shared' },
+                    { value: 'private', label: 'private' },
+                    { value: 'shared', label: 'shared' },
                   ].map(({ value: v, label }) => (
                     <button key={v} onClick={() => setNoteVis(v)} style={{
                       padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600,
                       cursor: 'pointer', fontFamily: 'var(--font-mono)',
                       letterSpacing: '0.05em', textTransform: 'uppercase',
                       background: noteVis === v
-                        ? (v === 'internal' ? 'rgba(138,128,112,0.15)' : 'rgba(184,151,90,0.15)')
+                        ? (v === 'private' ? 'rgba(138,128,112,0.15)' : 'rgba(184,151,90,0.15)')
                         : 'transparent',
                       color: noteVis === v
-                        ? (v === 'internal' ? 'var(--text-muted)' : 'var(--gold)')
+                        ? (v === 'private' ? 'var(--text-muted)' : 'var(--gold)')
                         : 'var(--text-faint)',
                       transition: 'all 0.15s',
                     }}>{label}</button>
@@ -1981,11 +1981,11 @@ export default function BillDetailPage() {
                 )}
                 <button onClick={saveNote} disabled={savingNote || !noteBody.trim()} style={{
                   padding: '7px 18px',
-                  background: noteVis === 'client' ? 'var(--gold)' : 'var(--teal)',
+                  background: noteVis === 'shared' ? 'var(--gold)' : 'var(--teal)',
                   color: 'var(--bg)', border: 'none', borderRadius: 8,
                   fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   opacity: (savingNote || !noteBody.trim()) ? 0.5 : 1,
-                  boxShadow: noteVis === 'client' ? 'var(--gold-glow)' : 'var(--teal-glow)',
+                  boxShadow: noteVis === 'shared' ? 'var(--gold-glow)' : 'var(--teal-glow)',
                   transition: 'all 0.15s',
                 }}>
                   {savingNote ? 'Saving...' : editingNoteId ? 'Update Note' : 'Add Note'}
@@ -2004,7 +2004,7 @@ export default function BillDetailPage() {
                     padding: '10px 12px',
                     background: 'var(--bg)',
                     border: '1px solid var(--border)',
-                    borderLeft: `3px solid ${note.visibility === 'client' ? 'var(--gold)' : 'rgba(138,128,112,0.4)'}`,
+                    borderLeft: `3px solid ${note.visibility === 'shared' ? 'var(--gold)' : 'rgba(138,128,112,0.4)'}`,
                     borderRadius: 8,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -2012,10 +2012,10 @@ export default function BillDetailPage() {
                         fontSize: 9, padding: '2px 7px', borderRadius: 8,
                         fontFamily: 'var(--font-mono)', fontWeight: 600,
                         letterSpacing: '0.05em', textTransform: 'uppercase',
-                        background: note.visibility === 'client' ? 'rgba(184,151,90,0.12)' : 'rgba(138,128,112,0.12)',
-                        color: note.visibility === 'client' ? 'var(--gold)' : 'var(--text-muted)',
-                        border: `1px solid ${note.visibility === 'client' ? 'rgba(184,151,90,0.25)' : 'rgba(138,128,112,0.2)'}`,
-                      }}>{note.visibility === 'client' ? 'shared' : 'private'}</span>
+                        background: note.visibility === 'shared' ? 'rgba(184,151,90,0.12)' : 'rgba(138,128,112,0.12)',
+                        color: note.visibility === 'shared' ? 'var(--gold)' : 'var(--text-muted)',
+                        border: `1px solid ${note.visibility === 'shared' ? 'rgba(184,151,90,0.25)' : 'rgba(138,128,112,0.2)'}`,
+                      }}>{note.visibility === 'shared' ? 'shared' : 'private'}</span>
                       <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                         {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         {note.updated_at !== note.created_at && ' (edited)'}

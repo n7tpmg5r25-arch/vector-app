@@ -449,8 +449,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   // Phase 7W.3: companion status line (null if no companion)
   const companionLine = getCompanionLine(bill)
 
-  // Phase 7S: client-visible analyst notes for this bill
-  const clientNotes = (billNotes || []).filter(n => n.bill_id === tracked.bill_id && n.visibility === 'client')
+  // Phase 7S: shared analyst notes for this bill (Brand P2c: 'client' -> 'shared')
+  const sharedNotes = (billNotes || []).filter(n => n.bill_id === tracked.bill_id && n.visibility === 'shared')
 
   // Pre-calculate wrapped text heights
   const cardContentW = contentW - 10  // 5mm left border area + 5mm right padding
@@ -470,13 +470,13 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   const companionH = companionLine ? 3.5 : 0  // Phase 7W.3
 
   // Phase 7S: pre-wrap analyst note lines
-  const analystNoteWrapped = clientNotes.map(n => {
+  const analystNoteWrapped = sharedNotes.map(n => {
     const dateLine = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const bodyLines = doc.splitTextToSize(n.body, cardContentW - 4)
     return { dateLine, bodyLines }
   })
   // Height: 4 (label + rule) + per note (3 date + bodyLines * 3.2 + 2 gap)
-  const analystNotesH = clientNotes.length > 0
+  const analystNotesH = sharedNotes.length > 0
     ? 5 + analystNoteWrapped.reduce((h, n) => h + 3 + (n.bodyLines.length * 3.2) + 2, 0)
     : 0
 
@@ -615,7 +615,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   }
 
   // ── Phase 7S: Analyst Note blocks (client-visible only) ──
-  if (clientNotes.length > 0) {
+  if (sharedNotes.length > 0) {
     cy += 1
     // Forest rule line
     doc.setDrawColor(...TEAL)

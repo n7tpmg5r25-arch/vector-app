@@ -203,7 +203,7 @@ export default function WatchlistPage() {
             .from('bill_notes')
             .select('*')
             .eq('user_id', user.id)
-            .eq('visibility', 'client')
+            .eq('visibility', 'shared')
             .in('bill_id', billIds)
             .order('created_at', { ascending: false })
           billNotes = notesData || []
@@ -255,7 +255,7 @@ export default function WatchlistPage() {
     if (user) {
       const { data } = await supabase
         .from('bill_notes')
-        .insert({ bill_id: notesBillId, user_id: user.id, body: quickNote.trim(), visibility: 'internal' })
+        .insert({ bill_id: notesBillId, user_id: user.id, body: quickNote.trim(), visibility: 'private' })
         .select()
         .single()
       if (data) {
