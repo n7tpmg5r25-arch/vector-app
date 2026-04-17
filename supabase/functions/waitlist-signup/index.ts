@@ -94,7 +94,7 @@ function buildWaitlistConfirmationEmail(confirmUrl: string): { subject: string; 
     </p>
     <hr style="margin:24px 0; border:none; border-top:1px solid ${COLORS.cardBorder};">
     <p style="margin:0; font-size:13px; color:${COLORS.slate};">
-      Shorepine Civic Tech is a free, nonpartisan civic-technology company. We don&rsquo;t lobby, we don&rsquo;t endorse, and we don&rsquo;t sell your data. Accounts are free &mdash; always.
+      Shorepine Civic Tech is a free, nonpartisan civic-technology company. Accounts are free &mdash; always &mdash; and we don&rsquo;t sell your data.
     </p>`;
 
   return { subject, html: wrapEmail(subject, bodyHtml) };

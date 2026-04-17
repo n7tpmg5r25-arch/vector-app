@@ -7,7 +7,7 @@
  * NOT the dark app palette.
  */
 
-// ── Brand colors (v3.1 §14 — firm/print palette) ──────────
+// ── Brand colors (brand guide v1.1 §14 — print palette) ──────────
 const COLORS = {
   parchment:   '#f5f0e6',
   forestDeep:  '#1a4a2e',

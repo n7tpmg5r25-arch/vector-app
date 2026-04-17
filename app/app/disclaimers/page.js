@@ -64,7 +64,7 @@ export default function DisclaimersPage() {
         </h1>
 
         <P>
-          Vector | WA is a free legislative tracking and intelligence tool built and operated by Shorepine Civic Tech, a nonpartisan civic technology company based in Olympia, Washington. This page explains what the product is, where the data comes from, how the signals are generated, and what Vector | WA is not.
+          Vector | WA is a free legislative tracking and intelligence tool built and operated by Shorepine Civic Tech, a nonpartisan civic technology company based in Olympia, Washington. This page explains what Vector | WA is, where the data comes from, how the signals are generated, and what Vector | WA is not.
         </P>
 
         <H2>Data sources and freshness</H2>
@@ -94,17 +94,17 @@ export default function DisclaimersPage() {
 
         <H2>Not legal advice</H2>
         <P>
-          Vector | WA is an intelligence tool. It is not legal advice and not a substitute for counsel. Shorepine Civic Tech does not lobby, endorse candidates, take partisan positions, or recommend how users should act on legislative information. We provide the data and the tools. What people do with them is their own civic business.
+          Vector | WA is an intelligence tool. It is not legal advice and not a substitute for counsel. Shorepine Civic Tech is nonpartisan &mdash; we don&rsquo;t endorse candidates, take partisan positions, or recommend how anyone should act on legislative information. Our job is to make the record easier to read.
         </P>
 
-        <H2>Nonpartisan commitment</H2>
+        <H2>Who Vector | WA is for</H2>
         <P>
-          Shorepine Civic Tech does not hold and will not seek lobbyist registration under RCW 42.17A. The company does not represent clients before the Legislature or state agencies. This is a permanent structural commitment, not a current policy.
+          Vector | WA is built for anyone who works with Washington State legislation &mdash; legislative staff, advocates, registered lobbyists, journalists, researchers, students, and the general public. Shorepine Civic Tech is not a registered lobbying entity and does not represent clients before the Legislature or state agencies.
         </P>
 
         <H2>Corrections and contact</H2>
         <P>
-          The Washington State Legislature's public record is the authoritative source for any bill referenced in Vector | WA. Where Vector | WA and the Legislature's record disagree, the Legislature's record controls. Corrections and questions: colin@shorepinegr.com.
+          The Washington State Legislature's public record is the authoritative source for any bill referenced in Vector | WA. Where Vector | WA and the Legislature's record disagree, the Legislature's record controls. Corrections and questions: colin@shorepine.org.
         </P>
       </main>
     </>

@@ -390,7 +390,7 @@ export default function MethodologyPage() {
             where a bill is. Vector | WA tells you where a bill is <em>going</em>. The {veryLow.bills.toLocaleString()} bills in
             the 0–44 (VERY LOW) bucket had a 0% pass rate. The {high.bills.toLocaleString()} bills in the 75+ bucket had a {high.law.toFixed(1)}% pass rate —
             <span style={{ color: 'var(--teal)', fontWeight: 600 }}> {highLawCount} of them became law</span>.
-            That separation is the signal you're paying for.
+            That separation is the whole point of the signal.
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
               Scores refresh nightly. The calibration table above recomputes itself from live
               Supabase data every time you open this page, so as soon as the next biennium's

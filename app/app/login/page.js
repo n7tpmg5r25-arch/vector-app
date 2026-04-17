@@ -340,7 +340,7 @@ function LoginPageInner() {
         color: 'var(--text-faint)', textAlign: 'center',
         position: 'relative', zIndex: 1,
       }}>
-        Vector | WA &copy; 2026 Shorepine Civic Tech &middot; Nonpartisan &middot; We don&rsquo;t lobby
+        Vector | WA &copy; 2026 Shorepine Civic Tech &middot; Free &middot; Nonpartisan
       </div>
     </div>
   )

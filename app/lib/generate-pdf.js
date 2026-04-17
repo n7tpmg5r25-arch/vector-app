@@ -22,7 +22,7 @@ const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
-const NAVY  = [26, 74, 46]       // Forest #1a4a2e (firm brand v3.1 sec 14)
+const FOREST = [26, 74, 46]      // Forest #1a4a2e (brand guide v1.1 §14)
 const TEAL  = [45, 107, 69]      // Forest Mid (Shorepine #2d6b45)
 const GOLD  = [184, 151, 90]     // Brass (Shorepine #b8975a)
 const GRAY  = [74, 80, 96]       // Slate (Shorepine #4a5060)
@@ -199,7 +199,7 @@ const GROUP_LABELS = {
 }
 const GROUP_COLORS = {
   'LAW':        TEAL,
-  'ACTIVE':     NAVY,
+  'ACTIVE':     FOREST,
   'CARRY OVER': GOLD,
   'DEAD':       GRAY,
 }
@@ -310,7 +310,7 @@ function drawSessionContextBar(doc, y, pw, m, contentW) {
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.setTextColor(...NAVY)
+  doc.setTextColor(...FOREST)
   doc.text(contextText, m + 4, y + 5.8)
 
   return y + 13
@@ -527,7 +527,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   // ── Line 1: Bill number + Score badge + Tier ──
   doc.setFont('courier', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...NAVY)
+  doc.setTextColor(...FOREST)
   doc.text(billLabel, cx, cy)
 
   // Score indicator (right side)
@@ -640,7 +640,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
       // Note body in Forest on Parchment
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
-      doc.setTextColor(...NAVY)
+      doc.setTextColor(...FOREST)
       bodyLines.forEach(line => {
         doc.text(line, cx + 2, cy)
         cy += 3.2
@@ -824,7 +824,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
     doc.setFont('times', 'bold')
     doc.setFontSize(18)
-    doc.setTextColor(...NAVY)
+    doc.setTextColor(...FOREST)
     doc.text('SHOREPINE', textX, y + 3)
 
     doc.setFont('helvetica', 'normal')
@@ -866,14 +866,14 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.setTextColor(...NAVY)
+    doc.setTextColor(...FOREST)
     doc.text(tagLabel, m + 6, y + 8)
 
     y += 15
   } else {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.setTextColor(...NAVY)
+    doc.setTextColor(...FOREST)
     doc.text('Full Portfolio Report', m, y)
     y += 6
   }
@@ -914,7 +914,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
-  doc.setTextColor(...NAVY)
+  doc.setTextColor(...FOREST)
   doc.text(isCurrentlyInterim ? 'SESSION RESULTS' : 'PORTFOLIO SUMMARY', m + 4, y + 5.5)
 
   let stats
@@ -967,7 +967,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   stats.forEach((stat, i) => {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.setTextColor(...NAVY)
+    doc.setTextColor(...FOREST)
     doc.text(stat.value, statX, statY)
     const valueWidth = doc.getTextWidth(stat.value)
     doc.setFont('helvetica', 'normal')
@@ -987,7 +987,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
-  doc.setTextColor(...NAVY)
+  doc.setTextColor(...FOREST)
   doc.text('TRACKED LEGISLATION', m, y)
   y += 5
 
@@ -1040,7 +1040,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     if (p > 1) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(8)
-      doc.setTextColor(...NAVY)
+      doc.setTextColor(...FOREST)
       doc.text('SHOREPINE', m, 14)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
