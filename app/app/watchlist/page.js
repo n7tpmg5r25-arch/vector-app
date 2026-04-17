@@ -18,8 +18,8 @@ export default function WatchlistPage() {
   // filter to the active session client-side after the join.
   const [SESSION] = useSession()
   const [watched, setWatched]               = useState([])
-  const [clients, setClients]               = useState([])
-  const [activeClient, setActiveClient]     = useState('All')
+  const [tags, setTags]                     = useState([])
+  const [activeTag, setActiveTag]           = useState('All')
   const [sortBy, setSortBy]                 = useState('score')
   const [atRiskOnly, setAtRiskOnly]         = useState(false)
   const [scoreDeltas, setScoreDeltas]       = useState({})
@@ -44,7 +44,7 @@ export default function WatchlistPage() {
       const { data } = await supabase
         .from('tracked_bills')
         .select(`
-          bill_id, client_tag, notes, added_at, last_viewed_at,
+          bill_id, tag, notes, added_at, last_viewed_at,
           bills (
             bill_id, bill_number, title, final_score,
             stage, chamber, category, committee_name,
@@ -65,8 +65,8 @@ export default function WatchlistPage() {
       const items = (data || []).filter(d => d.bills && d.bills.session === SESSION)
       setWatched(items)
 
-      const allClients = [...new Set(items.map(d => d.client_tag).filter(Boolean))]
-      setClients(allClients)
+      const allTags = [...new Set(items.map(d => d.tag).filter(Boolean))]
+      setTags(allTags)
 
       /* ── 2. Find earliest last_viewed_at (they should all match) ── */
       const lastViewed = items.reduce((earliest, d) => {
@@ -163,14 +163,14 @@ export default function WatchlistPage() {
   }, [SESSION])
 
   /* ── Filtering & sorting ── */
-  const clientFiltered = activeClient === 'All'
+  const tagFiltered = activeTag === 'All'
     ? watched
-    : watched.filter(d => d.client_tag === activeClient)
+    : watched.filter(d => d.tag === activeTag)
   const filtered = atRiskOnly
     ? (isInterimPeriod()
-      ? clientFiltered.filter(d => d.bills?.confidence_label === 'DEAD')
-      : clientFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled))
-    : clientFiltered
+      ? tagFiltered.filter(d => d.bills?.confidence_label === 'DEAD')
+      : tagFiltered.filter(d => (d.bills?.final_score || 0) < 25 || d.bills?.stalled))
+    : tagFiltered
 
   const sorted = [...filtered].sort((a, b) => {
     if (sortBy === 'score') return (b.bills?.final_score || 0) - (a.bills?.final_score || 0)
@@ -188,12 +188,12 @@ export default function WatchlistPage() {
   const handleExport = async () => {
     setExporting(true)
     try {
-      const { generateClientPDF } = await import('../../lib/generate-pdf')
-      const clientName = activeClient !== 'All' ? activeClient : null
+      const { generateBriefPDF } = await import('../../lib/generate-pdf')
+      const tagLabel = activeTag !== 'All' ? activeTag : null
       const billsToExport = sorted // uses current filter
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
-      // Phase 7S: fetch client-visible analyst notes for all tracked bills
+      // Phase 7S: fetch shared (export-visible) analyst notes for all tracked bills
       const { data: { user } } = await supabase.auth.getUser()
       let billNotes = []
       if (user) {
@@ -229,8 +229,8 @@ export default function WatchlistPage() {
       }
 
       const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
-      await generateClientPDF({
-        clientName,
+      await generateBriefPDF({
+        tagLabel,
         date: today,
         bills: billsToExport,
         scoreDeltas,
@@ -366,16 +366,16 @@ export default function WatchlistPage() {
           </div>
         )}
 
-        {clients.length > 0 && (
+        {tags.length > 0 && (
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
-            {['All', ...clients].map(c => (
-              <button key={c} onClick={() => setActiveClient(c)} style={{
+            {['All', ...tags].map(c => (
+              <button key={c} onClick={() => setActiveTag(c)} style={{
                 padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500, flexShrink: 0,
-                background: activeClient === c ? 'var(--teal)' : 'transparent',
-                color: activeClient === c ? 'var(--bg)' : 'var(--text-muted)',
-                border: `1px solid ${activeClient === c ? 'var(--teal)' : 'var(--border)'}`,
+                background: activeTag === c ? 'var(--teal)' : 'transparent',
+                color: activeTag === c ? 'var(--bg)' : 'var(--text-muted)',
+                border: `1px solid ${activeTag === c ? 'var(--teal)' : 'var(--border)'}`,
                 cursor: 'pointer', transition: 'all 0.15s',
-                boxShadow: activeClient === c ? 'var(--teal-glow)' : 'none',
+                boxShadow: activeTag === c ? 'var(--teal-glow)' : 'none',
               }}>{c}</button>
             ))}
           </div>
@@ -507,7 +507,7 @@ export default function WatchlistPage() {
               boxShadow: 'var(--teal-glow)',
             }}>Browse Bills</button>
           </div>
-        ) : sorted.map(({ bill_id, client_tag, notes, bills: bill }, idx) => {
+        ) : sorted.map(({ bill_id, tag, notes, bills: bill }, idx) => {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
@@ -554,9 +554,9 @@ export default function WatchlistPage() {
                   <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                     {STAGE_SHORT[bill.stage] || 'Intro'}
                   </span>
-                  {client_tag && (
+                  {tag && (
                     <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>
-                      {client_tag}
+                      {tag}
                     </span>
                   )}
                   {bill.confidence_label === 'LAW' && (

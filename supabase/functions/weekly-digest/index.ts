@@ -159,7 +159,7 @@ async function buildDigestData(
     .from('tracked_bills')
     .select(`
       bill_id,
-      client_tag,
+      tag,
       bills!inner (
         bill_id, bill_number, title, session,
         confidence_label, final_score, stage,
@@ -210,7 +210,7 @@ async function buildDigestData(
     bill_number: string;
     bill_id: string;
     title: string;
-    client_tag?: string;
+    tag?: string;
     change: string;
   }> = [];
 
@@ -254,7 +254,7 @@ async function buildDigestData(
         bill_number: bill.bill_number,
         bill_id: bill.bill_id,
         title: bill.title || '',
-        client_tag: t.client_tag || undefined,
+        tag: t.tag || undefined,
         change: changes.join(' · '),
       });
     }

@@ -75,7 +75,7 @@ export default function HomePage() {
       user
         ? supabase
             .from('tracked_bills')
-            .select('bill_id, client_tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label, session)')
+            .select('bill_id, tag, added_at, bills(bill_id, bill_number, title, final_score, stage, committee_passed, has_public_hearing, stalled, confidence_label, session)')
             .eq('user_id', user.id)
             .order('added_at', { ascending: false })
         : Promise.resolve({ data: null }),
@@ -519,7 +519,7 @@ export default function HomePage() {
             </div>
 
             {/* Top 3 watchlist bills */}
-            {watchlist.slice(0, 3).map(({ bill_id, client_tag, bills: bill }) => {
+            {watchlist.slice(0, 3).map(({ bill_id, tag, bills: bill }) => {
               const delta = scoreDeltas[bill_id]
               return (
               <div
@@ -554,7 +554,7 @@ export default function HomePage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                    {client_tag && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 600 }}>· {client_tag}</span>}
+                    {tag && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 600 }}>· {tag}</span>}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}

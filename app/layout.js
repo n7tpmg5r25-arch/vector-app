@@ -2,7 +2,7 @@ import './globals.css'
 
 export const metadata = {
   title: 'Vector | WA',
-  description: 'WA Legislative Trajectory Intelligence',
+  description: 'Free legislative intelligence for Washington State',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

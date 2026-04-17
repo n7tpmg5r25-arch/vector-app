@@ -1,4 +1,4 @@
-// Vector WA Service Worker — lightweight offline shell cache
+// Vector | WA Service Worker — Free legislative intelligence for Washington State (lightweight offline shell cache)
 const CACHE_NAME = 'vector-wa-v2';
 
 // Pages and assets to cache for offline shell

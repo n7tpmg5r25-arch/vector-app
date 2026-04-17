@@ -225,7 +225,7 @@ interface DigestMovement {
   bill_number: string;
   bill_id: string;
   title: string;
-  client_tag?: string;
+  tag?: string;
   change: string;
 }
 
@@ -266,8 +266,8 @@ export function buildDigestEmail(data: DigestData, appUrl: string): { subject: s
   if (data.movements.length > 0) {
     const rows = data.movements.map(m => {
       const billLink = `${appUrl}/app/bill/${encodeURIComponent(m.bill_id)}`;
-      const tagBadge = m.client_tag
-        ? `<span style="display:inline-block; background-color:${COLORS.parchment}; color:${COLORS.slate}; font-size:10px; padding:1px 6px; border-radius:3px; margin-left:6px;">${m.client_tag}</span>`
+      const tagBadge = m.tag
+        ? `<span style="display:inline-block; background-color:${COLORS.parchment}; color:${COLORS.slate}; font-size:10px; padding:1px 6px; border-radius:3px; margin-left:6px;">${m.tag}</span>`
         : '';
       return `
         <tr>

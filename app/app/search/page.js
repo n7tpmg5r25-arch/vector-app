@@ -146,7 +146,7 @@ function SearchContent() {
     const rows = newBills.map(b => ({
       bill_id: b.bill_id,
       user_id: user.id,
-      client_tag: bulkTag.trim() || null,
+      tag: bulkTag.trim() || null,
       notes: '',
     }))
 
@@ -222,7 +222,7 @@ function SearchContent() {
                 type="text"
                 value={bulkTag}
                 onChange={e => setBulkTag(e.target.value)}
-                placeholder="Client tag (optional, e.g. Acme Corp)"
+                placeholder="Tag (optional, e.g. Housing, Transit)"
                 style={{
                   flex: 1, padding: '8px 12px',
                   background: 'var(--bg-surface)', border: '1px solid var(--border)',

@@ -148,7 +148,7 @@ The full schema lives in Supabase. Core tables:
 - **bill_snapshots** — daily score snapshots (sparkline data). One per bill per day.
 - **amendments** — individual amendment rows per bill.
 - **fiscal_note_history** — tracks fiscal note size changes over time.
-- **tracked_bills** — user watchlist. Links user_id to bill_id with optional client_tag.
+- **tracked_bills** — user watchlist. Links user_id to bill_id with optional tag (renamed from client_tag in Brand P2, 2026-04-16).
 - **bill_notes** — analyst notes per bill.
 - **notification_preferences** — per-user email, digest/alert toggles.
 - **alert_events** — detected events (outcome_change, imminent_hearing, rules_pull, amendment_posted, fiscal_note_change). Tracks sent_at.

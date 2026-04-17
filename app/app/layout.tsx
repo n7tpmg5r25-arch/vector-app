@@ -6,7 +6,7 @@ import SessionBanner from './components/SessionBanner'
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
   title: 'Vector | WA',
-  description: 'WA Legislative Trajectory Intelligence',
+  description: 'Free legislative intelligence for Washington State',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

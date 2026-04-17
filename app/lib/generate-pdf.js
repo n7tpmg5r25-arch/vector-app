@@ -1,5 +1,5 @@
 /**
- * Vector | WA — Client PDF Intelligence Brief Generator
+ * Vector | WA — PDF Intelligence Brief Generator
  * Phase 6M: Executive summary, bill detail cards, what-to-watch, session context bar
  * Part 2 additions: outcome grouping, sort by score, summary truncation, stat layout fix, methodology pinned to last page
  *
@@ -441,7 +441,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
     .join(' ')
     .replace(/\s{2,}/g, ' ')                        // collapse extra whitespace
     .trim()
-  const tag = tracked.client_tag || ''
+  const tag = tracked.tag || ''
   const billLabel = (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number
   const stageLine = getStagePlainText(bill)
   const deltaText = getDeltaNarrative(billId, bill, scoreDeltas, changes)
@@ -465,7 +465,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   const titleH = titleLines.length * 4
   const summaryInterimCaveat = (summaryLines.length > 0 && isInterimPeriod()) ? 3 : 0
   const truncIndicatorH = summaryTruncated ? 2.5 : 0
-  const summaryH = summaryLines.length > 0 ? (summaryLines.length * lineH) + 2 + summaryInterimCaveat + truncIndicatorH : 0
+  const aiLabelH = summaryLines.length > 0 ? 2.5 : 0  // §14/§17 AI-generated label
+  const summaryH = summaryLines.length > 0 ? (summaryLines.length * lineH) + 2 + summaryInterimCaveat + truncIndicatorH + aiLabelH : 0
   const companionH = companionLine ? 3.5 : 0  // Phase 7W.3
 
   // Phase 7S: pre-wrap analyst note lines
@@ -564,9 +565,16 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
     cy += 4
   })
 
-  // ── AI Summary (smaller, gray, with caveat during interim) ──
+  // ── AI Summary (smaller, gray, with AI label + caveat during interim) ──
   if (summaryLines.length > 0) {
     cy += 1
+    // Brand §14/§17: always label AI-generated content
+    const aiLabel = bill.custom_summary ? 'AI-generated · edited' : 'AI-generated summary'
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    doc.setTextColor(...TEAL)
+    doc.text(aiLabel.toUpperCase(), cx, cy)
+    cy += 2.5
     const interim = isInterimPeriod()
     if (interim) {
       doc.setFont('helvetica', 'bolditalic')
@@ -665,7 +673,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   }
   cy += 4
 
-  // ── Client tag (if present) ──
+  // ── Tag (if present) ──
   if (tag) {
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(6.5)
@@ -773,7 +781,7 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
 // MAIN PDF GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateClientPDF({ clientName, date, bills, scoreDeltas, changes, session, billNotes, amendments = [], fiscalHistory = [] }) {
+export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, changes, session, billNotes, amendments = [], fiscalHistory = [] }) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
@@ -842,11 +850,11 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
   y += 6
 
   /* ================================================================
-     CLIENT INFO
+     TAG / SCOPE INFO
      ================================================================ */
 
-  if (clientName) {
-    // 6M.8 — Prominent client branding with teal accent bar
+  if (tagLabel) {
+    // 6M.8 — Prominent scope label with teal accent bar
     doc.setFillColor(245, 240, 230)
     doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.3)
@@ -857,12 +865,12 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...GRAY)
-    doc.text('Prepared for', m + 6, y + 1)
+    doc.text('Filtered by tag', m + 6, y + 1)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
     doc.setTextColor(...NAVY)
-    doc.text(clientName, m + 6, y + 8)
+    doc.text(tagLabel, m + 6, y + 8)
 
     y += 15
   } else {
@@ -1041,12 +1049,12 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
       doc.setFontSize(7)
       doc.setTextColor(...TEAL)
       doc.text('VECTOR | WA', m + 32, 14)
-      // Client name on continuation pages (if present)
-      if (clientName) {
+      // Tag label on continuation pages (if present)
+      if (tagLabel) {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
         doc.setTextColor(...GRAY)
-        doc.text('Prepared for: ' + clientName, pw - m, 14, { align: 'right' })
+        doc.text('Tag: ' + tagLabel, pw - m, 14, { align: 'right' })
       }
       // Thin line below header
       doc.setDrawColor(...LGRAY)
@@ -1089,7 +1097,7 @@ export async function generateClientPDF({ clientName, date, bills, scoreDeltas, 
      SAVE
      ================================================================ */
 
-  const safeName = (clientName || 'Portfolio').replace(/[^a-zA-Z0-9]/g, '_')
+  const safeName = (tagLabel || 'Portfolio').replace(/[^a-zA-Z0-9]/g, '_')
   const safeDate = date.replace(/[^a-zA-Z0-9]/g, '_')
   const filename = 'Vector_WA_Brief_' + safeName + '_' + safeDate + '.pdf'
 

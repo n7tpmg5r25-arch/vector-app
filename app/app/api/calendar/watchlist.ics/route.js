@@ -29,7 +29,7 @@ export async function GET(request) {
     const { data: tracked } = await supabase
       .from('tracked_bills')
       .select(`
-        bill_id, client_tag,
+        bill_id, tag,
         bills (
           bill_id, bill_number, title, final_score, chamber,
           committee_name, hearing_date, has_public_hearing, session
@@ -67,7 +67,7 @@ export async function GET(request) {
         event += `DTEND:${endDate.toISOString().replace(/[-:]/g, '').split('.')[0]}\r\n`
       }
 
-      const desc = escapeIcal(`${b.title || 'Legislative hearing'}\\nCommittee: ${b.committee_name || 'TBD'}\\nScore: ${b.final_score ?? 'N/A'}${t.client_tag ? '\\nClient: ' + t.client_tag : ''}\\n\\n${legUrl}`)
+      const desc = escapeIcal(`${b.title || 'Legislative hearing'}\\nCommittee: ${b.committee_name || 'TBD'}\\nScore: ${b.final_score ?? 'N/A'}${t.tag ? '\\nTag: ' + t.tag : ''}\\n\\n${legUrl}`)
 
       event += `SUMMARY:${escapeIcal(`WA Hearing: ${billLabel}`)}\r\n`
       event += `DESCRIPTION:${desc}\r\n`
