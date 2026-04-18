@@ -256,7 +256,7 @@ function SearchContent() {
             background: bulkResult.error ? 'rgba(196,71,48,0.1)' : 'rgba(184,151,90,0.1)',
             border: `1px solid ${bulkResult.error ? 'rgba(196,71,48,0.3)' : 'rgba(184,151,90,0.3)'}`,
             borderRadius: 8, padding: '8px 12px', marginBottom: 10,
-            fontSize: 12, color: bulkResult.error ? 'var(--red)' : 'var(--teal)',
+            fontSize: 12, color: bulkResult.error ? 'var(--danger)' : 'var(--teal)',
           }}>
             {bulkResult.error
               ? bulkResult.error

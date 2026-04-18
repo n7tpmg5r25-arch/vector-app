@@ -17,10 +17,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
-
-const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
 const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
 
@@ -60,6 +59,7 @@ function bucketize(dateStr) {
 export default function CommitteesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+  const [SESSION] = useSession()
 
   const [view, setView] = useState('calendar') // 'calendar' | 'by-committee'
   const [chamberFilter, setChamberFilter] = useState('All')
@@ -110,9 +110,12 @@ export default function CommitteesPage() {
     load()
   }, [])
 
-  // Load by-committee aggregation (only when user flips view)
+  // Load by-committee aggregation (only when user flips view; re-runs on session change)
   useEffect(() => {
-    if (view !== 'by-committee' || committees.length > 0) return
+    if (view !== 'by-committee') return
+    setCommitteeLoading(true)
+    setCommittees([])
+    setRulesQueue([])
     async function load() {
       const { data } = await supabase
         .from('bills')
@@ -159,7 +162,7 @@ export default function CommitteesPage() {
       setCommitteeLoading(false)
     }
     load()
-  }, [view])
+  }, [view, SESSION])
 
   // Filter meetings by chamber
   const filteredMeetings = useMemo(() => {

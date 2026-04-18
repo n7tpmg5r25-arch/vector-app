@@ -10,10 +10,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '../../../lib/supabase'
+import { useSession } from '../../../lib/useSession'
 import Nav from '../../components/Nav'
 import ScoreBadge from '../../components/ScoreBadge'
-
-const SESSION = typeof window !== 'undefined' && new Date() >= new Date('2027-01-13') ? '2027-2028' : '2025-2026'
 
 function fmtTime(t) {
   if (!t) return ''
@@ -30,6 +29,7 @@ export default function CommitteeDetail() {
   const params = useParams()
   const slug = params?.slug
   const supabase = createBrowserClient()
+  const [SESSION] = useSession()
 
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -103,7 +103,7 @@ export default function CommitteeDetail() {
       setLoading(false)
     }
     load()
-  }, [slug])
+  }, [slug, SESSION])
 
   // Phase 11.2 — follow toggles
   async function handleFollow() {
