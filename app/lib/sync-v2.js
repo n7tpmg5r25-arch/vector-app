@@ -1093,7 +1093,7 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
     bill_number: billNum,
     session: SESSION,
     chamber: raw.OriginalAgency || raw.Agency || 'House',
-    title: title.slice(0, 200),
+    title: title,  // Phase VH-C (2026-04-18): was slice(0, 200) — truncating long titles ("mental hea..."). DB column is unbounded text; no reason to clip.
     category,
     status: raw.CurrentStatus?.Status || 'Introduced',
     committee_name: committeeName,  // Phase 5A: now populated from GetLegislation

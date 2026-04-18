@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
 import { isInterimPeriod } from '../../lib/session-config'
@@ -347,15 +348,17 @@ function SearchContent() {
         {bills.map((bill, idx) => {
           const isWatched = watchedIds.has(bill.bill_id)
           return (
-            <div
+            <Link
               key={bill.bill_id}
-              onClick={() => router.push(`/bill/${bill.bill_id}`)}
+              href={`/bill/${bill.bill_id}`}
+              prefetch={false}
               style={{
                 background: 'var(--bg-card)', border: `1px solid ${isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
                 borderRadius: 'var(--radius)', padding: '12px 14px',
                 display: 'flex', alignItems: 'center', gap: 12,
                 cursor: 'pointer', transition: 'border-color 0.2s',
                 animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
+                textDecoration: 'none', color: 'inherit',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}
@@ -410,20 +413,20 @@ function SearchContent() {
                   )}
                 </div>
               </div>
-              <a
-                href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`}
-                target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+              <button
+                type="button"
+                onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
+                style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                 onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                 onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                 title="View on leg.wa.gov"
+                aria-label="View on leg.wa.gov"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                 </svg>
-              </a>
-            </div>
+              </button>
+            </Link>
           )
         })}
 

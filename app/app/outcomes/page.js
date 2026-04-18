@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
@@ -201,15 +202,17 @@ export default function OutcomesPage() {
         {loading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
         ) : sorted.slice(0, 100).map((bill, idx) => (
-          <div
+          <Link
             key={bill.bill_id}
-            onClick={() => router.push(`/bill/${bill.bill_id}`)}
+            href={`/bill/${bill.bill_id}`}
+            prefetch={false}
             style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '10px 12px',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
               transition: 'border-color 0.2s',
               animation: idx < 20 ? `fadeUp 0.3s ease ${idx * 0.02}s both` : 'none',
+              textDecoration: 'none', color: 'inherit',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -248,7 +251,7 @@ export default function OutcomesPage() {
                 )}
               </div>
             </div>
-          </div>
+          </Link>
         ))}
         {sorted.length > 100 && (
           <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-faint)', padding: '12px 0' }}>

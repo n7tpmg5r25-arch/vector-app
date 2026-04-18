@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
 import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
@@ -522,15 +523,17 @@ export default function HomePage() {
             {watchlist.slice(0, 3).map(({ bill_id, tag, bills: bill }) => {
               const delta = scoreDeltas[bill_id]
               return (
-              <div
+              <Link
                 key={bill_id}
-                onClick={() => router.push(`/bill/${bill.bill_id}`)}
+                href={`/bill/${bill.bill_id}`}
+                prefetch={false}
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px',
                   marginBottom: 7, cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 12,
                   transition: 'border-color 0.2s',
+                  textDecoration: 'none', color: 'inherit',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -568,7 +571,7 @@ export default function HomePage() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
-              </div>
+              </Link>
             )})}
           </div>
         ) : (
@@ -667,15 +670,17 @@ export default function HomePage() {
             ) : topBills.map((bill, idx) => {
               const delta = scoreDeltas[bill.bill_id]
               return (
-              <div
+              <Link
                 key={bill.bill_id}
-                onClick={() => router.push(`/bill/${bill.bill_id}`)}
+                href={`/bill/${bill.bill_id}`}
+                prefetch={false}
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px',
                   cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
                   transition: 'border-color 0.2s, box-shadow 0.2s',
                   animation: `fadeUp 0.3s ease ${idx * 0.04}s both`,
+                  textDecoration: 'none', color: 'inherit',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(184,151,90,0.06)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
@@ -734,20 +739,20 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
-                <a
-                  href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`}
-                  target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`, '_blank', 'noopener,noreferrer') }}
+                  style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                   onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                   title="View on leg.wa.gov"
+                  aria-label="View on leg.wa.gov"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                   </svg>
-                </a>
-              </div>
+                </button>
+              </Link>
             )})}
           </div>
         </div>

@@ -482,7 +482,7 @@ module.exports = async (req, res) => {
         bill_number:     billNum,
         session:         SESSION,
         chamber:         raw.Agency,
-        title:           title.slice(0,200),
+        title:           title,  // Phase VH-C (2026-04-18): was slice(0, 200) — legacy sync path, same fix as app/lib/sync-v2.js:1096.
         category,
         status:          raw.CurrentStatus?.Status || 'Introduced',
         committee_name:  raw.CurrentStatus?.CommitteeName || '',

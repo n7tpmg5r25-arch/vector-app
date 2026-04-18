@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession } from '../../lib/session-config'
 import Nav from '../components/Nav'
@@ -330,15 +331,17 @@ export default function MembersPage() {
           {billsLoading ? (
             <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
           ) : memberBills.map((bill, idx) => (
-            <div
+            <Link
               key={bill.bill_id}
-              onClick={() => router.push(`/bill/${bill.bill_id}`)}
+              href={`/bill/${bill.bill_id}`}
+              prefetch={false}
               style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)', padding: '12px 14px',
                 cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
                 marginBottom: 6, transition: 'border-color 0.2s',
                 animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
+                textDecoration: 'none', color: 'inherit',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -361,7 +364,7 @@ export default function MembersPage() {
                   {bill.has_public_hearing && <span style={{ marginLeft: 8, color: 'var(--teal-mid)' }}>● Hearing</span>}
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
         <Nav/>

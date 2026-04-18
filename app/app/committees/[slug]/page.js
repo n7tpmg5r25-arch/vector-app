@@ -9,6 +9,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
 import { useSession } from '../../../lib/useSession'
 import Nav from '../../components/Nav'
@@ -310,10 +311,11 @@ export default function CommitteeDetail() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {bills.slice(0, 50).map(b => (
-                  <div key={b.bill_id} onClick={() => router.push('/bill/' + b.bill_id)} style={{
+                  <Link key={b.bill_id} href={'/bill/' + b.bill_id} prefetch={false} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    textDecoration: 'none', color: 'inherit',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.04)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
@@ -334,7 +336,7 @@ export default function CommitteeDetail() {
                         {b.title || 'Bill ' + b.bill_number}
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 ))}
                 {bills.length > 50 && (
                   <div style={{ textAlign: 'center', padding: 8, fontSize: 10, color: 'var(--text-faint)' }}>

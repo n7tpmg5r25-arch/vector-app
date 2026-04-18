@@ -615,6 +615,34 @@ export default function BillDetailPage() {
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+        {/* ── COMPACT IDENTITY HEADER (above trajectory) ─────
+            Placed here so the first thing users see below the
+            sticky nav is WHICH bill they're looking at. Mirrors
+            the detailed identity block further down (line ~892)
+            but stripped to bill number, category, session, title. */}
+        <div style={{ paddingBottom: 4, borderBottom: '1px solid var(--border)', marginBottom: 2 }}>
+          <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', letterSpacing: '0.03em' }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+              {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+            </span>
+            {bill.category && (
+              <>
+                <span style={{ color: 'var(--text-faint)' }}>·</span>
+                <span>{bill.category === 'Other' && bill.committee_name ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
+              </>
+            )}
+            {bill.session && (
+              <>
+                <span style={{ color: 'var(--text-faint)' }}>·</span>
+                <span>{bill.session}</span>
+              </>
+            )}
+          </div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+            {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
+          </div>
+        </div>
+
         {/* 6B.2: Session-ended banner for dead/carried-over bills during interim */}
         {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
           <div style={{

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
@@ -443,13 +444,15 @@ export default function WatchlistPage() {
             {changedBills.map(({ bill_id, bills: bill }) => {
               const change = changes[bill_id]
               return (
-                <div
+                <Link
                   key={bill_id}
-                  onClick={() => router.push(`/bill/${bill.bill_id}`)}
+                  href={`/bill/${bill.bill_id}`}
+                  prefetch={false}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
                     borderTop: '1px solid rgba(184,151,90,0.08)',
                     cursor: 'pointer',
+                    textDecoration: 'none', color: 'inherit',
                   }}
                 >
                   <span style={{
@@ -483,7 +486,7 @@ export default function WatchlistPage() {
                       </span>
                     )}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
@@ -511,10 +514,12 @@ export default function WatchlistPage() {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
-          <div
+          <Link
             key={bill_id}
-            onClick={() => router.push(`/bill/${bill.bill_id}`)}
+            href={`/bill/${bill.bill_id}`}
+            prefetch={false}
             style={{
+              display: 'block',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '14px',
               cursor: 'pointer', transition: 'border-color 0.2s',
@@ -524,6 +529,7 @@ export default function WatchlistPage() {
                 : bill.stalled ? '3px solid var(--danger)'
                 : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
+              textDecoration: 'none', color: 'inherit',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -654,19 +660,23 @@ export default function WatchlistPage() {
                     {billNoteMeta[bill_id].count} note{billNoteMeta[bill_id].count !== 1 ? 's' : ''}
                   </span>
                 )}
-                <a
-                  href={`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`}
-                  target="_blank" rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.preventDefault(); e.stopPropagation()
+                    const url = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                  }}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                   onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                   title="View on leg.wa.gov"
+                  aria-label={`Open ${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number} on leg.wa.gov`}
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
                   </svg>
-                </a>
+                </button>
               </div>
             </div>
 
@@ -712,7 +722,7 @@ export default function WatchlistPage() {
                 </div>
               </div>
             )}
-          </div>
+          </Link>
         )})}
 
       </div>

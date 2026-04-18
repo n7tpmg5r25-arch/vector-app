@@ -16,6 +16,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
 import Nav from '../components/Nav'
@@ -506,9 +507,10 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
                   display: 'flex', flexDirection: 'column', gap: 4,
                 }}>
                   {expandedBills.map(bill => (
-                    <div key={bill.bill_id} onClick={() => router.push('/bill/' + bill.bill_id)} style={{
+                    <Link key={bill.bill_id} href={'/bill/' + bill.bill_id} prefetch={false} style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
                       borderRadius: 6, cursor: 'pointer', transition: 'background 0.15s',
+                      textDecoration: 'none', color: 'inherit',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.04)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -526,7 +528,7 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
                           {bill.title || 'Bill ' + bill.bill_number}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

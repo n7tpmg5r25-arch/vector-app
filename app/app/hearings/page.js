@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
@@ -172,13 +173,15 @@ export default function HearingsPage() {
               Scheduled Hearings
             </div>
             {hearings.map(h => (
-              <div
+              <Link
                 key={h.id}
-                onClick={() => router.push(`/bill/${h.bill_id}`)}
+                href={`/bill/${h.bill_id}`}
+                prefetch={false}
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 7,
                   cursor: 'pointer', transition: 'border-color 0.2s',
+                  display: 'block', textDecoration: 'none', color: 'inherit',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -201,11 +204,13 @@ export default function HearingsPage() {
                         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{h.committee_name}</span>
                       )}
                       {h.tvw_link && (
-                        <a href={h.tvw_link} target="_blank" rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          style={{ fontSize: 10, color: 'var(--teal-mid)', textDecoration: 'underline' }}>
+                        <button
+                          type="button"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(h.tvw_link, '_blank', 'noopener,noreferrer') }}
+                          style={{ fontSize: 10, color: 'var(--teal-mid)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
                           TVW →
-                        </a>
+                        </button>
                       )}
                     </div>
                     {h.testimony_deadline && (
@@ -215,7 +220,7 @@ export default function HearingsPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -269,9 +274,10 @@ export default function HearingsPage() {
               {SESSION} · Bills with Hearings ({displayBills.length})
             </div>
             {displayBills.map((bill, idx) => (
-              <div
+              <Link
                 key={bill.bill_id}
-                onClick={() => router.push(`/bill/${bill.bill_id}`)}
+                href={`/bill/${bill.bill_id}`}
+                prefetch={false}
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 6,
@@ -279,6 +285,7 @@ export default function HearingsPage() {
                   transition: 'border-color 0.2s',
                   borderLeft: watchedIds.has(bill.bill_id) ? '3px solid var(--gold)' : '1px solid var(--border)',
                   animation: `fadeUp 0.3s ease ${idx * 0.02}s both`,
+                  textDecoration: 'none', color: 'inherit',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
@@ -310,7 +317,7 @@ export default function HearingsPage() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
