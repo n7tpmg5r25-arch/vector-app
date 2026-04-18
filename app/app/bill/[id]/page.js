@@ -494,7 +494,7 @@ export default function BillDetailPage() {
     if (!bill) return
     const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
     const bucket = getBucketLabel(bill.final_score)
-    const text = `${prefix}${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${bucket.rate > 0 ? bucket.rate + '% historical pass rate' : 'Very low historical pass rate'}\n— Vector | WA`
+    const text = `${prefix} ${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${bucket.rate > 0 ? bucket.rate + '% historical pass rate' : 'Very low historical pass rate'}\n— Vector | WA`
     try {
       await navigator.clipboard.writeText(text)
       setShared(true)
@@ -508,8 +508,37 @@ export default function BillDetailPage() {
     </div>
   )
   if (!bill) return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh' }}>
-      Bill not found.
+    /* Batch 1.5 E: error-state parity with the Hearings interim empty state —
+       icon + headline + explanatory copy + CTA + Nav, instead of stranding the
+       user on a blank viewport. */
+    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh' }}>
+      <div style={{ padding: '80px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{
+          padding: '40px 20px', textAlign: 'center',
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>📄</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 10 }}>
+            Bill not found
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
+            This bill ID isn't in the Vector | WA index. It may have been
+            withdrawn, renumbered, or the link may be malformed. Use search to
+            find the bill you're looking for.
+          </div>
+          <button
+            onClick={() => router.push('/search')}
+            style={{
+              marginTop: 16, padding: '8px 20px',
+              background: 'var(--teal)', color: 'var(--bg)',
+              border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              boxShadow: 'var(--teal-glow)',
+            }}
+          >Back to search</button>
+        </div>
+      </div>
+      <Nav/>
     </div>
   )
 
@@ -920,7 +949,7 @@ export default function BillDetailPage() {
         {/* ── BILL IDENTITY ──────────────────────────────── */}
         <div>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span>{bill.chamber === 'House' ? 'HB' : 'SB'}{bill.bill_number}</span>
+            <span>{bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}</span>
             <MeetingBadge billId={bill.bill_id} />
             {!bill.bipartisan && (
               <span style={{ fontSize: 9, padding: '2px 8px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10 }}>

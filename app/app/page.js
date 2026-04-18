@@ -782,7 +782,7 @@ export default function HomePage() {
                       <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500 }}>{cat.category}</span>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                          {cat.bill_count} bills
+                          {cat.total_bills} bills
                         </span>
                         <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: barColor, fontWeight: 600, textShadow: avg >= 50 ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>
                           avg {avg}
