@@ -115,6 +115,19 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node scripts/assert-csi-freshness.js
 
+      # ── Phase 11.8: Committee referral capture ─────────────────────────
+      # Writes bill_committee_referrals from bills.committee_name/passed.
+      # Descriptive only during 2027 session freeze; enables post-session
+      # "days in committee → pass likelihood" analysis with no extra API
+      # cost. Safe to fail: not required by any downstream step.
+      - name: Capture committee referrals
+        if: success()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/capture-referrals.js
+
       - name: Run alert detection
         if: success()
         env:
