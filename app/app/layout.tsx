@@ -6,7 +6,7 @@ import SessionBanner from './components/SessionBanner'
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
   title: 'Vector | WA',
-  description: 'Free legislative intelligence for Washington State',
+  description: 'Washington State legislative intelligence',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -15,7 +15,7 @@ export const metadata = {
   },
   openGraph: {
     title: 'Vector | WA',
-    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
+    description: 'Washington State legislative intelligence',
     siteName: 'Vector | WA',
     type: 'website',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA — Free legislative intelligence for Washington State' }],
@@ -24,7 +24,7 @@ export const metadata = {
     card: 'summary_large_image',
     images: ['/og-image.png'],
     title: 'Vector | WA',
-    description: 'Free legislative intelligence for Washington State — by Shorepine Civic Tech',
+    description: 'Washington State legislative intelligence',
   },
 }
 

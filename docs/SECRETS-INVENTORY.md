@@ -107,3 +107,22 @@ If you need to rotate a secret (compromise, new machine, etc.):
 2. **FUNCTION_SECRET** — Generate a new random string. Update in: .env.local, Supabase edge function secrets, Vercel env vars, GitHub Actions secrets.
 3. **RESEND_API_KEY** — Regenerate in Resend dashboard. Update in: Supabase edge function secrets, GitHub Actions secrets.
 4. **ANTHROPIC_API_KEY** — Regenerate in Anthropic console. Update in: Supabase edge function secrets.
+
+---
+
+## Feature Flags (Not Secrets)
+
+Public environment variables that change app behavior. Safe to commit values, not secret. Kept here so there's one place to look.
+
+| Flag | Default | What it does |
+|------|---------|-------------|
+| `NEXT_PUBLIC_ENABLE_PUBLIC_LAYER` | `false` | When `true`, anonymous visitors can reach allowlisted public routes (search, committees, members, bill detail, methodology, outcomes, hearings). When `false` (default), unauthenticated visitors are redirected to `/login` exactly as today. The kill switch for the Phase 12 Public Layer. |
+
+### Where to set `NEXT_PUBLIC_ENABLE_PUBLIC_LAYER`
+
+- **Local dev:** `app/.env.local` — add line `NEXT_PUBLIC_ENABLE_PUBLIC_LAYER=false`
+- **Vercel:** dashboard → Project → Settings → Environment Variables → add for **all three** environments (Production, Preview, Development). Default value `false`.
+- **Flipping to preview-test:** change **Preview** environment to `true` in Vercel, redeploy. Production stays `false`.
+- **Flipping to production:** change **Production** to `true` when Colin decides. Plan target: at least 4-6 weeks of preview-deploy stress-test before that discussion.
+
+Reference: `PHASE_12_PUBLIC_LAYER_PLAN.md` §2.2.

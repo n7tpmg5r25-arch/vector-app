@@ -4,7 +4,7 @@
 If the user says "recover vector", "set up new machine", "disaster recovery", or anything about restoring the project from scratch: read `docs/DISASTER-RECOVERY.md` first, then walk them through it step by step. The setup script is `setup-new-machine.ps1` at the repo root.
 
 ## Project Overview
-Vector | WA is a free legislative intelligence app for Washington State, built by Colin Foote of Shorepine Civic Tech. It tracks ~3,400 bills with predictive trajectory scoring.
+Vector | WA is a legislative intelligence app for Washington State, built by Colin Foote. It tracks ~3,400 bills with predictive trajectory scoring.
 
 **Stack:** Next.js (app/) on Vercel, Supabase (PostgreSQL + Auth + Edge Functions), GitHub Actions (nightly/midday sync), Resend (email), WA Legislature API, Claude API (bill summaries).
 
@@ -31,5 +31,5 @@ Live pages are in `app/app/`, NOT `app/`. Shared infrastructure stays at `app/` 
 - Deliver PowerShell as copy-paste blocks in chat, not as saved .ps1 files (except the setup script).
 - Never include rollback commands in the same response as success confirmations.
 - Session dates canonical source: `app/lib/session-config.js`
-- Brand voice: Shorepine Civic Tech (NOT "Post & Policy"). See brand guide for tone.
+- Public-facing brand: Vector | WA wordmark only. Shorepine / civic-tech / GR positioning is undecided — do not apply any brand voice from prior guides until Colin picks a direction. (See `PHASE_12_PUBLIC_LAYER_PLAN.md` in the Vector - WA workspace.)
 - DO NOT touch scoreBill() during 2027 session (Jan–Apr 2027). Frozen for calibration.
