@@ -120,3 +120,68 @@ Posture decision: **waitlist now, open signup at Aug 1 2027 public launch** (per
 - P2c: `bill_notes.visibility` enum rename (still deferred).
 - Turnstile / hCaptcha: defer to Aug 2027 launch when signup opens.
 - Promote `ADMIN_USER_IDS` hardcode to an `admins` table or user metadata flag if a collaborator joins.
+
+## P2d — Historic AI summary cleanup (shipped 2026-04-16)
+
+### Background
+
+The `summarize-bills` edge function originally used a GR-firm / lobbyist-audience prompt ("for a lobbying firm", "your client", "RECOMMENDATION FOR LOBBYIST CLIENT"). This leaked into every one of the **7,967 existing `ai_summary` rows** generated before the brand pivot.
+
+### What shipped
+
+1. **Edge function `summarize-bills` rewritten to v13** (deployed 2026-04-16 via Supabase MCP). New prompt frames the reader as "legislative staff, advocates, registered lobbyists, journalists, researchers, students, and the general public" per Shorepine Civic Tech brand guide v1.1. Explicit guard against "client"/"your firm"/"lobbying" framing and against appended editorial sections (Bottom Line, Recommendation, Analyst Note, HR separators).
+2. **Backup table `ai_summary_backup_brand_pivot_20260416`** — full snapshot of all 7,967 original summaries. Schema: `bill_id, bill_number, session, ai_summary, summary_updated_at, backup_at`. **Keep until Option B regeneration is verified.**
+3. **Phase A–F SQL cleanup passes** against `bills.ai_summary`:
+   - Stripped appended `**RECOMMENDATION FOR LOBBYIST CLIENT:**`, `**BOTTOM LINE FOR CLIENTS:**`, `**ANALYST NOTE FOR CLIENT:**` headers (695 bills) and HR separators (862 bills).
+   - Replaced all 374 `client` word occurrences with `reader` (context-aware mapping for "client interests", "client compliance", "A client <verb>", "for client <noun>", "your client", etc.).
+   - Cleaned GR-directive `lobbying` framing: "Lobbying focus should", "lobbying resources", "lobbying strategy", "for lobbying purposes", "a lobbyist cannot", "Lobbyists should", etc.
+   - Preserved legitimate uses: bills that regulate lobbying (grassroots lobbyists, campaign finance + lobbying disclosure), bills that list lobbyists as an affected stakeholder profession (1230, 1566, 4407, 4409, 4605, 4607, 5283, 6313, 8208, 8401…), and dynamics references ("absent active lobbying").
+
+### Post-cleanup verification (after Sessions 1–3, 2026-04-16)
+
+| Leak pattern | Count |
+|---|---|
+| `client` (GR-voice — "your client", "for client", "client interests") | 0 |
+| `lobbyist` (GR-voice) | 0 |
+| `lobbying` (GR-voice — directive framing) | 0 |
+| `your firm` / `their firm` | 0 |
+| `your reader` / `their reader` | 0 |
+| `a reader` / `any reader` / `no reader would` (directive patterns) | 0 |
+| `attorney-reader` (semantic corruption) | 0 |
+| `veterinarian-reader` (semantic corruption) | 0 |
+| Appended bottom-line/recommendation headers | 0 |
+| `\n---\n` HR separators | 0 |
+| Double spaces | 0 |
+| Dangling `The … text is needed` fragments | 0 |
+| Summaries containing `stakeholder` (new voice) | 1,119 |
+| Legitimate `readers` kept (bill 2025-2026-5400 news-reader incentives) | 1 |
+
+### Session 2 & 3 additions (2026-04-16)
+
+- **STATUS & OUTLOOK sections stripped** from 5,077 summaries in the 2021-22 and 2023-24 sessions (the v13 prompt reintroduces the section for 2025-26+). Second backup table: `ai_summary_backup_pre_strip_status_20260416`.
+- **~600 directive-pattern rewrites** in 7 SQL passes: "a reader needs to" → "stakeholders need to", "Any reader evaluating" → "Stakeholders evaluating", "No reader would face" → "Stakeholders would not face", etc.
+- **25+ critical semantic fixes** for legal/professional terms the earlier broad `client → reader` sweep had corrupted. These had to be restored because the rewrite pushed them out of valid English usage:
+  - `attorney-client privilege` (6 rows) — had become `attorney-reader privilege`
+  - `veterinarian-client-patient relationships (VCPR)` (3 rows) — had become `veterinarian-reader-patient`
+  - `DCYF / DDA / Medicaid / OPD clients` (4 rows) — had become `… readers`
+  - `client populations` / `client base` — DDA contexts
+  - `representing clients` (OPD public defense), `affected clients` (wealth/fiduciary), `indigent clients` (legal aid), `advising clients` (estate planning)
+  - `clients of engineering firms`, `former colleagues or clients` (non-compete)
+  - Domain-correct replacements where "reader" wasn't a person served: `school districts`, `public sector agencies`, `patients and providers`, `shipping customers`, `consumers purchasing`, `individuals receiving care`, `transitioned individuals`.
+- **Meta-reader cleanup**: references to the *summary's own reader* neutralized — `*Note for readers:` → `*Note:`, `guidance to readers` → `clear guidance`, `Key questions for readers:` → `Key questions:`, `To properly advise readers` → `To properly inform users`.
+- **Verified Sept 3 random samples per session (2021-22, 2023-24, 2025-26)** — all read in clean neutral / analytical voice, no GR framing, no lobbyist audience cues.
+
+### ⚠️ CRITICAL — LAUNCH BLOCKER (until regeneration complete)
+
+**Option A (SQL cleanup) is a bridge, not a full fix.** The 7,967 summaries have been scrubbed of the most egregious GR-firm language, but they still carry the *structural voice* of the old prompt (Haiku's original phrasing, word choice, and emphasis patterns). They are **not** rewritten in the Shorepine Civic Tech voice.
+
+**Before public launch (Aug 1 2027) these MUST be regenerated** against the v13 prompt. Option B (~$27 total, Haiku 4.5 at $0.0034/bill × 7,967). Recommended approach: burn down over ~10 nights at 800/night via nightly-sync's existing 30-call cap by clearing `summary_updated_at` in batches.
+
+**Reminder set**: One-time scheduled task `regenerate-historic-summaries-pre-launch` fires **2026-10-01 09:00 PT** to walk Colin through Option B.
+
+### After regeneration (future — remove this section when done)
+
+1. Verify new summaries pass the same pattern-scan used in cleanup (zero `client`/`your firm`, zero appended headers, zero directive-to-reader phrasing).
+2. `DROP TABLE ai_summary_backup_brand_pivot_20260416;`
+3. `DROP TABLE ai_summary_backup_pre_strip_status_20260416;`
+4. Delete this P2d launch-blocker entry.
