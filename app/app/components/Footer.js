@@ -34,7 +34,7 @@ export default function Footer() {
           fontSize: 11,
           letterSpacing: '0.02em',
         }}>
-          Vector | WA &mdash; a product of Shorepine Government Relations.&nbsp;&middot;&nbsp;(603)&nbsp;369-9012
+          Vector | WA &mdash; a product of Shorepine Government Relations.
         </div>
       </div>
     </footer>
