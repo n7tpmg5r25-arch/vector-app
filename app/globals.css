@@ -108,3 +108,33 @@ input, textarea { font-family: var(--font-body); }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ============================================================
+   Brand v4.6 tokens - Shorepine GR + Vector | WA
+   Source: shorepine-brand-guide-v46.pdf
+   Added by Thread B1 (Foundation), 2026-04-20
+   ============================================================ */
+:root {
+  /* Vector | WA app palette (UI surfaces) */
+  --vw-dark:        #0e1014;
+  --vw-card:        #171921;
+  --vw-card-elev:   #1e2130;
+  --vw-brass:       #b8975a;
+  --vw-brass-lt:    #d4b47a;
+  --vw-cream:       #ebeae4;
+  --vw-slate:       #4a5060;
+
+  /* Shorepine firm palette (PDF brief, email, firm footer) */
+  --sp-forest:      #1a4a2e;
+  --sp-forest-mid:  #2d6b45;
+  --sp-parchment:   #f5f0e6;
+  --sp-slate:       #4a5060;
+  --sp-ink:         #1c1c1c;
+  --sp-brass:       #b8975a;
+
+  /* Data viz palette (charts on either surface) */
+  --dv-sage:        #7aab6e;
+  --dv-deep-teal:   #3a7a8a;
+  --dv-amber:       #c47a30;
+  --dv-stone:       #8a8070;
+}
