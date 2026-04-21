@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/sync",
-      "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/retrospective",
-      "schedule": "0 9 * * 0"
-    }
-  ]
-}
+{}
