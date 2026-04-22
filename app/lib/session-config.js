@@ -96,6 +96,23 @@ export function getSessionCutoffs() {
       oppositeFloorCutoff: '2026-03-10', // Opposite house floor cutoff
     }
   }
+  if (b.session === '2027-2028') {
+    // 2027 = long session, 105 days starting Jan 13 2027.
+    // DATES BELOW ARE ESTIMATES based on the cadence of the 2021 and 2023
+    // long sessions (policy ~Day 36, fiscal ~Day 43, floor ~Day 56,
+    // opposite floor ~Day 76, sine die ~Day 103-105).
+    // REPLACE with the official calendar when WA Leg publishes it at
+    // https://leg.wa.gov/legislature/pages/cutoffs.aspx (typically fall 2026).
+    return {
+      session: b.session,
+      sessionStart: b.start,
+      sessionEnd: b.end,
+      policyCutoff: '2027-02-19',        // ESTIMATE — policy committee cutoff
+      fiscalCutoff: '2027-02-26',         // ESTIMATE — fiscal committee cutoff
+      floorCutoff: '2027-03-10',          // ESTIMATE — house-of-origin floor cutoff
+      oppositeFloorCutoff: '2027-03-31',  // ESTIMATE — opposite-house floor cutoff
+    }
+  }
   // Default: derive from biennium dates
   return {
     session: b.session,
