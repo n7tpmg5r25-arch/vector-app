@@ -372,6 +372,37 @@ function detectCategory(title = '') {
   return 'Other';
 }
 
+// Phase 11.9 (2026-04-21): Committee-based category fallback. detectCategory()
+// is title-only; procedural/legalistic titles ("An act relating to…") miss
+// every keyword list and fall through to 'Other'. This helper recovers the
+// ~600+ bills per biennium where committee routing cleanly implies the topic.
+// Called upstream of scoreBill() — scoreBill sees the refined category but is
+// not itself modified (2027 scoring-freeze guardrail preserved).
+// Order is load-bearing: more-specific matches first. In particular
+// "human services" must match before "education" so that House committees
+// like "Early Learning & Human Services" route to Health (where LTSS and
+// senior bills actually live), not Education. Outputs only strings already
+// in detectCategory()'s 14-category vocabulary — no new category values.
+function detectCategoryByCommittee(committee = '') {
+  if (!committee) return 'Other';
+  const c = committee.toLowerCase();
+  if (/ways & means|appropriations|finance|capital budget/.test(c)) return 'Budget / Appropriations';
+  if (/law & justice|civil rights & judiciary|community safety|public safety/.test(c)) return 'Criminal Justice';
+  if (/health|long-term care|human services/.test(c)) return 'Health';
+  if (/education|early learning|k-12|postsecondary|higher education|workforce/.test(c)) return 'Education';
+  if (/environment|energy/.test(c)) return 'Environment';
+  if (/natural resources|fish|wildlife/.test(c)) return 'Natural Resources';
+  if (/agriculture|agricultur/.test(c)) return 'Agriculture';
+  if (/housing/.test(c)) return 'Housing';
+  if (/transportation/.test(c)) return 'Transportation';
+  if (/labor/.test(c)) return 'Employment / Labor';
+  if (/business|commerce|consumer protection|trade|economic development/.test(c)) return 'Business / Commerce';
+  if (/technology/.test(c)) return 'Technology';
+  if (/veteran/.test(c)) return 'Veterans / Military';
+  if (/local government|state government|tribal|elections/.test(c)) return 'Government Operations';
+  return 'Other';
+}
+
 // ── FEATURE EXTRACTION ────────────────────────────────────────────────────────
 // Phase 5C.2: now also accepts `legislation` so fiscal-note fields can be read
 // from the full Legislation object (raw = LegislationInfo lacks these fields).
@@ -1004,7 +1035,7 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
     (legislation && (legislation.LongDescription || legislation.ShortDescription)) ||
     raw.ShortDescription ||
     billApiId; // e.g. "HB 1001" — still better than empty string
-  const category = detectCategory(title);
+  let category = detectCategory(title);  // Phase 11.9: may be refined below once committeeName resolves
 
   // Phase 7D.2b FIX: Use the advanced version's BillId (e.g. "SHB 1294") for
   // status changes. The WSL API tracks all post-substitution events under the
@@ -1078,6 +1109,15 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
         }
       }
     }
+  }
+
+  // Phase 11.9 (2026-04-21): Committee-based category fallback. Only runs when
+  // title-based detectCategory() returned 'Other' AND we resolved a committee
+  // name from the legislation object (lines above). Recovers ~600+ bills per
+  // biennium whose procedural titles miss every keyword list. scoreBill() is
+  // not touched — it just sees the refined category value.
+  if (category === 'Other' && committeeName) {
+    category = detectCategoryByCommittee(committeeName);
   }
 
   // Phase 7D.1: Extract legislation_type from ShortLegislationType (nested object from xml2js)
@@ -1222,7 +1262,7 @@ async function runSync() {
     while (true) {
       const { data, error: pgErr } = await supabase
         .from('bills')
-        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action, fiscal_note_size, is_committee_chair, chair_alignment')
+        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action, fiscal_note_size, is_committee_chair, chair_alignment, category')
         .eq('session', SESSION)
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (pgErr || !data || data.length === 0) break;
@@ -1318,7 +1358,8 @@ async function runSync() {
               existing.held_in_rules !== billRecord.held_in_rules ||
               existing.last_action !== billRecord.last_action ||
               existing.is_committee_chair !== billRecord.is_committee_chair ||
-              existing.chair_alignment !== billRecord.chair_alignment;
+              existing.chair_alignment !== billRecord.chair_alignment ||
+              existing.category !== billRecord.category;  // Phase 11.9: one-shot heal for committee-refined categories
             if (!materialChange) {
               billsSkipped++;
               return; // No change — keep existing scores
