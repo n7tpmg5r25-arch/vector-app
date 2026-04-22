@@ -1,6 +1,8 @@
 # Brand Migration Punch List — Shorepine Government Relations → Shorepine Civic Tech
 
-Brand guide v1.1 reference. Tracks the multi-wave migration after the 2026-04-16 brand pivot.
+> **⚠️ SUPERSEDED 2026-04-20.** The "Shorepine Civic Tech" direction documented in this file was reversed by Brand v4.6 (`shorepine-brand-guide-v46.pdf`, `BRAND_V46_ROLLOUT_PLAN.md`). Shorepine Government Relations is the firm; Vector | WA is the product. The strings, voice, and palette below no longer reflect the live brand. Preserved as a historical record only — do not act on it.
+
+Brand guide v1.1 reference. Tracks the multi-wave migration after the 2026-04-16 brand pivot (since reversed).
 
 ## P0 + P1 — Core rebrand (shipped 2026-04-16, commit `3f45c6c`)
 

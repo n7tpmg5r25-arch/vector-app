@@ -1081,7 +1081,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...GRAY)
-    doc.text('Shorepine Civic Tech  |  Vector | WA  |  Free Legislative Intelligence', m, fy + 5)
+    doc.text('Vector | WA  |  a product of Shorepine Government Relations', m, fy + 5)
     doc.text('vectorwa.org', pw - m, fy + 5, { align: 'right' })
 
     if (pageCount > 1) {

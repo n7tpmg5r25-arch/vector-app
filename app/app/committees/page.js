@@ -12,7 +12,7 @@
  *   - bills (for the By Committee roll-up + Rules queue)
  *   - committees (Phase 11.1 new, used for slug-based links)
  *
- * Brand voice: Shorepine Civic Tech. Terse, actionable, no jargon.
+ * Brand voice: Shorepine Government Relations v4.6. Terse, actionable, no jargon.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'

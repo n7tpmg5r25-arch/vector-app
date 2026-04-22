@@ -49,7 +49,7 @@ function wrapEmail(subject: string, bodyHtml: string): string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="font-size:18px; font-weight:700; color:${COLORS.brass}; letter-spacing:2px;">VECTOR | WA</td>
-              <td align="right" style="font-size:12px; color:${COLORS.brassLight};">Shorepine Civic Tech</td>
+              <td align="right" style="font-size:12px; color:${COLORS.brassLight};">Shorepine Government Relations</td>
             </tr>
           </table>
         </td></tr>
@@ -62,8 +62,8 @@ function wrapEmail(subject: string, bodyHtml: string): string {
         <!-- Footer -->
         <tr><td style="background-color:${COLORS.parchment}; padding:20px 28px; border:1px solid ${COLORS.cardBorder}; border-top:none; border-radius:0 0 8px 8px;">
           <p style="margin:0 0 8px; font-size:12px; color:${COLORS.slate};">
-            Shorepine Civic Tech &middot; Olympia, WA<br>
-            Free legislative intelligence for Washington State
+            Shorepine Government Relations &middot; Olympia, WA<br>
+            Vector | WA &middot; legislative intelligence for Washington State
           </p>
           <p style="margin:0; font-size:11px; color:${COLORS.mutedText};">
             You are receiving this because someone entered this address on the Vector | WA waitlist. If that wasn&rsquo;t you, ignore this email and you will not be added.
@@ -82,7 +82,7 @@ function buildWaitlistConfirmationEmail(confirmUrl: string): { subject: string; 
   const bodyHtml = `
     <h2 style="margin:0 0 12px; font-size:20px; font-weight:700; color:${COLORS.forestDeep};">One more step.</h2>
     <p style="margin:0 0 16px; font-size:15px; color:${COLORS.forestText};">
-      Vector | WA is free legislative intelligence for Washington State &mdash; built by Shorepine Civic Tech.
+      Vector | WA is legislative intelligence for Washington State &mdash; a product of Shorepine Government Relations.
       Public accounts open <strong>${PUBLIC_LAUNCH}</strong>. Confirm your email below and we&rsquo;ll notify you the day signup opens.
     </p>
     <p style="margin:24px 0; text-align:center;">
@@ -94,7 +94,7 @@ function buildWaitlistConfirmationEmail(confirmUrl: string): { subject: string; 
     </p>
     <hr style="margin:24px 0; border:none; border-top:1px solid ${COLORS.cardBorder};">
     <p style="margin:0; font-size:13px; color:${COLORS.slate};">
-      Shorepine Civic Tech is a free, nonpartisan civic-technology company. Accounts are free &mdash; always &mdash; and we don&rsquo;t sell your data.
+      Shorepine Government Relations is a Washington State firm. Vector | WA accounts will be available to clients and qualified individuals; we don&rsquo;t sell your data.
     </p>`;
 
   return { subject, html: wrapEmail(subject, bodyHtml) };
