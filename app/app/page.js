@@ -224,9 +224,9 @@ export default function HomePage() {
               <img
                 src="/logos/vector-wa-primary.svg"
                 alt="Vector | WA"
-                style={{ height: 44, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 20px rgba(184,151,90,0.25))' }}
+                style={{ height: 72, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 20px rgba(184,151,90,0.25))' }}
               />
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 4, fontFamily: 'var(--font-body)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6, fontFamily: 'var(--font-body)' }}>
                 Legislative Trajectories
               </div>
             </div>
