@@ -1,20 +1,27 @@
 'use client'
 /**
- * Viewer Capabilities — Phase 12 Public Layer
+ * Viewer Capabilities — Phase 12 Public Layer + Phase 13a Client Portal
  *
  * Single source of truth for what the current viewer can do. Pages and
  * components consult this helper instead of checking supabase.auth.getUser()
  * directly in ad-hoc ways.
  *
- * Why: forward-compat for a future client tier (2028+). Today the helper
- * returns one of two shapes (public / owner). When the client tier arrives,
- * add a third shape here — no page code changes required.
+ * Three tiers:
+ *   • public — no session, sees the anon-readable slice of the app
+ *   • owner  — Colin, full read/write across everything
+ *   • client — portal viewer (13a: read-only, structural only; no UI consumes
+ *              this branch yet — portal pages land in 13b)
+ *
+ * Client-tier detection is cheap: we read `user.app_metadata?.role === 'client'`
+ * straight off the Supabase user object. The admin invite flow in 13b will set
+ * that app_metadata flag via the service-role admin API when inserting the
+ * user into `client_users`. Zero network cost per useViewer() mount.
  *
  * NAMING NOTE: in this app, the existing useSession() hook is the
  * biennium selector (2025-2026 vs 2023-2024), NOT the auth session.
  * Do not confuse. Auth viewer state lives HERE.
  *
- * See: PHASE_12_PUBLIC_LAYER_PLAN.md §5 for full forward-compat design.
+ * See: PHASE_12_PUBLIC_LAYER_PLAN.md §5 + PHASE_13_CLIENT_PORTAL_PLAN.md §6.
  */
 
 import { useEffect, useState } from 'react'
@@ -54,15 +61,51 @@ export function getViewerCapabilities(user) {
       canSeeAlerts: false,    // alert / digest UI
       canSeeAdmin: false,     // admin surfaces
 
-      // Visibility predicates — public sees every bill/committee in
-      // scope of the public layer. Returns a function for consistency
-      // with the future client shape (which filters by tag).
+      // Note-visibility seams (landed Phase 13a; used by 13b's shared-note UI)
+      canSeePrivateNotes: false,
+      canSeeSharedNotes: false,
+
+      // Visibility predicates — public sees every bill/committee in the
+      // anon-readable slice of the app.
       canSeeBill: () => true,
       canSeeCommittee: () => true,
     }
   }
 
-  // ─── Owner tier (the only authed shape today) ────────────────────
+  // ─── Client tier (Phase 13a — structural; no UI consumes this yet) ──
+  // Detection: the admin invite flow in 13b sets app_metadata.role='client'
+  // on the Supabase user via the service-role admin API. Read-only v1 per
+  // PHASE_13_CLIENT_PORTAL_PLAN.md §4 permission matrix + §6.
+  if (user.app_metadata?.role === 'client') {
+    return {
+      role: 'client',
+      isAuthed: true,
+      userId: user.id,
+
+      canSave: false,         // read-only v1
+      canFollow: false,       // alerts deferred to 13b.x
+      canEditNotes: false,    // no write surfaces for clients in v1
+      canExport: false,       // PDF briefing deferred to 13b.x
+      canSeeAlerts: false,    // email alerts deferred to 13b.x
+      canSeeAdmin: false,
+
+      // 13a opens the door for 13b shared-note surfacing. The RLS policy
+      // that actually serves `scope='shared'` rows to clients lands in 13b.x
+      // (see PHASE_13_CLIENT_PORTAL_PLAN.md §5.2) — this capability gate
+      // pre-wires the UI side of the same decision.
+      canSeePrivateNotes: false,
+      canSeeSharedNotes: true,
+
+      // Bill and committee data are anon-readable (Batch 2 RLS relax); any
+      // client-scoping happens at the app layer by filtering to bill_ids
+      // inside the client's tracked_bills. The helper is not the right
+      // place to do that — portal pages query with client_id directly.
+      canSeeBill: () => true,
+      canSeeCommittee: () => true,
+    }
+  }
+
+  // ─── Owner tier (default authed shape — Colin) ───────────────────
   return {
     role: 'owner',
     isAuthed: true,
@@ -75,35 +118,12 @@ export function getViewerCapabilities(user) {
     canSeeAlerts: true,
     canSeeAdmin: false, // admin routes still do their own UID check
 
+    canSeePrivateNotes: true,
+    canSeeSharedNotes: true,
+
     canSeeBill: () => true,
     canSeeCommittee: () => true,
   }
-
-  // ─── Client tier (2028+) — NOT IMPLEMENTED ──────────────────────
-  // When the client portal returns, add a third branch above this
-  // comment. Shape should look like:
-  //
-  //   if (user.role === 'client') {
-  //     const tags = user.assigned_tags || []
-  //     return {
-  //       role: 'client',
-  //       isAuthed: true,
-  //       userId: user.id,
-  //       canSave: true,
-  //       canFollow: false,
-  //       canEditNotes: (note) =>
-  //         note.scope === 'shared' || note.author_id === user.id,
-  //       canExport: true,
-  //       canSeeAlerts: true,
-  //       canSeeAdmin: false,
-  //       canSeeBill: (bill) => tags.includes(bill.tag),
-  //       canSeeCommittee: () => true,
-  //     }
-  //   }
-  //
-  // Plus three RLS policies (bills filtered by tag, bill_notes
-  // filtered by author/shared scope, watchlist filtered by user_id).
-  // See: PHASE_12_PUBLIC_LAYER_PLAN.md §5.
 }
 
 // ─── React hook: subscribe to live auth state ──────────────────────
