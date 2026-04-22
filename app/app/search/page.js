@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
+import { useViewer } from '../../lib/viewer-capabilities'
 import { isInterimPeriod } from '../../lib/session-config'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
@@ -56,6 +57,8 @@ function SearchContent() {
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
+  // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
+  const { user, capabilities, loading: viewerLoading } = useViewer()
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -68,30 +71,25 @@ function SearchContent() {
   const [hasMore, setHasMore] = useState(true)
   const PAGE_SIZE = 50
 
-  // Auth + bulk watch state
-  const [user, setUser] = useState(null)
+  // Bulk watch state (auth-gated features)
   const [watchedIds, setWatchedIds] = useState(new Set())
   const [showWatchAll, setShowWatchAll] = useState(false)
   const [bulkTag, setBulkTag] = useState('')
   const [bulkAdding, setBulkAdding] = useState(false)
   const [bulkResult, setBulkResult] = useState(null)
 
-  // Check auth on mount
+  // Load watched bill IDs when the viewer is authed
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      if (u) {
-        setUser(u)
-        // Load existing tracked bill IDs
-        supabase
-          .from('tracked_bills')
-          .select('bill_id')
-          .eq('user_id', u.id)
-          .then(({ data }) => {
-            if (data) setWatchedIds(new Set(data.map(d => d.bill_id)))
-          })
-      }
-    })
-  }, [])
+    if (viewerLoading) return
+    if (!user) { setWatchedIds(new Set()); return }
+    supabase
+      .from('tracked_bills')
+      .select('bill_id')
+      .eq('user_id', user.id)
+      .then(({ data }) => {
+        if (data) setWatchedIds(new Set(data.map(d => d.bill_id)))
+      })
+  }, [user?.id, viewerLoading])
 
   const fetchBills = useCallback(async (reset = false) => {
     setLoading(true)

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
 import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
+import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 
@@ -38,13 +39,13 @@ function momentumLabel(bills) {
 export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   // 6D.1: Session from useSession hook (localStorage-backed, user-switchable)
   const [SESSION, setSession] = useSession()
   const nextBiennium = useMemo(() => getNextBiennium(), [])
   const [availableSessions, setAvailableSessions] = useState([SESSION])
 
-  const [user, setUser]         = useState(null)
   const [watchlist, setWatchlist] = useState([])
   const [topBills, setTopBills]  = useState([])
   const [categories, setCategories] = useState([])
@@ -60,9 +61,7 @@ export default function HomePage() {
   const daysToSession   = daysUntil(nextBiennium.start)
 
   async function loadData() {
-    // Phase 6.4 perf: Step 1 — auth check (required before tracked_bills)
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
+    // Phase 6.4 perf: Step 1 — auth state comes from useViewer() hook (closure)
 
     // Phase 6.4 perf: Step 2 — fire all independent queries in parallel
     const [billsResult, wlResult, catsResult, syncResult] = await Promise.all([
@@ -177,7 +176,15 @@ export default function HomePage() {
     setRefreshing(false)
   }
 
-  useEffect(() => { loadData(); loadSessions() }, [SESSION])
+  // 6D.1: Session discovery runs once — doesn't depend on auth
+  useEffect(() => { loadSessions() }, [])
+
+  // Phase 12 Batch 3: wait for useViewer() to resolve before loading, so the
+  // tracked_bills query sees the real user on first paint instead of racing.
+  useEffect(() => {
+    if (viewerLoading) return
+    loadData()
+  }, [SESSION, user?.id, viewerLoading])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
   const avgScore = watchedScores.length > 0

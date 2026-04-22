@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -12,6 +13,8 @@ export default function HearingsPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
+  // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [hearings, setHearings]     = useState([])
   const [billHearings, setBillHearings] = useState([])
@@ -23,8 +26,8 @@ export default function HearingsPage() {
   const isInterim = typeof window !== 'undefined' ? isInterimPeriod() : true
 
   useEffect(() => {
+    if (viewerLoading) return
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: wl } = await supabase
           .from('tracked_bills')
@@ -58,7 +61,7 @@ export default function HearingsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [user?.id, viewerLoading])
 
   const filteredBillHearings = billHearings.filter(b => {
     if (chamber !== 'All' && b.chamber !== chamber) return false

@@ -12,6 +12,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
 import { useSession } from '../../../lib/useSession'
+import { useViewer } from '../../../lib/viewer-capabilities'
 import Nav from '../../components/Nav'
 import ScoreBadge from '../../components/ScoreBadge'
 
@@ -31,6 +32,7 @@ export default function CommitteeDetail() {
   const slug = params?.slug
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -39,12 +41,12 @@ export default function CommitteeDetail() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   // Phase 11.2 — follow state
-  const [user, setUser] = useState(null)
   const [follow, setFollow] = useState(null) // { alerts_enabled } or null
   const [followBusy, setFollowBusy] = useState(false)
 
   useEffect(() => {
     if (!slug) return
+    if (viewerLoading) return
     async function load() {
       // 1. Committee
       const { data: cmte } = await supabase
@@ -56,14 +58,12 @@ export default function CommitteeDetail() {
       if (!cmte) { setNotFound(true); setLoading(false); return }
       setCommittee(cmte)
 
-      // Phase 11.2 — load user + current follow state
-      const { data: { user: u } } = await supabase.auth.getUser()
-      setUser(u)
-      if (u) {
+      // Phase 11.2 — load current follow state (user comes from useViewer hook)
+      if (user) {
         const { data: fr } = await supabase
           .from('user_followed_committees')
           .select('alerts_enabled')
-          .eq('user_id', u.id)
+          .eq('user_id', user.id)
           .eq('committee_id', cmte.id)
           .maybeSingle()
         setFollow(fr || null)
@@ -104,7 +104,7 @@ export default function CommitteeDetail() {
       setLoading(false)
     }
     load()
-  }, [slug, SESSION])
+  }, [slug, SESSION, user?.id, viewerLoading])
 
   // Phase 11.2 — follow toggles
   async function handleFollow() {

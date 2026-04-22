@@ -4,12 +4,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 
 export default function SettingsPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const [user, setUser] = useState(null)
+  const { user, capabilities, loading: viewerLoading } = useViewer()
   const [loading, setLoading] = useState(false)
   // Phase 7U.5: split bill counts so the current-session number stays a useful
   // sync-health signal instead of being diluted by the historical archive.
@@ -27,36 +28,37 @@ export default function SettingsPage() {
   const [testSending, setTestSending] = useState(false)
   const [testResult, setTestResult] = useState(null)
 
+  // Bill counts: no auth dependency — load once
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user)
-      if (user) {
-        // Load notification preferences
-        supabase
-          .from('notification_preferences')
-          .select('*')
-          .eq('user_id', user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setNotifEmail(data.email || '')
-              setDigestEnabled(data.digest_enabled)
-              setAlertsEnabled(data.alerts_enabled)
-              setDigestDay(data.digest_day || 'monday')
-            } else {
-              // Default to user's auth email
-              setNotifEmail(user.email || '')
-            }
-            setNotifLoaded(true)
-          })
-      }
-    })
     const current = getCurrentSession()
     supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', current).eq('legislation_type', 'bill')
       .then(({ count }) => { if (count != null) setCurrentSessionBills(count.toLocaleString()) })
     supabase.from('bills').select('bill_id', { count: 'exact', head: true }).neq('session', current).eq('legislation_type', 'bill')
       .then(({ count }) => { if (count != null) setHistoricalBills(count.toLocaleString()) })
   }, [])
+
+  // Notification preferences: wait for viewer to resolve, then load
+  useEffect(() => {
+    if (viewerLoading) return
+    if (!user) return
+    supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setNotifEmail(data.email || '')
+          setDigestEnabled(data.digest_enabled)
+          setAlertsEnabled(data.alerts_enabled)
+          setDigestDay(data.digest_day || 'monday')
+        } else {
+          // Default to user's auth email
+          setNotifEmail(user.email || '')
+        }
+        setNotifLoaded(true)
+      })
+  }, [user?.id, viewerLoading])
 
   async function signOut() {
     setLoading(true)

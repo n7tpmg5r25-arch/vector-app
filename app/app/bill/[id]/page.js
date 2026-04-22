@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '../../../lib/supabase'
+import { useViewer } from '../../../lib/viewer-capabilities'
 import ScoreBadge from '../../components/ScoreBadge'
 import MeetingBadge from '../../components/MeetingBadge'
 import Nav from '../../components/Nav'
@@ -288,6 +289,7 @@ export default function BillDetailPage() {
   const params = useParams()
   const billId = params.id
   const supabase = createBrowserClient()
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [bill, setBill]         = useState(null)
   const [snapshots, setSnapshots] = useState([])
@@ -298,7 +300,6 @@ export default function BillDetailPage() {
   const [saving, setSaving]     = useState(false)
   const [notes, setNotes]       = useState('')
   const [tag, setTag] = useState('')
-  const [user, setUser]         = useState(null)
   const [shared, setShared]     = useState(false)
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
@@ -317,10 +318,8 @@ export default function BillDetailPage() {
   const [savingNote, setSavingNote]     = useState(false)
 
   useEffect(() => {
+    if (viewerLoading) return
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-
       const { data: billData } = await supabase
         .from('bills')
         .select('*')
@@ -406,7 +405,7 @@ export default function BillDetailPage() {
       setLoading(false)
     }
     load()
-  }, [billId])
+  }, [billId, user?.id, viewerLoading])
 
   async function toggleWatch() {
     if (!user) return

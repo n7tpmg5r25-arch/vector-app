@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
@@ -18,6 +19,7 @@ export default function WatchlistPage() {
   // the home page session picker. Watches remain global in tracked_bills; we
   // filter to the active session client-side after the join.
   const [SESSION] = useSession()
+  const { user, capabilities, loading: viewerLoading } = useViewer()
   const [watched, setWatched]               = useState([])
   const [tags, setTags]                     = useState([])
   const [activeTag, setActiveTag]           = useState('All')
@@ -37,8 +39,8 @@ export default function WatchlistPage() {
   const [billNoteMeta, setBillNoteMeta]     = useState({})
 
   useEffect(() => {
+    if (viewerLoading) return
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       /* ── 1. Fetch tracked bills (now includes last_viewed_at) ── */
@@ -161,7 +163,7 @@ export default function WatchlistPage() {
       setLoading(false)
     }
     load()
-  }, [SESSION])
+  }, [SESSION, user?.id, viewerLoading])
 
   /* ── Filtering & sorting ── */
   const tagFiltered = activeTag === 'All'
@@ -195,7 +197,7 @@ export default function WatchlistPage() {
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
       // Phase 7S: fetch shared (export-visible) analyst notes for all tracked bills
-      const { data: { user } } = await supabase.auth.getUser()
+      // (user comes from useViewer() hook closure)
       let billNotes = []
       if (user) {
         const billIds = billsToExport.map(d => d.bill_id)
@@ -252,7 +254,7 @@ export default function WatchlistPage() {
   const saveQuickNote = async () => {
     if (!notesBillId || !quickNote.trim()) return
     setSavingQuickNote(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    // (user comes from useViewer() hook closure)
     if (user) {
       const { data } = await supabase
         .from('bill_notes')
