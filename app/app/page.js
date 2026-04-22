@@ -218,21 +218,16 @@ export default function HomePage() {
         }}/>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          {/* Logo row */}
+          {/* Logo row — brand v4.6: canonical primary SVG (wordmark baked in), Karla tagline */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <svg width="28" height="24" viewBox="0 0 56 48" fill="none">
-                <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-                <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
-              </svg>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--teal)', letterSpacing: '-0.01em', lineHeight: 1, textShadow: '0 0 20px rgba(184,151,90,0.3)' }}>
-                  VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 14 }}>| WA</span>
-                </div>
-                <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
-                  Legislative Trajectories
-                </div>
+            <div>
+              <img
+                src="/logos/vector-wa-primary.svg"
+                alt="Vector | WA"
+                style={{ height: 44, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 20px rgba(184,151,90,0.25))' }}
+              />
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 4, fontFamily: 'var(--font-body)' }}>
+                Legislative Trajectories
               </div>
             </div>
 
