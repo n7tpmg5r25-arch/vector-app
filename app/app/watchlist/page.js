@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
+import { fetchTotalScoredBills } from '../../lib/app-stats'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
@@ -232,6 +233,17 @@ export default function WatchlistPage() {
       }
 
       const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
+
+      // DATA_FRESHNESS #22: live cohort count for calibration blurb
+      // (replaces hardcoded "8,062 / 3 biennia / 2021-2026" in generate-pdf.js)
+      let cohortStats = null
+      try {
+        cohortStats = await fetchTotalScoredBills(supabase)
+      } catch (e) {
+        // If the live query fails generate-pdf.js falls back to the baked-in sentence.
+        console.warn('cohort count fetch failed; PDF will use fallback blurb', e)
+      }
+
       await generateBriefPDF({
         tagLabel,
         date: today,
@@ -242,6 +254,7 @@ export default function WatchlistPage() {
         billNotes,
         amendments: amendmentsData,
         fiscalHistory: fiscalData,
+        cohortStats,
       })
     } catch (err) {
       console.error('PDF export failed:', err)

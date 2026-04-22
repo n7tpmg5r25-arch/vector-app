@@ -781,7 +781,11 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
 // MAIN PDF GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, changes, session, billNotes, amendments = [], fiscalHistory = [] }) {
+export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, changes, session, billNotes, amendments = [], fiscalHistory = [], cohortStats = null }) {
+  // cohortStats: { total, biennia, ok } from app/lib/app-stats.js fetchTotalScoredBills().
+  // Used to build the live methodology footnote at the bottom of the last page.
+  // Falls back to the original calibration cohort (N=8,062 across 3 WA biennia,
+  // 2021-2026) when null or ok === false.
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const pw = doc.internal.pageSize.getWidth()   // 210
   const ph = doc.internal.pageSize.getHeight()   // 297
@@ -1068,7 +1072,18 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(6.5)
       doc.setTextColor(...GRAY)
-      doc.text('Trajectory scores (0-99) calibrated against 8,062 bills across 3 WA biennia (2021-2026). 75+ = 84% became law.', m, methY + 3.5)
+      // DATA_FRESHNESS #22: cohort total + biennium span are live when the
+      // caller passes cohortStats. Fallback matches original engine cohort.
+      let calibBlurb = 'Trajectory scores (0-99) calibrated against 8,062 bills across 3 WA biennia (2021-2026). 75+ = 84% became law.'
+      if (cohortStats && cohortStats.ok && cohortStats.total > 0 && cohortStats.biennia && cohortStats.biennia.length > 0) {
+        const n = cohortStats.total.toLocaleString()
+        const bCount = cohortStats.biennia.length
+        const firstYear = cohortStats.biennia[0].split('-')[0]
+        const lastParts = cohortStats.biennia[cohortStats.biennia.length - 1].split('-')
+        const lastYear = lastParts[lastParts.length - 1]
+        calibBlurb = `Trajectory scores (0-99) calibrated against ${n} bills across ${bCount} WA biennia (${firstYear}-${lastYear}). 75+ = 84% became law.`
+      }
+      doc.text(calibBlurb, m, methY + 3.5)
       doc.text('Signal tiers: HIGH (75+), MODERATE (60-74), LOW (45-59), VERY LOW (<45). Full methodology: vectorwa.com/methodology', m, methY + 7)
     }
 
