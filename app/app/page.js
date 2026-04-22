@@ -8,6 +8,7 @@ import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
+import PublicHome from './components/PublicHome'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -39,7 +40,21 @@ function momentumLabel(bills) {
 export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const { user, capabilities, loading: viewerLoading } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+
+  // Phase 12 Batch 4: anon visitors with the public-layer flag enabled get
+  // the public home variant. Owner JSX (everything below) is unchanged.
+  // proxy.js is the upstream gate — when the flag is false (production),
+  // anon visitors never reach this component (they're redirected to /login),
+  // so the entire `if (publicLayerEnabled)` block is dead code in prod.
+  // Behavior for logged-in Colin in production: byte-identical to pre-Batch-4.
+  if (publicLayerEnabled) {
+    // Hold paint until useViewer() resolves so anon visitors don't see the
+    // owner shell flash before PublicHome mounts. Only applies when the
+    // flag is on — in production this branch is never entered.
+    if (viewerLoading) return null
+    if (!user) return <PublicHome />
+  }
 
   // 6D.1: Session from useSession hook (localStorage-backed, user-switchable)
   const [SESSION, setSession] = useSession()
