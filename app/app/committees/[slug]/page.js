@@ -14,6 +14,7 @@ import { createBrowserClient } from '../../../lib/supabase'
 import { useSession } from '../../../lib/useSession'
 import { useViewer } from '../../../lib/viewer-capabilities'
 import Nav from '../../components/Nav'
+import PublicNav from '../../components/PublicNav'
 import ScoreBadge from '../../components/ScoreBadge'
 
 function fmtTime(t) {
@@ -32,7 +33,8 @@ export default function CommitteeDetail() {
   const slug = params?.slug
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  const { user, capabilities, loading: viewerLoading } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
 
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -147,26 +149,31 @@ export default function CommitteeDetail() {
 
   if (notFound) {
     return (
-      <div style={{ padding: 60, textAlign: 'center', fontFamily: 'var(--font-body)' }}>
-        <div style={{ fontSize: 16, color: 'var(--text-muted)', marginBottom: 12 }}>Committee not found.</div>
-        <button onClick={() => router.push('/committees')} style={{
-          padding: '8px 16px', fontSize: 12, background: 'var(--teal)', color: 'var(--bg)',
-          border: 'none', borderRadius: 8, cursor: 'pointer',
-        }}>Back to Committees</button>
-        <Nav />
+      <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+        {isAnonPublic && <PublicNav />}
+        <div style={{ padding: 60, textAlign: 'center' }}>
+          <div style={{ fontSize: 16, color: 'var(--text-muted)', marginBottom: 12 }}>Committee not found.</div>
+          <button onClick={() => router.push('/committees')} style={{
+            padding: '8px 16px', fontSize: 12, background: 'var(--teal)', color: 'var(--bg)',
+            border: 'none', borderRadius: 8, cursor: 'pointer',
+          }}>Back to Committees</button>
+        </div>
+        {!isAnonPublic && <Nav />}
       </div>
     )
   }
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {isAnonPublic && <PublicNav />}
       {/* HEADER */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <button onClick={() => router.push('/committees')} style={{
           background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: 11,
@@ -185,8 +192,8 @@ export default function CommitteeDetail() {
           </div>
         )}
 
-        {/* Phase 11.2 — Follow / alerts toggle */}
-        {committee && user && (
+        {/* Phase 11.2 — Follow / alerts toggle (capability-gated in Batch 6) */}
+        {committee && user && capabilities?.canFollow && (
           <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {!follow ? (
               <button
@@ -410,7 +417,7 @@ export default function CommitteeDetail() {
         </>
       )}
 
-      <Nav />
+      {!isAnonPublic && <Nav />}
     </div>
   )
 }

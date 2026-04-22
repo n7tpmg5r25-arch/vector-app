@@ -7,6 +7,7 @@ import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { isInterimPeriod } from '../../lib/session-config'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 const CATEGORIES = ['All', 'Health', 'Education', 'Criminal Justice', 'Environment',
@@ -58,7 +59,11 @@ function SearchContent() {
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
   // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
-  const { user, capabilities, loading: viewerLoading } = useViewer()
+  // Batch 6 adds `publicLayerEnabled` + `isAnonPublic` so the page can swap
+  // the bottom Nav for a sticky PublicNav when an anon visitor lands here
+  // with the flag on.
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -170,13 +175,15 @@ function SearchContent() {
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {isAnonPublic && <PublicNav />}
       {/* Header */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 12px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '16px 16px 12px' : '52px 16px 12px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{
@@ -454,7 +461,7 @@ function SearchContent() {
         )}
       </div>
 
-      <Nav/>
+      {!isAnonPublic && <Nav/>}
     </div>
   )
 }

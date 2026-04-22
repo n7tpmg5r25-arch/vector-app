@@ -19,7 +19,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
@@ -61,6 +63,9 @@ export default function CommitteesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
+  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
+  const { user, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
 
   const [view, setView] = useState('calendar') // 'calendar' | 'by-committee'
   const [chamberFilter, setChamberFilter] = useState('All')
@@ -192,14 +197,16 @@ export default function CommitteesPage() {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — anon visitors get PublicNav at top + no owner Nav below. */}
+      {isAnonPublic && <PublicNav />}
 
       {/* HEADER */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{
@@ -305,7 +312,7 @@ export default function CommitteesPage() {
         />
       )}
 
-      <Nav />
+      {!isAnonPublic && <Nav />}
     </div>
   )
 }

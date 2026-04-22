@@ -4,7 +4,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession } from '../../lib/session-config'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 const SESSIONS = ['2025-2026', '2023-2024', '2021-2022']
@@ -13,6 +15,9 @@ const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2
 export default function MembersPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
+  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
+  const { user, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
 
   const [members, setMembers]         = useState([])
   const [selectedMember, setSelected] = useState(null)
@@ -207,9 +212,11 @@ export default function MembersPage() {
     const tier = tierLabel(selectedMember.tier)
     return (
       <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+        {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+        {isAnonPublic && <PublicNav />}
         <div style={{
           background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
-          padding: '52px 20px 20px',
+          padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
@@ -367,7 +374,7 @@ export default function MembersPage() {
             </Link>
           ))}
         </div>
-        <Nav/>
+        {!isAnonPublic && <Nav/>}
       </div>
     )
   }
@@ -375,12 +382,14 @@ export default function MembersPage() {
   // ── MEMBERS LIST VIEW ────────────────────────────────
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {isAnonPublic && <PublicNav />}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
@@ -756,7 +765,7 @@ export default function MembersPage() {
           )
         })}
       </div>}
-      <Nav/>
+      {!isAnonPublic && <Nav/>}
     </div>
   )
 }

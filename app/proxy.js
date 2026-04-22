@@ -7,17 +7,29 @@ import { NextResponse } from 'next/server'
 // this list is never consulted — behavior is byte-identical to
 // pre-Batch-4.
 //
-// Each batch expands the list:
+// Each batch expanded the list:
 //   Batch 4:                 '/'                    (shipped)
-//   Batch 5 (this thread):   '/bill/[id]'           (shipped, prefix: '/bill/')
-//   Batch 6:                 '/search', '/committees', '/committees/[slug]',
+//   Batch 5:                 '/bill/[id]'           (shipped, prefix: '/bill/')
+//   Batch 6 (this thread):   '/search', '/committees', '/committees/[slug]',
 //                            '/members', '/methodology', '/outcomes',
 //                            '/hearings'
 // '/disclaimers' is already public-shaped and is matched by isAlwaysPublic
 // below (no flag dependency).
+//
+// Private routes that stay behind /login even with the flag on: /watchlist,
+// /settings, /admin/*, /saved-searches, /alerts, /thresholds, /feedback.
+// Those routes consume private user state (tracked_bills, notification_prefs,
+// bill_notes, followed committees) and have no anon read path.
 function isPublicLayerRoute(pathname) {
   if (pathname === '/') return true
   if (pathname.startsWith('/bill/')) return true
+  if (pathname === '/search') return true
+  if (pathname === '/committees') return true
+  if (pathname.startsWith('/committees/')) return true
+  if (pathname === '/members') return true
+  if (pathname === '/methodology') return true
+  if (pathname === '/outcomes') return true
+  if (pathname === '/hearings') return true
   return false
 }
 

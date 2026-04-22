@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
+import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 const CATEGORIES = [
@@ -22,6 +24,9 @@ export default function OutcomesPage() {
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
   const isInterim = useMemo(() => isInterimPeriod(), [])
+  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
+  const { user, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
 
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +35,10 @@ export default function OutcomesPage() {
   const [chamber, setChamber] = useState('All')
   const [sortBy, setSortBy] = useState('score') // score | bill_number | category
   const [sortDir, setSortDir] = useState('desc')
+  // Phase 12 Batch 6 Feature G — Long Shots: bills scored VERY LOW or LOW
+  // (final_score < 60) that actually passed at least one chamber. The
+  // narrative for public visitors: the underdogs that made it.
+  const [longShots, setLongShots] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -58,11 +67,26 @@ export default function OutcomesPage() {
 
   // Filter
   const filtered = bills.filter(b => {
-    if (outcome !== 'All' && b.confidence_label !== outcome) return false
+    // Phase 12 Batch 6 Feature G — long-shots override: under-60 score AND
+    // a non-DEAD outcome (LAW or CARRY OVER). Composes with chamber + category
+    // filters, but takes precedence over the outcome filter.
+    if (longShots) {
+      const s = b.final_score || 0
+      if (s >= 60) return false
+      if (b.confidence_label !== 'LAW' && b.confidence_label !== 'CARRY OVER') return false
+    } else if (outcome !== 'All' && b.confidence_label !== outcome) {
+      return false
+    }
     if (category !== 'All' && b.category !== category) return false
     if (chamber !== 'All' && b.chamber !== chamber) return false
     return true
   })
+
+  // Long-shots headline count — shown on the new stat card.
+  const longShotCount = bills.filter(b => {
+    const s = b.final_score || 0
+    return s < 60 && (b.confidence_label === 'LAW' || b.confidence_label === 'CARRY OVER')
+  }).length
 
   // Sort
   const sorted = [...filtered].sort((a, b) => {
@@ -107,13 +131,15 @@ export default function OutcomesPage() {
 
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {isAnonPublic && <PublicNav />}
 
       {/* ── HEADER ──────────────────────────────── */}
       <div style={{
         background: 'rgba(14,16,20,0.95)', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
           Session Outcomes
@@ -132,24 +158,51 @@ export default function OutcomesPage() {
           </div>
         )}
 
-        {/* Stat cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+        {/* Stat cards — 4-up: Signed / Passed Chamber / Dead / Long Shots.
+            Phase 12 Batch 6 Feature G: the "Long Shots" card toggles a
+            dedicated view of low-trajectory bills that still got across the
+            finish line — the narrative hook we want on public surfaces. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
           {[
             { label: 'Signed', value: lawCount, color: 'var(--teal)', filterVal: 'LAW' },
             { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'CARRY OVER', tooltip: 'Passed at least one chamber but did not become law this session' },
             { label: 'Dead', value: deadCount, color: 'var(--text-muted)', filterVal: 'DEAD' },
           ].map(({ label, value, color, filterVal, tooltip }) => (
-            <button key={label} onClick={() => setOutcome(outcome === filterVal ? 'All' : filterVal)} title={tooltip || ''} style={{
-              background: outcome === filterVal ? 'var(--bg-surface)' : 'var(--bg-card)',
-              border: `1px solid ${outcome === filterVal ? color : 'var(--border)'}`,
-              borderRadius: 'var(--radius)', padding: '10px 8px', textAlign: 'center', cursor: 'pointer',
+            <button key={label} onClick={() => { setLongShots(false); setOutcome(outcome === filterVal ? 'All' : filterVal) }} title={tooltip || ''} style={{
+              background: !longShots && outcome === filterVal ? 'var(--bg-surface)' : 'var(--bg-card)',
+              border: `1px solid ${!longShots && outcome === filterVal ? color : 'var(--border)'}`,
+              borderRadius: 'var(--radius)', padding: '10px 6px', textAlign: 'center', cursor: 'pointer',
               transition: 'all 0.15s',
             }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
             </button>
           ))}
+          <button
+            onClick={() => { setLongShots(ls => !ls); setOutcome('All') }}
+            title="Bills scored below 60 that still passed at least one chamber — the underdogs"
+            style={{
+              background: longShots ? 'var(--bg-surface)' : 'var(--bg-card)',
+              border: `1px solid ${longShots ? 'var(--gold)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius)', padding: '10px 6px', textAlign: 'center', cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{longShotCount}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 4 }}>Long Shots</div>
+          </button>
         </div>
+
+        {longShots && (
+          <div style={{
+            fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5,
+            padding: '8px 10px', background: 'rgba(184,151,90,0.06)',
+            border: '1px solid rgba(184,151,90,0.2)', borderRadius: 6,
+          }}>
+            Long shots: bills with a final trajectory score below 60 that still passed at least one chamber.
+            These are the outliers the scoring engine flagged as unlikely — and they made it anyway.
+          </div>
+        )}
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
@@ -260,7 +313,7 @@ export default function OutcomesPage() {
         )}
       </div>
 
-      <Nav/>
+      {!isAnonPublic && <Nav/>}
     </div>
   )
 }

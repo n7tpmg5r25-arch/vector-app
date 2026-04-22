@@ -7,8 +7,10 @@
 // runs, and stays on screen if the query fails or returns too little data.
 import { useEffect, useState } from 'react'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod } from '../../lib/session-config'
+import { useViewer } from '../../lib/viewer-capabilities'
 
 const SIGNALS = [
   {
@@ -102,6 +104,10 @@ const TIER_COLOR = {
 }
 
 export default function MethodologyPage() {
+  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
+  const { user, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
+
   // 7V.1: live calibration — queries Supabase on mount, falls back to the
   // hardcoded 2025-26 numbers if the query fails or returns too few bills.
   const [calibration, setCalibration]     = useState(CALIBRATION_FALLBACK)
@@ -171,13 +177,15 @@ export default function MethodologyPage() {
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
+      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {isAnonPublic && <PublicNav />}
 
       {/* HEADER */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 20px 20px',
+        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display)',
@@ -541,7 +549,7 @@ export default function MethodologyPage() {
 
       </div>
 
-      <Nav />
+      {!isAnonPublic && <Nav />}
     </div>
   )
 }
