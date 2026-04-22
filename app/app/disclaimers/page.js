@@ -74,7 +74,7 @@ export default function DisclaimersPage() {
 
         <H2>How signals are generated</H2>
         <P>
-          Every bill receives a trajectory score from 0 to 99. The score is a weighted composite of five signals (committee placement, vote margins, fiscal note status, calendar movement, and companion status), adjusted by documented X factors when a bill sits outside the ordinary procedural path. Scores are bucketed into four tiers: HIGH (75 to 99), MODERATE (60 to 74), LOW (45 to 59), and VERY LOW (0 to 44). Bucket thresholds were calibrated against the 2025 regular session and are rechecked each session.
+          Every bill receives a trajectory score from 0 to 99. The score is a weighted composite of five signals (committee placement, vote margins, fiscal note status, calendar movement, and companion status), adjusted by documented X factors when a bill sits outside the ordinary procedural path. Scores are bucketed into four tiers: HIGH (75 to 99), MODERATE (60 to 74), LOW (45 to 59), and VERY LOW (0 to 44). Bucket thresholds are calibrated across three biennia of Washington State session data (2021-22, 2023-24, 2025-26 &mdash; 8,062 bills) and rechecked each session. See the methodology page for the full calibration table.
         </P>
 
         <H2>Algorithmic authorship</H2>

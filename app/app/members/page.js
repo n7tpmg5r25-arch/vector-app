@@ -3,14 +3,17 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
-import { getCurrentSession } from '../../lib/session-config'
+import { getCurrentSession, getAllSessions } from '../../lib/session-config'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const SESSIONS = ['2025-2026', '2023-2024', '2021-2022']
-const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : '2025-2026'
+// Derive the session list from session-config so we don't have to hand-edit
+// every page at each biennium rollover. getAllSessions() returns newest-first
+// and auto-includes the next biennium once prefiling opens (Dec 1, 2026).
+const SESSIONS = getAllSessions()
+const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : SESSIONS[0]
 
 export default function MembersPage() {
   const router = useRouter()
@@ -236,7 +239,7 @@ export default function MembersPage() {
                 background: 'rgba(184,151,90,0.1)',
                 border: '2px solid rgba(184,151,90,0.3)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16, fontWeight: 700, color: 'var(--teal)', flexShrink: 0,
+                fontSize: 16, fontWeight: 700, color: 'var(--gold)', flexShrink: 0,
                 boxShadow: '0 0 16px rgba(184,151,90,0.15)',
               }}>
                 {selectedMember.name.split(' ').map(n => n[0]).slice(-2).join('')}

@@ -21,6 +21,12 @@ const BIENNIUMS = [
   },
 ]
 
+// Historical biennia with bill data in the warehouse (pre-BIENNIUMS
+// sessions — kept in a separate array because they're read-only and
+// don't need cutoff tables / prefile dates). Update when a session
+// ages out of BIENNIUMS into history.
+const HISTORICAL_SESSIONS = ['2023-2024', '2021-2022']
+
 // ── Derived helpers ───────────────────────────────────────
 
 /** Current biennium session string, e.g. '2025-2026' or '2027-2028'
@@ -49,6 +55,21 @@ export function getNextBiennium() {
 export function getCurrentBiennium() {
   const cur = getCurrentSession()
   return BIENNIUMS.find(b => b.session === cur) || BIENNIUMS[0]
+}
+
+/** All sessions with bill data (current + historical), newest first.
+ *  Future biennia are filtered out until prefiling has opened, so
+ *  session pickers don't advertise an empty session before Dec 1
+ *  of the rollover year. Single source of truth — replaces the
+ *  `const SESSIONS = ['2025-2026', '2023-2024', '2021-2022']`
+ *  arrays that used to live in page files. */
+export function getAllSessions() {
+  const now = new Date()
+  const visibleBienniums = BIENNIUMS
+    .filter(b => now >= new Date(b.prefilingOpens || b.start))
+    .map(b => b.session)
+    .reverse() // newest first
+  return [...visibleBienniums, ...HISTORICAL_SESSIONS]
 }
 
 /** True when the legislature is NOT in active session */
@@ -93,10 +114,16 @@ export function daysUntil(dateStr) {
   return Math.max(0, Math.ceil(diff / 86400000))
 }
 
-/** Format a date string as "January 13, 2027" (timezone-safe) */
+/** Format a date string as "January 13, 2027" (timezone-safe).
+ *  Returns "session dates TBD" when dateStr is null/undefined/malformed —
+ *  prevents crashes on interim pages when a future biennium hasn't yet
+ *  been populated in BIENNIUMS. */
 export function formatSessionDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return 'session dates TBD'
+  const parts = dateStr.split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return 'session dates TBD'
+  const [y, m, d] = parts
   // Parse as local date to avoid UTC offset shifting the day
-  const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
   return dt.toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
