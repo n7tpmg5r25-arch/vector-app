@@ -10,6 +10,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod } from '../../lib/session-config'
+import { fetchTotalScoredBills, joinBiennia, formatRecalculatedStamp } from '../../lib/app-stats'
 import { useViewer } from '../../lib/viewer-capabilities'
 
 const SIGNALS = [
@@ -38,7 +39,10 @@ const SIGNALS = [
     name: 'Historical',
     range: '0–20',
     weight: 16,
-    description: 'Category-level pass rates calibrated from 8,062 bills across three biennia (2021-22, 2023-24, and 2025-26). Tax bills behave differently than transportation bills.',
+    // Description is built live inside the component using fetchTotalScoredBills()
+    // so the cited bill-count and biennium list stay current at rollover.
+    // This fallback matches the original engine calibration cohort.
+    description: 'Category-level pass rates calibrated from thousands of bills across multiple biennia. Tax bills behave differently than transportation bills.',
     inputs: ['Category base rate', 'Bill-number cohort adjustment (low numbers = leadership priorities)'],
   },
   {
@@ -114,8 +118,27 @@ export default function MethodologyPage() {
   const [sourceSession, setSourceSession] = useState(FALLBACK_SESSION)
   const [totalN, setTotalN]                = useState(FALLBACK_N)
 
+  // 2026-04-22 (DATA_FRESHNESS #12): cross-biennium cohort size is now
+  // queried live. Fallback values match the original engine calibration
+  // cohort (N=8,062 across 2021-22 / 2023-24 / 2025-26) so the page still
+  // reads correctly if the query fails or returns zero.
+  const [cohortTotal,      setCohortTotal]     = useState(8062)
+  const [cohortBiennia,    setCohortBiennia]   = useState(['2021-2022', '2023-2024', '2025-2026'])
+  const [cohortStampedAt,  setCohortStampedAt] = useState(null)
+
   useEffect(() => {
     const sb = createBrowserClient()
+
+    // Live cross-biennium cohort count — runs in parallel with the
+    // single-biennium calibration query below.
+    fetchTotalScoredBills(sb).then((stats) => {
+      if (stats && stats.ok && stats.total > 0 && stats.biennia.length > 0) {
+        setCohortTotal(stats.total)
+        setCohortBiennia(stats.biennia)
+        setCohortStampedAt(stats.computedAt)
+      }
+    }).catch(() => { /* keep fallback */ })
+
     // Pick the most recently completed biennium. During interim that's
     // the current session (which just ended); during an active session
     // we step back one biennium to the prior completed one.
@@ -175,6 +198,12 @@ export default function MethodologyPage() {
   const highLawCount = Math.round((high.bills * high.law) / 100)
   const sessionShort = sourceSession.split('-').map((y, i) => i === 1 ? y.slice(2) : y).join('-')
 
+  // DATA_FRESHNESS #12: rendered citations pull from live cohort state.
+  const cohortTotalStr  = cohortTotal.toLocaleString()
+  const cohortBienniaStr = joinBiennia(cohortBiennia)
+  const cohortCountStr   = cohortBiennia.length.toString()
+  const cohortStamp      = cohortStampedAt ? formatRecalculatedStamp(cohortStampedAt) : null
+
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
@@ -223,7 +252,14 @@ export default function MethodologyPage() {
             The Five Signals
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-            {SIGNALS.map((s, i) => (
+            {SIGNALS.map((s, i) => {
+              // DATA_FRESHNESS #12: inject live cohort numbers into the
+              // Historical signal prose so the bill-count and biennium list
+                // stay current without a code push at each rollover.
+              const liveDescription = s.name === 'Historical'
+                ? `Category-level pass rates calibrated from ${cohortTotalStr} bills across ${cohortCountStr} biennia (${cohortBienniaStr}). Tax bills behave differently than transportation bills.`
+                : s.description
+              return (
               <div key={s.name} style={{
                 padding: '14px 16px',
                 borderBottom: i < SIGNALS.length - 1 ? '1px solid var(--border)' : 'none',
@@ -235,7 +271,7 @@ export default function MethodologyPage() {
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 8 }}>
-                  {s.description}
+                  {liveDescription}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {s.inputs.map(inp => (
@@ -250,7 +286,8 @@ export default function MethodologyPage() {
                   ))}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
             A stage advancement bonus (0–25) also stacks on top, rewarding bills that have cleared cutoffs.
@@ -348,7 +385,7 @@ export default function MethodologyPage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
               The table above shows one biennium in detail. The scoring engine itself is calibrated
-              against all three biennia combined — 8,062 bills spanning 2021-22, 2023-24, and 2025-26.
+              against all {cohortCountStr} biennia combined &mdash; {cohortTotalStr} bills spanning {cohortBienniaStr}.
               These are the exact pass probabilities <em>every score on this site</em> resolves to,
               with 95% Wilson confidence intervals showing the range of plausible truth given the
               sample size in each bucket.
@@ -381,9 +418,14 @@ export default function MethodologyPage() {
               </table>
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Source: Vector | WA combined biennia (bills only), N=8,062. CIs computed via Wilson score interval.
-              These exact values are wired into the scoring engine's pass_probability ladder —
+              Source: Vector | WA combined biennia (bills only), N={cohortTotalStr}. CIs computed via Wilson score interval.
+              These exact values are wired into the scoring engine's pass_probability ladder &mdash;
               when a bill shows "84% chance of becoming law", this is the row it came from.
+              {cohortStamp && (
+                <div style={{ marginTop: 6, opacity: 0.75 }}>
+                  Recalculated: {cohortStamp}.
+                </div>
+              )}
             </div>
           </div>
         </div>
