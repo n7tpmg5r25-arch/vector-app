@@ -6,6 +6,8 @@ import { useViewer } from '../../../lib/viewer-capabilities'
 import ScoreBadge from '../../components/ScoreBadge'
 import MeetingBadge from '../../components/MeetingBadge'
 import Nav from '../../components/Nav'
+import PublicNav from '../../components/PublicNav'
+import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
@@ -289,7 +291,8 @@ export default function BillDetailPage() {
   const params = useParams()
   const billId = params.id
   const supabase = createBrowserClient()
-  const { user, capabilities, loading: viewerLoading } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = publicLayerEnabled && !user
 
   const [bill, setBill]         = useState(null)
   const [snapshots, setSnapshots] = useState([])
@@ -509,9 +512,11 @@ export default function BillDetailPage() {
   if (!bill) return (
     /* Batch 1.5 E: error-state parity with the Hearings interim empty state —
        icon + headline + explanatory copy + CTA + Nav, instead of stranding the
-       user on a blank viewport. */
+       user on a blank viewport.
+       Batch 5: anon visitors get PublicNav at top + no owner Nav. */
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh' }}>
-      <div style={{ padding: '80px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {isAnonPublic && <PublicNav />}
+      <div style={{ padding: isAnonPublic ? '24px 16px 24px' : '80px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{
           padding: '40px 20px', textAlign: 'center',
           background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -537,7 +542,7 @@ export default function BillDetailPage() {
           >Back to search</button>
         </div>
       </div>
-      <Nav/>
+      {!isAnonPublic && <Nav/>}
     </div>
   )
 
@@ -578,17 +583,28 @@ export default function BillDetailPage() {
     : confLabel === 'DEAD' ? 'var(--text-faint)'
     : 'var(--text-muted)' // VERY LOW
 
+  // Phase 12 Batch 5: plain-English trajectory line for anon + owner alike.
+  // Single source of truth is app/lib/score-to-english.js (v4.6 §14 voice).
+  const trajectoryEnglish = scoreToEnglish({
+    score: bill.final_score,
+    stage: bill.stage,
+    confidenceLabel: confLabel,
+  })
+
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+
+      {/* ── PUBLIC NAV (anon + public-layer flag only) ──── */}
+      {isAnonPublic && <PublicNav />}
 
       {/* ── STICKY HEADER ──────────────────────────────── */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '52px 16px 12px',
+        padding: isAnonPublic ? '12px 16px 12px' : '52px 16px 12px',
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        position: 'sticky', top: 0, zIndex: 50,
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 50,
       }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--teal)', fontWeight: 500, cursor: 'pointer' }}>
           ← Back
@@ -625,19 +641,21 @@ export default function BillDetailPage() {
               cursor: 'pointer', transition: 'all 0.15s',
             }}
           >{shared ? '✓ Copied' : '↗ Share'}</button>
-          <button
-            onClick={toggleWatch}
-            disabled={saving}
-            style={{
-              padding: '7px 16px',
-              background: tracked ? 'var(--gold-pale)' : 'var(--teal-pale)',
-              border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'rgba(184,151,90,0.3)'}`,
-              borderRadius: 20, fontSize: 12, fontWeight: 600,
-              color: tracked ? 'var(--gold)' : 'var(--teal)',
-              cursor: 'pointer', transition: 'all 0.15s',
-              boxShadow: tracked ? 'var(--gold-glow)' : 'none',
-            }}
-          >{tracked ? '🔖 Watching' : '+ Watch'}</button>
+          {capabilities.canSave && (
+            <button
+              onClick={toggleWatch}
+              disabled={saving}
+              style={{
+                padding: '7px 16px',
+                background: tracked ? 'var(--gold-pale)' : 'var(--teal-pale)',
+                border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'rgba(184,151,90,0.3)'}`,
+                borderRadius: 20, fontSize: 12, fontWeight: 600,
+                color: tracked ? 'var(--gold)' : 'var(--teal)',
+                cursor: 'pointer', transition: 'all 0.15s',
+                boxShadow: tracked ? 'var(--gold-glow)' : 'none',
+              }}
+            >{tracked ? '🔖 Watching' : '+ Watch'}</button>
+          )}
         </div>
       </div>
 
@@ -778,6 +796,26 @@ export default function BillDetailPage() {
             <span>{snapshots[0]?.snapshot_date ? new Date(snapshots[0].snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Start'}</span>
             <span>Today</span>
           </div>
+
+          {/* Batch 5: plain-English trajectory line. Single source of truth
+              is app/lib/score-to-english.js. Visible to anon + owner alike. */}
+          <div style={{
+            marginTop: 12, paddingTop: 10,
+            borderTop: '1px solid rgba(184,151,90,0.08)',
+            display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
+          }}>
+            <span style={{
+              fontSize: 14, fontWeight: 600,
+              color: 'var(--gold)', letterSpacing: '0.01em',
+            }}>
+              {trajectoryEnglish.headline}
+            </span>
+            <span style={{
+              fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4,
+            }}>
+              — {trajectoryEnglish.qualifier}
+            </span>
+          </div>
         </div>
 
         {/* ── AI SUMMARY (editable) ──────────────────── */}
@@ -811,7 +849,7 @@ export default function BillDetailPage() {
                   >AI-GENERATED</span>
                 )}
               </div>
-              {user && !editingSummary && (
+              {capabilities.canEditNotes && !editingSummary && (
                 <button
                   onClick={() => {
                     setSummaryDraft(bill.custom_summary || bill.ai_summary || '')
@@ -1970,7 +2008,7 @@ export default function BillDetailPage() {
         </div>
 
         {/* ── NOTES (Phase 7S: Analyst Intelligence Notes) ── */}
-        {tracked && (
+        {capabilities.canEditNotes && tracked && (
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
             <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
               Analyst Notes
@@ -2111,7 +2149,7 @@ export default function BillDetailPage() {
           </div>
         )}
       </div>
-      <Nav/>
+      {!isAnonPublic && <Nav/>}
     </div>
   )
 }

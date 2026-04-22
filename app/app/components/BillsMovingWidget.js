@@ -35,20 +35,10 @@ import {
   daysUntil,
   isInterimPeriod,
 } from '../../lib/session-config'
+import { deltaToEnglish } from '../../lib/score-to-english'
 import ScoreBadge from './ScoreBadge'
 
 const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
-
-// Plain-English trajectory line for in-session deltas. A lightweight stand-in
-// for the scoreToEnglish() helper that lands in Thread 4 / Batch 5 — when
-// that helper exists, swap this out and centralize the copy.
-function deltaPhrase(delta) {
-  if (delta >= 8) return 'Surging this week'
-  if (delta >= 3) return 'Gaining momentum'
-  if (delta <= -8) return 'Losing ground'
-  if (delta <= -3) return 'Slipping this week'
-  return 'Holding steady'
-}
 
 function deltaColor(delta) {
   if (delta > 0) return '#7aab6e' // Sage — gaining
@@ -438,7 +428,7 @@ function BillCard({ bill, delta }) {
               letterSpacing: '0.02em',
             }}
           >
-            {deltaPhrase(delta)}
+            {deltaToEnglish(delta)}
             {delta !== 0 && (
               <span style={{ color: 'var(--text-faint)', fontWeight: 400, marginLeft: 6 }}>
                 {delta > 0 ? '+' : ''}
