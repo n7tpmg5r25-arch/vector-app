@@ -25,7 +25,25 @@ const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const SESSION = process.env.SYNC_SESSION || '2025-2026';
+// Biennium calendar — keep in sync with app/lib/session-config.js BIENNIUMS.
+// Inlined in CommonJS because this script is require()-loaded. Mirrors
+// getCurrentSession() in session-config.js: picks the biennium whose prefiling
+// window has opened. Without this, SYNC_SESSION-less local runs would vacuously
+// assert against 2025-2026 data long after the 2027 rollover.
+const BIENNIUM_EFFECTIVE_DATES = [
+  { session: '2025-2026', effectiveFrom: '2024-12-01' },
+  { session: '2027-2028', effectiveFrom: '2026-12-01' },
+  { session: '2029-2030', effectiveFrom: '2028-12-01' },
+];
+function currentBienniumFromDate(now = new Date()) {
+  for (let i = BIENNIUM_EFFECTIVE_DATES.length - 1; i >= 0; i--) {
+    if (now >= new Date(BIENNIUM_EFFECTIVE_DATES[i].effectiveFrom)) {
+      return BIENNIUM_EFFECTIVE_DATES[i].session;
+    }
+  }
+  return BIENNIUM_EFFECTIVE_DATES[0].session;
+}
+const SESSION = process.env.SYNC_SESSION || currentBienniumFromDate();
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('FATAL: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set');

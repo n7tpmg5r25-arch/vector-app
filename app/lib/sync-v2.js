@@ -84,11 +84,40 @@ const supabase = createClient(
 
 const WA_BASE  = process.env.WA_API_BASE || 'https://wslwebservices.leg.wa.gov';
 
-// 6L.3: Fallback defaults so sync doesn't break if GitHub Actions env vars aren't updated for 2027
-// When adding a new biennium, update the fallback values here to match session-config.js
-const BIENNIUM = process.env.CURRENT_BIENNIUM || '2025-26';   // e.g. '2027-28'
-const YEAR     = process.env.CURRENT_YEAR     || '2026';      // e.g. '2027'
-const SESSION  = `${parseInt(YEAR)-1}-${YEAR}`;               // e.g. '2025-2026'
+// ── BIENNIUM / SESSION IDENTIFIERS ────────────────────────────────────────────
+// BIENNIUM: WA API short form (YYYY-YY), e.g. '2025-26'. Used as a query-string
+//   parameter against leg.wa.gov web services. The short form is the WA API
+//   contract — do NOT normalize to YYYY-YYYY here.
+// YEAR:     end year of the biennium (YYYY), e.g. '2026' for the 2025–26 biennium.
+// SESSION:  internal DB / session-config key (YYYY-YYYY), e.g. '2025-2026'.
+//   Must match `bills.session`, `sync_log.session`, the SESSIONS arrays in the
+//   weekly-digest / daily-snapshot / send-alerts edge functions, and
+//   `BIENNIUMS[].session` in app/lib/session-config.js. Derived from YEAR so
+//   both formats stay in lockstep.
+// Fail fast on missing / malformed env — nightly-sync.yml and midday-sync.yml
+// both set all three envs. The old silent '2025-26' / '2026' fallbacks
+// (removed 2026-04-22) would have masked a config bug and silently asserted
+// against the wrong biennium after the 2027 rollover.
+// Canonical biennium list: app/lib/session-config.js BIENNIUMS.
+const BIENNIUM = process.env.CURRENT_BIENNIUM;
+const YEAR     = process.env.CURRENT_YEAR;
+if (!BIENNIUM || !/^\d{4}-\d{2}$/.test(BIENNIUM)) {
+  console.error(`FATAL: CURRENT_BIENNIUM must be YYYY-YY (got ${JSON.stringify(BIENNIUM)})`);
+  process.exit(2);
+}
+if (!YEAR || !/^\d{4}$/.test(YEAR)) {
+  console.error(`FATAL: CURRENT_YEAR must be YYYY (got ${JSON.stringify(YEAR)})`);
+  process.exit(2);
+}
+const SESSION = `${parseInt(YEAR)-1}-${YEAR}`;  // e.g. '2025-2026' when YEAR='2026'
+
+// ── CHAMBER CONTROL ───────────────────────────────────────────────────────────
+// Drives the `majority_sponsor` flag in extractSponsors(). WA currently has a
+// Democratic majority in both chambers (as of 2026). Update this constant (or
+// set the MAJORITY_PARTY env var) when control flips — scoreBill() is frozen
+// for 2027 calibration, so this single constant is the safe lever for
+// reflecting a chamber-control change without a scoring rerun.
+const MAJORITY_PARTY = process.env.MAJORITY_PARTY || 'D';
 
 // Session cutoff calendar — update each session
 const SESSION_CALENDAR = {
@@ -843,7 +872,7 @@ function extractSponsors(sponsors, partyMap) {
   return {
     prime_sponsor: fullName,
     prime_party: party,
-    majority_sponsor: party === 'D',  // Democrats hold majority in WA 2025-28
+    majority_sponsor: party === MAJORITY_PARTY,
     bipartisan: crossAisleCount > 0,
     cosponsor_count: rest.length,
     sponsor_tier: party === 'D' ? 3 : 4,
