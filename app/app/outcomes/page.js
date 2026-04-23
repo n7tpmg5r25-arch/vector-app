@@ -1,4 +1,9 @@
 'use client'
+
+// Long-shots display filter: bills with trajectory < LONG_SHOTS_CUTOFF that
+// nonetheless cleared at least one chamber. Display-only threshold tied to
+// methodology copy, NOT an input to scoreBill(). See DATA_FRESHNESS_AUDIT #20.
+const LONG_SHOTS_CUTOFF = 60
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -80,7 +85,7 @@ export default function OutcomesPage() {
   // Long-shots headline count — shown on the new stat card.
   const longShotCount = bills.filter(b => {
     const s = b.final_score || 0
-    return s < 60 && (b.confidence_label === 'LAW' || b.confidence_label === 'CARRY OVER')
+    return s < LONG_SHOTS_CUTOFF && (b.confidence_label === 'LAW' || b.confidence_label === 'CARRY OVER')
   }).length
 
   // Sort

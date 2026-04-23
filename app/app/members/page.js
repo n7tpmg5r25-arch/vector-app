@@ -1,4 +1,6 @@
 'use client'
+
+import { POSITION_TIER_SCORES, CHAIR_BONUS, COMPOSITE_WEIGHTS, LOW_VOLUME_THRESHOLD, LOW_VOLUME_PENALTY, TIER_LABELS } from '../../lib/members-scoring'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -177,18 +179,20 @@ export default function MembersPage() {
   //
   // Volume guard: < 3 bills → 40% penalty (one lucky bill shouldn't crown you).
   function computeEffectiveness(m) {
-    // Position power: tier 1 (maj leadership) = 100, tier 2 (senior) = 70,
-    // tier 3 (member) = 40, tier 4 (minority) = 20. Chair adds +20 (capped 100).
-    const tierScores = { 1: 100, 2: 70, 3: 40, 4: 20 }
-    let positionPower = tierScores[m.tier] || 40
-    if (m.is_chair) positionPower = Math.min(positionPower + 20, 100)
+    // See app/lib/members-scoring.js for weights + rationale.
+    let positionPower = POSITION_TIER_SCORES[m.tier] || POSITION_TIER_SCORES[3]
+    if (m.is_chair) positionPower = Math.min(positionPower + CHAIR_BONUS, 100)
 
     const cmteRate = m.bill_count > 0 ? (m.committee_passes / m.bill_count) * 100 : 0
     const lawRate  = m.bill_count > 0 ? (m.laws_passed / m.bill_count) * 100 : 0
     const avgNorm  = Math.min(m.avg_score, 100)
 
-    let score = positionPower * 0.25 + cmteRate * 0.30 + lawRate * 0.25 + avgNorm * 0.20
-    if (m.bill_count < 3) score *= 0.6 // low-volume penalty
+    let score =
+      positionPower * COMPOSITE_WEIGHTS.positionPower +
+      cmteRate      * COMPOSITE_WEIGHTS.committeeRate +
+      lawRate       * COMPOSITE_WEIGHTS.lawRate +
+      avgNorm       * COMPOSITE_WEIGHTS.avgTrajectory
+    if (m.bill_count < LOW_VOLUME_THRESHOLD) score *= LOW_VOLUME_PENALTY
     return Math.round(Math.min(score, 100))
   }
 
@@ -203,12 +207,7 @@ export default function MembersPage() {
   // Popover state for mobile tap
   const [popover, setPopover] = useState(null) // { name, x, y, member }
 
-  const tierLabel = (tier) => {
-    if (tier === 1) return { text: 'Majority Leadership', color: 'var(--teal)', bg: 'var(--teal-pale)', border: 'rgba(184,151,90,0.2)' }
-    if (tier === 2) return { text: 'Senior Member', color: 'var(--teal-mid)', bg: 'var(--teal-pale)', border: 'rgba(184,151,90,0.15)' }
-    if (tier === 3) return { text: 'Member', color: 'var(--text-mid)', bg: 'var(--bg-surface)', border: 'var(--border)' }
-    return { text: 'Minority', color: 'var(--text-muted)', bg: 'var(--bg-surface)', border: 'var(--border)' }
-  }
+  const tierLabel = (tier) => TIER_LABELS[tier] || TIER_LABELS[4]
 
   // ── MEMBER DETAIL VIEW ──────────────────────────────
   if (selectedMember) {
