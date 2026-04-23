@@ -173,7 +173,7 @@ The full schema lives in Supabase. Core tables:
 Defined in `app/lib/session-config.js`. Currently:
 
 - **2025-2026:** Started 2025-01-13, ended (sine die) 2026-03-12. Currently INTERIM.
-- **2027-2028:** Pre-filing opens 2026-12-01, session starts 2027-01-13, ends ~2028-03-10.
+- **2027-2028:** Pre-filing opens 2026-12-01, session starts 2027-01-11 (2nd Monday of Jan per WA Const. Art II §12), ends ~2028-03-10.
 
 The midday sync only runs during active sessions. The nightly sync runs year-round but enters interim mode (skips rescoring for unchanged bills).
 

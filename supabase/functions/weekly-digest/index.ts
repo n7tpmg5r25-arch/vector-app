@@ -18,10 +18,14 @@ import { buildDigestEmail } from "../_shared/email-template.ts";
 
 const APP_URL = 'https://vector-app-liard.vercel.app';
 
-// Session dates — update when new biennium begins
+// Session dates — update when new biennium begins.
+// Canonical source: app/lib/session-config.js BIENNIUMS.
+// Edge functions run in Deno and can't import that JS module; keep this
+// array in sync manually. 2027 start is the 2nd Monday of Jan per WA
+// Const. Art II §12.
 const SESSIONS = [
   { session: '2025-2026', start: '2025-01-13', end: '2026-03-12' },
-  { session: '2027-2028', start: '2027-01-13', end: '2028-03-10' },
+  { session: '2027-2028', start: '2027-01-11', end: '2028-03-10' },
 ];
 
 Deno.serve(async (req: Request) => {

@@ -125,7 +125,7 @@ const SESSION_CALENDAR = {
   floor_cutoff:     process.env.FLOOR_CUTOFF     || '2028-02-21',
   opposite_cutoff:  process.env.OPPOSITE_CUTOFF  || '2028-03-05',
   sine_die:         process.env.SINE_DIE         || '2028-03-14',
-  session_start:    process.env.SESSION_START     || '2027-01-13',
+  session_start:    process.env.SESSION_START     || '2027-01-11',
 };
 
 // ── SESSION STATE ─────────────────────────────────────────────────────────────

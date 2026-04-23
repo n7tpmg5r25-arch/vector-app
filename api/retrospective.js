@@ -121,7 +121,7 @@ module.exports = async (req, res) => {
 function getSessionState() {
   const today = new Date();
   if (today < new Date('2026-12-01')) return 'interim';
-  if (today < new Date('2027-01-13')) return 'pre_filing';
+  if (today < new Date('2027-01-11')) return 'pre_filing';
   if (today <= new Date('2028-03-14')) return 'active';
   return 'signing_window';
 }
