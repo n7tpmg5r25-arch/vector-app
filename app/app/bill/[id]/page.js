@@ -7,6 +7,7 @@ import ScoreBadge from '../../components/ScoreBadge'
 import MeetingBadge from '../../components/MeetingBadge'
 import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
+import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 
@@ -1959,7 +1960,7 @@ export default function BillDetailPage() {
                   Historical Pass Rate by Score
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
-                  How often bills in each score range became law, based on verified outcomes across three biennia (2,155 bills signed, 8,062 total).
+                  How often bills in each score range became law, based on verified outcomes from <CohortCitation />.
                 </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, fontWeight: 800, color: scoreColor, marginBottom: 4, textShadow: `0 0 20px ${scoreColor === 'var(--teal)' ? 'rgba(184,151,90,0.4)' : 'transparent'}` }}>
                   {getBucketLabel(score).rate}%

@@ -6,6 +6,7 @@ import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate } from '../../lib/session-config'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import CohortCitation from '../components/CohortCitation'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -389,7 +390,7 @@ export default function SettingsPage() {
                 <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
               </div>
             </div>
-            Trajectory scoring engine calibrated against 8,062 bills spanning three biennia (2021-22, 2023-24, and 2025-26). Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
+            Trajectory scoring engine calibrated against <CohortCitation />. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
           </div>
         </div>
 
