@@ -80,49 +80,53 @@ export function isInterimPeriod() {
   return now > new Date(biennium.end)
 }
 
-/** Key session cutoff dates for the current biennium */
+/** Key session cutoff milestones for the current biennium.
+ *  Returns an array of `{ label, date, dateFormatted, passed, daysLeft }`
+ *  — callers typically do `.filter(c => !c.passed)` to get upcoming ones.
+ *  Returns `[]` when we don't have cutoff data for the current biennium
+ *  (e.g., a future biennium whose calendar hasn't been filed yet).
+ *
+ *  Reshaped 2026-04-22 (DATA_FRESHNESS #33). Previously returned a plain
+ *  object `{ policyCutoff, fiscalCutoff, ... }` that never matched the
+ *  array-shape three call sites in generate-pdf.js were using. Only
+ *  consumers of this function were in generate-pdf.js; the object-shape
+ *  had no real readers. */
 export function getSessionCutoffs() {
   const b = getCurrentBiennium()
-  // Standard WA Legislature cutoff milestones (approximate)
-  // These are based on typical session calendars; update when official dates are published
+  const now = new Date()
+
+  // WA Legislature cutoff milestones. Dates come from
+  // https://leg.wa.gov/legislature/pages/cutoffs.aspx — update when
+  // the next biennium's calendar is published (typically fall before).
+  let raw = []
   if (b.session === '2025-2026') {
-    return {
-      session: b.session,
-      sessionStart: b.start,
-      sessionEnd: b.end,
-      policyCutoff: '2026-02-06',      // Policy committee cutoff
-      fiscalCutoff: '2026-02-17',       // Fiscal committee cutoff
-      floorCutoff: '2026-03-02',        // House of origin floor cutoff
-      oppositeFloorCutoff: '2026-03-10', // Opposite house floor cutoff
-    }
+    raw = [
+      { label: 'Policy Cutoff',         date: '2026-02-06' },
+      { label: 'Fiscal Cutoff',         date: '2026-02-17' },
+      { label: 'Floor Cutoff',          date: '2026-03-02' },
+      { label: 'Opposite Floor Cutoff', date: '2026-03-10' },
+    ]
+  } else if (b.session === '2027-2028') {
+    // 2027 = long session (105 days) starting Jan 13 2027.
+    // DATES BELOW ARE ESTIMATES based on the cadence of the 2021 and
+    // 2023 long sessions (policy ~Day 36, fiscal ~Day 43, floor ~Day
+    // 56, opposite floor ~Day 76). REPLACE with official dates when
+    // WA Leg publishes the 2027 calendar (typically fall 2026).
+    raw = [
+      { label: 'Policy Cutoff',         date: '2027-02-19' }, // ESTIMATE
+      { label: 'Fiscal Cutoff',         date: '2027-02-26' }, // ESTIMATE
+      { label: 'Floor Cutoff',          date: '2027-03-10' }, // ESTIMATE
+      { label: 'Opposite Floor Cutoff', date: '2027-03-31' }, // ESTIMATE
+    ]
   }
-  if (b.session === '2027-2028') {
-    // 2027 = long session, 105 days starting Jan 13 2027.
-    // DATES BELOW ARE ESTIMATES based on the cadence of the 2021 and 2023
-    // long sessions (policy ~Day 36, fiscal ~Day 43, floor ~Day 56,
-    // opposite floor ~Day 76, sine die ~Day 103-105).
-    // REPLACE with the official calendar when WA Leg publishes it at
-    // https://leg.wa.gov/legislature/pages/cutoffs.aspx (typically fall 2026).
-    return {
-      session: b.session,
-      sessionStart: b.start,
-      sessionEnd: b.end,
-      policyCutoff: '2027-02-19',        // ESTIMATE — policy committee cutoff
-      fiscalCutoff: '2027-02-26',         // ESTIMATE — fiscal committee cutoff
-      floorCutoff: '2027-03-10',          // ESTIMATE — house-of-origin floor cutoff
-      oppositeFloorCutoff: '2027-03-31',  // ESTIMATE — opposite-house floor cutoff
-    }
-  }
-  // Default: derive from biennium dates
-  return {
-    session: b.session,
-    sessionStart: b.start,
-    sessionEnd: b.end,
-    policyCutoff: null,
-    fiscalCutoff: null,
-    floorCutoff: null,
-    oppositeFloorCutoff: null,
-  }
+  // Unknown biennium → empty array. .filter() on [] is safe.
+
+  return raw.map(m => ({
+    ...m,
+    dateFormatted: formatSessionDate(m.date),
+    passed: new Date(m.date) < now,
+    daysLeft: daysUntil(m.date),
+  }))
 }
 
 /** Days until a date string; 0 if passed */
