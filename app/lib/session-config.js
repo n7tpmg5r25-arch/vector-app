@@ -15,8 +15,8 @@ const BIENNIUMS = [
   },
   {
     session: '2027-2028',
-    start:   '2027-01-13',
-    end:     '2028-03-10',   // Estimated
+    start:   '2027-01-11',   // 2nd Monday of Jan 2027 per WA Const. Art II §12
+    end:     '2028-03-10',   // Estimated — 2028 short session sine die, Day 60 from Jan 10
     prefilingOpens: '2026-12-01',
   },
 ]

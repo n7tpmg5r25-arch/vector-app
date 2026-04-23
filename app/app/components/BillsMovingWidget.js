@@ -34,6 +34,7 @@ import {
   getNextBiennium,
   daysUntil,
   isInterimPeriod,
+  formatSessionDate,
 } from '../../lib/session-config'
 import { deltaToEnglish } from '../../lib/score-to-english'
 import ScoreBadge from './ScoreBadge'
@@ -248,8 +249,8 @@ function InterimView({ recap, notable }) {
           Interim period
         </div>
         <div style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.55, marginBottom: 8 }}>
-          The 2027–28 session begins{' '}
-          <strong style={{ color: 'var(--gold)' }}>January 11, 2027</strong>. No bills are
+          The {next.session.slice(0, 4)}–{next.session.slice(-2)} session begins{' '}
+          <strong style={{ color: 'var(--gold)' }}>{formatSessionDate(next.start)}</strong>. No bills are
           actively moving — the building is dark.
         </div>
         {days > 0 && (
