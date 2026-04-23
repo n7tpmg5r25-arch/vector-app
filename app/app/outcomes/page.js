@@ -10,11 +10,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const CATEGORIES = [
-  'All', 'Health', 'Education', 'Criminal Justice', 'Housing', 'Transportation',
-  'Business / Commerce', 'Environment', 'Employment / Labor', 'Budget / Appropriations',
-  'Technology', 'Government Operations', 'Natural Resources', 'Agriculture', 'Veterans / Military',
-]
+import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
 const OUTCOMES = ['All', 'LAW', 'CARRY OVER', 'DEAD']
 const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']

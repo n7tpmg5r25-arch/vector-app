@@ -10,11 +10,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const CATEGORIES = ['All', 'Health', 'Education', 'Criminal Justice', 'Environment',
-  'Government Operations', 'Business / Commerce', 'Budget / Appropriations',
-  'Transportation', 'Employment / Labor', 'Housing', 'Technology',
-  'Veterans / Military', 'Agriculture', 'Natural Resources']
-
+import { CATEGORIES } from '../../lib/categories'
 const STAGES = [
   { label: 'All Stages', value: 0 },
   { label: 'Introduced', value: 1 },
