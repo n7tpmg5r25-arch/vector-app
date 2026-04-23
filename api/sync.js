@@ -17,7 +17,7 @@ const SESSION  = `${YEAR}-${parseInt(YEAR)+1}`;
 function getSessionState() {
   const today = new Date();
   const PRE_FILE = new Date('2026-12-01');
-  const SES_START = new Date('2027-01-13');
+  const SES_START = new Date('2027-01-11');
   const SINE_DIE  = new Date('2028-03-14');
   if (today < PRE_FILE)   return 'interim';
   if (today < SES_START)  return 'pre_filing';
@@ -71,7 +71,7 @@ async function getBillDetail(billNumber) {
 
 // ── FEATURE EXTRACTION ────────────────────────────────────────────────────────
 const SESSION_CAL = {
-  start:    process.env.SESSION_START    || '2027-01-13',
+  start:    process.env.SESSION_START    || '2027-01-11',
   comm:     process.env.COMMITTEE_CUTOFF || '2028-02-07',
   floor:    process.env.FLOOR_CUTOFF     || '2028-02-21',
   opposite: process.env.OPPOSITE_CUTOFF  || '2028-03-05',

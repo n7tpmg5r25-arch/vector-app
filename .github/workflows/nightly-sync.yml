@@ -52,7 +52,7 @@ jobs:
           CURRENT_BIENNIUM: '2027-28'
           CURRENT_YEAR: '2028'
           WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
-          SESSION_START: '2027-01-13'
+          SESSION_START: '2027-01-11'
           COMMITTEE_CUTOFF: '2028-02-07'
           FLOOR_CUTOFF: '2028-02-21'
           OPPOSITE_CUTOFF: '2028-03-05'

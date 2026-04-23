@@ -29,7 +29,7 @@ const { createClient } = require('@supabase/supabase-js')
 // ── Biennium schedule (keep in sync with app/lib/session-config.js) ────
 const BIENNIUMS = [
   { session: '2025-2026', start: '2025-01-13', end: '2026-03-12' },
-  { session: '2027-2028', start: '2027-01-13', end: '2028-03-10' },
+  { session: '2027-2028', start: '2027-01-11', end: '2028-03-10' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────

@@ -20,17 +20,17 @@ jobs:
         id: session_check
         run: |
           # 2025-2026 session ended March 12, 2026
-          # 2027-2028 session starts January 13, 2027, ends ~March 10, 2028
+          # 2027-2028 session starts January 11, 2027, ends ~March 10, 2028
           # During interim: skip mid-day sync entirely
           TODAY=$(date -u +%Y-%m-%d)
 
           # Check if we're in the 2027-28 session window
-          if [[ "$TODAY" >= "2027-01-13" && "$TODAY" <= "2028-03-10" ]]; then
+          if [[ "$TODAY" >= "2027-01-11" && "$TODAY" <= "2028-03-10" ]]; then
             echo "In 2027-2028 session. Running mid-day sync."
             echo "active=true" >> $GITHUB_OUTPUT
             echo "biennium=2027-28" >> $GITHUB_OUTPUT
             echo "year=2028" >> $GITHUB_OUTPUT
-            echo "session_start=2027-01-13" >> $GITHUB_OUTPUT
+            echo "session_start=2027-01-11" >> $GITHUB_OUTPUT
             echo "committee_cutoff=2028-02-07" >> $GITHUB_OUTPUT
             echo "floor_cutoff=2028-02-21" >> $GITHUB_OUTPUT
             echo "opposite_cutoff=2028-03-05" >> $GITHUB_OUTPUT

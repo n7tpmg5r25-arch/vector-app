@@ -28,8 +28,11 @@ Deno.serve(async (req: Request) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Determine current session
-    const isPost2027 = new Date() >= new Date('2027-01-13');
+    // Determine current session.
+    // Canonical source: app/lib/session-config.js BIENNIUMS. Edge functions
+    // run in Deno and can't import the JS module — keep this date in sync
+    // manually. 2nd Monday of Jan 2027 per WA Const. Art II §12.
+    const isPost2027 = new Date() >= new Date('2027-01-11');
     const SESSION = isPost2027 ? '2027-2028' : '2025-2026';
 
     // Fetch all bills with scores (paginated — Supabase default limit is 1000)

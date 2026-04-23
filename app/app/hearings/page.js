@@ -131,7 +131,7 @@ export default function HearingsPage() {
         </div>
 
         {isInterim && (() => {
-          const next = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-13' }
+          const next = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-11' }
           const cur  = (typeof window !== 'undefined' ? getCurrentBiennium() : null) || { session: '2025-2026' }
           const nextSession = next?.session || 'next'
           const curSession  = cur?.session  || 'current'
@@ -258,7 +258,7 @@ export default function HearingsPage() {
               Legislature is in interim
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
-              Committee hearings will resume when the {(() => { const n = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-13' }; return `${n?.session || 'next'} session convenes on ${formatSessionDate(n?.start)}`; })()}.
+              Committee hearings will resume when the {(() => { const n = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-11' }; return `${n?.session || 'next'} session convenes on ${formatSessionDate(n?.start)}`; })()}.
               {(() => { const n = (typeof window !== 'undefined' ? getNextBiennium() : null) || { prefilingOpens: '2026-12-01' }; return n?.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
             </div>
             <button
