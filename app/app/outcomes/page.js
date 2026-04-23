@@ -13,8 +13,7 @@ import ScoreBadge from '../components/ScoreBadge'
 import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
 const OUTCOMES = ['All', 'LAW', 'CARRY OVER', 'DEAD']
-const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
-
+import { STAGE_SHORT } from '../../lib/stages'
 export default function OutcomesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()

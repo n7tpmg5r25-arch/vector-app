@@ -39,8 +39,7 @@ import {
 import { deltaToEnglish } from '../../lib/score-to-english'
 import ScoreBadge from './ScoreBadge'
 
-const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
-
+import { STAGE_SHORT } from '../../lib/stages'
 function deltaColor(delta) {
   if (delta > 0) return '#7aab6e' // Sage — gaining
   if (delta < 0) return '#c47a30' // Amber — losing

@@ -24,8 +24,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
-const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
-
+import { STAGE_SHORT } from '../../lib/stages'
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(timeStr) {

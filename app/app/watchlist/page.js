@@ -11,8 +11,7 @@ import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
 
-const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
-
+import { STAGE_SHORT } from '../../lib/stages'
 export default function WatchlistPage() {
   const router = useRouter()
   const supabase = createBrowserClient()

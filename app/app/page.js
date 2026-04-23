@@ -1,4 +1,5 @@
 'use client'
+import { STAGE_SHORT } from '../lib/stages'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -220,7 +221,6 @@ export default function HomePage() {
     ? (interimWatchCounts?.dead || 0)
     : watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
 
-  const STAGE_SHORT = ['', 'Intro', 'Cmte', 'Floor', 'Opp. Ch.', 'Conf.', 'Gov.']
   const sessionYear = SESSION.split('-')[0]
 
   return (
