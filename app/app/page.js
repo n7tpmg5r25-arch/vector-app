@@ -340,16 +340,50 @@ export default function HomePage() {
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block', boxShadow: 'var(--gold-glow)' }}/>
               {isInterimPeriod() ? 'Interim' : 'In Session'}
             </div>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'rgba(184,151,90,0.06)',
-              border: '1px solid var(--border)',
-              borderRadius: 20, padding: '4px 12px',
-              fontSize: 11, color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              Free &amp; Nonpartisan
-            </div>
+            {/* Owner-aware chip.
+                • Owner (Colin) sees a brass "Admin" pill that doubles as a
+                  shortcut into the admin surfaces. No other nav path into
+                  /admin/clients exists from the home page today.
+                • Public + client viewers keep the original "Free & Nonpartisan"
+                  brand chip. That line is the app's public posture and should
+                  not leak "Admin" to non-owners. */}
+            {capabilities.role === 'owner' ? (
+              <Link
+                href="/admin/clients"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: 'rgba(184,151,90,0.12)',
+                  border: '1px solid rgba(184,151,90,0.45)',
+                  borderRadius: 20, padding: '4px 12px',
+                  fontSize: 11, color: 'var(--gold)',
+                  fontFamily: 'var(--font-mono)',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+                title="Go to admin surfaces"
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: 'var(--gold)', display: 'inline-block',
+                    boxShadow: 'var(--gold-glow)',
+                  }}
+                />
+                Admin
+              </Link>
+            ) : (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: 'rgba(184,151,90,0.06)',
+                border: '1px solid var(--border)',
+                borderRadius: 20, padding: '4px 12px',
+                fontSize: 11, color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)',
+              }}>
+                Free &amp; Nonpartisan
+              </div>
+            )}
           </div>
 
           {/* 6D.3: Transition messaging */}
