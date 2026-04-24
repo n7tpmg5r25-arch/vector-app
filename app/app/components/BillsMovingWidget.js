@@ -1,6 +1,6 @@
 'use client'
 /**
- * BillsMovingWidget — Phase 12 Batch 4
+ * BillsMovingWidget — Phase 12 Batch 4 (Branch 2 rewrite 2026-04-23)
  *
  * Anon-safe widget for the public home. Surfaces what's actually happening
  * with bills in Washington right now.
@@ -13,18 +13,23 @@
  *     trajectory_snapshots per bill, deltas them, sorts.
  *
  *   INTERIM branch (today, 2026-04-21 → 2027-01-11)
- *     Three-card stack:
- *       (1) Explainer card — "Session begins Jan 11, 2027. The building is dark."
- *       (2) Session recap card — counts of LAW / CARRY OVER / DEAD for the
- *           most recent completed session, link to /outcomes.
- *       (3) Notable bills row — top 5 by final_score from the last completed
- *           session, labeled with confidence_label so framing is honest
- *           (these are outcomes, not predictions).
+ *     Three descriptive panels (no featured-bill editorial surface):
+ *       A. Countdown — when does the next session convene.
+ *       B. Sine die snapshot — stacked bar of LAW / PASSED_CHAMBER / DEAD
+ *          for a closed biennium, with toggle across the three most recent
+ *          completed sessions (2025-2026, 2023-2024, 2021-2022). Shows the
+ *          legislative funnel shape, not "hot bills".
+ *       C. Committee throughput — top 8 committees by distinct bills
+ *          referred in the most recent closed session, via the Phase 11.8
+ *          `bill_committee_referrals` capture. Descriptive system view.
  *
- * Voice per v4.6 §14: actionable signal, plain English, no "we predict X%".
+ * Voice per v4.6 §14: actionable signal, plain English, no editorial
+ * featuring of individual bills during interim. Anon visitors see shape
+ * and system, not a curated list.
  *
- * RLS: queries hit `bills` and `trajectory_snapshots`, both anon-readable
- * per RLS_AUDIT_2026-04.md (Phase 12 Batch 2 verified). No user-scoped data.
+ * RLS: queries hit `bills` and `bill_committee_referrals`, both
+ * anon-readable per RLS_AUDIT_2026-04.md (Phase 12 Batch 2 verified).
+ * No user-scoped data.
  */
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -46,14 +51,20 @@ function deltaColor(delta) {
   return 'var(--text-muted)'
 }
 
+// Three most recent closed biennia — used by the interim sine-die snapshot
+// toggle. Keep in sync with session-config.js BIENNIUMS + HISTORICAL_SESSIONS.
+const CLOSED_SESSIONS = ['2025-2026', '2023-2024', '2021-2022']
+
 export default function BillsMovingWidget() {
   const supabase = useMemo(() => createBrowserClient(), [])
   const interim = isInterimPeriod()
 
   const [loading, setLoading] = useState(true)
   const [movers, setMovers] = useState([]) // in-session: [{ bill, delta }]
-  const [recap, setRecap] = useState({ session: null, law: 0, carry: 0, dead: 0 })
-  const [notable, setNotable] = useState([]) // interim: top scored bills
+  // Interim: keyed by session, e.g. snapshots['2025-2026'] = { law, passed, dead }
+  const [snapshots, setSnapshots] = useState({})
+  // Interim: top-8 busiest committees in the most recent closed session
+  const [committees, setCommittees] = useState([]) // [{ name, count }]
 
   useEffect(() => {
     let cancelled = false
@@ -110,50 +121,70 @@ export default function BillsMovingWidget() {
     }
 
     async function loadInterim() {
-      // Find the most recent session that has bills with terminal labels.
-      // Default to the just-finished biennium per session-config.
-      const SESSION = getCurrentSession()
+      // ── Panel B data: sine die snapshots across 3 closed biennia ──
+      // One head-count query per (session × label) — fast, no payload.
+      const labels = ['LAW', 'PASSED_CHAMBER', 'DEAD']
+      const countQueries = CLOSED_SESSIONS.flatMap((session) =>
+        labels.map((label) =>
+          supabase
+            .from('bills')
+            .select('bill_id', { count: 'exact', head: true })
+            .eq('session', session)
+            .eq('legislation_type', 'bill')
+            .eq('confidence_label', label)
+        )
+      )
 
-      const [lawRes, carryRes, deadRes, notableRes] = await Promise.all([
-        supabase
-          .from('bills')
-          .select('bill_id', { count: 'exact', head: true })
-          .eq('session', SESSION)
-          .eq('legislation_type', 'bill')
-          .eq('confidence_label', 'LAW'),
-        supabase
-          .from('bills')
-          .select('bill_id', { count: 'exact', head: true })
-          .eq('session', SESSION)
-          .eq('legislation_type', 'bill')
-          .eq('confidence_label', 'PASSED_CHAMBER'),
-        supabase
-          .from('bills')
-          .select('bill_id', { count: 'exact', head: true })
-          .eq('session', SESSION)
-          .eq('legislation_type', 'bill')
-          .eq('confidence_label', 'DEAD'),
-        supabase
-          .from('bills')
-          .select(
-            'bill_id, bill_number, title, final_score, stage, chamber, committee_name, confidence_label'
-          )
-          .eq('session', SESSION)
-          .eq('legislation_type', 'bill')
-          .not('final_score', 'is', null)
-          .order('final_score', { ascending: false })
-          .limit(5),
-      ])
+      // ── Panel C data: committee throughput for most recent closed session ──
+      // Paginate `bill_committee_referrals` since a full biennium can exceed
+      // the 1000-row default. Select only (committee_name, bill_id); we dedupe
+      // client-side for distinct-bill counts per committee.
+      const DEFAULT_SESSION = CLOSED_SESSIONS[0]
+      const referralRows = []
+      const PAGE = 1000
+      for (let offset = 0; offset < 20000; offset += PAGE) {
+        const { data, error } = await supabase
+          .from('bill_committee_referrals')
+          .select('committee_name, bill_id')
+          .eq('session', DEFAULT_SESSION)
+          .range(offset, offset + PAGE - 1)
+        if (cancelled) return
+        if (error || !data || data.length === 0) break
+        referralRows.push(...data)
+        if (data.length < PAGE) break
+      }
 
+      const countResults = await Promise.all(countQueries)
       if (cancelled) return
 
-      setRecap({
-        session: SESSION,
-        law: lawRes.count || 0,
-        carry: carryRes.count || 0,
-        dead: deadRes.count || 0,
+      // Assemble snapshots: { '2025-2026': { law, passed, dead }, ... }
+      const snaps = {}
+      CLOSED_SESSIONS.forEach((session, si) => {
+        snaps[session] = {
+          law: countResults[si * 3].count || 0,
+          passed: countResults[si * 3 + 1].count || 0,
+          dead: countResults[si * 3 + 2].count || 0,
+        }
       })
-      setNotable(notableRes.data || [])
+
+      // Committee throughput: unique bill_id per committee_name, top 8 desc.
+      const byCommittee = new Map()
+      for (const r of referralRows) {
+        if (!r.committee_name || !r.bill_id) continue
+        let set = byCommittee.get(r.committee_name)
+        if (!set) {
+          set = new Set()
+          byCommittee.set(r.committee_name, set)
+        }
+        set.add(r.bill_id)
+      }
+      const topCommittees = Array.from(byCommittee.entries())
+        .map(([name, set]) => ({ name, count: set.size }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8)
+
+      setSnapshots(snaps)
+      setCommittees(topCommittees)
       setLoading(false)
     }
 
@@ -182,7 +213,7 @@ export default function BillsMovingWidget() {
   }
 
   return interim ? (
-    <InterimView recap={recap} notable={notable} />
+    <InterimView snapshots={snapshots} committees={committees} />
   ) : (
     <InSessionView movers={movers} />
   )
@@ -215,15 +246,22 @@ function InSessionView({ movers }) {
 }
 
 // ─── Interim view ─────────────────────────────────────────────────────────
-function InterimView({ recap, notable }) {
+// Three descriptive panels — no individual bills featured during interim.
+//   A. Countdown to next session.
+//   B. Sine die snapshot — stacked bar across 3 closed biennia.
+//   C. Committee throughput — top 8 by distinct bills referred.
+function InterimView({ snapshots, committees }) {
   const next = getNextBiennium()
   const days = daysUntil(next.start)
+  const [activeSession, setActiveSession] = useState(CLOSED_SESSIONS[0])
+  const stats = snapshots?.[activeSession] || { law: 0, passed: 0, dead: 0 }
+  const total = stats.law + stats.passed + stats.dead
 
   return (
     <section style={{ padding: '0 16px' }}>
       <SectionHeader eyebrow="Right now" title="Washington is between sessions" />
 
-      {/* Card 1 — Interim explainer */}
+      {/* ── Panel A — Countdown ── */}
       <div
         style={{
           background: 'var(--bg-card)',
@@ -259,8 +297,8 @@ function InterimView({ recap, notable }) {
         )}
       </div>
 
-      {/* Card 2 — Session recap */}
-      {recap.session && (recap.law + recap.carry + recap.dead > 0) && (
+      {/* ── Panel B — Sine die snapshot (stacked bar + 3-biennium toggle) ── */}
+      {total > 0 && (
         <div
           style={{
             background: 'var(--bg-card)',
@@ -273,40 +311,239 @@ function InterimView({ recap, notable }) {
         >
           <div
             style={{
-              fontSize: 11,
-              color: 'var(--text-muted)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              marginBottom: 10,
-              fontWeight: 600,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              gap: 12,
+              flexWrap: 'wrap',
+              marginBottom: 12,
             }}
           >
-            {recap.session} session — final tally
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+              }}
+            >
+              Sine die snapshot · {total.toLocaleString()} bills
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {CLOSED_SESSIONS.map((s) => (
+                <SessionToggle
+                  key={s}
+                  label={s}
+                  active={s === activeSession}
+                  onClick={() => setActiveSession(s)}
+                />
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-            <RecapStat label="Became law" value={recap.law} color="#7aab6e" />
-            <RecapStat label="Passed chamber" value={recap.carry} color="#c47a30" />
-            <RecapStat label="Died" value={recap.dead} color="var(--text-muted)" />
-          </div>
+          <SineDieBar stats={stats} total={total} />
         </div>
       )}
 
-      {/* Card 3 — Notable bills */}
-      {notable.length > 0 && (
+      {/* ── Panel C — Committee throughput ── */}
+      {committees.length > 0 && (
         <>
           <SectionHeader
-            eyebrow={`From the ${recap.session || 'last'} session`}
-            title="Notable bills"
-            sublabel="Highest scored on the trajectory model"
+            eyebrow={`From the ${CLOSED_SESSIONS[0]} session`}
+            title="Busiest committees"
+            sublabel="Distinct bills referred — top 8"
           />
-          <div style={{ display: 'grid', gap: 10 }}>
-            {notable.map((bill) => (
-              <BillCard key={bill.bill_id} bill={bill} />
+          <div style={{ display: 'grid', gap: 6 }}>
+            {committees.map((c) => (
+              <CommitteeRow
+                key={c.name}
+                name={c.name}
+                count={c.count}
+                max={committees[0].count}
+              />
             ))}
           </div>
         </>
       )}
     </section>
+  )
+}
+
+// Pill button used to toggle which closed biennium Panel B displays.
+function SessionToggle({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        letterSpacing: '0.04em',
+        padding: '4px 8px',
+        borderRadius: 4,
+        cursor: 'pointer',
+        border: active ? '1px solid var(--teal)' : '1px solid var(--border)',
+        background: active ? 'var(--bg-card-2)' : 'transparent',
+        color: active ? 'var(--teal)' : 'var(--text-muted)',
+        transition: 'color 0.15s, border-color 0.15s, background 0.15s',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// Horizontal stacked bar: LAW / PASSED_CHAMBER / DEAD. Sage / amber / muted.
+// Labels below give the raw count + percentage for each segment. Any segment
+// narrower than a legibility threshold just collapses to zero width; the
+// label row still reports the count.
+function SineDieBar({ stats, total }) {
+  const lawPct = total ? (stats.law / total) * 100 : 0
+  const passedPct = total ? (stats.passed / total) * 100 : 0
+  const deadPct = total ? (stats.dead / total) * 100 : 0
+
+  const LAW_COLOR = '#7aab6e' // Sage
+  const PASSED_COLOR = '#c47a30' // Amber
+  const DEAD_COLOR = 'var(--text-faint)'
+
+  const round = (n) => (n >= 0.5 && n < 1 ? 1 : Math.round(n))
+
+  return (
+    <>
+      <div
+        role="img"
+        aria-label={`${stats.law} became law, ${stats.passed} passed chamber, ${stats.dead} died`}
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: 14,
+          borderRadius: 3,
+          overflow: 'hidden',
+          background: 'var(--border)',
+          marginBottom: 12,
+        }}
+      >
+        {lawPct > 0 && <div style={{ width: `${lawPct}%`, background: LAW_COLOR }} />}
+        {passedPct > 0 && <div style={{ width: `${passedPct}%`, background: PASSED_COLOR }} />}
+        {deadPct > 0 && <div style={{ width: `${deadPct}%`, background: DEAD_COLOR }} />}
+      </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <SnapshotLegend
+          color={LAW_COLOR}
+          label="Became law"
+          count={stats.law}
+          pct={round(lawPct)}
+        />
+        <SnapshotLegend
+          color={PASSED_COLOR}
+          label="Passed chamber"
+          count={stats.passed}
+          pct={round(passedPct)}
+        />
+        <SnapshotLegend
+          color={DEAD_COLOR}
+          label="Died"
+          count={stats.dead}
+          pct={round(deadPct)}
+        />
+      </div>
+    </>
+  )
+}
+
+function SnapshotLegend({ color, label, count, pct }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 2,
+          background: color,
+          display: 'inline-block',
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span
+          style={{
+            fontSize: 14,
+            color: 'var(--text-primary)',
+            fontWeight: 700,
+            fontFamily: 'var(--font-body)',
+          }}
+        >
+          {count.toLocaleString()}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+          {label} · {pct}%
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// One committee row in Panel C — name, distinct-bill count, and a thin
+// proportional bar that compares it to the #1 committee in the list.
+function CommitteeRow({ name, count, max }) {
+  const width = max ? Math.max(2, (count / max) * 100) : 0
+  return (
+    <div
+      style={{
+        padding: '10px 14px',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        fontFamily: 'var(--font-body)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 4,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            fontWeight: 500,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+          }}
+        >
+          {name}
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            color: 'var(--gold)',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          {count.toLocaleString()}
+        </span>
+      </div>
+      <div
+        aria-hidden="true"
+        style={{
+          height: 3,
+          background: 'var(--border)',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ width: `${width}%`, height: '100%', background: 'var(--teal)' }} />
+      </div>
+    </div>
   )
 }
 
@@ -342,19 +579,6 @@ function SectionHeader({ eyebrow, title, sublabel }) {
       {sublabel && (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{sublabel}</div>
       )}
-    </div>
-  )
-}
-
-function RecapStat({ label, value, color }) {
-  return (
-    <div>
-      <div style={{ fontSize: 22, color, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
-        {value.toLocaleString()}
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.04em', marginTop: 2 }}>
-        {label}
-      </div>
     </div>
   )
 }
