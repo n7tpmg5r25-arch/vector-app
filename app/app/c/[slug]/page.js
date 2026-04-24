@@ -162,28 +162,6 @@ export default async function ClientPortalPage({ params }) {
         color: SHOREPINE.ink,
       }}
     >
-      {adminOwnerView && (
-        <div
-          role="note"
-          aria-label="Viewing as client"
-          style={{
-            maxWidth: 640,
-            margin: '0 auto 16px',
-            padding: '10px 14px',
-            background: 'rgba(184, 151, 90, 0.18)',
-            border: `1px solid ${SHOREPINE.brass}`,
-            color: SHOREPINE.parchment,
-            borderRadius: 8,
-            fontSize: 12,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-            textAlign: 'center',
-          }}
-        >
-          Viewing as client · Shorepine admin preview
-        </div>
-      )}
-
       {/* Parchment card — the portal shell proper */}
       <section
         style={{
@@ -209,29 +187,68 @@ export default async function ClientPortalPage({ params }) {
             flexWrap: 'wrap',
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontFamily: FONT_DISPLAY,
-                fontSize: 22,
-                fontWeight: 600,
-                lineHeight: 1.15,
-                letterSpacing: '0.005em',
-              }}
-            >
-              {client.name}
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: FONT_DISPLAY,
+                  fontSize: 22,
+                  fontWeight: 600,
+                  lineHeight: 1.15,
+                  letterSpacing: '0.005em',
+                }}
+              >
+                {client.name}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(245, 240, 230, 0.72)',
+                  marginTop: 4,
+                }}
+              >
+                Vector | WA · Client Portal
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'rgba(245, 240, 230, 0.72)',
-                marginTop: 4,
-              }}
-            >
-              Vector | WA · Client Portal
-            </div>
+            {/* Admin chip — in-header pill, styled after the home page
+                chip row (Free & Nonpartisan, Interim). Only shown to
+                admins (by UID allowlist); non-admin viewers never see it. */}
+            {adminOwnerView && (
+              <span
+                role="note"
+                aria-label="Admin preview"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 12px',
+                  borderRadius: 20,
+                  border: `1px solid ${SHOREPINE.brass}`,
+                  background: 'rgba(184, 151, 90, 0.22)',
+                  color: SHOREPINE.parchment,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  fontFamily: FONT_BODY,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: SHOREPINE.brass,
+                    boxShadow: '0 0 8px rgba(184, 151, 90, 0.7)',
+                  }}
+                />
+                Admin preview
+              </span>
+            )}
           </div>
           <SignOutButton />
         </header>
