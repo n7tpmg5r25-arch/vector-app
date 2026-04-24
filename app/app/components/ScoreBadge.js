@@ -41,7 +41,7 @@ export default function ScoreBadge({ score, size = 'md', status }) {
   const outcomeColor = isLaw ? '#7aab6e' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)'
 
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }} title="Nightly composite of 5 signals plus documented X factors, calibrated to the 2025 WA session. Probabilistic signal, not a prediction. See /disclaimers for full methodology.">
+    <div style={{ position: 'relative', flexShrink: 0 }} title="Nightly composite of 5 signals plus documented X factors, calibrated against past completed WA biennia. Probabilistic signal, not a prediction. See /disclaimers for the calibration cohort and full methodology.">
       <div style={{
         width: dim.width, height: dim.height,
         borderRadius: '50%',
