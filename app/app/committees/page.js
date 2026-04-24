@@ -122,19 +122,35 @@ export default function CommitteesPage() {
     setCommittees([])
     setRulesQueue([])
     async function load() {
-      const { data } = await supabase
-        .from('bills')
-        .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, committee_passed, has_public_hearing, stalled, prime_sponsor, prime_party, bipartisan')
-        .eq('session', SESSION)
-        .not('committee_name', 'is', null)
-        .not('committee_name', 'eq', '')
-        .order('final_score', { ascending: false })
-        .range(0, 2999)
+      // DATA_FRESHNESS #17: rules-committee names now come from committees.is_rules
+      // (single source of truth). Legacy substring fallback kept in case the query
+      // fails or returns empty — preserves pre-refactor display behavior as a
+      // defense-in-depth net, never the primary path during normal operation.
+      const [billsRes, rulesRes] = await Promise.all([
+        supabase
+          .from('bills')
+          .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, committee_passed, has_public_hearing, stalled, prime_sponsor, prime_party, bipartisan')
+          .eq('session', SESSION)
+          .not('committee_name', 'is', null)
+          .not('committee_name', 'eq', '')
+          .order('final_score', { ascending: false })
+          .range(0, 2999),
+        supabase
+          .from('committees')
+          .select('name')
+          .eq('is_rules', true),
+      ])
 
+      const data = billsRes.data
       if (!data) { setCommitteeLoading(false); return }
 
-      const RULES_NAMES = ['Rules 2 Review', 'Rules Committee for second reading', 'Rules']
-      const isRules = n => RULES_NAMES.some(r => (n || '').toLowerCase().includes(r.toLowerCase()))
+      const rulesNameSet = new Set(
+        (rulesRes.data || []).map(c => (c.name || '').toLowerCase())
+      )
+      const FALLBACK_RULES_SUBSTRINGS = ['rules 2 review', 'rules committee for second reading', 'rules']
+      const isRules = rulesNameSet.size > 0
+        ? n => rulesNameSet.has((n || '').toLowerCase())
+        : n => FALLBACK_RULES_SUBSTRINGS.some(r => (n || '').toLowerCase().includes(r))
 
       const map = {}, rulesMap = {}
       data.forEach(b => {
