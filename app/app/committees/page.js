@@ -25,7 +25,31 @@ import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 import { STAGE_SHORT } from '../../lib/stages'
+import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, daysUntil } from '../../lib/session-config'
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/** Day number within the current session (1-based), or null when not in session.
+ *  Used by the By-Committee header anchor to display "Day X of session" during
+ *  active session without over-engineering a helper that few callers would use. */
+function dayOfSessionOrNull() {
+  const b = getCurrentBiennium()
+  const now = new Date()
+  const start = new Date(b.start)
+  const end = new Date(b.end)
+  if (now < start || now > end) return null
+  return Math.floor((now - start) / 86400000) + 1
+}
+
+/** Short biennium label for display: '2025-2026' → '2025-26'.
+ *  Keeps interim-mode copy auto-rolling to the next biennium without any
+ *  per-cycle code edit — pairs with getCurrentBiennium() / getNextBiennium()
+ *  from session-config.js which is the single source of truth. */
+function bienniumShortLabel(session) {
+  if (!session || typeof session !== 'string') return ''
+  const parts = session.split('-')
+  if (parts.length !== 2) return session
+  return `${parts[0]}-${parts[1].slice(-2)}`
+}
 
 function fmtTime(timeStr) {
   if (!timeStr) return ''
@@ -271,17 +295,57 @@ export default function CommitteesPage() {
               Loading meetings…
             </div>
           ) : filteredMeetings.length === 0 ? (
-            <div style={{
-              padding: '40px 20px', textAlign: 'center',
-              background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-            }}>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>
-                No scheduled meetings in the next two weeks.
+            isInterimPeriod() ? (
+              (() => {
+                const current = getCurrentBiennium()
+                const next = getNextBiennium()
+                // getNextBiennium falls back to current when BIENNIUMS hasn't been
+                // extended. Detect and fall back to generic copy so we never say
+                // "dark until <current's start>" (which would be in the past).
+                const hasRealNext = next && current && next.session !== current.session
+                const daysAway = hasRealNext ? daysUntil(next.start) : null
+                const pastLabel = bienniumShortLabel(current?.session)
+                const nextShort = hasRealNext ? bienniumShortLabel(next.session) : ''
+                return (
+                  <div style={{
+                    padding: '40px 20px', textAlign: 'center',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                  }}>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      {hasRealNext
+                        ? `The legislative calendar is dark until ${formatSessionDate(next.start)}.`
+                        : 'The legislative calendar is dark until the next session convenes.'}
+                    </div>
+                    {hasRealNext && daysAway !== null && (
+                      <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 14 }}>
+                        {daysAway} days until the {nextShort} session convenes.
+                      </div>
+                    )}
+                    <button onClick={() => setView('by-committee')} style={{
+                      padding: '7px 14px', fontSize: 11, fontWeight: 600,
+                      background: 'transparent', color: 'var(--teal)',
+                      border: '1px solid var(--teal)', borderRadius: 6,
+                      cursor: 'pointer', fontFamily: 'var(--font-mono)',
+                      letterSpacing: '0.04em', textTransform: 'uppercase',
+                    }}>
+                      Browse {pastLabel || current?.session} committee activity →
+                    </button>
+                  </div>
+                )
+              })()
+            ) : (
+              <div style={{
+                padding: '40px 20px', textAlign: 'center',
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+              }}>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>
+                  No scheduled meetings in the next two weeks.
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                  Meetings populate as committees post agendas.
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                During deep interim this is normal. Meetings populate as committees post agendas.
-              </div>
-            </div>
+            )
           ) : (
             ['Today', 'This Week', 'Next 2 Weeks', 'Later'].map(bucket => {
               const items = buckets[bucket]
@@ -463,8 +527,48 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading…</div>
   }
 
+  // Sub-task 3 — date anchor above the sort row so By-Committee never looks
+  // rootless. During interim we remind the viewer they're reading last-session
+  // data; during active session we surface the day count (and during the
+  // pre-filing window we show a countdown to gavel-in). All labels derive from
+  // getCurrentBiennium() / getNextBiennium() so they auto-roll each cycle.
+  const _interim = isInterimPeriod()
+  const _biennium = getCurrentBiennium()
+  const _nextBiennium = getNextBiennium()
+  // Guard against getNextBiennium() falling back to current when BIENNIUMS
+  // hasn't been extended (e.g., post-2028 sine die before the 2029-30 entry
+  // is filed). Without this, forward-looking copy loops back to the current
+  // biennium's label and reads as nonsense.
+  const _hasRealNext = _nextBiennium && _biennium && _nextBiennium.session !== _biennium.session
+  const _dayOfSession = dayOfSessionOrNull()
+  const _currentLabel = bienniumShortLabel(_biennium?.session)
+  const _nextLabel = _hasRealNext ? bienniumShortLabel(_nextBiennium.session) : ''
+
   return (
     <>
+      {/* Session date anchor */}
+      <div style={{
+        padding: '10px 16px 4px', fontSize: 11, color: 'var(--text-faint)',
+        fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+      }}>
+        {_interim ? (
+          <>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{_currentLabel} committee activity</span>
+            {' · session ended '}{formatSessionDate(_biennium.end)}
+          </>
+        ) : _dayOfSession ? (
+          <>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Live committee assignments</span>
+            {' · Day '}{_dayOfSession}{' of '}{_biennium.session}{' session'}
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{_biennium.session} committee assignments</span>
+            {' · session convenes '}{formatSessionDate(_biennium.start)}
+          </>
+        )}
+      </div>
+
       {/* Sort buttons */}
       <div style={{ padding: '8px 16px 4px', display: 'flex', gap: 6 }}>
         {[['bills', 'By Size'], ['score', 'By Score'], ['passed', 'Pass Rate'], ['name', 'A-Z']].map(([val, label]) => (
@@ -559,7 +663,9 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
         })}
       </div>
 
-      {/* RULES / FLOOR QUEUE */}
+      {/* RULES / FLOOR QUEUE — re-labeled during interim since there's no live
+          floor activity; these are 2025-26 bills that got stuck in Rules at
+          sine die. Active-session copy is preserved unchanged. */}
       {filteredRules.length > 0 && (
         <div style={{ padding: '4px 16px 12px' }}>
           <div style={{
@@ -567,10 +673,12 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
             padding: '10px 0', borderTop: '1px solid var(--border)',
           }}>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: 'var(--gold)' }}>
-              Floor Queue
+              {_interim ? `Died in Rules (${_currentLabel})` : 'Floor Queue'}
             </span>
             <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-              {filteredRules.reduce((s, c) => s + c.billCount, 0)} bills awaiting floor vote
+              {_interim
+                ? `${filteredRules.reduce((s, c) => s + c.billCount, 0)} bills cleared policy committee but didn't get a floor vote`
+                : `${filteredRules.reduce((s, c) => s + c.billCount, 0)} bills awaiting floor vote`}
             </span>
           </div>
           <div style={{
@@ -578,7 +686,9 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
             padding: '8px 12px', background: 'rgba(184,151,90,0.04)', borderRadius: 8,
             border: '1px solid rgba(184,151,90,0.12)',
           }}>
-            Passed their policy committee, queued in Rules for a floor vote. Being in the queue doesn't guarantee one — many die here when the session clock runs out.
+            {_interim
+              ? `These bills passed their policy committee during the ${_currentLabel} biennium but didn't get a floor vote before sine die on ${formatSessionDate(_biennium.end)}. They do not carry over — a reintroduction would start from scratch in the ${_nextLabel || 'next'} session.`
+              : `Passed their policy committee, queued in Rules for a floor vote. Being in the queue doesn't guarantee one — many die here when the session clock runs out.`}
           </div>
           {filteredRules.map(cmte => (
             <div key={cmte.key} onClick={() => handleExpand(cmte.key)} style={{

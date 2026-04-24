@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
 import { useSession } from '../../../lib/useSession'
 import { useViewer } from '../../../lib/viewer-capabilities'
+import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
 import ScoreBadge from '../../components/ScoreBadge'
@@ -354,10 +355,33 @@ export default function CommitteeDetail() {
             )}
           </Section>
 
-          {/* SECTION 3 — COMMITTEE ROSTER */}
+          {/* SECTION 3 — COMMITTEE ROSTER
+              Interim note (Thread 1 Sub-task 5): WA Legislature does not
+              publish committee member rosters via CommitteeService.asmx during
+              interim (verified 2026-04-23: <Members> element absent entirely).
+              Previously this rendered a bare "No roster data available" empty
+              card that made healthy interim data look broken. */}
           <Section title="Roster" subtitle={members.length > 0 ? `${members.length} members` : ''}>
             {members.length === 0 ? (
-              <EmptyCard muted>No roster data available for this committee.</EmptyCard>
+              isInterimPeriod() ? (
+                (() => {
+                  // getNextBiennium() falls back to current when BIENNIUMS hasn't
+                  // been extended — guard so we never claim rosters publish on a
+                  // start date that's already in the past.
+                  const cur = getCurrentBiennium()
+                  const nxt = getNextBiennium()
+                  const hasRealNext = nxt && cur && nxt.session !== cur.session
+                  return (
+                    <EmptyCard muted>
+                      {hasRealNext
+                        ? `Committee rosters publish when the ${nxt.session} session convenes ${formatSessionDate(nxt.start)}. The Washington Legislature does not maintain public roster assignments between sessions.`
+                        : `Committee rosters publish when the next legislative session convenes. The Washington Legislature does not maintain public roster assignments between sessions.`}
+                    </EmptyCard>
+                  )
+                })()
+              ) : (
+                <EmptyCard muted>No roster data available for this committee.</EmptyCard>
+              )
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {/* Sort: Chair first, then Vice Chair, Ranking, then alphabetical */}
