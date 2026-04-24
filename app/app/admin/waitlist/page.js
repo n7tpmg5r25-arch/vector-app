@@ -2,23 +2,17 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { isAdmin } from '../../../lib/admin'
 
 /**
- * /app/admin/waitlist — Brand P2b
+ * /admin/waitlist — Brand P2b
  *
  * Server component. Gated to the authenticated admin user ID only.
  * Reads via service_role (UPDATE/SELECT blocked for anon on public.waitlist).
  *
- * Gate rationale: no is_admin column yet, and we have exactly one admin
- * (Colin, per memory project_security_audit_2026_04_14). Hardcoding the UID
- * is fine until the user count grows; promote to an admins table or user
- * metadata flag if Brand P2b ever gets a collaborator.
+ * Gate is now centralized in app/lib/admin.js (Thread 2, 2026-04-23) —
+ * reuse isAdmin() instead of copying the UID array per page.
  */
-
-const ADMIN_USER_IDS = [
-  // Colin (from security audit memory, 2026-04-14)
-  'b0903525-5605-42f8-8c68-4b1dc6f40cd7',
-]
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +37,7 @@ export default async function AdminWaitlistPage({ searchParams }) {
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  if (!ADMIN_USER_IDS.includes(user.id)) redirect('/')
+  if (!isAdmin(user)) redirect('/')
 
   // ── Load waitlist via service_role ──────────────────
   const admin = createClient(
