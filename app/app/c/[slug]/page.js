@@ -138,10 +138,16 @@ export default async function ClientPortalPage({ params }) {
     notFound()
   }
 
-  // If we reach here: client is resolved. Figure out the banner state.
-  // Admin who is ALSO a member of this slug doesn't get the banner —
-  // they're the "canonical" viewer. Admin who is NOT a member gets it.
-  const adminOwnerView = viewerIsAdmin && !matched
+  // If we reach here: client is resolved. Banner dispatch:
+  //   Admin (UID allowlist) visiting /c/* → banner, unconditionally.
+  //   This is explicit per the Thread 3 smoke test matrix: "owner →
+  //   /c/<slug> → shows portal with 'Viewing as client' banner". The
+  //   banner signals admin-preview capacity, independent of whether
+  //   the admin happens to also sit in client_users for this slug.
+  //   (Today Colin IS a member of the `internal` test fixture; the
+  //   earlier "canonical viewer" exception suppressed the banner for
+  //   him and diverged from the spec.)
+  const adminOwnerView = viewerIsAdmin
 
   // ──────────────────────────────────────────────────────────────────────
   // RENDER
