@@ -126,7 +126,7 @@ export default function BillsMovingWidget() {
           .select('bill_id', { count: 'exact', head: true })
           .eq('session', SESSION)
           .eq('legislation_type', 'bill')
-          .eq('confidence_label', 'CARRY OVER'),
+          .eq('confidence_label', 'PASSED_CHAMBER'),
         supabase
           .from('bills')
           .select('bill_id', { count: 'exact', head: true })
@@ -285,7 +285,7 @@ function InterimView({ recap, notable }) {
           </div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
             <RecapStat label="Became law" value={recap.law} color="#7aab6e" />
-            <RecapStat label="Carried over" value={recap.carry} color="#c47a30" />
+            <RecapStat label="Passed chamber" value={recap.carry} color="#c47a30" />
             <RecapStat label="Died" value={recap.dead} color="var(--text-muted)" />
           </div>
         </div>

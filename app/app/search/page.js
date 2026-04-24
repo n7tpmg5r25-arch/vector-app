@@ -315,7 +315,7 @@ function SearchContent() {
             {[
               { label: 'All Outcomes', value: 'All' },
               { label: 'Signed into Law', value: 'LAW', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
-              { label: 'Passed Chamber', value: 'CARRY OVER', color: 'var(--gold)', bg: 'var(--gold-pale)' },
+              { label: 'Passed Chamber', value: 'PASSED_CHAMBER', color: 'var(--gold)', bg: 'var(--gold-pale)' },
               { label: 'Dead', value: 'DEAD', color: 'var(--text-faint)', bg: 'rgba(255,255,255,0.04)' },
             ].map(o => (
               <button key={o.value} onClick={() => setOutcome(o.value)} style={{
@@ -374,7 +374,7 @@ function SearchContent() {
                   {isInterimPeriod() && bill.confidence_label === 'LAW' && (
                     <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
                   )}
-                  {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
+                  {isInterimPeriod() && bill.confidence_label === 'PASSED_CHAMBER' && (
                     <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Passed Chamber</span>
                   )}
                   {isInterimPeriod() && bill.confidence_label === 'DEAD' && (

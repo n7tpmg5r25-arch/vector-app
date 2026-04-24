@@ -365,7 +365,7 @@ function describeEvent(evt: AlertEvent): string {
       const to = d.to || 'unknown';
       if (to === 'LAW') return `Signed into law.`;
       if (to === 'DEAD') return `Did not advance — session ended.`;
-      if (to === 'CARRY OVER') return `Passed one chamber, carried over to next session.`;
+      if (to === 'PASSED_CHAMBER') return `Passed one chamber, carried over to next session.`;
       return `Outcome changed to ${to}.`;
     }
     case 'imminent_hearing':

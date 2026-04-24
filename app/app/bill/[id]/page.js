@@ -580,7 +580,7 @@ export default function BillDetailPage() {
     : confLabel === 'MODERATE' ? 'var(--gold)'
     : confLabel === 'LOW' ? 'var(--danger)'
     : confLabel === 'LAW' ? 'var(--teal)'
-    : confLabel === 'CARRY OVER' ? 'var(--gold)'
+    : confLabel === 'PASSED_CHAMBER' ? 'var(--gold)'
     : confLabel === 'DEAD' ? 'var(--text-faint)'
     : 'var(--text-muted)' // VERY LOW
 
@@ -700,7 +700,7 @@ export default function BillDetailPage() {
             This bill did not advance before session ended on {formatSessionDate(getCurrentBiennium().end)}. It may be reintroduced in the {getNextBiennium().session} session.
           </div>
         )}
-        {isInterimPeriod() && bill.confidence_label === 'CARRY OVER' && (
+        {isInterimPeriod() && bill.confidence_label === 'PASSED_CHAMBER' && (
           <div style={{
             background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.2)',
             borderRadius: 'var(--radius)', padding: '10px 14px',
@@ -748,7 +748,7 @@ export default function BillDetailPage() {
                 cursor: 'help',
                 display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
-                {['LAW','DEAD','CARRY OVER'].includes(confLabel)
+                {['LAW','DEAD','PASSED_CHAMBER'].includes(confLabel)
                   ? confLabel === 'LAW' ? 'Signed into law'
                   : confLabel === 'DEAD' ? 'Dead \u2014 did not pass'
                   : 'Passed chamber \u2014 did not become law'
@@ -758,7 +758,7 @@ export default function BillDetailPage() {
                   <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
                 </svg>
               </span>
-              {!['LAW','DEAD','CARRY OVER'].includes(confLabel) && (
+              {!['LAW','DEAD','PASSED_CHAMBER'].includes(confLabel) && (
                 <span style={{
                   fontSize: 8, padding: '2px 8px', borderRadius: 8,
                   background: 'rgba(100,120,140,0.06)',
@@ -769,7 +769,7 @@ export default function BillDetailPage() {
                   {confLabel}
                 </span>
               )}
-              {!['DEAD','LAW','CARRY OVER'].includes(confLabel) && sparkScores.length > 1 && (
+              {!['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) && sparkScores.length > 1 && (
                 <span style={{
                   fontSize: 9, padding: '3px 10px', borderRadius: 10,
                   background: velocityRising ? 'rgba(184,151,90,0.06)' : 'rgba(196,71,48,0.06)',
@@ -785,7 +785,7 @@ export default function BillDetailPage() {
             </div>
           </div>
 
-          <div style={{ opacity: ['DEAD','CARRY OVER'].includes(confLabel) ? 0.4 : 1, transition: 'opacity 0.2s' }}>
+          <div style={{ opacity: ['DEAD','PASSED_CHAMBER'].includes(confLabel) ? 0.4 : 1, transition: 'opacity 0.2s' }}>
             <AnimatedSparkline
               scores={sparkScores}
               snapshots={snapshots}
@@ -1368,8 +1368,8 @@ export default function BillDetailPage() {
                 )}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {['LAW', 'CARRY OVER', 'DEAD'].includes(confLabel)
-                  ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'CARRY OVER' ? 'Carried over to next session' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
+                {['LAW', 'PASSED_CHAMBER', 'DEAD'].includes(confLabel)
+                  ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'PASSED_CHAMBER' ? 'Passed chamber — did not become law' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
                   : <>{getBucketLabel(score).rate}% historical pass rate · <span style={{ color: confColor }}>{confLabel}</span> signal</>
                 }
               </div>
@@ -1412,7 +1412,7 @@ export default function BillDetailPage() {
             { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
             { label: 'Prime Sponsor', value: bill.prime_sponsor ? `${bill.prime_sponsor}${bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}` : '—',
               extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
-            ...(isInterimPeriod() && ['DEAD','LAW','CARRY OVER'].includes(confLabel)
+            ...(isInterimPeriod() && ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel)
               ? [{ label: 'Session', value: `Ended ${formatSessionDate(getCurrentBiennium().end)}`, extraColor: 'var(--text-muted)' }]
               : [
                 { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
@@ -1436,9 +1436,9 @@ export default function BillDetailPage() {
 
         {/* ── X FACTOR PILLS ─────────────────────────────── */}
         {xfFactors.length > 0 && (
-          <div style={{ opacity: ['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 0.45 : 1, transition: 'opacity 0.2s' }}>
+          <div style={{ opacity: ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 0.45 : 1, transition: 'opacity 0.2s' }}>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-              {['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 'Historical Signals (session ended)' : 'X Factors'}
+              {['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 'Historical Signals (session ended)' : 'X Factors'}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {xfFactors.map((f, i) => {
@@ -1468,7 +1468,7 @@ export default function BillDetailPage() {
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)', padding: '14px 16px',
-            opacity: ['DEAD','LAW','CARRY OVER'].includes(confLabel) ? 0.55 : 1,
+            opacity: ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 0.55 : 1,
             transition: 'opacity 0.2s',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>

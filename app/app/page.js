@@ -125,7 +125,7 @@ export default function HomePage() {
     if (isInterimPeriod()) {
       const [lawRes, coRes, deadRes] = await Promise.all([
         supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'LAW'),
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'CARRY OVER'),
+        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'PASSED_CHAMBER'),
         supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'DEAD'),
       ])
       setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
@@ -211,7 +211,7 @@ export default function HomePage() {
   // 6H.2: During interim, show outcome counts instead of score-based stats
   const interimWatchCounts = isInterimPeriod() ? {
     law: watchlist.filter(w => w.bills?.confidence_label === 'LAW').length,
-    carry: watchlist.filter(w => w.bills?.confidence_label === 'CARRY OVER').length,
+    carry: watchlist.filter(w => w.bills?.confidence_label === 'PASSED_CHAMBER').length,
     dead: watchlist.filter(w => w.bills?.confidence_label === 'DEAD').length,
   } : null
   const highMomentum = isInterimPeriod()
@@ -650,7 +650,7 @@ export default function HomePage() {
             {/* Watchlist outcomes */}
             {watchlist.length > 0 && (() => {
               const wlLaw = watchlist.filter(w => w.bills?.confidence_label === 'LAW').length
-              const wlCarry = watchlist.filter(w => w.bills?.confidence_label === 'CARRY OVER').length
+              const wlCarry = watchlist.filter(w => w.bills?.confidence_label === 'PASSED_CHAMBER').length
               const wlDead = watchlist.filter(w => w.bills?.confidence_label === 'DEAD').length
               return (
                 <div style={{

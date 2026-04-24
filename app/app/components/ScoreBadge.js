@@ -1,9 +1,9 @@
-// 6B.2: Added `status` prop — 'LAW', 'CARRY OVER', 'DEAD', or null (active session)
+// 6B.2: Added `status` prop — 'LAW', 'PASSED_CHAMBER', 'DEAD', or null (active session)
 export default function ScoreBadge({ score, size = 'md', status }) {
   const s = score || 0
   const isDead = status === 'DEAD'
   const isLaw = status === 'LAW'
-  const isCarryOver = status === 'CARRY OVER'
+  const isCarryOver = status === 'PASSED_CHAMBER'
   const hasOutcome = isDead || isLaw || isCarryOver
 
   // Color tiers — Shorepine data viz palette (Sage / Deep Teal / Amber / Stone)

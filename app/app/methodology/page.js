@@ -172,7 +172,7 @@ export default function MethodologyPage() {
           if (b.confidence_label === 'LAW') {
             buckets[key].law++
             buckets[key].chamber++
-          } else if (b.confidence_label === 'CARRY OVER') {
+          } else if (b.confidence_label === 'PASSED_CHAMBER') {
             buckets[key].chamber++
           }
         }

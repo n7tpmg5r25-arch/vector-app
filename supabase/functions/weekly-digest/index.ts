@@ -181,7 +181,7 @@ async function buildDigestData(
     const label = t.bills.confidence_label;
     if (label === 'LAW') passedCount++;
     else if (label === 'DEAD') deadCount++;
-    else if (label === 'CARRY OVER') carriedCount++;
+    else if (label === 'PASSED_CHAMBER') carriedCount++;
     else activeCount++;
   }
 
@@ -240,7 +240,7 @@ async function buildDigestData(
     if (bill.confidence_label !== old.confidence_label) {
       if (bill.confidence_label === 'LAW') changes.push('Signed into law');
       else if (bill.confidence_label === 'DEAD') changes.push('Did not advance');
-      else if (bill.confidence_label === 'CARRY OVER') changes.push('Passed chamber');
+      else if (bill.confidence_label === 'PASSED_CHAMBER') changes.push('Passed chamber');
     }
 
     // Hearing set

@@ -1008,12 +1008,26 @@ function scoreBill(bill, categoryRates, sessionState) {
   if (isInterim && bill.stage >= 6) {
     // Signed into law — terminal success
     pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
-  } else if (isInterim && bill.stage >= 4) {
-    // Passed at least one chamber but biennium is over — these bills are done
-    pass_prob = 0.000; conf_label = 'CARRY OVER'; conf_low = 0.000; conf_high = 0.000;
-  } else if (isInterim && bill.stage < 4) {
-    // Didn't make it out — dead for now
-    pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
+  } else if (isInterim) {
+    // 2026-04-23 — biennium-aware interim outcome labeling.
+    // WA carryover rule (RCW 44.04 + House/Senate Rules): bills not enacted in
+    // year 1 of a biennium are eligible for consideration in year 2. At end of
+    // year 2 (biennium close), every unpassed bill dies — no cross-biennium
+    // carryover. YEAR parity drives which sine die we're in:
+    //   Odd year  (2025, 2027, 2029) = biennium START → mid-biennium interim
+    //   Even year (2026, 2028, 2030) = biennium CLOSE → terminal outcome labels
+    const isBienniumClosingYear = Number(YEAR) % 2 === 0;
+    pass_prob = 0.000; conf_low = 0.000; conf_high = 0.000;
+    if (isBienniumClosingYear) {
+      // Biennium is over. Stage 4+ = passed originating chamber but didn't
+      // become law. Previously mislabeled 'CARRY OVER' (the semantic bug this
+      // commit fixes). < 4 = never cleared originating chamber.
+      conf_label = bill.stage >= 4 ? 'PASSED_CHAMBER' : 'DEAD';
+    } else {
+      // Year 1 sine die. WA carryover: any bill with progress (stage >= 1)
+      // is technically alive for year 2. Stage 0 is functionally dead.
+      conf_label = bill.stage >= 1 ? 'CARRY OVER' : 'DEAD';
+    }
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
   } else if (final_score >= 75) {

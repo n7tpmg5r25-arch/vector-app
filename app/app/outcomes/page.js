@@ -17,7 +17,7 @@ import ScoreBadge from '../components/ScoreBadge'
 
 import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
-const OUTCOMES = ['All', 'LAW', 'CARRY OVER', 'DEAD']
+const OUTCOMES = ['All', 'LAW', 'PASSED_CHAMBER', 'DEAD']
 import { STAGE_SHORT } from '../../lib/stages'
 export default function OutcomesPage() {
   const router = useRouter()
@@ -73,7 +73,7 @@ export default function OutcomesPage() {
     if (longShots) {
       const s = b.final_score || 0
       if (s >= 60) return false
-      if (b.confidence_label !== 'LAW' && b.confidence_label !== 'CARRY OVER') return false
+      if (b.confidence_label !== 'LAW' && b.confidence_label !== 'PASSED_CHAMBER') return false
     } else if (outcome !== 'All' && b.confidence_label !== outcome) {
       return false
     }
@@ -85,7 +85,7 @@ export default function OutcomesPage() {
   // Long-shots headline count — shown on the new stat card.
   const longShotCount = bills.filter(b => {
     const s = b.final_score || 0
-    return s < LONG_SHOTS_CUTOFF && (b.confidence_label === 'LAW' || b.confidence_label === 'CARRY OVER')
+    return s < LONG_SHOTS_CUTOFF && (b.confidence_label === 'LAW' || b.confidence_label === 'PASSED_CHAMBER')
   }).length
 
   // Sort
@@ -99,7 +99,7 @@ export default function OutcomesPage() {
 
   // Counts
   const lawCount = bills.filter(b => b.confidence_label === 'LAW').length
-  const carryCount = bills.filter(b => b.confidence_label === 'CARRY OVER').length
+  const carryCount = bills.filter(b => b.confidence_label === 'PASSED_CHAMBER').length
   const deadCount = bills.filter(b => b.confidence_label === 'DEAD').length
   const vetoCount = bills.filter(b => b.governor_action === 'vetoed').length
   const partialVetoCount = bills.filter(b => b.governor_action === 'partial_veto').length
@@ -110,14 +110,14 @@ export default function OutcomesPage() {
   }
 
   const outcomeColor = (label) =>
-    label === 'LAW' ? 'var(--teal)' : label === 'CARRY OVER' ? 'var(--gold)' : 'var(--text-faint)'
+    label === 'LAW' ? 'var(--teal)' : label === 'PASSED_CHAMBER' ? 'var(--gold)' : 'var(--text-faint)'
 
   const outcomeBadgeStyle = (label) => ({
     fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
     padding: '2px 8px', borderRadius: 10,
     color: outcomeColor(label),
-    background: label === 'LAW' ? 'rgba(184,151,90,0.1)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.08)' : 'rgba(255,255,255,0.04)',
-    border: `1px solid ${label === 'LAW' ? 'rgba(184,151,90,0.25)' : label === 'CARRY OVER' ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
+    background: label === 'LAW' ? 'rgba(184,151,90,0.1)' : label === 'PASSED_CHAMBER' ? 'rgba(184,151,90,0.08)' : 'rgba(255,255,255,0.04)',
+    border: `1px solid ${label === 'LAW' ? 'rgba(184,151,90,0.25)' : label === 'PASSED_CHAMBER' ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
   })
 
   // Chip style helper
@@ -165,7 +165,7 @@ export default function OutcomesPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
           {[
             { label: 'Signed', value: lawCount, color: 'var(--teal)', filterVal: 'LAW' },
-            { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'CARRY OVER', tooltip: 'Passed at least one chamber but did not become law this session' },
+            { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'PASSED_CHAMBER', tooltip: 'Passed at least one chamber but did not become law this session' },
             { label: 'Dead', value: deadCount, color: 'var(--text-muted)', filterVal: 'DEAD' },
           ].map(({ label, value, color, filterVal, tooltip }) => (
             <button key={label} onClick={() => { setLongShots(false); setOutcome(outcome === filterVal ? 'All' : filterVal) }} title={tooltip || ''} style={{
@@ -277,7 +277,7 @@ export default function OutcomesPage() {
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                 </span>
                 <span style={outcomeBadgeStyle(bill.confidence_label)}>
-                  {bill.confidence_label === 'LAW' ? 'Signed' : bill.confidence_label === 'CARRY OVER' ? 'Passed Chamber' : 'Dead'}
+                  {bill.confidence_label === 'LAW' ? 'Signed' : bill.confidence_label === 'PASSED_CHAMBER' ? 'Passed Chamber' : 'Dead'}
                 </span>
               </div>
               <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

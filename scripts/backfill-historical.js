@@ -157,6 +157,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Helpers
 function overrideHistoricalLabel(billRecord) {
+  // 2026-04-23: biennium-aware logic renders this largely dead code. New rescore
+  // emits PASSED_CHAMBER (not CARRY OVER) for historical biennia, and
+  // PASSED_CHAMBER is the correct terminal label — DO NOT override it to DEAD.
+  // Kept only as a defensive catch if legacy CARRY OVER rows slip through
+  // pre-migration.
   if (billRecord.confidence_label !== 'CARRY OVER') return false;
   billRecord.confidence_label = 'DEAD';
   billRecord.pass_probability = 0;

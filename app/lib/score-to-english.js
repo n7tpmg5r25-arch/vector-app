@@ -32,7 +32,7 @@
  * @param {object} args
  * @param {number|null} args.score            - final_score, 0-100
  * @param {number|null} args.stage            - stage, 1-6
- * @param {string|null} args.confidenceLabel  - 'LAW' | 'CARRY OVER' | 'DEAD' | HIGH/MODERATE/LOW/VERY LOW
+ * @param {string|null} args.confidenceLabel  - 'LAW' | 'PASSED_CHAMBER' | 'DEAD' | HIGH/MODERATE/LOW/VERY LOW
  * @returns {{ headline: string, qualifier: string }}
  */
 export function scoreToEnglish({ score, stage, confidenceLabel } = {}) {
@@ -54,7 +54,7 @@ export function scoreToEnglish({ score, stage, confidenceLabel } = {}) {
     }
   }
 
-  if (cl === 'CARRY OVER') {
+  if (cl === 'PASSED_CHAMBER') {
     return {
       headline: 'Carried over',
       qualifier: 'Picks back up next session',

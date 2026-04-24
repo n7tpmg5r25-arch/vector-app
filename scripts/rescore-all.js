@@ -50,7 +50,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const SESSION_FILTER = process.env.SESSION_FILTER || null;
 const PAGE_SIZE = 500;
 
-const TERMINAL_LABELS = new Set(['LAW', 'DEAD', 'CARRY OVER']);
+const TERMINAL_LABELS = new Set(['LAW', 'DEAD', 'CARRY OVER', 'PASSED_CHAMBER']);
 
 function computeSignalTier(final_score) {
   if (final_score >= 75) return 'HIGH';

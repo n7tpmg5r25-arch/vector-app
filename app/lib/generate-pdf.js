@@ -54,7 +54,7 @@ function getScoreTierLabel(score) {
 function getOutcomeColor(bill) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')        return TEAL
-  if (cl === 'CARRY OVER') return GOLD
+  if (cl === 'PASSED_CHAMBER') return GOLD
   if (cl === 'DEAD')       return [138, 128, 112]
   // Active bill — use score color
   return getScoreColor(bill.final_score || 0)
@@ -99,7 +99,7 @@ function getStagePlainText(bill) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')  return 'Signed into law'
   if (cl === 'DEAD') return 'Did not advance — session ended'
-  if (cl === 'CARRY OVER') return 'Passed ' + chamber + ' — carries to next session'
+  if (cl === 'PASSED_CHAMBER') return 'Passed ' + chamber + ' — carries to next session'
 
   if (s >= 6) return 'Signed into law'
   if (s >= 4) return 'Passed ' + chamber + ' floor'
@@ -152,7 +152,7 @@ function getCompanionLine(bill) {
 function getDeltaNarrative(billId, bill, scoreDeltas, changes) {
   const cl = (bill.confidence_label || '').toUpperCase()
   // Terminal bills — stage line already says it all, don't repeat
-  if (cl === 'DEAD' || cl === 'LAW' || cl === 'CARRY OVER') return ''
+  if (cl === 'DEAD' || cl === 'LAW' || cl === 'PASSED_CHAMBER') return ''
 
   const delta = scoreDeltas[billId]
   const change = changes[billId]
@@ -190,17 +190,17 @@ function checkPageBreak(doc, y, needed, ph) {
 // ── Bill grouping ───────────────────────────────────────────
 // Groups: Signed into Law → Active (by score desc) → Passed Chamber → Did Not Advance
 
-const GROUP_ORDER = ['LAW', 'ACTIVE', 'CARRY OVER', 'DEAD']
+const GROUP_ORDER = ['LAW', 'ACTIVE', 'PASSED_CHAMBER', 'DEAD']
 const GROUP_LABELS = {
   'LAW':        'Signed into Law',
   'ACTIVE':     'Active Legislation',
-  'CARRY OVER': 'Passed Chamber',
+  'PASSED_CHAMBER': 'Passed Chamber',
   'DEAD':       'Did Not Advance',
 }
 const GROUP_COLORS = {
   'LAW':        TEAL,
   'ACTIVE':     FOREST,
-  'CARRY OVER': GOLD,
+  'PASSED_CHAMBER': GOLD,
   'DEAD':       GRAY,
 }
 
@@ -209,13 +209,13 @@ const GROUP_COLORS = {
  * Returns array of { groupKey, label, color, bills[] } with empty groups omitted.
  */
 function groupBills(bills) {
-  const buckets = { 'LAW': [], 'ACTIVE': [], 'CARRY OVER': [], 'DEAD': [] }
+  const buckets = { 'LAW': [], 'ACTIVE': [], 'PASSED_CHAMBER': [], 'DEAD': [] }
 
   bills.forEach(tracked => {
     const cl = (tracked.bills?.confidence_label || '').toUpperCase()
     if (cl === 'LAW')             buckets['LAW'].push(tracked)
     else if (cl === 'DEAD')       buckets['DEAD'].push(tracked)
-    else if (cl === 'CARRY OVER') buckets['CARRY OVER'].push(tracked)
+    else if (cl === 'PASSED_CHAMBER') buckets['PASSED_CHAMBER'].push(tracked)
     else                          buckets['ACTIVE'].push(tracked)
   })
 
@@ -339,7 +339,7 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
   if (interim) {
     // Count outcomes
     const lawCount   = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'LAW').length
-    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'CARRY OVER').length
+    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
     const deadCount  = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'DEAD').length
 
     const endFormatted = formatSessionDate(biennium.end)
@@ -712,7 +712,7 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
       items.push('Next session begins: ' + formatSessionDate(next.start) + ' (' + nextDays + ' days)')
     }
 
-    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'CARRY OVER').length
+    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
     if (carryCount > 0) {
       items.push(carryCount + ' bill' + (carryCount !== 1 ? 's' : '') + ' passed ' +
         (carryCount === 1 ? 'its' : 'their') + ' chamber and will carry into the new session automatically')
@@ -925,7 +925,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   if (isCurrentlyInterim) {
     // Outcome-oriented stats for interim (matches executive summary language)
     const lawCount   = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'LAW').length
-    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'CARRY OVER').length
+    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
     const deadCount  = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'DEAD').length
     stats = [
       { label: 'Bills Tracked', value: String(bills.length) },

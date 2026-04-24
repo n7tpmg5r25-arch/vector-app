@@ -163,19 +163,31 @@ function scoreBill(bill) {
   else if (final_score >= 45) signal_tier = 'LOW';
   else signal_tier = 'VERY LOW';
 
-  // Session-state aware confidence labels (matches sync-v2.4 exactly)
-  // For rescore-all, we're always running post-session, so treat as interim
+  // Session-state aware confidence labels (matches sync-v2.js biennium-aware logic)
+  // For rescore-all, we're always running post-session, so treat as interim.
+  // 2026-04-23 — biennium-aware: even year (2026, 2028) = biennium close →
+  // terminal LAW/PASSED_CHAMBER/DEAD. Odd year (2027, 2029) = mid-biennium sine
+  // die → CARRY OVER for bills with any progress (WA carryover rule).
+  // Derives year from bill.session end (e.g., '2025-2026' → 2026) when
+  // CURRENT_YEAR env missing (historical rescores).
+  const envYear = Number(process.env.CURRENT_YEAR);
+  const sessionStr = bill.session || SESSION;
+  const rescoreYear = Number.isFinite(envYear) && envYear > 0
+    ? envYear
+    : Number(sessionStr.slice(5, 9));  // '2025-2026'.slice(5,9) === '2026'
+  const isBienniumClosingYear = rescoreYear % 2 === 0;
   if (bill.stage >= 6) {
     pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
-  } else if (bill.stage >= 4) {
-    // Passed at least one chamber but biennium is over — these bills are done
-    pass_prob = 0.000; conf_label = 'CARRY OVER'; conf_low = 0.000; conf_high = 0.000;
   } else if (bill.stalled || bill.held_in_rules) {
     pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
-  } else if (bill.stage < 4) {
-    pass_prob = 0.000; conf_label = 'DEAD'; conf_low = 0.000; conf_high = 0.000;
+  } else if (isBienniumClosingYear) {
+    // Biennium over: stage 4+ = passed originating chamber; below = never cleared.
+    pass_prob = 0.000; conf_label = bill.stage >= 4 ? 'PASSED_CHAMBER' : 'DEAD';
+    conf_low = 0.000; conf_high = 0.000;
   } else {
-    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
+    // Year 1 sine die: in-progress bills carry over to year 2.
+    pass_prob = 0.000; conf_label = bill.stage >= 1 ? 'CARRY OVER' : 'DEAD';
+    conf_low = 0.000; conf_high = 0.000;
   }
 
   return {

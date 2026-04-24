@@ -366,7 +366,7 @@ export default function WatchlistPage() {
           <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
             {(isInterimPeriod() ? [
               { label: 'Passed', value: filtered.filter(d => d.bills?.confidence_label === 'LAW').length, color: 'var(--teal)' },
-              { label: 'Passed Chamber', value: filtered.filter(d => d.bills?.confidence_label === 'CARRY OVER').length, color: 'var(--gold)' },
+              { label: 'Passed Chamber', value: filtered.filter(d => d.bills?.confidence_label === 'PASSED_CHAMBER').length, color: 'var(--gold)' },
               { label: 'Dead', value: filtered.filter(d => d.bills?.confidence_label === 'DEAD').length, color: 'var(--text-muted)' },
             ] : [
               { label: 'Avg Score', value: avgScore, color: avgScore >= 45 ? 'var(--teal)' : avgScore >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
@@ -539,7 +539,7 @@ export default function WatchlistPage() {
               cursor: 'pointer', transition: 'border-color 0.2s',
               borderLeft: bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
                 : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
-                : bill.confidence_label === 'CARRY OVER' ? '3px solid var(--gold)'
+                : bill.confidence_label === 'PASSED_CHAMBER' ? '3px solid var(--gold)'
                 : bill.stalled ? '3px solid var(--danger)'
                 : (bill.final_score >= 50 ? '3px solid var(--teal)' : '1px solid var(--border)'),
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
@@ -584,7 +584,7 @@ export default function WatchlistPage() {
                       Signed into Law
                     </span>
                   )}
-                  {bill.confidence_label === 'CARRY OVER' && (
+                  {bill.confidence_label === 'PASSED_CHAMBER' && (
                     <span style={{ fontSize: 9, padding: '1px 7px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>
                       Passed Chamber
                     </span>
