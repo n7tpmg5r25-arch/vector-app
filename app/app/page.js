@@ -43,21 +43,13 @@ export default function HomePage() {
   const supabase = createBrowserClient()
   const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
 
-  // Phase 12 Batch 4: anon visitors with the public-layer flag enabled get
-  // the public home variant. Owner JSX (everything below) is unchanged.
-  // proxy.js is the upstream gate — when the flag is false (production),
-  // anon visitors never reach this component (they're redirected to /login),
-  // so the entire `if (publicLayerEnabled)` block is dead code in prod.
-  // Behavior for logged-in Colin in production: byte-identical to pre-Batch-4.
-  if (publicLayerEnabled) {
-    // Hold paint until useViewer() resolves so anon visitors don't see the
-    // owner shell flash before PublicHome mounts. Only applies when the
-    // flag is on — in production this branch is never entered.
-    if (viewerLoading) return null
-    if (!user) return <PublicHome />
-  }
-
   // 6D.1: Session from useSession hook (localStorage-backed, user-switchable)
+  // NOTE: every hook below this point MUST be called on every render to
+  // satisfy the Rules of Hooks. The public-layer branch is handled at the
+  // bottom of the component (see PUBLIC-LAYER GATE below) as a conditional
+  // JSX return — never as an early return above any hook. Ordering this
+  // way means we can flip NEXT_PUBLIC_ENABLE_PUBLIC_LAYER in any env
+  // without tripping React error #310. (Regression incident 2026-04-23.)
   const [SESSION, setSession] = useSession()
   const nextBiennium = useMemo(() => getNextBiennium(), [])
   const [availableSessions, setAvailableSessions] = useState([SESSION])
@@ -197,10 +189,14 @@ export default function HomePage() {
 
   // Phase 12 Batch 3: wait for useViewer() to resolve before loading, so the
   // tracked_bills query sees the real user on first paint instead of racing.
+  // 2026-04-23: skip loadData for anon-with-flag-on — those visitors render
+  // <PublicHome /> via the gate below and never use this data. Keeps the
+  // effect cheap for the public-layer path.
   useEffect(() => {
     if (viewerLoading) return
+    if (publicLayerEnabled && !user) return
     loadData()
-  }, [SESSION, user?.id, viewerLoading])
+  }, [SESSION, user?.id, viewerLoading, publicLayerEnabled])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
   const avgScore = watchedScores.length > 0
@@ -222,6 +218,18 @@ export default function HomePage() {
     : watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
 
   const sessionYear = SESSION.split('-')[0]
+
+  // ── PUBLIC-LAYER GATE ───────────────────────────────────────────────
+  // Phase 12 Batch 4. When NEXT_PUBLIC_ENABLE_PUBLIC_LAYER is 'true' and
+  // no user is in session, render PublicHome instead of the owner shell.
+  // All hooks above this point run on every render regardless of branch,
+  // which preserves the Rules of Hooks when the flag toggles between on
+  // and off across redeploys. proxy.js is still the upstream gate in
+  // prod — with the flag off, anon visitors never reach this component.
+  if (publicLayerEnabled) {
+    if (viewerLoading) return null
+    if (!user) return <PublicHome />
+  }
 
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
