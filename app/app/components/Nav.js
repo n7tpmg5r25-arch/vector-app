@@ -87,43 +87,33 @@ export default function Nav() {
   const pathname = usePathname()
   const router = useRouter()
 
+  // Thread 7: layout (orientation, position, sizing) is fully owned by
+  // .v-nav / .v-nav__btn in globals.css so the nav can swap from
+  // bottom-tab (mobile) to top-bar (desktop) via media queries. We keep
+  // active-state visual cues inline because they depend on per-render
+  // data (which path is current).
   return (
-    <nav style={{
-      position: 'fixed', bottom: 0, left: '50%',
-      transform: 'translateX(-50%)',
-      width: '100%', maxWidth: 480,
-      background: 'rgba(14,16,20,0.92)',
-      backdropFilter: 'blur(16px)',
-      borderTop: '1px solid var(--border)',
-      padding: '10px 4px 24px',
-      display: 'flex', justifyContent: 'space-around',
-      alignItems: 'center',
-      zIndex: 100,
-    }}>
+    <nav className="v-nav">
       {NAV.map(({ path, label, icon }) => {
         const active = pathname === path || (path !== '/' && pathname.startsWith(path))
         return (
           <button
             key={path}
             onClick={() => router.push(path)}
+            className="v-nav__btn"
             style={{
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 3,
-              background: 'none', border: 'none',
-              padding: '4px 8px',
               opacity: active ? 1 : 0.5,
-              transition: 'opacity 0.15s',
-              minWidth: 52,
               filter: active ? 'drop-shadow(0 0 6px rgba(184,151,90,0.3))' : 'none',
             }}
           >
             {icon(active)}
-            <span style={{
-              fontSize: 9, fontWeight: active ? 600 : 400,
-              color: active ? 'var(--teal)' : 'var(--text-muted)',
-              letterSpacing: '0.03em',
-              fontFamily: 'var(--font-body)',
-            }}>{label}</span>
+            <span
+              className="v-nav__label"
+              style={{
+                fontWeight: active ? 600 : 400,
+                color: active ? 'var(--teal)' : 'var(--text-muted)',
+              }}
+            >{label}</span>
           </button>
         )
       })}
