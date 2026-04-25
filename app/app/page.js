@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
-import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate } from '../lib/session-config'
+import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, getAllSessions } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
@@ -165,8 +165,10 @@ export default function HomePage() {
 
   // 6D.1: Discover which sessions have data for the dropdown
   async function loadSessions() {
-    // Grab one bill per known session to check if data exists
-    const known = ['2027-2028', '2025-2026', '2023-2024', '2021-2022']  // newest first
+    // Thread 7 (G1): drive the candidate list off session-config.js's
+    // getAllSessions() instead of a hand-maintained literal array. Adds
+    // forward-rolls automatically when a new biennium opens prefiling.
+    const known = getAllSessions()
     const found = []
     for (const s of known) {
       const { count } = await supabase
@@ -235,9 +237,12 @@ export default function HomePage() {
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
 
       {/* ── HEADER ────────────────────────────────────────── */}
-      <div style={{
+      {/* Thread 7: top-pad is class-driven so desktop (where the top-bar
+          nav adds its own ~56px) doesn't double-stack space. Mobile keeps
+          the iOS notch / status-bar safe area unchanged. */}
+      <div className="page-top-pad" style={{
         background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
-        padding: '52px 20px 20px',
+        padding: '0 20px 20px',
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Radial glow */}
@@ -482,11 +487,15 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Thread 7: .home-grid is flex-column on mobile (unchanged) and a
+          2-col CSS grid at ≥ 1024px. Sections that should stay full-width
+          on desktop (warnings, countdown, stat strip) are tagged with
+          .home-grid__full to span both columns. */}
+      <div className="home-grid" style={{ padding: '16px 16px 0' }}>
 
         {/* ── STALE DATA WARNING (Phase 5A) ────────────────── */}
         {lastSyncAt && (Date.now() - lastSyncAt.getTime()) > 36 * 60 * 60 * 1000 && (
-          <div style={{
+          <div className="home-grid__full" style={{
             background: 'rgba(184,151,90,0.08)',
             border: '1px solid rgba(184,151,90,0.3)',
             borderRadius: 'var(--radius)',
@@ -504,7 +513,7 @@ export default function HomePage() {
         )}
 
         {/* ── SESSION COUNTDOWN ─────────────────────────────── */}
-        <div style={{
+        <div className="home-grid__full" style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
@@ -819,7 +828,7 @@ export default function HomePage() {
 
         {/* ── CATEGORY INTELLIGENCE ─────────────────────────── */}
         {categories.length > 0 && (
-          <div>
+          <div className="home-grid__full">
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
               Interim Intelligence · Category Pass Rates
             </div>
@@ -865,7 +874,7 @@ export default function HomePage() {
         )}
 
         {/* ── STAT STRIP (Phase 7V: nav stripped, Nav covers routing) ── */}
-        <div style={{
+        <div className="home-grid__full" style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',

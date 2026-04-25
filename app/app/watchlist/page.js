@@ -295,12 +295,15 @@ export default function WatchlistPage() {
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
       {/* ━━━ HEADER ━━━ */}
-      <div style={{
+      {/* Thread 7: .sticky-page-header replaces inline `position: sticky;
+          top: 0` so the watchlist header stays clear of the desktop
+          top-bar nav (top: 56px ≥ 1024px). Mobile keeps top: 0 exactly
+          as before. */}
+      <div className="sticky-page-header" style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
@@ -421,7 +424,12 @@ export default function WatchlistPage() {
       </div>
 
       {/* ━━━ CONTENT ━━━ */}
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {/* Thread 7: .watchlist-rows takes over the flex/gap behavior and
+          adds a desktop-only column-header strip above the rows so wide
+          canvases read more like the table lobbyists expect during
+          committee meetings. Mobile is byte-identical (display:none on
+          the header strip, gap: 7 retained). */}
+      <div className="watchlist-rows" style={{ padding: '12px 16px' }}>
 
         {/* ── WHAT'S CHANGED SECTION ── */}
         {!loading && !isInterimPeriod() && showChanges && (
@@ -507,6 +515,15 @@ export default function WatchlistPage() {
         )}
 
         {/* ── BILL CARDS ── */}
+        {/* Thread 7: desktop-only column-header strip. Mobile renders
+            display:none so the existing card stack is unchanged. */}
+        {!loading && sorted.length > 0 && (
+          <div className="watchlist-cols-header">
+            <span>Score</span>
+            <span>Bill</span>
+            <span>Stage / Activity</span>
+          </div>
+        )}
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
         ) : sorted.length === 0 ? (
@@ -678,7 +695,10 @@ export default function WatchlistPage() {
                   type="button"
                   onClick={e => {
                     e.preventDefault(); e.stopPropagation()
-                    const url = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || '2025-2026').split('-')[0]}`
+                    // Thread 7 (G4): drop the literal '2025-2026' fallback in favor
+                    // of getCurrentSession() so the leg.wa.gov bill-summary deep link
+                    // auto-rolls when sessions change.
+                    const url = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || getCurrentSession()).split('-')[0]}`
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }}
                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
