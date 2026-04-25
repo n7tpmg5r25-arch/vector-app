@@ -331,11 +331,27 @@ function _normalizeVoteValue(v) {
   return s.slice(0, 16); // truncate any unexpected value to fit text column
 }
 
+// WA's GetRollCalls XML shape (verified 2026-04-25):
+//   <YeaVotes><Count>41</Count><MembersVoting>Abbarno, ...</MembersVoting></YeaVotes>
+// xml2js with `explicitArray: false` maps that to { Count: '41', MembersVoting: '...' },
+// so the count is rc.YeaVotes.Count, NOT rc.YeaVotes itself. The existing
+// avg_floor_margin code at extractFeatures() line ~556 reads parseInt(rc.YeaVotes)
+// directly and has therefore been silently producing 0 across every biennium —
+// see project memory `project_thread6_voting_data_shipped_2026_04_25` and the
+// post-2027 cleanup TODO. Don't fix that path here: a real avg_floor_margin
+// would feed scoreBill()'s strong-margin / narrow-margin X-factors and break
+// the G5 calibration freeze.
+function _readCount(node) {
+  if (node == null) return 0;
+  if (typeof node === 'object') return parseInt(node.Count) || 0;
+  return parseInt(node) || 0; // accept legacy shape just in case
+}
+
 function _parseRollCallRow(billId, rc) {
-  const yeas    = parseInt(rc.YeaVotes)    || 0;
-  const nays    = parseInt(rc.NayVotes)    || 0;
-  const absent  = parseInt(rc.AbsentVotes) || 0;
-  const excused = parseInt(rc.ExcusedVotes)|| 0;
+  const yeas    = _readCount(rc.YeaVotes);
+  const nays    = _readCount(rc.NayVotes);
+  const absent  = _readCount(rc.AbsentVotes);
+  const excused = _readCount(rc.ExcusedVotes);
   const sourceId = String(rc.RollCallId || rc.SequenceNumber || '').trim();
   if (!sourceId) return null; // can't dedupe without an ID — skip
 
@@ -361,7 +377,12 @@ function _parseRollCallRow(billId, rc) {
 }
 
 function _parseMemberVotes(rc) {
-  // <Votes>{<Vote>...</Vote>, ...}</Votes>; xml2js: object if 1 child, array if many.
+  // <Votes><Vote><MemberId/><Name/><VOte>Yea</VOte></Vote>...</Votes>
+  // WSL idiosyncratic capitalisation: the per-member result element is
+  // literally <VOte> (capital V, capital O, lowercase te) — verified on
+  // GetRollCalls?biennium=2025-26&billNumber=5974 on 2026-04-25. Other
+  // names are kept in the fallback list for future API compatibility.
+  // xml2js: <Votes> with one child renders as object; with many, as array.
   const inner = rc.Votes?.Vote || rc.MemberVotes?.MemberVote || rc.Vote;
   if (!inner) return [];
   const arr = Array.isArray(inner) ? inner : [inner];
@@ -369,16 +390,17 @@ function _parseMemberVotes(rc) {
     .map(v => {
       const memberId   = String(v.MemberId || v.Id || v.LegislatorId || '').trim();
       const memberName = (v.Name || v.MemberName || v.LongName || '').trim();
-      // xml2js gotcha: <Vote><Vote>Yea</Vote></Vote> — inner element with same
-      // name as parent. Most parses surface it as `v.Vote` (string) or, if
-      // there's an attribute, as an object like `{ _: 'Yea' }`.
-      const rawVote = (typeof v.Vote === 'object' && v.Vote !== null)
-        ? (v.Vote._ ?? v.Vote.value ?? '')
-        : (v.Vote ?? v.VoteValue ?? v.Position ?? '');
-      const vote = _normalizeVoteValue(rawVote);
-      const party = (v.Party || '').trim().toUpperCase().slice(0, 4) || null;
+      // VOte first — that's the actual WSL name. Vote/VoteValue/Position
+      // are defensive fallbacks if the API ever normalises capitalisation.
+      const rawVote = v.VOte ?? v.Vote ?? v.VoteValue ?? v.Position ?? '';
+      const voteStr = (typeof rawVote === 'object' && rawVote !== null)
+        ? (rawVote._ ?? rawVote.value ?? '')
+        : rawVote;
+      const vote = _normalizeVoteValue(voteStr);
+      // Party isn't in the GetRollCalls payload — Thread 11 will join from
+      // the SponsorService roster cache. Leave NULL here.
       if (!memberId || !memberName || !vote) return null;
-      return { member_id: memberId, member_name: memberName, party, vote };
+      return { member_id: memberId, member_name: memberName, party: null, vote };
     })
     .filter(Boolean);
 }
@@ -698,6 +720,16 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   else if (hasFiscal) fiscalNoteSize = 'small';
 
   // Roll call vote margins
+  // ⚠ KNOWN BUG (do NOT fix during 2027 calibration freeze, G5):
+  // `r.YeaVotes` is actually a nested object { Count, MembersVoting } per
+  // the WA API XML shape. parseInt(object) → NaN → 0 here, so margins
+  // collapse to null, so avg_floor_margin has been silently null across
+  // every biennium since this code was written. The Thread 6 helpers
+  // _readCount() / _parseRollCallRow() above use the correct shape and
+  // populate roll_calls.yeas/nays correctly. DO NOT FIX HERE — a real
+  // avg_floor_margin would feed scoreBill()'s strong-margin/narrow-margin
+  // X-factors and break the 2027 calibration. Schedule for post-2027
+  // refresh; see project memory project_thread6_voting_data_shipped_2026_04_25.
   let avgFloorMargin = null;
   if (rollCalls.length > 0) {
     const margins = rollCalls
