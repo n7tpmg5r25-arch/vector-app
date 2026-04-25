@@ -111,16 +111,35 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
 });
 
-const BASE = 'http://wslwebservices.leg.wa.gov';
+// Must be https — leg.wa.gov hangs http requests instead of redirecting,
+// which silently stalled the original first-run. Matches sync-v2.js:85.
+const BASE = process.env.WA_API_BASE || 'https://wslwebservices.leg.wa.gov';
 const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: false });
+
+// Per-request timeout — leg.wa.gov occasionally hangs requests instead of
+// returning an error. Without this, a single bad bill can stall the whole
+// backfill silently. 15 s is generous for an XML response that's normally <1 s.
+const REQUEST_TIMEOUT_MS = 15_000;
 
 async function fetchXML(service, method, params) {
   const qs = new URLSearchParams(params).toString();
   const url = `${BASE}/${service}/${method}?${qs}`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'vector-wa-backfill/1.0' } });
-  if (!res.ok) throw new Error(`${method} HTTP ${res.status}`);
-  const xml = await res.text();
-  return await parser.parseStringPromise(xml);
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'vector-wa-backfill/1.0' },
+      signal: ctl.signal,
+    });
+    if (!res.ok) throw new Error(`${method} HTTP ${res.status}`);
+    const xml = await res.text();
+    return await parser.parseStringPromise(xml);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`${method} timed out after ${REQUEST_TIMEOUT_MS}ms`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function getRollCalls(billNumber) {
@@ -252,7 +271,10 @@ async function main() {
     } catch (e) {
       errors.push({ bill: b.bill_number, errs: [`fatal: ${e.message}`] });
     }
-    if (i % 25 === 0) {
+    // Log the first bill explicitly + every 25th after, so a hung first call
+    // can't masquerade as "still warming up". Also log every bill that
+    // produced an error so failures aren't hidden between batch boundaries.
+    if (i === 1 || i % 25 === 0) {
       const mins = ((Date.now() - start) / 60000).toFixed(1);
       console.log(`  [${i}/${targets.length}] ${totalRC} roll calls, ${totalMV} member votes, ${errors.length} bill-errors (${mins} min)`);
     }
