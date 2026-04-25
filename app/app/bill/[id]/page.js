@@ -9,7 +9,8 @@ import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
-import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession } from '../../../lib/session-config'
+import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
+import VoteHistoryTable from '../../components/VoteHistoryTable'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -320,6 +321,8 @@ export default function BillDetailPage() {
   const [noteVis, setNoteVis]           = useState('private')
   const [editingNoteId, setEditingNoteId] = useState(null)
   const [savingNote, setSavingNote]     = useState(false)
+  // Thread 11: Roll-call history for this bill (display-only, G5 frozen-engine).
+  const [rollCalls, setRollCalls] = useState([])
 
   useEffect(() => {
     if (viewerLoading) return
@@ -405,6 +408,17 @@ export default function BillDetailPage() {
         .eq('bill_id', billId)
         .order('detected_date', { ascending: false })
       setFiscalHistory(fiscalData || [])
+
+      // Thread 11: Roll-call history (display-only). vote_date DESC so the
+      // most recent action surfaces first; member breakdown is lazy-loaded
+      // by VoteHistoryTable on row expand to keep the initial fetch light.
+      const { data: rcData } = await supabase
+        .from('roll_calls')
+        .select('id, chamber, vote_date, motion, yeas, nays, absent, excused, result, source_id')
+        .eq('bill_id', billId)
+        .order('vote_date', { ascending: false })
+        .order('id', { ascending: true })
+      setRollCalls(rcData || [])
 
       setLoading(false)
     }
@@ -1949,6 +1963,18 @@ export default function BillDetailPage() {
                     <div style={{ fontSize: 13, fontWeight: 600, color }}>{value}</div>
                   </div>
                 ))}
+              </div>
+
+              {/* ── Thread 11: Roll-call history ────────────────
+                  Display-only (G5 frozen-engine). Section header derives
+                  scope from bill.session via bienniumShortLabel() so the
+                  copy auto-rolls across biennia (G1). */}
+              <div style={{ marginTop: 6 }}>
+                <VoteHistoryTable
+                  mode="by-bill"
+                  rollCalls={rollCalls}
+                  scopeLabel={bienniumShortLabel(bill.session || getCurrentSession()) + ' session'}
+                />
               </div>
             </div>
           )}

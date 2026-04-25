@@ -10,6 +10,7 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
+import VoteHistoryTable from '../components/VoteHistoryTable'
 
 // Derive the session list from session-config so we don't have to hand-edit
 // every page at each biennium rollover. getAllSessions() returns newest-first
@@ -29,6 +30,10 @@ export default function MembersPage() {
   const [memberBills, setMemberBills] = useState([])
   const [loading, setLoading]         = useState(true)
   const [billsLoading, setBillsLoading] = useState(false)
+  // Thread 11: voting record for selectedMember (display-only, G5 frozen-engine).
+  const [memberVotes, setMemberVotes]     = useState([])  // by-member rows for VoteHistoryTable
+  const [votesLoading, setVotesLoading]   = useState(false)
+  const [voteCollision, setVoteCollision] = useState(null) // { otherIds: [...] } when surname is shared in same chamber
   const [chamber, setChamber]         = useState('All')
   const [party, setParty]             = useState('All')
   const [query, setQuery]             = useState('')
@@ -151,10 +156,97 @@ export default function MembersPage() {
     setBillsLoading(false)
   }, [supabase, selectedSession])
 
+  /* ── Thread 11: Voting record loader ─────────────────────
+   * Identity model on /members is full-name-keyed (`prime_sponsor` in
+   * `bills`). member_votes.member_name is last-name-only and lacks party,
+   * so we match by surname + chamber. This kills the Adrian/Julio Cortes
+   * and Michelle/Javier Valdez collisions. Wilson + Hunt remain ambiguous
+   * within Senate; we detect that at fetch time and surface an inline
+   * note instead of silently lumping votes. Member-ID-precise lookups
+   * land in Thread 11.1 once the SponsorService roster cache is wired.
+   */
+  const loadMemberVotes = useCallback(async (m) => {
+    setVotesLoading(true)
+    setMemberVotes([])
+    setVoteCollision(null)
+    const lastName = (m.name || '').trim().split(/\s+/).pop()
+    if (!lastName) { setVotesLoading(false); return }
+
+    // Step 1 — pull all member_vote rows for this surname.
+    const { data: rawVotes } = await supabase
+      .from('member_votes')
+      .select('roll_call_id, member_id, member_name, vote')
+      .eq('member_name', lastName)
+    if (!rawVotes || rawVotes.length === 0) { setVotesLoading(false); return }
+
+    // Step 2 — pull the roll_calls (chamber-filtered) for those vote rows.
+    const rcIds = [...new Set(rawVotes.map(v => v.roll_call_id))]
+    const { data: rolls } = await supabase
+      .from('roll_calls')
+      .select('id, bill_id, chamber, vote_date, motion, yeas, nays, absent, excused, result')
+      .in('id', rcIds)
+      .eq('chamber', m.chamber)
+      .order('vote_date', { ascending: false })
+    if (!rolls || rolls.length === 0) { setVotesLoading(false); return }
+
+    // Step 3 — fetch bill metadata for the surviving roll_calls' bills.
+    const billIds = [...new Set(rolls.map(r => r.bill_id))]
+    let billMeta = {}
+    if (billIds.length > 0) {
+      const billQuery = supabase
+        .from('bills')
+        .select('bill_id, bill_number, title, chamber, session, outcome_passed_law')
+        .in('bill_id', billIds)
+      const { data: billRows } = selectedSession === 'all'
+        ? await billQuery
+        : await billQuery.eq('session', selectedSession)
+      for (const b of (billRows || [])) billMeta[b.bill_id] = b
+    }
+
+    // Step 4 — stitch and apply the session filter via bill presence.
+    const rcById = Object.fromEntries(rolls.map(r => [r.id, r]))
+    const stitched = rawVotes
+      .map(v => {
+        const rc = rcById[v.roll_call_id]
+        if (!rc) return null
+        const bill = billMeta[rc.bill_id]
+        if (!bill) return null  // selectedSession filtered it out
+        return {
+          roll_call_id: rc.id,
+          member_id: v.member_id,
+          member_vote: v.vote,
+          bill_id: rc.bill_id,
+          bill_label: `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`,
+          bill_title: bill.title,
+          bill_session: bill.session,
+          chamber: rc.chamber,
+          vote_date: rc.vote_date,
+          motion: rc.motion,
+          yeas: rc.yeas,
+          nays: rc.nays,
+          result: rc.result,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => (b.vote_date || '').localeCompare(a.vote_date || ''))
+      .slice(0, 100)  // most-recent 100 votes; full record can be its own thread
+
+    // Step 5 — collision detection. If multiple distinct member_ids ended
+    // up here, the surname is shared inside the chamber (Wilson, Hunt).
+    const distinctIds = [...new Set(stitched.map(r => r.member_id).filter(Boolean))]
+    setMemberVotes(stitched)
+    setVoteCollision(distinctIds.length > 1 ? { ids: distinctIds, count: distinctIds.length } : null)
+    setVotesLoading(false)
+  }, [supabase, selectedSession])
+
   function selectMember(m) {
     setSelected(m)
     loadMemberBills(m.name)
+    loadMemberVotes(m)
   }
+  // Note: no useEffect to refetch on selectedSession change — the list-view
+  // select that owns selectedSession also calls setSelected(null), so a
+  // member is never open while the session filter changes.
 
   const STAGE_LABELS = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -375,6 +467,34 @@ export default function MembersPage() {
               </div>
             </Link>
           ))}
+
+          {/* ── Thread 11: Voting record ─────────────────────
+              Display-only (G5 frozen-engine). Surname-based lookup with
+              chamber filter; collision banner shows when two legislators
+              share a surname inside the same chamber. Member-ID precision
+              comes in Thread 11.1 (SponsorService roster cache). */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              Voting Record · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
+              <span style={{ marginLeft: 8, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>
+                ({memberVotes.length} most-recent votes)
+              </span>
+            </div>
+            {voteCollision && (
+              <div style={{
+                padding: '8px 12px', marginBottom: 8,
+                background: 'rgba(196,122,48,0.08)', border: '1px solid rgba(196,122,48,0.25)',
+                borderRadius: 'var(--radius)', fontSize: 11, color: 'var(--gold)', lineHeight: 1.4,
+              }}>
+                Surname-based lookup. {voteCollision.count} legislators share &quot;{(selectedMember.name || '').split(' ').pop()}&quot; in the {selectedMember.chamber}; this list may include a same-surname colleague&apos;s votes. Member-ID precision lands in Thread 11.1.
+              </div>
+            )}
+            {votesLoading ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
+            ) : (
+              <VoteHistoryTable mode="by-member" byMemberRows={memberVotes} />
+            )}
+          </div>
         </div>
         {!isAnonPublic && <Nav/>}
       </div>
