@@ -52,33 +52,54 @@ export default function PublicNav() {
         />
       </Link>
 
-      <Link
-        href="/login"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '8px 16px',
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: '0.04em',
-          color: 'var(--bg)',
-          background: 'var(--teal)',
-          border: '1px solid var(--teal)',
-          borderRadius: 6,
-          textDecoration: 'none',
-          transition: 'background 0.15s, border-color 0.15s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--teal-bright)'
-          e.currentTarget.style.borderColor = 'var(--teal-bright)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'var(--teal)'
-          e.currentTarget.style.borderColor = 'var(--teal)'
-        }}
-      >
-        Sign in
-      </Link>
+      {/* Right cluster — secondary "How it works" link + Sign in CTA */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 }}>
+        <Link
+          href="/how-it-works"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            fontSize: 13,
+            fontWeight: 500,
+            letterSpacing: '0.01em',
+            color: 'var(--text-muted)',
+            textDecoration: 'none',
+            transition: 'color 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--teal)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+        >
+          How it works
+        </Link>
+
+        <Link
+          href="/login"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            color: 'var(--bg)',
+            background: 'var(--teal)',
+            border: '1px solid var(--teal)',
+            borderRadius: 6,
+            textDecoration: 'none',
+            transition: 'background 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--teal-bright)'
+            e.currentTarget.style.borderColor = 'var(--teal-bright)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'var(--teal)'
+            e.currentTarget.style.borderColor = 'var(--teal)'
+          }}
+        >
+          Sign in
+        </Link>
+      </div>
     </nav>
   )
 }
