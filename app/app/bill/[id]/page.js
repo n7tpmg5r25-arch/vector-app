@@ -9,7 +9,7 @@ import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
-import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
+import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession } from '../../../lib/session-config'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -567,7 +567,8 @@ export default function BillDetailPage() {
   const floorMargin = bill.avg_floor_margin ? Math.round(bill.avg_floor_margin * 100) : null
 
   // Build leg.wa.gov link
-  const sessionYear = (bill.session || '2025-2026').split('-')[0]
+  // G4 — fall back to current session helper, never to a hardcoded biennium literal.
+  const sessionYear = (bill.session || getCurrentSession()).split('-')[0]
   const legUrl = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`
 
   // Velocity: is the score trending up from earliest snapshot?
@@ -706,7 +707,7 @@ export default function BillDetailPage() {
             borderRadius: 'var(--radius)', padding: '10px 14px',
             fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
           }}>
-            This bill passed at least one chamber and carries over within the {bill.session || '2025-2026'} biennium.
+            This bill passed at least one chamber and carries over within the {bill.session || getCurrentSession()} biennium.
           </div>
         )}
         {isInterimPeriod() && bill.confidence_label === 'LAW' && (
@@ -1049,7 +1050,7 @@ export default function BillDetailPage() {
                     .from('bills')
                     .select('bill_id')
                     .eq('bill_number', compNum)
-                    .eq('session', bill.session || '2025-2026')
+                    .eq('session', bill.session || getCurrentSession())
                     .maybeSingle()
                   if (data?.bill_id) router.push(`/bill/${data.bill_id}`)
                 }}
