@@ -4,66 +4,87 @@ import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { isAdmin } from '../../../lib/admin'
+import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../lib/shorepine'
 import SignOutButton from './SignOutButton'
+import DownloadBriefingButton from './DownloadBriefingButton'
 
 /**
- * /c/[slug] — Thread 3 Client Portal Shell
+ * /c/[slug] — Client Portal (Thread 4)
  *
- * Server component. The "proof of life" for the client portal: it proves
- * end-to-end that an invited client user can magic-link in, land on this
- * URL, and see a branded Shorepine shell that confirms they're looking
- * at the right tenant. Thread 4 fills the shell with watchlist + bill
- * detail views; Thread 3 only ships the plumbing.
+ * Server component. Resolves auth + tenant in Thread 3's pattern, then
+ * renders the assigned watchlist with shared notes counts. Each bill
+ * card links to /c/[slug]/bill/[id], the read-only client bill view.
  *
- * Auth model
- * ──────────
- *   • Anonymous            → redirect to /login (handled by proxy.js
- *                            before this code runs; belt-and-suspenders
- *                            check below in case proxy is bypassed).
- *   • Admin (Colin)        → render shell with "Viewing as client" banner,
- *                            regardless of client_users membership.
- *                            Admin is detected by UID allowlist, not by
- *                            app_metadata (see app/lib/admin.js header).
- *   • Member of the slug   → render shell. No banner.
- *   • Authed non-member    → if they belong to ANY other client, redirect
- *                            to their first slug. Otherwise, /login.
+ * Auth model (unchanged from Thread 3 — see commit a5266b3 + fe00374
+ * for the full rationale):
+ *   • Anonymous            → redirect to /login (proxy.js catches first)
+ *   • Admin (Colin)        → render with "Admin preview" chip in header
+ *   • Member of the slug   → render
+ *   • Authed non-member    → redirect to first membership, else /login
  *
- * RLS posture
- * ───────────
- * The client_users RLS policy (`client_users_read`) lets any authenticated
- * user SELECT their own rows by user_id = auth.uid(). The clients RLS
- * policy uses auth_user_client_ids() for SELECT. So we can ask, "what
- * clients does this user belong to?" with a plain authed query — no
- * service_role needed for the member path.
- *
- * We still use service_role to resolve {slug → client row} for the admin
- * owner-view path, because admins who aren't client_users members can't
- * see the client row via RLS. That's intentional: RLS is the real fence,
- * and the admin surface is a deliberate bypass.
+ * Data fetch:
+ *   • For members, the authed `supabase` client returns tracked_bills via
+ *     RLS policy `tracked_bills_read_by_client` (Phase 13a) — no
+ *     service_role needed for the member path.
+ *   • For admin previewing a non-member slug, we use service_role so the
+ *     watchlist isn't empty. Admin is already established earlier in the
+ *     dispatch matrix; this is the same bypass posture as Thread 3.
+ *   • Shared notes are fetched the same way: RLS-scoped for the client
+ *     (via `bill_notes_read_shared_by_client` from the Thread 4 migration),
+ *     service_role for admin owner-view.
  */
 
 export const dynamic = 'force-dynamic'
 
-// Brand v4.6 Shorepine firm palette — distinct from the Vector app dark
-// palette. Intentionally inlined (not wired into CSS vars) so this shell
-// stays self-contained. See BRAND_V46_ROLLOUT_PLAN.md §Firm palette.
-const SHOREPINE = {
-  forest: '#1a4a2e',
-  forestMid: '#2d6b45',
-  parchment: '#f5f0e6',
-  parchmentDeep: '#ece5d3',
-  brass: '#b8975a',
-  slate: '#4a5060',
-  ink: '#1c1c1c',
+// Score tier thresholds — match ScoreBadge / generate-pdf.js so the
+// portal speaks the same vocabulary as the rest of the app.
+const TIER_HIGH = 75
+const TIER_MODERATE = 60
+const TIER_LOW = 45
+
+// Stage labels — index = bills.stage. Mirrors STAGE_SHORT in app/lib/stages.js
+// but using the long form clients see (no internal acronyms like "Out of Cmte").
+const STAGE_LABEL = [
+  '',
+  'Introduced',
+  'In Committee',
+  'Passed Committee',
+  'Passed Floor',
+  'Conference',
+  'Signed into Law',
+]
+
+function tierLabel(score) {
+  if (score >= TIER_HIGH) return 'HIGH'
+  if (score >= TIER_MODERATE) return 'MODERATE'
+  if (score >= TIER_LOW) return 'LOW'
+  return 'VERY LOW'
 }
 
-const FONT_DISPLAY = "'Cormorant Garamond', Georgia, serif"
-const FONT_BODY = "'Karla', system-ui, sans-serif"
+function tierColor(score) {
+  if (score >= TIER_HIGH) return SHOREPINE.forestMid
+  if (score >= TIER_MODERATE) return SHOREPINE.forest
+  if (score >= TIER_LOW) return SHOREPINE.brass
+  return SHOREPINE.slate
+}
+
+function formatStageLine(bill) {
+  const cl = (bill?.confidence_label || '').toUpperCase()
+  const chamber = bill?.chamber || 'House'
+  if (cl === 'LAW') return 'Signed into law'
+  if (cl === 'PASSED_CHAMBER') return `Passed ${chamber} — carries to next session`
+  if (cl === 'DEAD') return 'Did not advance — session ended'
+  const s = bill?.stage || 1
+  if (s >= 6) return 'Signed into law'
+  if (s >= 4) return `Passed ${chamber} floor`
+  if (s >= 3) return bill?.committee_name ? `Passed ${bill.committee_name}` : 'Passed committee'
+  return STAGE_LABEL[s] || 'Introduced'
+}
 
 export default async function ClientPortalPage({ params }) {
   const { slug } = await params
 
-  // ─── Auth gate (defence in depth; proxy.js catches anon first) ────────
+  // ─── Auth gate ────────────────────────────────────────────────────────
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -86,24 +107,16 @@ export default async function ClientPortalPage({ params }) {
 
   const viewerIsAdmin = isAdmin(user)
 
-  // ─── Find the user's client memberships (RLS-scoped) ─────────────────
-  // Returns at most the clients this user belongs to. For an admin who is
-  // not a member of any client, this returns []; we fall through to the
-  // owner-view path below.
+  // ─── Resolve client (member path via RLS, admin path via service_role) ─
   const { data: memberships } = await supabase
     .from('client_users')
     .select('client_id, role, clients(id, slug, name, status)')
     .order('invited_at', { ascending: true })
 
   const matched = (memberships || []).find(m => m.clients?.slug === slug)
-
-  // ─── Resolve the requested client ────────────────────────────────────
-  // Two paths:
-  //   1. Member: we already have the joined client row from memberships.
-  //   2. Admin owner-view: service_role fetch because RLS on `clients`
-  //      would hide this row from a non-member admin.
   let client = matched?.clients || null
 
+  // Admin owner-view bypass
   if (!client && viewerIsAdmin) {
     const serviceKey = process.env.SUPABASE_SERVICE_KEY
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -118,36 +131,71 @@ export default async function ClientPortalPage({ params }) {
     }
   }
 
-  // ─── Dispatch ────────────────────────────────────────────────────────
   if (!client) {
-    // Not admin and no matching membership → route by whether the user
-    // belongs somewhere else entirely.
     if (!viewerIsAdmin) {
       const firstOther = (memberships || []).find(m => m.clients?.slug)
-      if (firstOther?.clients?.slug) {
-        redirect(`/c/${firstOther.clients.slug}`)
-      }
-      // No memberships at all — they shouldn't be here. Back to login
-      // rather than the owner home: their account isn't provisioned as
-      // either an admin or a client_users row.
+      if (firstOther?.clients?.slug) redirect(`/c/${firstOther.clients.slug}`)
       redirect('/login')
     }
-    // Admin and the slug doesn't exist anywhere → 404. notFound() here
-    // instead of /login because an admin typoed a URL — they deserve a
-    // real 404, not a silent punt.
     notFound()
   }
 
-  // If we reach here: client is resolved. Banner dispatch:
-  //   Admin (UID allowlist) visiting /c/* → banner, unconditionally.
-  //   This is explicit per the Thread 3 smoke test matrix: "owner →
-  //   /c/<slug> → shows portal with 'Viewing as client' banner". The
-  //   banner signals admin-preview capacity, independent of whether
-  //   the admin happens to also sit in client_users for this slug.
-  //   (Today Colin IS a member of the `internal` test fixture; the
-  //   earlier "canonical viewer" exception suppressed the banner for
-  //   him and diverged from the spec.)
   const adminOwnerView = viewerIsAdmin
+
+  // ─── Load assigned watchlist + shared note counts ─────────────────────
+  // For the admin previewing a non-member slug, RLS would hide both the
+  // tracked_bills rows and the shared notes. Use service_role then.
+  // Otherwise the authed `supabase` client is RLS-scoped naturally.
+  const usingAdminBypass =
+    viewerIsAdmin && !memberships?.some(m => m.clients?.id === client.id)
+  let dataClient = supabase
+  if (usingAdminBypass) {
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (serviceKey && supabaseUrl) {
+      dataClient = createClient(supabaseUrl, serviceKey)
+    }
+  }
+
+  const { data: trackedRows } = await dataClient
+    .from('tracked_bills')
+    .select(`
+      bill_id, tag, added_at,
+      bills (
+        bill_id, bill_number, title, final_score,
+        stage, chamber, category, committee_name,
+        session, confidence_label, has_public_hearing,
+        committee_passed, stalled
+      )
+    `)
+    .eq('client_id', client.id)
+    .order('added_at', { ascending: false })
+
+  const bills = (trackedRows || []).filter(t => t.bills)
+
+  // Shared note counts per bill (display only — full notes load on the
+  // bill detail page). Single round trip.
+  let sharedNoteCount = {}
+  if (bills.length) {
+    const billIds = bills.map(b => b.bill_id)
+    const { data: notesData } = await dataClient
+      .from('bill_notes')
+      .select('bill_id')
+      .in('bill_id', billIds)
+      .eq('visibility', 'shared')
+    if (notesData) {
+      sharedNoteCount = notesData.reduce((acc, n) => {
+        acc[n.bill_id] = (acc[n.bill_id] || 0) + 1
+        return acc
+      }, {})
+    }
+  }
+
+  // Portfolio counters for the header strip.
+  const lawCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'LAW').length
+  const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
+  const deadCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'DEAD').length
+  const activeCount = bills.length - lawCount - carryCount - deadCount
 
   // ──────────────────────────────────────────────────────────────────────
   // RENDER
@@ -162,10 +210,9 @@ export default async function ClientPortalPage({ params }) {
         color: SHOREPINE.ink,
       }}
     >
-      {/* Parchment card — the portal shell proper */}
       <section
         style={{
-          maxWidth: 640,
+          maxWidth: 720,
           margin: '0 auto',
           background: SHOREPINE.parchment,
           border: `1px solid ${SHOREPINE.parchmentDeep}`,
@@ -174,7 +221,7 @@ export default async function ClientPortalPage({ params }) {
           overflow: 'hidden',
         }}
       >
-        {/* Forest header bar */}
+        {/* ── Forest header ─────────────────────────────────────────── */}
         <header
           style={{
             background: SHOREPINE.forest,
@@ -212,9 +259,6 @@ export default async function ClientPortalPage({ params }) {
                 Vector | WA · Client Portal
               </div>
             </div>
-            {/* Admin chip — in-header pill, styled after the home page
-                chip row (Free & Nonpartisan, Interim). Only shown to
-                admins (by UID allowlist); non-admin viewers never see it. */}
             {adminOwnerView && (
               <span
                 role="note"
@@ -250,54 +294,266 @@ export default async function ClientPortalPage({ params }) {
               </span>
             )}
           </div>
-          <SignOutButton />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {bills.length > 0 && (
+              <DownloadBriefingButton clientId={client.id} clientName={client.name} />
+            )}
+            <SignOutButton />
+          </div>
         </header>
 
-        {/* Body */}
-        <div style={{ padding: '28px 24px 32px' }}>
-          <h1
-            style={{
-              fontFamily: FONT_DISPLAY,
-              fontSize: 26,
-              fontWeight: 600,
-              color: SHOREPINE.forest,
-              lineHeight: 1.2,
-              marginBottom: 10,
-            }}
-          >
-            Welcome.
-          </h1>
-          <p
-            style={{
-              fontSize: 15,
-              lineHeight: 1.6,
-              color: SHOREPINE.ink,
-              marginBottom: 14,
-            }}
-          >
-            This is the {client.name} workspace — the secure surface where
-            Shorepine Government Relations will post the bills we&rsquo;re
-            tracking on your behalf, plus shared notes and briefings.
-          </p>
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: SHOREPINE.slate,
-            }}
-          >
-            Your assigned bills, shared notes, and downloadable briefings
-            arrive in the next release. You&rsquo;re signed in as{' '}
-            <strong style={{ color: SHOREPINE.ink }}>{user.email}</strong>.
-          </p>
+        {/* ── Body ─────────────────────────────────────────────────── */}
+        <div style={{ padding: '24px 22px 28px' }}>
+          {/* Portfolio counters strip */}
+          {bills.length > 0 && (
+            <div
+              role="group"
+              aria-label="Portfolio summary"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 18,
+                paddingBottom: 16,
+                borderBottom: `1px solid ${SHOREPINE.parchmentDeep}`,
+                marginBottom: 18,
+              }}
+            >
+              {[
+                { label: 'Tracked', value: bills.length, tone: 'forest' },
+                { label: 'Active', value: activeCount, tone: 'brass' },
+                { label: 'Signed', value: lawCount, tone: 'forestMid' },
+                { label: 'Carried', value: carryCount, tone: 'brass' },
+                { label: 'Did not advance', value: deadCount, tone: 'slate' },
+              ].map(({ label, value, tone }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily: FONT_DISPLAY,
+                      fontSize: 22,
+                      fontWeight: 600,
+                      color: SHOREPINE[tone] || SHOREPINE.forest,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {value}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: SHOREPINE.slate,
+                    }}
+                  >
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Bill cards */}
+          {bills.length === 0 ? (
+            <div
+              style={{
+                padding: '36px 12px',
+                textAlign: 'center',
+                color: SHOREPINE.slate,
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: FONT_DISPLAY,
+                  fontSize: 20,
+                  fontWeight: 600,
+                  color: SHOREPINE.forest,
+                  marginBottom: 8,
+                }}
+              >
+                Your tracked legislation will appear here.
+              </div>
+              <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+                Shorepine hasn’t assigned any bills to {client.name} yet. As
+                soon as we add the first one, it will show up on this page
+                with the latest score and any notes we’ve published for you.
+              </div>
+            </div>
+          ) : (
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {bills.map(({ bill_id, bills: bill, tag }) => {
+                const score = bill?.final_score || 0
+                const cl = (bill?.confidence_label || '').toUpperCase()
+                const accent =
+                  cl === 'LAW' ? SHOREPINE.forestMid
+                    : cl === 'PASSED_CHAMBER' ? SHOREPINE.brass
+                    : cl === 'DEAD' ? SHOREPINE.slate
+                    : tierColor(score)
+                const noteN = sharedNoteCount[bill_id] || 0
+                const billLabel = (bill?.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill?.bill_number
+
+                return (
+                  <li key={bill_id}>
+                    <Link
+                      href={`/c/${client.slug}/bill/${bill_id}`}
+                      style={{
+                        display: 'block',
+                        padding: '14px 16px',
+                        background: SHOREPINE.parchmentDeep + '55', // soft tint
+                        border: `1px solid ${SHOREPINE.parchmentDeep}`,
+                        borderLeft: `4px solid ${accent}`,
+                        borderRadius: 8,
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <div
+                          aria-hidden="true"
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            minWidth: 52,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontFamily: FONT_DISPLAY,
+                              fontSize: 26,
+                              fontWeight: 700,
+                              lineHeight: 1,
+                              color: accent,
+                            }}
+                          >
+                            {score}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 8,
+                              letterSpacing: '0.12em',
+                              textTransform: 'uppercase',
+                              color: SHOREPINE.slate,
+                              marginTop: 4,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {tierLabel(score)}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: 8,
+                              marginBottom: 4,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: SHOREPINE.forest,
+                                letterSpacing: '0.02em',
+                              }}
+                            >
+                              {billLabel}
+                            </span>
+                            {bill?.category && (
+                              <span style={{ fontSize: 11, color: SHOREPINE.slate }}>
+                                · {bill.category}
+                              </span>
+                            )}
+                            {tag && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.06em',
+                                  color: SHOREPINE.brass,
+                                  background: 'rgba(184, 151, 90, 0.12)',
+                                  border: `1px solid ${SHOREPINE.brass}55`,
+                                  padding: '1px 8px',
+                                  borderRadius: 10,
+                                }}
+                              >
+                                {tag}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 500,
+                              color: SHOREPINE.ink,
+                              lineHeight: 1.35,
+                              marginBottom: 6,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {bill?.title || bill?.committee_name || `Bill ${bill?.bill_number}`}
+                          </div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
+                              gap: 10,
+                              fontSize: 11,
+                              color: SHOREPINE.slate,
+                            }}
+                          >
+                            <span>{formatStageLine(bill)}</span>
+                            {bill?.has_public_hearing && (
+                              <span style={{ color: SHOREPINE.forestMid, fontWeight: 600 }}>
+                                · Hearing scheduled
+                              </span>
+                            )}
+                            {noteN > 0 && (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  color: SHOREPINE.brass,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                <svg
+                                  width="11" height="11" viewBox="0 0 24 24"
+                                  fill="none" stroke="currentColor" strokeWidth="2"
+                                  strokeLinecap="round" strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                {noteN} {noteN === 1 ? 'note' : 'notes'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
 
           {/* Brass divider */}
           <div
             style={{
               height: 1,
               background: SHOREPINE.brass,
-              opacity: 0.5,
-              margin: '24px 0',
+              opacity: 0.4,
+              margin: '24px 0 16px',
             }}
           />
 
@@ -311,7 +567,7 @@ export default async function ClientPortalPage({ params }) {
                 border: `1px dashed ${SHOREPINE.brass}`,
                 borderRadius: 8,
                 padding: '10px 12px',
-                marginBottom: 20,
+                marginBottom: 16,
               }}
             >
               <div style={{ textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
