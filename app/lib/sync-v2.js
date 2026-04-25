@@ -352,8 +352,17 @@ function _parseRollCallRow(billId, rc) {
   const nays    = _readCount(rc.NayVotes);
   const absent  = _readCount(rc.AbsentVotes);
   const excused = _readCount(rc.ExcusedVotes);
-  const sourceId = String(rc.RollCallId || rc.SequenceNumber || '').trim();
-  if (!sourceId) return null; // can't dedupe without an ID — skip
+  // SequenceNumber is per-bill in the WA API (1, 2, 3, ... within one
+  // bill's roll calls), not globally unique across bills. Without the
+  // bill_id prefix, every bill's seq=1 row would collide on
+  // UNIQUE (source_id) and the upserts would overwrite each other —
+  // observed on first backfill (script counted 2,298 writes; DB held 89).
+  // RollCallId field doesn't appear in the GetRollCalls response we
+  // probed (bill 5974, biennium 2025-26), so SequenceNumber is what we
+  // actually have. Prefix with bill_id for the unique-per-bill scope.
+  const seq = String(rc.RollCallId || rc.SequenceNumber || '').trim();
+  if (!seq) return null;
+  const sourceId = `${billId}_${seq}`;
 
   const rawDate = rc.VoteDate || rc.ActionDate || null;
   const voteDate = rawDate ? String(rawDate).split('T')[0] : null;
