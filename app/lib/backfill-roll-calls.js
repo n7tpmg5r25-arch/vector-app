@@ -161,11 +161,18 @@ function _normalizeVoteValue(v) {
   return s.slice(0, 16);
 }
 
+// Mirror of sync-v2.js — see comment there for the WSL XML shape gotcha.
+function _readCount(node) {
+  if (node == null) return 0;
+  if (typeof node === 'object') return parseInt(node.Count) || 0;
+  return parseInt(node) || 0;
+}
+
 function _parseRollCallRow(billId, rc) {
-  const yeas    = parseInt(rc.YeaVotes)    || 0;
-  const nays    = parseInt(rc.NayVotes)    || 0;
-  const absent  = parseInt(rc.AbsentVotes) || 0;
-  const excused = parseInt(rc.ExcusedVotes)|| 0;
+  const yeas    = _readCount(rc.YeaVotes);
+  const nays    = _readCount(rc.NayVotes);
+  const absent  = _readCount(rc.AbsentVotes);
+  const excused = _readCount(rc.ExcusedVotes);
   const sourceId = String(rc.RollCallId || rc.SequenceNumber || '').trim();
   if (!sourceId) return null;
   const rawDate = rc.VoteDate || rc.ActionDate || null;
@@ -181,6 +188,8 @@ function _parseRollCallRow(billId, rc) {
   };
 }
 
+// WSL idiom: per-member result element is literally <VOte> (capital V,
+// capital O, lowercase te). Verified 2026-04-25 against bill 5974.
 function _parseMemberVotes(rc) {
   const inner = rc.Votes?.Vote || rc.MemberVotes?.MemberVote || rc.Vote;
   if (!inner) return [];
@@ -188,13 +197,13 @@ function _parseMemberVotes(rc) {
   return arr.map(v => {
     const memberId   = String(v.MemberId || v.Id || v.LegislatorId || '').trim();
     const memberName = (v.Name || v.MemberName || v.LongName || '').trim();
-    const rawVote = (typeof v.Vote === 'object' && v.Vote !== null)
-      ? (v.Vote._ ?? v.Vote.value ?? '')
-      : (v.Vote ?? v.VoteValue ?? v.Position ?? '');
-    const vote = _normalizeVoteValue(rawVote);
-    const party = (v.Party || '').trim().toUpperCase().slice(0, 4) || null;
+    const rawVote = v.VOte ?? v.Vote ?? v.VoteValue ?? v.Position ?? '';
+    const voteStr = (typeof rawVote === 'object' && rawVote !== null)
+      ? (rawVote._ ?? rawVote.value ?? '')
+      : rawVote;
+    const vote = _normalizeVoteValue(voteStr);
     if (!memberId || !memberName || !vote) return null;
-    return { member_id: memberId, member_name: memberName, party, vote };
+    return { member_id: memberId, member_name: memberName, party: null, vote };
   }).filter(Boolean);
 }
 
