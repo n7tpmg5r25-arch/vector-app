@@ -173,8 +173,11 @@ function _parseRollCallRow(billId, rc) {
   const nays    = _readCount(rc.NayVotes);
   const absent  = _readCount(rc.AbsentVotes);
   const excused = _readCount(rc.ExcusedVotes);
-  const sourceId = String(rc.RollCallId || rc.SequenceNumber || '').trim();
-  if (!sourceId) return null;
+  // See comment in sync-v2.js — SequenceNumber is per-bill, must be
+  // prefixed with bill_id for globally-unique source_id.
+  const seq = String(rc.RollCallId || rc.SequenceNumber || '').trim();
+  if (!seq) return null;
+  const sourceId = `${billId}_${seq}`;
   const rawDate = rc.VoteDate || rc.ActionDate || null;
   const voteDate = rawDate ? String(rawDate).split('T')[0] : null;
   if (!voteDate) return null;
