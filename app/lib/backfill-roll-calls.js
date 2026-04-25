@@ -53,9 +53,14 @@ const ARG_BIENNIUM = parseFlag('biennium', null);   // '2023-24' format for WA A
 const ARG_SESSION  = parseFlag('session',  null);   // '2023-2024' format for DB query
 // Allow the same script to backfill any biennium; defaults come from env so
 // the GH Action invocation doesn't need to change.
+//
+// Session derivation matches sync-v2.js:112 — CURRENT_YEAR is the SECOND
+// year of the biennium (e.g. YEAR=2026 → SESSION='2025-2026'). Earlier
+// version of this script had the math reversed; CLI --session always wins
+// over the env fallback so manual invocations stay unambiguous.
 const BIENNIUM = ARG_BIENNIUM || process.env.CURRENT_BIENNIUM;
 const SESSION  = ARG_SESSION  || (process.env.CURRENT_YEAR
-  ? `${process.env.CURRENT_YEAR}-${parseInt(process.env.CURRENT_YEAR) + 1}`
+  ? `${parseInt(process.env.CURRENT_YEAR) - 1}-${process.env.CURRENT_YEAR}`
   : null);
 
 if (!BIENNIUM || !/^\d{4}-\d{2}$/.test(BIENNIUM)) {
