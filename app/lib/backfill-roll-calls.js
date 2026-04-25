@@ -35,11 +35,16 @@
 const path = require('path');
 const fs   = require('fs');
 
-// Resolve env from .env.local if present (matches how sync-v2.js is invoked
-// in the GH Actions workflow, which sets envs explicitly). Local dev path
-// only — Actions wins via process.env directly.
+// Resolve env from whichever `.env.local` is closer.
+//   - Repo root  (vector-app/.env.local)   — when invoked as `node app/lib/backfill...`
+//   - App dir    (vector-app/app/.env.local) — when invoked from inside app/
+// dotenv.config() does NOT override existing process.env values, so calling
+// it twice is safe even if both files exist (the first hit wins per var).
+// Defaults  also try the no-path form which reads CWD/.env.
 try {
   require('dotenv').config({ path: path.resolve(__dirname, '../../.env.local') });
+  require('dotenv').config({ path: path.resolve(__dirname, '../.env.local') });
+  require('dotenv').config(); // CWD fallback
 } catch (_) { /* dotenv optional */ }
 
 // ── Args ─────────────────────────────────────────────────────────────────
@@ -85,11 +90,26 @@ if (!SESSION || !/^\d{4}-\d{4}$/.test(SESSION)) {
 const { createClient } = require('@supabase/supabase-js');
 const xml2js = require('xml2js');
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-  { auth: { persistSession: false } }
-);
+// Accept either env-var name. sync-v2.js reads SUPABASE_URL; the Next.js
+// app + browser code reads NEXT_PUBLIC_SUPABASE_URL. .env.local typically
+// has only one of them — this script doesn't care which.
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY =
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('FATAL: set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your env or .env.local');
+  process.exit(2);
+}
+if (!SUPABASE_KEY) {
+  console.error('FATAL: set SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY) in your env or .env.local');
+  process.exit(2);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false },
+});
 
 const BASE = 'http://wslwebservices.leg.wa.gov';
 const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: false });
