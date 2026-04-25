@@ -84,6 +84,26 @@ export default function PublicHome() {
             Trajectory scores, momentum, and committee activity for every bill in Olympia. Built
             for advocates, staff, journalists, and anyone who wants to read the building.
           </p>
+
+          {/* Thread 9 — discoverable explainer link for first-time visitors */}
+          <Link
+            href="/how-it-works"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 14,
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: '0.01em',
+              color: 'var(--teal)',
+              textDecoration: 'none',
+              borderBottom: '1px solid rgba(184,151,90,0.4)',
+              paddingBottom: 1,
+            }}
+          >
+            How Vector works <span aria-hidden="true">→</span>
+          </Link>
         </div>
       </header>
 

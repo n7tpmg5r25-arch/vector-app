@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 //   Batch 6 (this thread):   '/search', '/committees', '/committees/[slug]',
 //                            '/members', '/methodology', '/outcomes',
 //                            '/hearings'
+//   Thread 9:                '/how-it-works'         (public explainer)
 // '/disclaimers' is already public-shaped and is matched by isAlwaysPublic
 // below (no flag dependency).
 //
@@ -30,6 +31,7 @@ function isPublicLayerRoute(pathname) {
   if (pathname === '/methodology') return true
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
+  if (pathname === '/how-it-works') return true
   return false
 }
 
