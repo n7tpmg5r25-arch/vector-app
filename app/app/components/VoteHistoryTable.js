@@ -1,6 +1,6 @@
 'use client'
 /**
- * VoteHistoryTable — Vector | WA Thread 11
+ * VoteHistoryTable — Vector | WA Thread 11 (party chips added in Thread 11.1)
  *
  * Renders roll_call + member_votes data from Thread 6's vote-data foundation.
  * G5 frozen-engine rule: this component is READ-ONLY display. It does not
@@ -12,15 +12,19 @@
  *   - mode="by-member" — list of roll_calls a single legislator voted on,
  *                         with the bill linked + their vote shown inline.
  *
- * v1 ships WITHOUT party labels. member_votes.party is 100% NULL today
- * (the Thread 6 sync didn't backfill party — pending SponsorService roster
- * cache work in a Thread 11.1 follow-up). Showing partial coverage from
- * bills.prime_sponsor would mislead, so we omit the column for now.
+ * Thread 11.1: party labels (D / R) are now rendered as small chips in the
+ * by-bill MemberBreakdown. member_votes.party is populated from the
+ * legislator_party_history table by app/lib/sync-rosters.js (nightly + the
+ * one-time Thread 11.1 backfill). Members not yet enriched (newly-seated,
+ * not in the synced roster) fall through to the neutral 'Unknown' chip
+ * so the UI stays defensible — never silently mislabels a vote.
  *
  * Colors:
  *   YEA    → #4ade80 (green; matches members/page.js law-passed accent)
  *   NAY    → #ef4444 (red)
  *   EXCUSED/ABSENT → var(--text-faint)
+ *   D      → #4d9aff (blue tint, neutral-saturation; matches House badge)
+ *   R      → #ef4444 (red tint, same hue as NAY for consistency)
  */
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -35,6 +39,29 @@ const VOTE_COLORS = {
 }
 
 const VOTE_LABEL = { YEA: 'Yea', NAY: 'Nay', EXCUSED: 'Excused', ABSENT: 'Absent' }
+
+// Party chip palette — Thread 11.1. Defensive default for any unexpected
+// value (e.g. 'I', 'Unknown', empty) so we never crash on bad data.
+const PARTY_COLORS = {
+  D: { bg: 'rgba(77,154,255,0.14)',  text: '#4d9aff', border: 'rgba(77,154,255,0.30)' },
+  R: { bg: 'rgba(239,68,68,0.14)',   text: '#ef4444', border: 'rgba(239,68,68,0.30)'  },
+}
+function partyChipStyle(party) {
+  return PARTY_COLORS[party] || {
+    bg: 'var(--bg-surface)', text: 'var(--text-faint)', border: 'var(--border)',
+  }
+}
+function PartyChip({ party }) {
+  if (!party) return null
+  const c = partyChipStyle(party)
+  return (
+    <span style={{
+      fontSize: 9, padding: '1px 5px', borderRadius: 4,
+      background: c.bg, color: c.text, border: `1px solid ${c.border}`,
+      fontWeight: 700, letterSpacing: '0.04em', flexShrink: 0,
+    }}>{party === 'D' || party === 'R' ? party : '?'}</span>
+  )
+}
 
 function isFinalPassage(motion = '') {
   return /final\s+passage/i.test(motion)
@@ -184,7 +211,7 @@ function MemberBreakdown({ votes }) {
               </span>
             </div>
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
               gap: 4,
             }}>
               {list.map(v => (
@@ -193,7 +220,14 @@ function MemberBreakdown({ votes }) {
                   padding: '3px 6px', borderRadius: 4,
                   background: 'var(--bg-surface)',
                   border: '1px solid var(--border)',
-                }}>{v.member_name}</span>
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  minWidth: 0,
+                }}>
+                  <PartyChip party={v.party} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                    {v.member_name}
+                  </span>
+                </span>
               ))}
             </div>
           </div>
@@ -282,7 +316,7 @@ export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, scopeL
     ;(async () => {
       const { data } = await supabase
         .from('member_votes')
-        .select('roll_call_id, member_id, member_name, vote')
+        .select('roll_call_id, member_id, member_name, vote, party')
         .eq('roll_call_id', expandedId)
       if (cancelled) return
       setVotesById(prev => ({ ...prev, [expandedId]: data || [] }))

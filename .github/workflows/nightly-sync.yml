@@ -68,6 +68,44 @@ jobs:
           echo "Pre-filing is open. Syncing 2027-2028 session..."
           node app/lib/sync-v2.js
 
+      # ── Thread 11.1: SponsorService roster cache + party backfill ────────
+      # Pulls the full legislator roster from SponsorService.asmx for the
+      # current biennium and upserts into legislator_party_history. Then
+      # stamps member_votes.party for any rows still NULL. Idempotent — a
+      # no-op when nothing has changed since last night.
+      # Read-only enrichment per Universal Guardrail G5; scoreBill() is not
+      # touched. Safe to fail: continue-on-error so a SponsorService outage
+      # can't take down the rest of the sync. Worst case: party labels stay
+      # stale for a day until tomorrow's run picks them up.
+      - name: Sync legislator rosters (2025-2026)
+        if: success()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+        run: node app/lib/sync-rosters.js
+
+      - name: Sync legislator rosters (2027-2028 — pre-filing)
+        if: success()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2027-28'
+          CURRENT_YEAR: '2028'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+        run: |
+          PREFILING_DATE="2026-12-01"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [[ "$TODAY" < "$PREFILING_DATE" ]]; then
+            echo "Pre-filing not yet open ($TODAY < $PREFILING_DATE). Skipping 2027-28 roster sync."
+            exit 0
+          fi
+          node app/lib/sync-rosters.js
+
       - name: Assert sync data quality (2025-2026)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
