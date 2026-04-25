@@ -25,31 +25,14 @@ import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 
 import { STAGE_SHORT } from '../../lib/stages'
-import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, daysUntil } from '../../lib/session-config'
+import {
+  isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, daysUntil,
+  bienniumShortLabel, dayOfSessionOrNull,
+} from '../../lib/session-config'
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-/** Day number within the current session (1-based), or null when not in session.
- *  Used by the By-Committee header anchor to display "Day X of session" during
- *  active session without over-engineering a helper that few callers would use. */
-function dayOfSessionOrNull() {
-  const b = getCurrentBiennium()
-  const now = new Date()
-  const start = new Date(b.start)
-  const end = new Date(b.end)
-  if (now < start || now > end) return null
-  return Math.floor((now - start) / 86400000) + 1
-}
-
-/** Short biennium label for display: '2025-2026' → '2025-26'.
- *  Keeps interim-mode copy auto-rolling to the next biennium without any
- *  per-cycle code edit — pairs with getCurrentBiennium() / getNextBiennium()
- *  from session-config.js which is the single source of truth. */
-function bienniumShortLabel(session) {
-  if (!session || typeof session !== 'string') return ''
-  const parts = session.split('-')
-  if (parts.length !== 2) return session
-  return `${parts[0]}-${parts[1].slice(-2)}`
-}
+// dayOfSessionOrNull + bienniumShortLabel were lifted to session-config.js
+// in Thread 11 (per Universal Guardrail G1) so bill detail / member detail
+// can import them without copy-paste. Local helpers kept below for layout.
 
 function fmtTime(timeStr) {
   if (!timeStr) return ''

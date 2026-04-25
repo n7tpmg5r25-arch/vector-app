@@ -151,6 +151,31 @@ export function formatSessionDate(dateStr) {
   })
 }
 
+/** Short biennium label for display: '2025-2026' → '2025-26'.
+ *  Lifted from app/app/committees/page.js per Universal Guardrail G1
+ *  (Thread 11) so any new file can import it without copy-paste. Pairs
+ *  with getCurrentBiennium() / getNextBiennium() to keep interim-mode
+ *  copy auto-rolling without a per-cycle code edit. */
+export function bienniumShortLabel(session) {
+  if (!session || typeof session !== 'string') return ''
+  const parts = session.split('-')
+  if (parts.length !== 2) return session
+  return `${parts[0]}-${parts[1].slice(-2)}`
+}
+
+/** Day-of-session counter (1-indexed) for the current biennium, or null
+ *  when not in active session. Lifted from committees/page.js per G1
+ *  (Thread 11) so member + bill detail pages can use it without dup. */
+export function dayOfSessionOrNull() {
+  const b = getCurrentBiennium()
+  if (!b) return null
+  const now = new Date()
+  const start = new Date(b.start)
+  const end = new Date(b.end)
+  if (now < start || now > end) return null
+  return Math.floor((now - start) / 86400000) + 1
+}
+
 // ── Convenience constants (for the current cycle) ─────────
 export const SESSION_CONFIG = {
   get current()       { return getCurrentSession() },
