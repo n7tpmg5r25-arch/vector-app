@@ -71,16 +71,8 @@ body {
   -webkit-font-smoothing: antialiased;
   margin: 0 auto;
   min-height: 100vh;
-  /* Thread 7 — desktop responsive.
-     Mobile keeps the 480-px column feel that the entire app was
-     designed against. Tablet+ relax the cap so committee-room laptops
-     get a proper canvas instead of a phone-shaped postage stamp. The
-     1280-px ceiling preserves a readable line length on 4K displays. */
   max-width: 480px;
 }
-@media (min-width: 768px)  { body { max-width: 720px; } }
-@media (min-width: 1024px) { body { max-width: 1024px; padding-top: 56px; } }
-@media (min-width: 1280px) { body { max-width: 1280px; } }
 
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: var(--font-body); }
@@ -117,106 +109,12 @@ input, textarea { font-family: var(--font-body); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── THREAD 7 — RESPONSIVE LAYOUT ──────────────────────────
-   Pattern (also reused by Threads 8 + 10):
-   • Mobile (< 768px): unchanged from pre-Thread-7. Bottom-tab nav,
-     single-column flow, 480-px body cap.
-   • Laptop (≥ 1024px): top-bar nav, 2-column home grid, looser
-     watchlist rows. This is where lobbyist laptops live during
-     committee meetings — the during-meeting canvas.
-   Other 13 routes intentionally render naive at desktop until their
-   own thread polishes them. ----------------------------------- */
-
-/* Nav swap — bottom tab on mobile, top bar on desktop */
-.v-nav {
-  position: fixed; bottom: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 100%; max-width: 480px;
-  background: rgba(14,16,20,0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--border);
-  padding: 10px 4px 24px;
-  display: flex; justify-content: space-around; align-items: center;
-  z-index: 100;
-}
-.v-nav__btn {
-  display: flex; flex-direction: column;
-  align-items: center; gap: 3px;
-  background: none; border: none;
-  padding: 4px 8px;
-  transition: opacity 0.15s;
-  min-width: 52px;
-}
-.v-nav__label {
-  font-size: 9px;
-  letter-spacing: 0.03em;
-  font-family: var(--font-body);
-}
-@media (min-width: 1024px) {
-  .v-nav {
-    bottom: auto; top: 0; left: 0;
-    transform: none;
-    max-width: none;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
-    padding: 8px 24px;
-    justify-content: center;
-    gap: 24px;
-  }
-  .v-nav__btn {
-    flex-direction: row;
-    gap: 8px;
-    min-width: 0;
-    padding: 6px 14px;
-    border-radius: 8px;
-  }
-  .v-nav__btn:hover { background: rgba(184,151,90,0.06); }
-  .v-nav__label { font-size: 12px; }
-}
-
-/* Home — 1-col mobile, 2-col desktop with full-width slots */
-.home-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-@media (min-width: 1024px) {
-  .home-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px;
-    align-items: start;
-  }
-  .home-grid__full { grid-column: 1 / -1; }
-}
-
-/* Page header top-padding tightens on desktop (mobile keeps safe-area) */
-.page-top-pad { padding-top: 52px; }
-@media (min-width: 1024px) { .page-top-pad { padding-top: 24px; } }
-
-/* Watchlist — desktop column-header strip + roomier rows */
-.watchlist-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.watchlist-cols-header { display: none; }
-@media (min-width: 1024px) {
-  .watchlist-rows { gap: 10px; }
-  .watchlist-cols-header {
-    display: grid;
-    grid-template-columns: 64px minmax(0, 1fr) 220px;
-    gap: 12px;
-    padding: 6px 14px 4px;
-    font-size: 9px;
-    color: var(--text-faint);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-/* Sticky page header — clears desktop top-bar nav */
-.sticky-page-header { position: sticky; top: 0; z-index: 50; }
-@media (min-width: 1024px) { .sticky-page-header { top: 56px; } }
+/* Mobile-first: this app is intentionally mobile-only. Threads 7 + 8
+   experimented with desktop responsive layouts (bottom-tab → top-bar
+   nav swap, 2-col home grid, watchlist column-header strip, bill-detail
+   side rail, 2-col search results) and were reverted on 2026-04-25 to
+   keep focus on the launch backlog. The full revival kit (CSS + JSX
+   patches) is preserved at:
+     C:\Users\Col\Documents\Claude\Projects\Vector - WA\
+       DESKTOP_RESPONSIVE_DEFERRED.md
+   Re-introduce only when a real lobbyist-laptop user need shows up. */
