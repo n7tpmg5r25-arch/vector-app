@@ -294,6 +294,152 @@ async function getRollCalls(billNumber) {
   } catch(e) { return []; }
 }
 
+// ── ROLL CALL PERSISTENCE (Thread 6) ─────────────────────────────────────────
+// Writes per-roll-call + per-member rows into roll_calls / member_votes for
+// every floor vote on a bill. Idempotent via UNIQUE roll_calls.source_id and
+// PRIMARY KEY (roll_call_id, member_id) on member_votes.
+//
+// Display-only — scoreBill() does not consume these tables (G5 frozen-engine
+// rule for the 2027 calibration session). The existing avg_floor_margin
+// aggregate write in extractFeatures() is untouched.
+//
+// Called per bill from the runSync() upsert loop AFTER the bills row is
+// upserted (the FK target must exist). Errors are non-fatal: a failed vote
+// write logs and continues — the bill row itself stays good.
+//
+// Defensive parsing: WA's GetRollCalls XML shape is
+// <ArrayOfRollCall><RollCall>...<Votes><Vote><MemberId/><Name/><Vote/>
+// </Vote>...</Votes></RollCall></ArrayOfRollCall>, but xml2js renders <Votes>
+// with a single child as an object instead of an array, so we coerce. Field
+// names are checked with multiple fallbacks (Vote / VoteValue / Position) in
+// case the WA service ever renames; missing fields silently skip a row
+// instead of crashing the bill.
+//
+// First-call diagnostic: when ROLLCALL_DEBUG_LOGGED is still false and we
+// see a RollCall with yeas+nays > 0 but produce zero member rows, we log
+// the available keys so a follow-up patch can add the right field name. Set
+// to true after the first such log so we don't spam the GitHub Actions log.
+let ROLLCALL_DEBUG_LOGGED = false;
+
+function _normalizeVoteValue(v) {
+  if (!v) return null;
+  const s = String(v).trim().toUpperCase();
+  if (s.startsWith('Y')) return 'YEA';
+  if (s.startsWith('N')) return 'NAY';
+  if (s.startsWith('A')) return 'ABSENT';
+  if (s.startsWith('E')) return 'EXCUSED';
+  return s.slice(0, 16); // truncate any unexpected value to fit text column
+}
+
+function _parseRollCallRow(billId, rc) {
+  const yeas    = parseInt(rc.YeaVotes)    || 0;
+  const nays    = parseInt(rc.NayVotes)    || 0;
+  const absent  = parseInt(rc.AbsentVotes) || 0;
+  const excused = parseInt(rc.ExcusedVotes)|| 0;
+  const sourceId = String(rc.RollCallId || rc.SequenceNumber || '').trim();
+  if (!sourceId) return null; // can't dedupe without an ID — skip
+
+  const rawDate = rc.VoteDate || rc.ActionDate || null;
+  const voteDate = rawDate ? String(rawDate).split('T')[0] : null;
+  if (!voteDate) return null; // schema NOT NULL
+
+  // Chamber: WA returns "Agency" as 'House' or 'Senate' for chamber roll
+  // calls. Some committee-vote rows also flow through this endpoint with
+  // a committee name in Agency — we accept whatever is there since the
+  // column is text and Thread 11 will branch on it.
+  const chamber = (rc.Agency || rc.Chamber || 'House').trim();
+
+  return {
+    bill_id:   billId,
+    chamber,
+    vote_date: voteDate,
+    motion:    (rc.Motion || rc.Description || '').trim().slice(0, 240) || null,
+    yeas, nays, absent, excused,
+    result:    yeas > nays ? 'passed' : (yeas + nays > 0 ? 'failed' : null),
+    source_id: sourceId,
+  };
+}
+
+function _parseMemberVotes(rc) {
+  // <Votes>{<Vote>...</Vote>, ...}</Votes>; xml2js: object if 1 child, array if many.
+  const inner = rc.Votes?.Vote || rc.MemberVotes?.MemberVote || rc.Vote;
+  if (!inner) return [];
+  const arr = Array.isArray(inner) ? inner : [inner];
+  return arr
+    .map(v => {
+      const memberId   = String(v.MemberId || v.Id || v.LegislatorId || '').trim();
+      const memberName = (v.Name || v.MemberName || v.LongName || '').trim();
+      // xml2js gotcha: <Vote><Vote>Yea</Vote></Vote> — inner element with same
+      // name as parent. Most parses surface it as `v.Vote` (string) or, if
+      // there's an attribute, as an object like `{ _: 'Yea' }`.
+      const rawVote = (typeof v.Vote === 'object' && v.Vote !== null)
+        ? (v.Vote._ ?? v.Vote.value ?? '')
+        : (v.Vote ?? v.VoteValue ?? v.Position ?? '');
+      const vote = _normalizeVoteValue(rawVote);
+      const party = (v.Party || '').trim().toUpperCase().slice(0, 4) || null;
+      if (!memberId || !memberName || !vote) return null;
+      return { member_id: memberId, member_name: memberName, party, vote };
+    })
+    .filter(Boolean);
+}
+
+async function persistRollCalls(billId, rollCalls) {
+  if (!Array.isArray(rollCalls) || rollCalls.length === 0) {
+    return { rollCallsWritten: 0, memberVotesWritten: 0, errors: [] };
+  }
+  let rollCallsWritten = 0;
+  let memberVotesWritten = 0;
+  const localErrors = [];
+
+  for (const rc of rollCalls) {
+    const row = _parseRollCallRow(billId, rc);
+    if (!row) continue;
+
+    // Upsert the roll_call row, get its UUID id back so we can attach members.
+    // ON CONFLICT (source_id) — the unique index from the schema migration.
+    const { data: rcRow, error: rcErr } = await supabase
+      .from('roll_calls')
+      .upsert(row, { onConflict: 'source_id' })
+      .select('id')
+      .single();
+    if (rcErr) {
+      localErrors.push(`rc[${row.source_id}]: ${rcErr.message}`);
+      continue;
+    }
+    rollCallsWritten++;
+
+    const members = _parseMemberVotes(rc);
+
+    // Diagnostic: aggregate counts say votes happened but we couldn't parse
+    // any per-member rows. Log the available keys ONCE so we can patch the
+    // field-name list without a full debug round-trip.
+    if (!ROLLCALL_DEBUG_LOGGED && members.length === 0 && (row.yeas + row.nays) > 0) {
+      ROLLCALL_DEBUG_LOGGED = true;
+      const keys = Object.keys(rc || {});
+      const innerKeys = rc.Votes ? Object.keys(rc.Votes) : null;
+      console.warn(
+        `  [rollcall-shape] No per-member votes parsed for bill ${billId} ` +
+        `RC ${row.source_id} (yeas=${row.yeas}, nays=${row.nays}). ` +
+        `RollCall keys: [${keys.join(', ')}]; Votes child keys: ${innerKeys ? '[' + innerKeys.join(', ') + ']' : 'absent'}. ` +
+        `Update _parseMemberVotes() if a new field name surfaces.`
+      );
+    }
+    if (members.length === 0) continue;
+
+    const memberRows = members.map(m => ({ ...m, roll_call_id: rcRow.id }));
+    const { error: mvErr } = await supabase
+      .from('member_votes')
+      .upsert(memberRows, { onConflict: 'roll_call_id,member_id' });
+    if (mvErr) {
+      localErrors.push(`mv[${row.source_id}]: ${mvErr.message}`);
+      continue;
+    }
+    memberVotesWritten += memberRows.length;
+  }
+
+  return { rollCallsWritten, memberVotesWritten, errors: localErrors };
+}
+
 // Get full legislation details (for companion bill + committee)
 // Phase 7D.2b FIX: GetLegislation returns ALL versions of a bill (original +
 // substitutes + engrossments). We pick the most advanced version — the one with
@@ -1294,6 +1440,10 @@ async function runSync() {
 
   console.log(`[${new Date().toISOString()}] Sync v2.8 — ${SESSION} — state: ${state}`);
   let amendmentsStored = 0;
+  // Thread 6 — per-member roll-call persistence counters. Display-only;
+  // scoreBill() never reads these. See persistRollCalls() helper above.
+  let rollCallsStored = 0;
+  let memberVotesStored = 0;
 
   // 6A.1: During interim, pre-load existing bills so we can detect material changes
   let existingBillsMap = null;
@@ -1424,6 +1574,25 @@ async function runSync() {
           .upsert(billRecord, { onConflict: 'bill_id' });
         if (uErr) { errors.push({ bill: billRecord.bill_number, err: uErr.message }); return; }
 
+        // Thread 6: persist per-member roll-call rows. The rollCalls array
+        // was already pulled above for the avg_floor_margin aggregate; this
+        // is a strict superset write. Idempotent — re-syncs are safe via
+        // ON CONFLICT (source_id) and (roll_call_id, member_id). Errors are
+        // non-fatal: a vote write failure logs but does not abort the bill.
+        if (rollCalls && rollCalls.length > 0) {
+          try {
+            const { rollCallsWritten, memberVotesWritten, errors: rcErrs } =
+              await persistRollCalls(billRecord.bill_id, rollCalls);
+            rollCallsStored   += rollCallsWritten;
+            memberVotesStored += memberVotesWritten;
+            if (rcErrs.length) {
+              errors.push({ bill: billRecord.bill_number, err: `rc: ${rcErrs.join(' | ')}` });
+            }
+          } catch (e) {
+            errors.push({ bill: billRecord.bill_number, err: `rc-fatal: ${e.message}` });
+          }
+        }
+
         // Phase 10.1: Store individual amendment records
         if (amendments && amendments.length > 0) {
           const amendmentRows = amendments.map(a => {
@@ -1518,7 +1687,7 @@ async function runSync() {
 
   const duration = Date.now() - startTime;
   const mins = (duration / 60000).toFixed(1);
-  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${amendmentsStored} amendments, ${fiscalChangesDetected} fiscal changes, ${errors.length} errors (${mins} min)`);
+  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${amendmentsStored} amendments, ${fiscalChangesDetected} fiscal changes, ${rollCallsStored} roll calls, ${memberVotesStored} member votes, ${errors.length} errors (${mins} min)`);
 
   // ── PHASE 11.4: COMPANION PAIR RESOLUTION + SNAPSHOTS ───────────────────────
   // Second pass: now that every bill in the session has its latest stage/score
@@ -1573,7 +1742,7 @@ async function runSync() {
     snapshots_written: snapshotsWritten,
     errors: errors.length ? errors.slice(0, 50) : null,
     duration_ms: duration,
-    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored | pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} companion snapshots`,
+    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored | pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} companion snapshots | votes: ${rollCallsStored} roll calls, ${memberVotesStored} member votes`,
   });
 
   return { billsFetched, billsUpdated, snapshotsWritten, pairsResolved, companionSnapshotsWritten, errors };
