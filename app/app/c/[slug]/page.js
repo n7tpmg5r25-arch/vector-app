@@ -260,9 +260,10 @@ export default async function ClientPortalPage({ params }) {
               </div>
             </div>
             {adminOwnerView && (
-              <span
-                role="note"
-                aria-label="Admin preview"
+              <Link
+                href={`/admin/clients/${client.id}`}
+                role="link"
+                aria-label="Admin preview — back to admin client detail"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -278,6 +279,7 @@ export default async function ClientPortalPage({ params }) {
                   textTransform: 'uppercase',
                   fontFamily: FONT_BODY,
                   whiteSpace: 'nowrap',
+                  textDecoration: 'none',
                 }}
               >
                 <span
@@ -291,7 +293,7 @@ export default async function ClientPortalPage({ params }) {
                   }}
                 />
                 Admin preview
-              </span>
+              </Link>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

@@ -36,12 +36,16 @@ const NAV = [
     ),
   },
   // UI.1.3: During interim, show Committees instead of Hearings (hearings empty, outcomes merged into Search)
-  // During active session, show Hearings as before
+  // During active session, show Hearings as before.
+  // Thread 15.2: removed `typeof window !== 'undefined'` guard. isInterimPeriod()
+  // is a pure date comparison from session-config.js — server and client agree.
+  // The guard was producing an SSR/CSR mismatch (server rendered "Hearings",
+  // client hydrated to "Cmtes" during interim), which read as a per-page flicker.
   {
-    get path() { return (typeof window !== 'undefined' && isInterimPeriod()) ? '/committees' : '/hearings' },
-    get label() { return (typeof window !== 'undefined' && isInterimPeriod()) ? 'Cmtes' : 'Hearings' },
+    get path() { return isInterimPeriod() ? '/committees' : '/hearings' },
+    get label() { return isInterimPeriod() ? 'Cmtes' : 'Hearings' },
     icon: (active) => {
-      const interim = typeof window !== 'undefined' && isInterimPeriod()
+      const interim = isInterimPeriod()
       return interim ? (
         // Building icon for Committees
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none"

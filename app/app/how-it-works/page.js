@@ -46,8 +46,10 @@ const EYEBROW = {
 const HIGHLIGHT = { color: 'var(--teal)', fontWeight: 600 }
 
 export default function HowItWorksPage() {
-  const { user, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2 — viewerLoading destructured + isAnonPublic gated on !viewerLoading
+  // so authed users no longer flash PublicNav during auth resolve.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
@@ -334,7 +336,7 @@ export default function HowItWorksPage() {
 
       </div>
 
-      {!isAnonPublic && <Nav />}
+      {!viewerLoading && !isAnonPublic && <Nav />}
     </div>
   )
 }

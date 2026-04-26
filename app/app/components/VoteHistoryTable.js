@@ -300,7 +300,10 @@ function ByMemberRow({ row }) {
 
 /* ── PUBLIC API ───────────────────────────────────────────── */
 
-export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, scopeLabel }) {
+export default function VoteHistoryTable({ mode, rollCalls, byMemberRows }) {
+  // Header (scope label / count) is rendered by <VotingRecordHeader> at the
+  // call site as of Thread 15.1 (2026-04-25). This component is now rows-only
+  // so the two surfaces (bill detail + members) can never drift again.
   const supabase = createBrowserClient()
   const [expandedId, setExpandedId] = useState(null)
   const [votesById, setVotesById]   = useState({})
@@ -341,14 +344,6 @@ export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, scopeL
 
     return (
       <div>
-        {scopeLabel && (
-          <div style={{
-            fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em',
-            textTransform: 'uppercase', marginBottom: 8,
-          }}>
-            Roll-call history · {scopeLabel}
-          </div>
-        )}
         {rollCalls.map(rc => (
           <ByBillRow
             key={rc.id}
@@ -379,14 +374,6 @@ export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, scopeL
 
     return (
       <div>
-        {scopeLabel && (
-          <div style={{
-            fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em',
-            textTransform: 'uppercase', marginBottom: 8,
-          }}>
-            Voting record · {scopeLabel}
-          </div>
-        )}
         {byMemberRows.map((row, i) => (
           <ByMemberRow key={`${row.roll_call_id}-${i}`} row={row} />
         ))}

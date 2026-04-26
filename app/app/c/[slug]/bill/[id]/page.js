@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { isAdmin } from '../../../../../lib/admin'
 import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/shorepine'
 import { getCurrentSession, formatSessionDate } from '../../../../../lib/session-config'
+import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../../../lib/wsl-amendment-codes'
 import SignOutButton from '../../SignOutButton'
 
 /**
@@ -201,7 +202,11 @@ export default async function ClientBillBriefPage({ params }) {
       .limit(1),
     dataClient
       .from('amendments')
-      .select('bill_id, amendment_number, adopted, floor_action_date')
+      // Thread 15.7 (mirror of Thread 14.1): pull sponsor + description +
+      // floor_action so translateAmendmentEvent() can compose plain English
+      // ("Walsh House amendment — Adopted") instead of leaking raw WSL codes
+      // ("2192-S AMH LOW H3553.1") into the client briefing.
+      .select('bill_id, amendment_number, sponsor, description, adopted, floor_action, floor_action_date')
       .eq('bill_id', billId)
       .order('floor_action_date', { ascending: false, nullsFirst: false })
       .limit(20),
@@ -556,22 +561,64 @@ export default async function ClientBillBriefPage({ params }) {
                 Recent activity
               </div>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {amendments.slice(0, 6).map(a => (
-                  <li
-                    key={`amend-${a.amendment_number}-${a.floor_action_date || 'pending'}`}
-                    style={{ fontSize: 13, color: SHOREPINE.ink, lineHeight: 1.5 }}
-                  >
-                    <span style={{ color: SHOREPINE.brass, fontWeight: 600, marginRight: 6 }}>
-                      Amendment {a.amendment_number}
-                    </span>
-                    {a.adopted ? 'adopted' : 'filed'}
-                    {a.floor_action_date && (
-                      <span style={{ color: SHOREPINE.slate }}>
-                        {' '}· {formatSessionDate(a.floor_action_date)}
+                {amendments.slice(0, 6).map(a => {
+                  // Thread 15.7 (mirror of Thread 14.1): translator turns the
+                  // raw WSL code into plain English. Fallback path renders the
+                  // raw code with a small "?" link to leg.wa.gov when neither
+                  // sponsor nor chamber can be derived. Read-only display only
+                  // (G5 frozen — no scoreBill/extractFeatures touch).
+                  const { label: amLabel, fallback: amFallback } = translateAmendmentEvent({
+                    amendmentNumber: a.amendment_number,
+                    sponsor: a.sponsor,
+                    description: a.description,
+                    adopted: a.adopted,
+                    floorAction: a.floor_action,
+                  })
+                  // Translator only injects a disposition suffix when adopted
+                  // OR a floor_action exists. If neither is set, preserve the
+                  // original "filed" copy so undated rows still read naturally.
+                  const noDisposition = !a.adopted && !a.floor_action
+                  return (
+                    <li
+                      key={`amend-${a.amendment_number}-${a.floor_action_date || 'pending'}`}
+                      style={{ fontSize: 13, color: SHOREPINE.ink, lineHeight: 1.5 }}
+                    >
+                      <span style={{ color: SHOREPINE.brass, fontWeight: 600, marginRight: 6 }}>
+                        {amLabel}
                       </span>
-                    )}
-                  </li>
-                ))}
+                      {amFallback && (
+                        <a
+                          href={WSL_AMENDMENT_REFERENCE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`Raw WA Legislature amendment code: ${a.amendment_number}\nClick to open the WA Legislature bill summary lookup.`}
+                          style={{
+                            marginLeft: 4,
+                            marginRight: 6,
+                            fontSize: 10,
+                            color: SHOREPINE.slate,
+                            border: `1px solid ${SHOREPINE.brass}55`,
+                            borderRadius: '50%',
+                            width: 14,
+                            height: 14,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            textDecoration: 'none',
+                            verticalAlign: 'middle',
+                            cursor: 'help',
+                          }}
+                        >?</a>
+                      )}
+                      {noDisposition && 'filed'}
+                      {a.floor_action_date && (
+                        <span style={{ color: SHOREPINE.slate }}>
+                          {' '}· {formatSessionDate(a.floor_action_date)}
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
                 {fiscalHistory.slice(0, 4).map(f => (
                   <li
                     key={`fiscal-${f.detected_date}-${f.new_size}`}

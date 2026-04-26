@@ -109,8 +109,10 @@ const TIER_COLOR = {
 
 export default function MethodologyPage() {
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  const { user, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
+  // so authed users no longer flash PublicNav during auth resolve.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   // 7V.1: live calibration — queries Supabase on mount, falls back to the
   // hardcoded 2025-26 numbers if the query fails or returns too few bills.
@@ -597,7 +599,7 @@ export default function MethodologyPage() {
 
       </div>
 
-      {!isAnonPublic && <Nav />}
+      {!viewerLoading && !isAnonPublic && <Nav />}
     </div>
   )
 }

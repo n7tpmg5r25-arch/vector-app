@@ -1,4 +1,4 @@
-import Nav from '../components/Nav'
+import NavSwitcher from '../components/NavSwitcher'
 import CohortCitation from '../components/CohortCitation'
 
 export const metadata = {
@@ -38,7 +38,11 @@ function P({ children }) {
 export default function DisclaimersPage() {
   return (
     <>
-      <Nav />
+      {/* Thread 15.2: NavSwitcher renders PublicNav for anon visitors when
+          NEXT_PUBLIC_ENABLE_PUBLIC_LAYER='true', else falls back to the owner
+          Nav for authed viewers. Was unconditionally <Nav /> which broke
+          consistency for anon visitors landing on /disclaimers via PublicNav. */}
+      <NavSwitcher />
       <main style={{
         maxWidth: 760,
         margin: '0 auto',
