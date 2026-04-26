@@ -1468,7 +1468,7 @@ async function processBill(raw, categoryRates, state, partyMap, chairMap, trackM
     billRecord.outcome_label = 'Died in Committee';
   }
 
-  return { billRecord, scores, amendments };
+  return { billRecord, scores, amendments, rollCalls };
 }
 
 // ── MAIN SYNC ─────────────────────────────────────────────────────────────────
@@ -1578,7 +1578,7 @@ async function runSync() {
       try {
         const result = await processBill(raw, categoryRates, state, partyMap, chairMap, trackMap);
         if (!result) return;
-        const { billRecord, scores, amendments } = result;
+        const { billRecord, scores, amendments, rollCalls } = result;
 
         // 6A.1: INTERIM FREEZE — skip rescoring if nothing material changed
         if (existingBillsMap) {
