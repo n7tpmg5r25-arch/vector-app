@@ -34,7 +34,7 @@ export default function Footer() {
           fontSize: 11,
           letterSpacing: '0.02em',
         }}>
-          Vector | WA &mdash; a product of Shorepine Government Relations.
+          Public site launching mid 2027.
         </div>
       </div>
     </footer>
