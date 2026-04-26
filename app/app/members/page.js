@@ -1,8 +1,8 @@
 'use client'
 
 import { POSITION_TIER_SCORES, CHAIR_BONUS, COMPOSITE_WEIGHTS, LOW_VOLUME_THRESHOLD, LOW_VOLUME_PENALTY, TIER_LABELS } from '../../lib/members-scoring'
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, getAllSessions } from '../../lib/session-config'
@@ -18,12 +18,20 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 const SESSIONS = getAllSessions()
 const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : SESSIONS[0]
 
-export default function MembersPage() {
+// Thread 12.2: useSearchParams() requires a Suspense boundary in Next 16,
+// so the inner component reads the URL and the default export wraps it in
+// <Suspense>. Same pattern as app/app/search/page.js.
+function MembersContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createBrowserClient()
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
   const { user, publicLayerEnabled } = useViewer()
   const isAnonPublic = publicLayerEnabled && !user
+  // Thread 12.2: deep-link from a bill page lands here with
+  // ?selectedName=<full name>. We pre-fill the search input and, once the
+  // members list loads, auto-select on exact case-insensitive match.
+  const incomingName = searchParams?.get('selectedName') || ''
 
   const [members, setMembers]         = useState([])
   const [selectedMember, setSelected] = useState(null)
@@ -279,6 +287,19 @@ export default function MembersPage() {
   // Note: no useEffect to refetch on selectedSession change — the list-view
   // select that owns selectedSession also calls setSelected(null), so a
   // member is never open while the session filter changes.
+
+  // Thread 12.2: deep-link handler. Once `incomingName` is present and
+  // members have loaded, pre-fill the search query and auto-select on
+  // exact case-insensitive match (single-shot — guarded so we don't
+  // re-fire if the user navigates back to the list).
+  const [incomingHandled, setIncomingHandled] = useState(false)
+  useEffect(() => {
+    if (incomingHandled || !incomingName || loading || members.length === 0) return
+    setQuery(incomingName)
+    const exact = members.find(m => m.name?.toLowerCase() === incomingName.toLowerCase())
+    if (exact) selectMember(exact)
+    setIncomingHandled(true)
+  }, [incomingName, members, loading, incomingHandled])
 
   const STAGE_LABELS = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -912,5 +933,15 @@ export default function MembersPage() {
       </div>}
       {!isAnonPublic && <Nav/>}
     </div>
+  )
+}
+
+// Thread 12.2: Suspense wrapper required by Next 16 for any component
+// that calls useSearchParams(). Mirrors the SearchPage pattern.
+export default function MembersPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>}>
+      <MembersContent />
+    </Suspense>
   )
 }
