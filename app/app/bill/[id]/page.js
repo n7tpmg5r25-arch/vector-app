@@ -13,6 +13,7 @@ import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
 import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
+import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -1543,6 +1544,40 @@ export default function BillDetailPage() {
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
               {['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 'Historical Signals (session ended)' : 'X Factors'}
             </div>
+
+            {/* Thread 14.3: Top contributors summary strip — top 2 positive + top 2 negative.
+                Read-only display of existing xfFactors data. Smaller/lighter chip styling so
+                the summary visually anchors but doesn't compete with the full cluster below. */}
+            {(() => {
+              const positives = xfFactors.filter(f => f.pos).sort((a, b) => b.d - a.d).slice(0, 2)
+              const negatives = xfFactors.filter(f => !f.pos).sort((a, b) => a.d - b.d).slice(0, 2)
+              const top4 = [...positives, ...negatives]
+              if (top4.length < 2) return null  // Don't bother with a 1-chip summary
+
+              return (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                  <div style={{ fontSize: 8, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', alignSelf: 'center', marginRight: 2 }}>
+                    Top
+                  </div>
+                  {top4.map((f, i) => {
+                    const tooltipKey = Object.keys(XF_TOOLTIPS).find(k => f.l.startsWith(k)) || f.l
+                    const tooltip = XF_TOOLTIPS[tooltipKey] || ''
+                    return (
+                      <div key={`top-${i}`} title={tooltip} style={{
+                        padding: '3px 8px', borderRadius: 12, fontSize: 9, fontWeight: 500,
+                        background: f.pos ? 'rgba(184,151,90,0.06)' : 'rgba(196,71,48,0.06)',
+                        color: f.pos ? 'var(--teal)' : 'var(--danger)',
+                        border: `1px solid ${f.pos ? 'rgba(184,151,90,0.18)' : 'rgba(196,71,48,0.18)'}`,
+                        cursor: tooltip ? 'help' : 'default',
+                      }}>
+                        {f.pos ? '▲' : '▼'} {f.l} {f.d > 0 ? '+' : ''}{Math.round(f.d * 100)}%
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {xfFactors.map((f, i) => {
                 // Match tooltip by prefix (handles dynamic labels like "Cutoff: 3d")
@@ -1642,14 +1677,35 @@ export default function BillDetailPage() {
           // 2. Amendments
           for (const a of amendments) {
             const dateStr = a.floor_action_date || a.created_at?.split('T')[0] || ''
+            // Thread 14.1: WSL code -> plain English via translator in
+            // app/lib/wsl-amendment-codes.js. Sponsor + chamber + striker-vs-line
+            // type land in the primary label; page/line description goes on the
+            // sub-line. When the translator can't derive sponsor or chamber the
+            // row falls back to the raw code and the renderer surfaces a small
+            // "?" tooltip linking to leg.wa.gov so the user can self-decode.
+            const { label: amLabel, fallback: amFallback } = translateAmendmentEvent({
+              amendmentNumber: a.amendment_number,
+              sponsor: a.sponsor,
+              description: a.description,
+              adopted: a.adopted,
+              floorAction: a.floor_action,
+            })
+            const isStrikerDesc = a.description && /striker/i.test(a.description)
+            let amDetail = null
+            if (amFallback) {
+              amDetail = a.sponsor || (a.description ? a.description.slice(0, 80) : null)
+            } else if (a.description && !isStrikerDesc) {
+              amDetail = a.description.slice(0, 80)
+            }
             events.push({
               date: dateStr,
               type: 'amendment',
               icon: '\u270E',  // ✎
               color: 'var(--gold)',
-              label: `Amendment ${a.amendment_number || ''}${a.adopted ? ' — Adopted' : a.floor_action ? ` — ${a.floor_action}` : ''}`,
-              detail: a.description || a.sponsor ? `${a.sponsor || ''}${a.description ? `: ${a.description.slice(0, 80)}` : ''}` : null,
+              label: amLabel,
+              detail: amDetail,
               url: a.document_url,
+              fallbackRawCode: amFallback ? a.amendment_number : null,
             })
           }
 
@@ -1717,6 +1773,21 @@ export default function BillDetailPage() {
                             {ev.label}
                           </a>
                         ) : ev.label}
+                        {ev.fallbackRawCode && (
+                          <a
+                            href={WSL_AMENDMENT_REFERENCE_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Raw WA Legislature amendment code: ${ev.fallbackRawCode}\nClick to open the WA Legislature bill summary lookup.`}
+                            style={{
+                              marginLeft: 6, fontSize: 9, color: 'var(--text-faint)',
+                              border: '1px solid var(--border)', borderRadius: '50%',
+                              width: 14, height: 14, display: 'inline-flex', alignItems: 'center',
+                              justifyContent: 'center', textDecoration: 'none', verticalAlign: 'middle',
+                              cursor: 'help',
+                            }}
+                          >?</a>
+                        )}
                       </div>
                       {ev.detail && (
                         <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2 }}>
@@ -1883,24 +1954,79 @@ export default function BillDetailPage() {
                 </div>
               </div>
 
-              {/* Snapshot history */}
+              {/* Snapshot history — Thread 14.2: compress consecutive identical scores.
+                  Walk snapshots oldest→newest. Each "change" day (score differs from prior)
+                  becomes a full bar row. Any run of ≥3 identical days that follows a change
+                  collapses into a single faded "No score change since X · N days" row that
+                  appears immediately after that change (in newest-first display order, that
+                  means the run banner sits ABOVE the change row that started it). Read-only;
+                  no scoring engine touches per G5. */}
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px' }}>
                 <div style={{ fontSize: 8, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
                   Score History · {sparkScores.length} snapshots
                 </div>
-                {snapshots.slice(-5).reverse().map((snap, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-faint)', width: 60 }}>
-                      {new Date(snap.snapshot_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                    <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2 }}>
-                      <div style={{ height: '100%', width: `${snap.score}%`, background: snap.score >= 50 ? 'var(--teal)' : snap.score >= 30 ? 'var(--gold)' : 'var(--text-muted)', borderRadius: 2, boxShadow: snap.score >= 50 ? '0 0 6px rgba(184,151,90,0.3)' : 'none' }}/>
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: snap.score >= 50 ? 'var(--teal)' : 'var(--text-muted)', fontWeight: 600, width: 24, textAlign: 'right' }}>
-                      {snap.score}
-                    </span>
-                  </div>
-                ))}
+                {(() => {
+                  const sortedAsc = [...snapshots].sort((a, b) => (a.snapshot_date || '').localeCompare(b.snapshot_date || ''))
+                  if (sortedAsc.length === 0) {
+                    return <div style={{ fontSize: 11, color: 'var(--text-faint)', padding: '4px 0' }}>No snapshots yet.</div>
+                  }
+                  // Build display rows: change rows + "unchanged-run" markers.
+                  const rows = []
+                  let prevScore = null
+                  let runStart = null
+                  let runLen = 0
+                  let runLatest = null
+                  const flushRun = () => {
+                    if (runLen >= 3) {
+                      rows.push({ kind: 'unchanged', score: prevScore, since: runStart, latest: runLatest, days: runLen })
+                    }
+                    // Runs of 1-2 identical days are silently dropped (no info value beyond
+                    // the bookend change row).
+                    runLen = 0; runStart = null; runLatest = null
+                  }
+                  for (const s of sortedAsc) {
+                    if (prevScore === null || s.score !== prevScore) {
+                      flushRun()
+                      rows.push({ kind: 'change', date: s.snapshot_date, score: s.score })
+                      prevScore = s.score
+                    } else {
+                      if (runLen === 0) runStart = s.snapshot_date
+                      runLatest = s.snapshot_date
+                      runLen += 1
+                    }
+                  }
+                  flushRun()
+                  // Newest-first display, capped to most recent ~6 rows so the card stays compact.
+                  const display = rows.slice(-6).reverse()
+                  return display.map((row, i) => {
+                    if (row.kind === 'unchanged') {
+                      return (
+                        <div key={`u-${i}`} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '4px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                          color: 'var(--text-faint)', fontStyle: 'italic',
+                        }}>
+                          <span style={{ fontSize: 10, lineHeight: 1.3 }}>
+                            No score change since {new Date(row.since).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {row.days} day{row.days !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={`c-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-faint)', width: 60 }}>
+                          {new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                        <div style={{ flex: 1, height: 3, background: 'var(--border)', borderRadius: 2 }}>
+                          <div style={{ height: '100%', width: `${row.score}%`, background: row.score >= 50 ? 'var(--teal)' : row.score >= 30 ? 'var(--gold)' : 'var(--text-muted)', borderRadius: 2, boxShadow: row.score >= 50 ? '0 0 6px rgba(184,151,90,0.3)' : 'none' }}/>
+                        </div>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: row.score >= 50 ? 'var(--teal)' : 'var(--text-muted)', fontWeight: 600, width: 24, textAlign: 'right' }}>
+                          {row.score}
+                        </span>
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
           )}
@@ -2109,133 +2235,4 @@ export default function BillDetailPage() {
               <button onClick={saveNotes} disabled={saving} style={{
                 marginTop: 6, padding: '5px 14px', background: 'transparent',
                 border: '1px solid var(--border)', borderRadius: 8,
-                fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
-                opacity: saving ? 0.6 : 1,
-              }}>{saving ? 'Saving...' : 'Save Tag'}</button>
-            </div>
-            {/* New note form */}
-            <div style={{ marginBottom: 14 }}>
-              <textarea
-                value={noteBody}
-                onChange={e => setNoteBody(e.target.value)}
-                placeholder="Intelligence note — who you talked to, what the chair signaled, strategy..."
-                rows={3}
-                style={{
-                  width: '100%', padding: '8px 12px', background: 'var(--bg)',
-                  border: '1px solid var(--border)', borderRadius: 8,
-                  fontSize: 13, color: 'var(--text-primary)', outline: 'none',
-                  resize: 'vertical', lineHeight: 1.5,
-                }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                {/* Visibility toggle */}
-                <div style={{
-                  display: 'flex', borderRadius: 8, overflow: 'hidden',
-                  border: '1px solid var(--border)',
-                }}>
-                  {[
-                    { value: 'private', label: 'private' },
-                    { value: 'shared', label: 'shared' },
-                  ].map(({ value: v, label }) => (
-                    <button key={v} onClick={() => setNoteVis(v)} style={{
-                      padding: '5px 12px', border: 'none', fontSize: 11, fontWeight: 600,
-                      cursor: 'pointer', fontFamily: 'var(--font-mono)',
-                      letterSpacing: '0.05em', textTransform: 'uppercase',
-                      background: noteVis === v
-                        ? (v === 'private' ? 'rgba(138,128,112,0.15)' : 'rgba(184,151,90,0.15)')
-                        : 'transparent',
-                      color: noteVis === v
-                        ? (v === 'private' ? 'var(--text-muted)' : 'var(--gold)')
-                        : 'var(--text-faint)',
-                      transition: 'all 0.15s',
-                    }}>{label}</button>
-                  ))}
-                </div>
-                <div style={{ flex: 1 }}/>
-                {editingNoteId && (
-                  <button onClick={cancelEditNote} style={{
-                    padding: '7px 14px', background: 'transparent',
-                    border: '1px solid var(--border)', borderRadius: 8,
-                    fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer',
-                  }}>Cancel</button>
-                )}
-                <button onClick={saveNote} disabled={savingNote || !noteBody.trim()} style={{
-                  padding: '7px 18px',
-                  background: noteVis === 'shared' ? 'var(--gold)' : 'var(--teal)',
-                  color: 'var(--bg)', border: 'none', borderRadius: 8,
-                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  opacity: (savingNote || !noteBody.trim()) ? 0.5 : 1,
-                  boxShadow: noteVis === 'shared' ? 'var(--gold-glow)' : 'var(--teal-glow)',
-                  transition: 'all 0.15s',
-                }}>
-                  {savingNote ? 'Saving...' : editingNoteId ? 'Update Note' : 'Add Note'}
-                </button>
-              </div>
-            </div>
-            {/* Notes list */}
-            {billNotes.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--text-faint)', textAlign: 'center', padding: '12px 0' }}>
-                No analyst notes yet. Add your first note above.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {billNotes.map(note => (
-                  <div key={note.id} style={{
-                    padding: '10px 12px',
-                    background: 'var(--bg)',
-                    border: '1px solid var(--border)',
-                    borderLeft: `3px solid ${note.visibility === 'shared' ? 'var(--gold)' : 'rgba(138,128,112,0.4)'}`,
-                    borderRadius: 8,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                      <span style={{
-                        fontSize: 9, padding: '2px 7px', borderRadius: 8,
-                        fontFamily: 'var(--font-mono)', fontWeight: 600,
-                        letterSpacing: '0.05em', textTransform: 'uppercase',
-                        background: note.visibility === 'shared' ? 'rgba(184,151,90,0.12)' : 'rgba(138,128,112,0.12)',
-                        color: note.visibility === 'shared' ? 'var(--gold)' : 'var(--text-muted)',
-                        border: `1px solid ${note.visibility === 'shared' ? 'rgba(184,151,90,0.25)' : 'rgba(138,128,112,0.2)'}`,
-                      }}>{note.visibility === 'shared' ? 'shared' : 'private'}</span>
-                      <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                        {new Date(note.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        {note.updated_at !== note.created_at && ' (edited)'}
-                      </span>
-                      <div style={{ flex: 1 }}/>
-                      <button onClick={(e) => { e.stopPropagation(); startEditNote(note) }} style={{
-                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
-                        color: 'var(--text-faint)', fontSize: 11, transition: 'color 0.15s',
-                      }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'var(--teal)'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id) }} style={{
-                        background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px',
-                        color: 'var(--text-faint)', fontSize: 11, transition: 'color 0.15s',
-                      }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-faint)'}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                      {note.body}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      {!isAnonPublic && <Nav/>}
-    </div>
-  )
-}
+      
