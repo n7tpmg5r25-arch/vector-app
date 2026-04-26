@@ -164,9 +164,12 @@ export default function OutcomesPage() {
             finish line — the narrative hook we want on public surfaces. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
           {[
+            // Thread 13.3 — three stat cards differentiated by hue so a glance
+            // tells the story: SIGNED → teal (success), PASSED → gold (mid),
+            // DEAD → danger (terminal). Card structure unchanged; accent only.
             { label: 'Signed', value: lawCount, color: 'var(--teal)', filterVal: 'LAW' },
             { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'PASSED_CHAMBER', tooltip: 'Passed at least one chamber but did not become law this session' },
-            { label: 'Dead', value: deadCount, color: 'var(--text-muted)', filterVal: 'DEAD' },
+            { label: 'Dead', value: deadCount, color: 'var(--danger)', filterVal: 'DEAD' },
           ].map(({ label, value, color, filterVal, tooltip }) => (
             <button key={label} onClick={() => { setLongShots(false); setOutcome(outcome === filterVal ? 'All' : filterVal) }} title={tooltip || ''} style={{
               background: !longShots && outcome === filterVal ? 'var(--bg-surface)' : 'var(--bg-card)',
