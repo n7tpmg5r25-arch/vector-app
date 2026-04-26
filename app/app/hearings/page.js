@@ -18,7 +18,10 @@ export default function HearingsPage() {
   // Batch 6 adds `publicLayerEnabled` + `isAnonPublic` for the PublicNav swap
   // + Subscribe gating.
   const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: gate isAnonPublic on !viewerLoading to stop the brief flash
+  // of PublicNav (and bottom-Nav suppression) for authed viewers during the
+  // useViewer() loading window.
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [hearings, setHearings]     = useState([])
   const [billHearings, setBillHearings] = useState([])
@@ -341,7 +344,7 @@ export default function HearingsPage() {
           </div>
         )}
       </div>
-      {!isAnonPublic && <Nav/>}
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 }

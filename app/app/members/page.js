@@ -11,6 +11,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VoteHistoryTable from '../components/VoteHistoryTable'
+import VotingRecordHeader from '../components/VotingRecordHeader'
 
 // Derive the session list from session-config so we don't have to hand-edit
 // every page at each biennium rollover. getAllSessions() returns newest-first
@@ -26,8 +27,10 @@ function MembersContent() {
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  const { user, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
+  // so authed users no longer flash PublicNav during auth resolve.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
   // Thread 12.2: deep-link from a bill page lands here with
   // ?selectedName=<full name>. We pre-fill the search input and, once the
   // members list loads, auto-select on exact case-insensitive match.
@@ -527,12 +530,11 @@ function MembersContent() {
               kicks in for legislators not yet in the roster (chamber-fenced
               so it can never lump two same-surname members together). */}
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              Voting Record · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
-              <span style={{ marginLeft: 8, color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>
-                ({memberVotes.length} most-recent votes)
-              </span>
-            </div>
+            <VotingRecordHeader
+              mode="by-member"
+              scopeLabel={selectedSession === 'all' ? 'All Sessions' : selectedSession}
+              count={memberVotes.length}
+            />
             {votesLoading ? (
               <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
             ) : (
@@ -540,7 +542,7 @@ function MembersContent() {
             )}
           </div>
         </div>
-        {!isAnonPublic && <Nav/>}
+        {!viewerLoading && !isAnonPublic && <Nav/>}
       </div>
     )
   }
@@ -661,13 +663,17 @@ function MembersContent() {
                     }
                   }}
                   style={{
-                    width: 40, height: 40, borderRadius: 6,
+                    // Thread 15.5: cell grew 40→48 so the corner score glyph
+                    // can render at 11px without colliding with the centered
+                    // initials. Mobile-only — still fits 4 cells per chamber
+                    // column at the 480px column width.
+                    width: 48, height: 48, borderRadius: 6,
                     background: bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', position: 'relative',
                     border: isActive ? '1.5px solid var(--teal)' : '1px solid rgba(255,255,255,0.06)',
                     transition: 'transform 0.15s, box-shadow 0.15s',
-                    fontSize: 10, fontWeight: 700, color: text,
+                    fontSize: 11, fontWeight: 700, color: text,
                     fontFamily: 'var(--font-mono)',
                     transform: isActive ? 'scale(1.15)' : 'scale(1)',
                     zIndex: isActive ? 10 : 1,
@@ -684,9 +690,9 @@ function MembersContent() {
                   }}/>}
                   <div style={{
                     position: 'absolute', bottom: -1, right: -1,
-                    fontSize: 7, fontWeight: 600, color: 'var(--text-faint)',
-                    background: 'rgba(14,16,20,0.85)', borderRadius: '4px 0 4px 0',
-                    padding: '1px 3px', lineHeight: 1,
+                    fontSize: 11, fontWeight: 700, color: 'var(--text-primary)',
+                    background: 'rgba(14,16,20,0.92)', borderRadius: '4px 0 4px 0',
+                    padding: '2px 4px', lineHeight: 1,
                   }}>{m.effectiveness}</div>
                 </div>
               )
@@ -757,13 +763,15 @@ function MembersContent() {
                     { label: '<18', ...effColor(10) },
                   ].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <div style={{ width: 9, height: 9, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
-                      <span style={{ fontSize: 8, color: l.text }}>{l.label}</span>
+                      <div style={{ width: 11, height: 11, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
+                      {/* Thread 15.5: legend labels lifted 8→11 to match the
+                          score-glyph bump inside cells. */}
+                      <span style={{ fontSize: 11, color: l.text }}>{l.label}</span>
                     </div>
                   ))}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--gold)' }}/>
-                    <span style={{ fontSize: 8, color: 'var(--text-faint)' }}>Chair</span>
+                    <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--gold)' }}/>
+                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Chair</span>
                   </div>
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', marginBottom: 14, opacity: 0.7 }}>
@@ -931,7 +939,7 @@ function MembersContent() {
           )
         })}
       </div>}
-      {!isAnonPublic && <Nav/>}
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 }

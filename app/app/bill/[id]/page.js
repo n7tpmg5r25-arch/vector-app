@@ -13,6 +13,7 @@ import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
 import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
+import VotingRecordHeader from '../../components/VotingRecordHeader'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
@@ -302,7 +303,9 @@ export default function BillDetailPage() {
   const billId = params.id
   const supabase = createBrowserClient()
   const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: gate isAnonPublic on !viewerLoading so authed users no longer
+  // flash PublicNav (and lose the bottom Nav) during the auth resolve window.
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [bill, setBill]         = useState(null)
   const [snapshots, setSnapshots] = useState([])
@@ -614,7 +617,7 @@ export default function BillDetailPage() {
           >Back to search</button>
         </div>
       </div>
-      {!isAnonPublic && <Nav/>}
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 
@@ -2154,11 +2157,11 @@ export default function BillDetailPage() {
                   scope from bill.session via bienniumShortLabel() so the
                   copy auto-rolls across biennia (G1). */}
               <div style={{ marginTop: 6 }}>
-                <VoteHistoryTable
+                <VotingRecordHeader
                   mode="by-bill"
-                  rollCalls={rollCalls}
                   scopeLabel={bienniumShortLabel(bill.session || getCurrentSession()) + ' session'}
                 />
+                <VoteHistoryTable mode="by-bill" rollCalls={rollCalls} />
               </div>
             </div>
           )}

@@ -25,8 +25,10 @@ export default function OutcomesPage() {
   const [SESSION] = useSession()
   const isInterim = useMemo(() => isInterimPeriod(), [])
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  const { user, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
+  // so authed users no longer flash PublicNav during auth resolve.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
@@ -316,7 +318,7 @@ export default function OutcomesPage() {
         )}
       </div>
 
-      {!isAnonPublic && <Nav/>}
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 }

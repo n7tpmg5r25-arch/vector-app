@@ -6,6 +6,7 @@ import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { isInterimPeriod } from '../../lib/session-config'
+import { useDebouncedValue } from '../../lib/use-debounced-value'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
@@ -59,10 +60,18 @@ function SearchContent() {
   // the bottom Nav for a sticky PublicNav when an anon visitor lands here
   // with the flag on.
   const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: gate isAnonPublic on !viewerLoading. Without the gate, the
+  // brief async window before useViewer() resolves leaves user=null for
+  // everyone (authed or not), which made the page flash PublicNav and hide
+  // the bottom Nav for authed users until auth resolved.
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
+  // Thread 15.4: debounce the query so each keystroke doesn't trigger a
+  // fresh network round-trip. UI text (input value, snippet highlight) keeps
+  // reading the live `query`; the network-driven effect reads `debouncedQuery`.
+  const debouncedQuery = useDebouncedValue(query, 250)
   const [category, setCategory] = useState(searchParams?.get('category') || 'All')
   const [chamber, setChamber] = useState('All')
   const [stage, setStage] = useState(0)
@@ -106,8 +115,8 @@ function SearchContent() {
     if (chamber !== 'All') q = q.eq('chamber', chamber)
     if (stage > 0) q = q.eq('stage', stage)
     if (outcome !== 'All') q = q.eq('confidence_label', outcome)
-    if (query.trim()) {
-      q = q.or(`title.ilike.%${query}%,bill_number.ilike.%${query}%,ai_summary.ilike.%${query}%,custom_summary.ilike.%${query}%`)
+    if (debouncedQuery.trim()) {
+      q = q.or(`title.ilike.%${debouncedQuery}%,bill_number.ilike.%${debouncedQuery}%,ai_summary.ilike.%${debouncedQuery}%,custom_summary.ilike.%${debouncedQuery}%`)
     }
 
     if (sortBy === 'score') q = q.order('final_score', { ascending: false })
@@ -123,12 +132,12 @@ function SearchContent() {
     }
 
     setLoading(false)
-  }, [query, category, chamber, stage, sortBy, outcome, page])
+  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, page])
 
   useEffect(() => {
     setPage(0)
     fetchBills(true)
-  }, [query, category, chamber, stage, sortBy, outcome])
+  }, [debouncedQuery, category, chamber, stage, sortBy, outcome])
 
   // Bulk watch all displayed bills
   async function bulkWatchAll() {
@@ -457,7 +466,7 @@ function SearchContent() {
         )}
       </div>
 
-      {!isAnonPublic && <Nav/>}
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 }

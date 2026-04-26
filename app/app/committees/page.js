@@ -70,8 +70,10 @@ export default function CommitteesPage() {
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  const { user, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
+  // so authed users no longer flash PublicNav during the auth-resolve window.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [view, setView] = useState('calendar') // 'calendar' | 'by-committee'
   const [chamberFilter, setChamberFilter] = useState('All')
@@ -155,9 +157,21 @@ export default function CommitteesPage() {
         (rulesRes.data || []).map(c => (c.name || '').toLowerCase())
       )
       const FALLBACK_RULES_SUBSTRINGS = ['rules 2 review', 'rules committee for second reading', 'rules']
-      const isRules = rulesNameSet.size > 0
-        ? n => rulesNameSet.has((n || '').toLowerCase())
-        : n => FALLBACK_RULES_SUBSTRINGS.some(r => (n || '').toLowerCase().includes(r))
+      // Thread 15.3 — procedural-shelf override.
+      // `Rules 2 Review` is a procedural shelf, not a policy committee. Every
+      // bill technically "passes" through it on the way somewhere else, so
+      // its by-committee row was rendering 100% pass rate over 580 bills and
+      // dragging the by-committee story. The DB committees.is_rules flag is
+      // the canonical source, but Rules 2 Review isn't reliably flagged
+      // (DB-verified) — so we always treat it as a rules-queue entry
+      // regardless of the flag. New procedural shelves can be added here.
+      const PROCEDURAL_SHELF_NAMES = new Set(['rules 2 review'])
+      const isRules = (name) => {
+        const n = (name || '').toLowerCase()
+        if (PROCEDURAL_SHELF_NAMES.has(n)) return true
+        if (rulesNameSet.size > 0) return rulesNameSet.has(n)
+        return FALLBACK_RULES_SUBSTRINGS.some(r => n.includes(r))
+      }
 
       const map = {}, rulesMap = {}
       data.forEach(b => {
@@ -374,7 +388,7 @@ export default function CommitteesPage() {
         />
       )}
 
-      {!isAnonPublic && <Nav />}
+      {!viewerLoading && !isAnonPublic && <Nav />}
     </div>
   )
 }

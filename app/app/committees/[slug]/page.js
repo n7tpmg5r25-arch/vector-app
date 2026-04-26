@@ -35,7 +35,9 @@ export default function CommitteeDetail() {
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
   const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = publicLayerEnabled && !user
+  // Thread 15.2: gate isAnonPublic on !viewerLoading so authed users no longer
+  // flash PublicNav (and lose the bottom Nav) during the auth resolve window.
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -159,7 +161,7 @@ export default function CommitteeDetail() {
             border: 'none', borderRadius: 8, cursor: 'pointer',
           }}>Back to Committees</button>
         </div>
-        {!isAnonPublic && <Nav />}
+        {!viewerLoading && !isAnonPublic && <Nav />}
       </div>
     )
   }
@@ -441,7 +443,7 @@ export default function CommitteeDetail() {
         </>
       )}
 
-      {!isAnonPublic && <Nav />}
+      {!viewerLoading && !isAnonPublic && <Nav />}
     </div>
   )
 }
