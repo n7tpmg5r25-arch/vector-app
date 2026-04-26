@@ -134,7 +134,8 @@ export default function HearingsPage() {
         </div>
 
         {isInterim && (() => {
-          const next = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-11' }
+          const next = typeof window !== 'undefined' ? getNextBiennium() : null
+          const _hasRealNext = !!(next?.session && next?.start)
           const cur  = (typeof window !== 'undefined' ? getCurrentBiennium() : null) || { session: '2025-2026' }
           const nextSession = next?.session || 'next'
           const curSession  = cur?.session  || 'current'
@@ -146,10 +147,10 @@ export default function HearingsPage() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                 <span style={{ boxShadow: 'var(--gold-glow)', width: 6, height: 6, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block', flexShrink: 0 }}/>
-                <span>WA Legislature is in interim. Hearings resume when the {nextSession} session opens {formatSessionDate(next?.start)}.</span>
+                <span>WA Legislature is in interim. Hearings resume when the {_hasRealNext ? `${nextSession} session opens ${formatSessionDate(next.start)}` : 'next session convenes'}.</span>
               </div>
               <div style={{ paddingLeft: 12, color: 'var(--text-muted)', fontWeight: 400, lineHeight: 1.5 }}>
-                {curSession} bills that didn't pass are dead. The {nextSession} biennium begins {formatSessionDate(next?.start)}.
+                {curSession} bills that didn't pass are dead. The {nextSession} biennium begins {_hasRealNext ? formatSessionDate(next.start) : 'when the legislature reconvenes'}.
               </div>
             </div>
           )
@@ -261,8 +262,8 @@ export default function HearingsPage() {
               Legislature is in interim
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
-              Committee hearings will resume when the {(() => { const n = (typeof window !== 'undefined' ? getNextBiennium() : null) || { session: '2027-2028', start: '2027-01-11' }; return `${n?.session || 'next'} session convenes on ${formatSessionDate(n?.start)}`; })()}.
-              {(() => { const n = (typeof window !== 'undefined' ? getNextBiennium() : null) || { prefilingOpens: '2026-12-01' }; return n?.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
+              Committee hearings will resume when the {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session && n?.start); return _hasRealNext ? `${n.session} session convenes on ${formatSessionDate(n.start)}` : 'next session convenes'; })()}.
+              {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; return n?.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
             </div>
             <button
               onClick={() => typeof window !== 'undefined' && (window.location.href = '/outcomes')}
@@ -287,7 +288,7 @@ export default function HearingsPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {view === 'watched'
                 ? 'Add bills to your watchlist to track their hearings here.'
-                : `Hearing data will populate when the ${(typeof window !== 'undefined' ? getNextBiennium()?.session : null) || '2027-2028'} session opens.`}
+                : (() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session); return `Hearing data will populate when the ${_hasRealNext ? n.session : 'next'} session opens.`; })()}
             </div>
           </div>
         ) : (
