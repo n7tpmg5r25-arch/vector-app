@@ -246,87 +246,11 @@ export default function MethodologyPage() {
           sessions so a "75" means something concrete, not an arbitrary number.
         </div>
 
-        {/* SECTION — SIGNALS */}
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
-            The Five Signals
-          </div>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-            {SIGNALS.map((s, i) => {
-              // DATA_FRESHNESS #12: inject live cohort numbers into the
-              // Historical signal prose so the bill-count and biennium list
-                // stay current without a code push at each rollover.
-              const liveDescription = s.name === 'Historical'
-                ? `Category-level pass rates calibrated from ${cohortTotalStr} bills across ${cohortCountStr} biennia (${cohortBienniaStr}). Tax bills behave differently than transportation bills.`
-                : s.description
-              return (
-              <div key={s.name} style={{
-                padding: '14px 16px',
-                borderBottom: i < SIGNALS.length - 1 ? '1px solid var(--border)' : 'none',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--teal)' }}>{s.name}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                    {s.range} pts · {s.weight}% weight
-                  </span>
-                </div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 8 }}>
-                  {liveDescription}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {s.inputs.map(inp => (
-                    <span key={inp} style={{
-                      fontSize: 11,
-                      padding: '3px 8px',
-                      background: 'rgba(184,151,90,0.08)',
-                      border: '1px solid rgba(184,151,90,0.25)',
-                      borderRadius: 10,
-                      color: 'var(--text-muted)',
-                    }}>{inp}</span>
-                  ))}
-                </div>
-              </div>
-              )
-            })}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
-            A stage advancement bonus (0–25) also stacks on top, rewarding bills that have cleared cutoffs.
-          </div>
-        </div>
-
-        {/* SECTION — X FACTORS */}
-        <div>
-          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
-            X Factors
-          </div>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 12 }}>
-              X Factors multiply the base score by between 0.50× and 1.50× based on procedural signals
-              that aren't captured by the five base signals. These are the things a seasoned legislative analyst
-              watches — not just what happened, but what's <em>about</em> to happen.
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 600, marginBottom: 6 }}>POSITIVE</div>
-                {XF_POS.map(x => (
-                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', color: 'var(--text-muted)' }}>
-                    <span>{x.l}</span>
-                    <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>{x.d}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, marginBottom: 6 }}>NEGATIVE</div>
-                {XF_NEG.map(x => (
-                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', color: 'var(--text-muted)' }}>
-                    <span>{x.l}</span>
-                    <span style={{ color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{x.d}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Thread 13.1 — Calibration tables moved above Five Signals + X Factors
+            so a first-time reader sees the proof (84% pass rate at HIGH across
+            8,062 bills) before the method. Section bodies are unchanged; only
+            their position in the page flow shifted. G5 cohort literal preserved
+            verbatim. */}
 
         {/* SECTION — CALIBRATION (the proof point) */}
         <div>
@@ -426,6 +350,88 @@ export default function MethodologyPage() {
                   Recalculated: {cohortStamp}.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION — SIGNALS */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            The Five Signals
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+            {SIGNALS.map((s, i) => {
+              // DATA_FRESHNESS #12: inject live cohort numbers into the
+              // Historical signal prose so the bill-count and biennium list
+                // stay current without a code push at each rollover.
+              const liveDescription = s.name === 'Historical'
+                ? `Category-level pass rates calibrated from ${cohortTotalStr} bills across ${cohortCountStr} biennia (${cohortBienniaStr}). Tax bills behave differently than transportation bills.`
+                : s.description
+              return (
+              <div key={s.name} style={{
+                padding: '14px 16px',
+                borderBottom: i < SIGNALS.length - 1 ? '1px solid var(--border)' : 'none',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--teal)' }}>{s.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                    {s.range} pts · {s.weight}% weight
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 8 }}>
+                  {liveDescription}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {s.inputs.map(inp => (
+                    <span key={inp} style={{
+                      fontSize: 11,
+                      padding: '3px 8px',
+                      background: 'rgba(184,151,90,0.08)',
+                      border: '1px solid rgba(184,151,90,0.25)',
+                      borderRadius: 10,
+                      color: 'var(--text-muted)',
+                    }}>{inp}</span>
+                  ))}
+                </div>
+              </div>
+              )
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
+            A stage advancement bonus (0–25) also stacks on top, rewarding bills that have cleared cutoffs.
+          </div>
+        </div>
+
+        {/* SECTION — X FACTORS */}
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
+            X Factors
+          </div>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 12 }}>
+              X Factors multiply the base score by between 0.50× and 1.50× based on procedural signals
+              that aren't captured by the five base signals. These are the things a seasoned legislative analyst
+              watches — not just what happened, but what's <em>about</em> to happen.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 600, marginBottom: 6 }}>POSITIVE</div>
+                {XF_POS.map(x => (
+                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', color: 'var(--text-muted)' }}>
+                    <span>{x.l}</span>
+                    <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>{x.d}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, marginBottom: 6 }}>NEGATIVE</div>
+                {XF_NEG.map(x => (
+                  <div key={x.l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '4px 0', color: 'var(--text-muted)' }}>
+                    <span>{x.l}</span>
+                    <span style={{ color: 'var(--danger)', fontFamily: 'var(--font-mono)' }}>{x.d}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
