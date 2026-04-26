@@ -107,6 +107,146 @@ export default function HowItWorksPage() {
         {/* SECTION 2 — HOW THE SCORE WORKS */}
         <div>
           <div style={EYEBROW}>2 · How the score works, in English</div>
+
+          {/* Thread 13.2 — Visual support for the prose. Two inline SVG groups:
+              (a) 5-signal icon strip — one glyph per base signal, brass stroke,
+                  no external assets. Mirrors the five signals documented on
+                  /methodology so the eye anchors before the prose explains.
+              (b) 4-dot tier legend — circle swatches for HIGH / MODERATE /
+                  LOW / VERY LOW using the SAME hex values ScoreBadge.js paints
+                  on real bill cards (Sage / Deep Teal / Amber / Stone). Honest
+                  legend — what the user sees here is what they see on a bill. */}
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '14px 12px 12px',
+            marginBottom: 12,
+          }}>
+            {/* 5-signal icon strip */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 6,
+              marginBottom: 14,
+            }}>
+              {[
+                {
+                  name: 'Committee',
+                  // Gavel resting on a small block — committee action
+                  svg: (
+                    <>
+                      <rect x="3" y="17" width="18" height="3" rx="0.5" stroke="var(--gold)" strokeWidth="1.5" fill="none"/>
+                      <rect x="9" y="6" width="11" height="4" rx="0.5" transform="rotate(20 9 6)" stroke="var(--gold)" strokeWidth="1.5" fill="none"/>
+                      <line x1="6.5" y1="10" x2="13" y2="14" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round"/>
+                    </>
+                  ),
+                },
+                {
+                  name: 'Sponsor',
+                  // Person silhouette — bust + shoulders
+                  svg: (
+                    <>
+                      <circle cx="12" cy="8" r="3.5" stroke="var(--gold)" strokeWidth="1.5" fill="none"/>
+                      <path d="M5 20 C 5 15, 9 13, 12 13 C 15 13, 19 15, 19 20" stroke="var(--gold)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                    </>
+                  ),
+                },
+                {
+                  name: 'Momentum',
+                  // Upward zig-zag chart line
+                  svg: (
+                    <>
+                      <polyline points="3,18 8,13 12,15 16,8 21,5" stroke="var(--gold)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                      <polyline points="17,5 21,5 21,9" stroke="var(--gold)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                    </>
+                  ),
+                },
+                {
+                  name: 'Historical',
+                  // Clock face — hour + minute hand
+                  svg: (
+                    <>
+                      <circle cx="12" cy="12" r="8" stroke="var(--gold)" strokeWidth="1.5" fill="none"/>
+                      <line x1="12" y1="12" x2="12" y2="7" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="12" y1="12" x2="15.5" y2="13.5" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round"/>
+                    </>
+                  ),
+                },
+                {
+                  name: 'Fiscal',
+                  // Dollar sign in a circle — fiscal note
+                  svg: (
+                    <>
+                      <circle cx="12" cy="12" r="8" stroke="var(--gold)" strokeWidth="1.5" fill="none"/>
+                      <path d="M14.5 9 C 14 8, 13 7.5, 12 7.5 C 10.5 7.5, 9.5 8.5, 9.5 9.5 C 9.5 10.5, 10.5 11, 12 11.5 C 13.5 12, 14.5 12.5, 14.5 13.5 C 14.5 14.5, 13.5 15.5, 12 15.5 C 11 15.5, 10 15, 9.5 14" stroke="var(--gold)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                      <line x1="12" y1="6" x2="12" y2="17" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round"/>
+                    </>
+                  ),
+                },
+              ].map((s) => (
+                <div key={s.name} style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="28"
+                    height="28"
+                    aria-hidden="true"
+                    style={{ display: 'block', margin: '0 auto 4px' }}
+                  >
+                    {s.svg}
+                  </svg>
+                  <div style={{
+                    fontSize: 10,
+                    color: 'var(--text-muted)',
+                    fontWeight: 500,
+                    letterSpacing: '0.02em',
+                    lineHeight: 1.2,
+                  }}>{s.name}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Hairline divider between strip + legend */}
+            <div style={{
+              height: 1,
+              background: 'var(--border)',
+              margin: '0 -12px 12px',
+            }}/>
+
+            {/* 4-dot tier-color legend — hexes mirror ScoreBadge.js exactly so
+                this legend is honest about what users will see on bill cards. */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 6,
+              flexWrap: 'wrap',
+            }}>
+              {[
+                { tier: 'HIGH',     hex: '#7aab6e' },  // Sage — matches ScoreBadge ≥75
+                { tier: 'MODERATE', hex: '#3a7a8a' },  // Deep Teal — matches ScoreBadge ≥60
+                { tier: 'LOW',      hex: '#c47a30' },  // Amber — matches ScoreBadge ≥45
+                { tier: 'VERY LOW', hex: '#8a8070' },  // Stone — matches ScoreBadge <45
+              ].map((t) => (
+                <div key={t.tier} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 10,
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '0.04em',
+                }}>
+                  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                    <circle cx="6" cy="6" r="5" fill={t.hex} />
+                  </svg>
+                  <span>{t.tier}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={CARD}>
             <p style={{ marginTop: 0 }}>
               The score is calibrated, not opinion. Vector&apos;s model was tuned against a frozen
