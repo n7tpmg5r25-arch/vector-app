@@ -109,7 +109,7 @@ export default function DisclaimersPage() {
 
         <H2>Corrections and contact</H2>
         <P>
-          The Washington State Legislature's public record is the authoritative source for any bill referenced in Vector | WA. Where Vector | WA and the Legislature's record disagree, the Legislature's record controls. Corrections and questions: colin@shorepine.org.
+          The Washington State Legislature's public record is the authoritative source for any bill referenced in Vector | WA. Where Vector | WA and the Legislature's record disagree, the Legislature's record controls. Corrections and questions: contact@example.com{/* TODO Thread 27: replace with Vector | WA-domain mailbox before public launch */}.
         </P>
       </main>
     </>
