@@ -1,8 +1,49 @@
 "use client"
 
 import Link from 'next/link'
+import { useViewer } from '../../lib/viewer-capabilities'
 
+/**
+ * Global app footer — mounted in app/app/layout.tsx and rendered on every
+ * route. Because the same component lands across all three layers (public,
+ * owner, client portal), the bottom attribution line BRANCHES on viewer role
+ * to keep the public-vs-internal brand split intact (Phase 2 directive D1
+ * + Universal Guardrail G6 — Layer Discipline).
+ *
+ *   role === 'public'  → forward-looking launch framing (Vector | WA stands
+ *                        alone publicly until Shorepine GR launches Sep 2027).
+ *   role === 'owner'   → firm attribution restored — operator IS Shorepine
+ *                        on /watchlist, /settings, /admin/*, /auth/callback.
+ *   role === 'client'  → bottom strip suppressed; the client portal pages
+ *                        (c/[slug]/page.js + c/[slug]/bill/[id]/page.js)
+ *                        render their own inline Shorepine attribution.
+ *                        Skipping here prevents the duplicate Shorepine line
+ *                        a client would otherwise see (global + inline).
+ *
+ * The first two lines (legal-disclosure + disclaimers link) render on every
+ * layer regardless. Those are universal, layer-agnostic content.
+ *
+ * During the brief auth-resolve window (loading=true), the bottom strip
+ * is hidden entirely. This matches the Nav loading-aware pattern from
+ * Thread 15.2 — better to show no copy briefly than to flash the wrong
+ * copy.
+ */
 export default function Footer() {
+  const { capabilities, loading } = useViewer()
+  const role = capabilities?.role
+
+  let bottomLine = null
+  if (!loading) {
+    if (role === 'public') {
+      bottomLine = 'Public site launching mid 2027.'
+    } else if (role === 'owner') {
+      bottomLine = 'Vector | WA — a product of Shorepine Government Relations.'
+    }
+    // role === 'client' → leave bottomLine null. Client portal pages render
+    // their own per-page Shorepine attribution; suppressing here keeps it
+    // from doubling.
+  }
+
   return (
     <footer
       style={{
@@ -27,15 +68,17 @@ export default function Footer() {
           </Link>
           .
         </div>
-        <div style={{
-          paddingTop: 10,
-          borderTop: '1px solid #1e2028',
-          color: '#5a6070',
-          fontSize: 11,
-          letterSpacing: '0.02em',
-        }}>
-          Public site launching mid 2027.
-        </div>
+        {bottomLine && (
+          <div style={{
+            paddingTop: 10,
+            borderTop: '1px solid #1e2028',
+            color: '#5a6070',
+            fontSize: 11,
+            letterSpacing: '0.02em',
+          }}>
+            {bottomLine}
+          </div>
+        )}
       </div>
     </footer>
   )
