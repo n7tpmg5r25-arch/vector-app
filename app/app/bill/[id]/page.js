@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
 import { useViewer } from '../../../lib/viewer-capabilities'
 import ScoreBadge from '../../components/ScoreBadge'
@@ -10,6 +11,7 @@ import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
+import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
@@ -32,9 +34,14 @@ function getBucketLabel(score) {
 
 // Pipeline stages that actually appear in the data (stage 2 and 5 never
 // populated — WA bills jump 1->3 and 4->6). Labels describe what happened.
+// Thread 12.1: status-pill vocabulary unified — committee passage is
+// "Comm. Pass" everywhere on this page (Stage Pipeline label, Activity
+// Timeline "Advanced to:" line, Companion stage label, Committee Vote
+// KV value). Prior shorthands ("Out of Cmte", "Out of cmte", "Do Pass")
+// said the same thing three different ways.
 const PIPELINE_STAGES = [
   { num: 1, label: 'Introduced' },
-  { num: 3, label: 'Out of Cmte' },
+  { num: 3, label: 'Comm. Pass' },
   { num: 4, label: 'Passed Floor' },
   { num: 6, label: 'Signed' },
 ]
@@ -80,7 +87,7 @@ function getCompanionStageLabel(stage) {
   if (stage >= 6) return 'Signed'
   if (stage >= 5) return 'Passed both'
   if (stage >= 4) return 'Passed floor'
-  if (stage >= 3) return 'Out of cmte'
+  if (stage >= 3) return 'Comm. Pass'
   if (stage >= 2) return 'In committee'
   return 'Introduced'
 }
@@ -306,6 +313,7 @@ export default function BillDetailPage() {
   const [notes, setNotes]       = useState('')
   const [tag, setTag] = useState('')
   const [shared, setShared]     = useState(false)
+  const [exporting, setExporting] = useState(false)  // Thread 12.3: PDF brief export
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
   const [companionSnaps, setCompanionSnaps] = useState([]) // Phase 11.4: companion stage over last 30 days
@@ -507,11 +515,59 @@ export default function BillDetailPage() {
     setBillNotes(prev => prev.filter(n => n.id !== noteId))
   }
 
+  /* ── Thread 12.3: PDF brief export (single-bill) ─────────
+   * Mirrors the watchlist /handleExport flow but wraps the
+   * current bill into the {bill_id, bills, tag} shape that
+   * generateBriefPDF expects. Notes / amendments / fiscal
+   * history are already loaded in component state. */
+  async function exportBriefPdf() {
+    if (!bill || exporting) return
+    setExporting(true)
+    try {
+      const { generateBriefPDF } = await import('../../../lib/generate-pdf')
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
+
+      // Live cohort count for the methodology footnote — same fallback
+      // contract as watchlist; PDF generator handles ok===false gracefully.
+      let cohortStats = null
+      try {
+        cohortStats = await fetchTotalScoredBills(supabase)
+      } catch (e) {
+        console.warn('cohort count fetch failed; PDF will use fallback blurb', e)
+      }
+
+      // Only include shared-visibility notes in the export (parity with the
+      // watchlist export — private notes never leave the operator's session).
+      const sharedNotes = (billNotes || []).filter(n => n.visibility === 'shared')
+
+      await generateBriefPDF({
+        tagLabel: tracked?.tag || null,
+        date: today,
+        bills: [{ bill_id: bill.bill_id, bills: bill, tag: tracked?.tag || '', added_at: tracked?.added_at }],
+        scoreDeltas: {},
+        changes: {},
+        session: sessionLabel,
+        billNotes: sharedNotes,
+        amendments: amendments || [],
+        fiscalHistory: fiscalHistory || [],
+        cohortStats,
+      })
+    } catch (err) {
+      console.error('PDF export failed:', err)
+      alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
+    }
+    setExporting(false)
+  }
+
   async function shareBill() {
     if (!bill) return
     const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
     const bucket = getBucketLabel(bill.final_score)
-    const text = `${prefix} ${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${bucket.rate > 0 ? bucket.rate + '% historical pass rate' : 'Very low historical pass rate'}\n— Vector | WA`
+    // Thread 12.4: append the canonical URL on the last line so the
+    // recipient gets a clickable link, not just a citation.
+    const url = typeof window !== 'undefined' ? window.location.href : ''
+    const text = `${prefix} ${bill.bill_number}: ${bill.title}\nTrajectory Score: ${bill.final_score || 0}/100 · ${bucket.rate > 0 ? bucket.rate + '% historical pass rate' : 'Very low historical pass rate'}\n— Vector | WA${url ? '\n' + url : ''}`
     try {
       await navigator.clipboard.writeText(text)
       setShared(true)
@@ -657,6 +713,25 @@ export default function BillDetailPage() {
               cursor: 'pointer', transition: 'all 0.15s',
             }}
           >{shared ? '✓ Copied' : '↗ Share'}</button>
+          {/* Thread 12.3: PDF brief in the top action row, gated by canSave
+              (parity with Watch — anon visitors don't have a session for the
+              live cohort fetch and don't own notes to attach). */}
+          {capabilities.canSave && (
+            <button
+              onClick={exportBriefPdf}
+              disabled={exporting}
+              style={{
+                padding: '7px 12px',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 20, fontSize: 12, fontWeight: 500,
+                color: 'var(--text-muted)',
+                cursor: exporting ? 'wait' : 'pointer',
+                opacity: exporting ? 0.6 : 1,
+                transition: 'all 0.15s',
+              }}
+            >{exporting ? '⏳ Generating' : '📄 Brief'}</button>
+          )}
           {capabilities.canSave && (
             <button
               onClick={toggleWatch}
@@ -1018,7 +1093,7 @@ export default function BillDetailPage() {
           </div>
 
           {/* Phase 7W.3: Enriched companion bill pill
-              - stage label of the companion (e.g. "Out of cmte")
+              - stage label of the companion (e.g. "Comm. Pass")
               - mini score tier pill (H/M/L/VL) sized for inline display
               - state glyph + label (both_moving / leading / trailing / forked / both_stuck)
               - hover tooltip with the state-specific description
@@ -1425,7 +1500,20 @@ export default function BillDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[
             { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
-            { label: 'Prime Sponsor', value: bill.prime_sponsor ? `${bill.prime_sponsor}${bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}` : '—',
+            // Thread 12.2: prime sponsor name links to /members?selectedName=...
+            // so a click jumps to the legislator's voting record. Members page
+            // pre-fills its query input from selectedName and auto-selects on
+            // exact match.
+            { label: 'Prime Sponsor', value: bill.prime_sponsor
+                ? (
+                  <Link
+                    href={`/members?selectedName=${encodeURIComponent(bill.prime_sponsor)}`}
+                    style={{ color: 'var(--teal)', textDecoration: 'none', borderBottom: '1px dotted rgba(184,151,90,0.4)' }}
+                  >
+                    {bill.prime_sponsor}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
+                  </Link>
+                )
+                : '—',
               extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
             ...(isInterimPeriod() && ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel)
               ? [{ label: 'Session', value: `Ended ${formatSessionDate(getCurrentBiennium().end)}`, extraColor: 'var(--text-muted)' }]
@@ -1479,6 +1567,11 @@ export default function BillDetailPage() {
         )}
 
         {/* ── POLITICAL DYNAMICS (Phase 8) ─────────────────── */}
+        {/* Thread 12.5: rendered as one inline sentence. The prior pill
+            row (BIPARTISAN, CHAIR ALIGNED, CROSS-AISLE, TRACK RECORD)
+            looked tappable but wasn't. Inline prose with subtle color
+            accents on the key words preserves quick-scan affordance
+            without the false interactive cue. */}
         {(bill.bipartisan_index != null || bill.chair_alignment || bill.sponsor_track_record != null || bill.cross_aisle_count > 0) && (
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -1486,7 +1579,7 @@ export default function BillDetailPage() {
             opacity: ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 0.55 : 1,
             transition: 'opacity 0.2s',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
                 Political Dynamics
               </div>
@@ -1494,69 +1587,34 @@ export default function BillDetailPage() {
                 How it works →
               </a>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {/* Bipartisan / Partisan badge */}
+            <p style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.6, margin: 0 }}>
               {bill.bipartisan_index != null && (() => {
                 const bpi = bill.bipartisan_index
-                const label = bpi > 0.3 ? 'BIPARTISAN' : bpi < 0.1 ? 'PARTISAN' : 'MIXED'
-                const color = bpi > 0.3 ? 'var(--teal)' : bpi < 0.1 ? 'var(--text-faint)' : 'var(--gold)'
-                const bg = bpi > 0.3 ? 'rgba(184,151,90,0.08)' : bpi < 0.1 ? 'rgba(100,120,140,0.06)' : 'rgba(255,201,74,0.06)'
-                const border = bpi > 0.3 ? 'rgba(184,151,90,0.2)' : bpi < 0.1 ? 'rgba(100,120,140,0.15)' : 'rgba(255,201,74,0.15)'
-                return (
-                  <div title={`Bipartisan Index: ${Math.round(bpi * 100)}% of co-sponsors are from the opposite party of the prime sponsor. Above 30% = Bipartisan, below 10% = Partisan.`} style={{
-                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
-                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
-                  }}>
-                    {label} · {Math.round(bpi * 100)}%
-                  </div>
-                )
+                const pct = Math.round(bpi * 100)
+                const isBipartisan = bpi > 0.3
+                const isPartisan = bpi < 0.1
+                const word = isBipartisan ? 'Bipartisan' : isPartisan ? 'Largely partisan' : 'Mixed'
+                const color = isBipartisan ? 'var(--teal)' : isPartisan ? 'var(--text-faint)' : 'var(--gold)'
+                const detail = bill.cross_aisle_count > 0
+                  ? `${pct}% cross-aisle, ${bill.cross_aisle_count} opposing-party co-sponsor${bill.cross_aisle_count !== 1 ? 's' : ''}`
+                  : `${pct}% cross-aisle`
+                return <><strong style={{ color, fontWeight: 600 }}>{word}</strong> support ({detail}). </>
               })()}
-
-              {/* Chair Alignment badge */}
+              {bill.bipartisan_index == null && bill.cross_aisle_count > 0 && (
+                <>{bill.cross_aisle_count} opposing-party co-sponsor{bill.cross_aisle_count !== 1 ? 's' : ''}. </>
+              )}
               {bill.chair_alignment && (() => {
                 const a = bill.chair_alignment
-                const label = a === 'aligned' ? 'CHAIR ALIGNED' : a === 'opposed' ? 'CHAIR OPPOSED' : 'CHAIR MIXED'
+                const word = a === 'aligned' ? 'Aligned chair' : a === 'opposed' ? 'Chair opposed' : 'Chair mixed'
                 const color = a === 'aligned' ? 'var(--teal)' : a === 'opposed' ? 'var(--danger)' : 'var(--gold)'
-                const bg = a === 'aligned' ? 'rgba(184,151,90,0.08)' : a === 'opposed' ? 'rgba(196,71,48,0.06)' : 'rgba(255,201,74,0.06)'
-                const border = a === 'aligned' ? 'rgba(184,151,90,0.2)' : a === 'opposed' ? 'rgba(196,71,48,0.2)' : 'rgba(255,201,74,0.15)'
-                return (
-                  <div title={`Chair Alignment: The committee chair ${a === 'aligned' ? 'shares' : 'does not share'} the prime sponsor's party. Aligned chairs are more likely to schedule hearings and move bills through committee.`} style={{
-                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
-                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
-                  }}>
-                    {label}
-                  </div>
-                )
+                return <><strong style={{ color, fontWeight: 600 }}>{word}</strong>{bill.committee_name ? ` (${bill.committee_name})` : ''}. </>
               })()}
-
-              {/* Cross-Aisle Support badge */}
-              {bill.cross_aisle_count > 0 && (
-                <div title={`Cross-Aisle Support: ${bill.cross_aisle_count} co-sponsor${bill.cross_aisle_count !== 1 ? 's' : ''} from the opposing party. More cross-aisle support signals broader political viability.`} style={{
-                  padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
-                  background: 'rgba(184,151,90,0.06)', color: 'var(--teal-mid)',
-                  border: '1px solid rgba(184,151,90,0.15)', cursor: 'help',
-                }}>
-                  CROSS-AISLE · {bill.cross_aisle_count}
-                </div>
-              )}
-
-              {/* Sponsor Track Record badge */}
               {bill.sponsor_track_record != null && (() => {
-                const tr = bill.sponsor_track_record
-                const pct = Math.round(tr * 100)
+                const pct = Math.round(bill.sponsor_track_record * 100)
                 const color = pct >= 30 ? 'var(--teal)' : pct >= 15 ? 'var(--gold)' : 'var(--text-faint)'
-                const bg = pct >= 30 ? 'rgba(184,151,90,0.08)' : pct >= 15 ? 'rgba(255,201,74,0.06)' : 'rgba(100,120,140,0.06)'
-                const border = pct >= 30 ? 'rgba(184,151,90,0.2)' : pct >= 15 ? 'rgba(255,201,74,0.15)' : 'rgba(100,120,140,0.15)'
-                return (
-                  <div title={`Sponsor Track Record: The prime sponsor's historical pass rate is ${pct}% across prior sessions. Higher rates indicate sponsors who consistently get bills signed into law.`} style={{
-                    padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
-                    background: bg, color, border: `1px solid ${border}`, cursor: 'help',
-                  }}>
-                    TRACK RECORD · {pct}%
-                  </div>
-                )
+                return <>Sponsor's track record: <strong style={{ color, fontWeight: 600 }}>{pct}%</strong>.</>
               })()}
-            </div>
+            </p>
           </div>
         )}
 
@@ -1950,7 +2008,7 @@ export default function BillDetailPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[
-                  { label: 'Committee Vote', value: bill.committee_passed ? 'Do Pass' : 'Pending', color: bill.committee_passed ? 'var(--teal)' : 'var(--text-muted)' },
+                  { label: 'Committee Vote', value: bill.committee_passed ? 'Comm. Pass' : 'Pending', color: bill.committee_passed ? 'var(--teal)' : 'var(--text-muted)' },
                   { label: 'Bipartisan', value: bill.bipartisan ? 'Yes' : 'Minority Only', color: bill.bipartisan ? 'var(--teal)' : 'var(--gold)' },
                   { label: 'Sponsor Tier', value: bill.sponsor_tier === 1 ? 'Leadership' : bill.sponsor_tier === 2 ? 'Senior' : 'Member', color: bill.sponsor_tier <= 2 ? 'var(--teal)' : 'var(--text-muted)' },
                   { label: 'Cosponsor Count', value: bill.cosponsor_count || 0, color: (bill.cosponsor_count || 0) >= 5 ? 'var(--teal)' : 'var(--text-muted)' },
