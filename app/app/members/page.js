@@ -187,89 +187,78 @@ function MembersContent() {
    * roster sync run is pending — never lumps two same-surname members
    * together because the chamber check still fences out the wrong one.
    */
-  // Thread 18.3: wrapped in try/catch/finally so setVotesLoading(false)
-  // ALWAYS fires — even if a supabase query throws (network, RLS, etc.).
-  // Pre-Thread-18 the loader could deadlock on an unhandled rejection,
-  // leaving "Loading voting record..." stuck forever (BUG_ASSESSMENT_2026-04-26.md Bug #4).
-  // Also fixed surname extraction for "Last, First" prime_sponsor format —
-  // bills.prime_sponsor reads as "Hasegawa, Bob" so split-on-whitespace
-  // would have returned "Bob" (wrong). Split on comma first.
+  // Hotfix 2026-04-26: rewritten to avoid Supabase's 1000-row cap.
+  // Previous approach queried member_votes.eq('member_id', id) which hit
+  // the cap for 146 of 148 legislators (everyone with >1000 distinct votes),
+  // then chained .in('id', [1000 rcIds]) on roll_calls which built a URL
+  // too long for PostgREST — silent failure, empty state for everyone.
+  //
+  // New approach: anchor on roll_calls with an embedded bills!inner(session)
+  // filter, limit 100 most-recent. Then look up the member's votes on JUST
+  // those 100 roll-call IDs. Both queries stay well under the cap.
+  // Diagnostic confirmed: bills/session = 3,411 rows for 2025-2026 alone,
+  // member_votes/member > 1,000 for nearly all members. See plan doc
+  // §Thread 18 "Member voting record empty for everyone" hotfix notes.
   const loadMemberVotes = useCallback(async (m) => {
     setVotesLoading(true)
     setMemberVotes([])
     if (!m?.name) { setVotesLoading(false); return }
 
     try {
-      // ── Step 1: resolve member_id via legislator_party_history. ──
+      // ── Step 1: resolve member_id via legislator_party_history (1 row). ──
       const { data: roster, error: rosterErr } = await supabase
         .from('legislator_party_history')
-        .select('member_id, party, biennium, full_name, agency')
+        .select('member_id, party')
         .eq('full_name', m.name)
         .eq('agency', m.chamber)
         .order('biennium', { ascending: false })
         .limit(1)
       if (rosterErr) console.warn('loadMemberVotes: roster lookup failed', rosterErr)
-
       const rosterRow = roster && roster.length > 0 ? roster[0] : null
       const memberId  = rosterRow?.member_id || null
 
-      // ── Step 2: pull member_vote rows. Prefer member_id; fall back to
-      //           surname+chamber if the roster lookup missed. ──
-      let rawVotes = null
-      if (memberId) {
-        const { data, error } = await supabase
-          .from('member_votes')
-          .select('roll_call_id, member_id, member_name, vote, party')
-          .eq('member_id', memberId)
-        if (error) console.warn('loadMemberVotes: member_votes by id failed', error)
-        rawVotes = data
-      } else {
-        // "Last, First" → "Last"; "First Last" → "Last"
-        const lastName = m.name.includes(',')
-          ? m.name.split(',')[0].trim()
-          : m.name.trim().split(/\s+/).pop()
-        const { data, error } = await supabase
-          .from('member_votes')
-          .select('roll_call_id, member_id, member_name, vote, party')
-          .eq('member_name', lastName)
-        if (error) console.warn('loadMemberVotes: member_votes by surname failed', error)
-        rawVotes = data
-      }
-      if (!rawVotes || rawVotes.length === 0) return
-
-      // ── Step 3: pull roll_calls (chamber-filtered) for those vote rows. ──
-      const rcIds = [...new Set(rawVotes.map(v => v.roll_call_id))]
-      const { data: rolls, error: rollsErr } = await supabase
+      // ── Step 2: most-recent 100 roll_calls in the legislator's chamber,
+      //           filtered to selectedSession via embedded bills!inner join.
+      //           Bill metadata comes back in the same response — no second
+      //           round-trip. ──
+      const isAll = selectedSession === 'all'
+      let rollsQ = supabase
         .from('roll_calls')
-        .select('id, bill_id, chamber, vote_date, motion, yeas, nays, absent, excused, result')
-        .in('id', rcIds)
+        .select('id, bill_id, chamber, vote_date, motion, yeas, nays, absent, excused, result, bills!inner(bill_id, bill_number, title, chamber, session, outcome_passed_law)')
         .eq('chamber', m.chamber)
         .order('vote_date', { ascending: false })
-      if (rollsErr) console.warn('loadMemberVotes: roll_calls lookup failed', rollsErr)
+        .limit(100)
+      if (!isAll) rollsQ = rollsQ.eq('bills.session', selectedSession)
+      const { data: rolls, error: rollsErr } = await rollsQ
+      if (rollsErr) console.warn('loadMemberVotes: roll_calls+bills lookup failed', rollsErr)
       if (!rolls || rolls.length === 0) return
 
-      // ── Step 4: fetch bill metadata for the surviving roll_calls' bills. ──
-      const billIds = [...new Set(rolls.map(r => r.bill_id))]
-      let billMeta = {}
-      if (billIds.length > 0) {
-        const billQuery = supabase
-          .from('bills')
-          .select('bill_id, bill_number, title, chamber, session, outcome_passed_law')
-          .in('bill_id', billIds)
-        const { data: billRows, error: billsErr } = selectedSession === 'all'
-          ? await billQuery
-          : await billQuery.eq('session', selectedSession)
-        if (billsErr) console.warn('loadMemberVotes: bills lookup failed', billsErr)
-        for (const b of (billRows || [])) billMeta[b.bill_id] = b
+      // ── Step 3: this member's votes on JUST those 100 roll_calls. ──
+      // memberId path is the happy case; surname path is a v1 fallback for
+      // legislators not yet in legislator_party_history.
+      const rollIds = rolls.map(r => r.id)
+      let votesQ = supabase
+        .from('member_votes')
+        .select('roll_call_id, member_id, member_name, vote, party')
+        .in('roll_call_id', rollIds)
+      if (memberId) {
+        votesQ = votesQ.eq('member_id', memberId)
+      } else {
+        // bills.prime_sponsor format is "First Last" (e.g. "Jake Fey").
+        const lastName = m.name.trim().split(/\s+/).pop()
+        votesQ = votesQ.eq('member_name', lastName)
       }
+      const { data: rawVotes, error: votesErr } = await votesQ
+      if (votesErr) console.warn('loadMemberVotes: member_votes lookup failed', votesErr)
+      if (!rawVotes || rawVotes.length === 0) return
 
-      // ── Step 5: stitch and apply the session filter via bill presence. ──
-      const rcById = Object.fromEntries(rolls.map(r => [r.id, r]))
-      const stitched = rawVotes
-        .map(v => {
-          const rc = rcById[v.roll_call_id]
-          if (!rc) return null
-          const bill = billMeta[rc.bill_id]
+      // ── Step 4: stitch. Bill metadata is embedded on each roll. ──
+      const voteByRcId = Object.fromEntries(rawVotes.map(v => [v.roll_call_id, v]))
+      const stitched = rolls
+        .map(rc => {
+          const v = voteByRcId[rc.id]
+          if (!v) return null
+          const bill = rc.bills
           if (!bill) return null
           return {
             roll_call_id: rc.id,
@@ -290,7 +279,6 @@ function MembersContent() {
         })
         .filter(Boolean)
         .sort((a, b) => (b.vote_date || '').localeCompare(a.vote_date || ''))
-        .slice(0, 100)
 
       setMemberVotes(stitched)
     } catch (err) {

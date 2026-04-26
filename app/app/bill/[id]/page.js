@@ -415,6 +415,10 @@ export default function BillDetailPage() {
   // Thread 18.5: one-shot guard so we only auto-default tab on first
   // bill load. After that, manual tab clicks stick.
   const [tabInitialized, setTabInitialized] = useState(false)
+  // 2026-04-26 hotfix: ref on the tabs container so the Latest Floor Vote
+  // strip can scroll into view after switching tab. Without this the click
+  // appears inert because the tab content is well below the strip.
+  const tabsSectionRef = useRef(null)
 
   // Thread 18.5: when the bill is terminal (LAW/PASSED_CHAMBER/DEAD) AND
   // has at least one Final Passage roll call, default the landing tab to
@@ -957,7 +961,13 @@ export default function BillDetailPage() {
         <LatestFloorVoteStrip
           rollCalls={rollCalls}
           partyBuckets={partyBucketsByRcId}
-          onOpenVotes={() => setTab('votes')}
+          onOpenVotes={() => {
+            setTab('votes')
+            // Let React render the tab change before we scroll.
+            setTimeout(() => {
+              tabsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }, 50)
+          }}
         />
 
         {/* ── SPARKLINE HERO ──────────────────────────────── */}
@@ -2018,7 +2028,7 @@ export default function BillDetailPage() {
         </div>
 
         {/* ── TABS ───────────────────────────────────────── */}
-        <div>
+        <div ref={tabsSectionRef}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16, overflowX: 'auto' }}>
             {(() => {
               // Thread 18.5: reorder tabs when bill is terminal AND has a
