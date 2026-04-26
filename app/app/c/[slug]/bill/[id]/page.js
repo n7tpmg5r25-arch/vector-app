@@ -5,7 +5,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { isAdmin } from '../../../../../lib/admin'
 import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/shorepine'
-import { getCurrentSession, formatSessionDate } from '../../../../../lib/session-config'
+import { getCurrentSession, formatSessionDate, isPostBienniumClose, getCurrentBiennium, getNextBiennium } from '../../../../../lib/session-config'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../../../lib/wsl-amendment-codes'
 import SignOutButton from '../../SignOutButton'
 
@@ -71,7 +71,18 @@ function formatStageLine(bill) {
   const cl = (bill?.confidence_label || '').toUpperCase()
   const chamber = bill?.chamber || 'House'
   if (cl === 'LAW') return 'Signed into law'
-  if (cl === 'PASSED_CHAMBER') return `Passed ${chamber} — carries to next session`
+  if (cl === 'PASSED_CHAMBER') {
+    // Thread 18.2: post-biennium-close, "carries to next session" is wrong —
+    // bills that didn't become law before the biennium ended must be
+    // reintroduced. Branch on isPostBienniumClose() so the brief reads true.
+    if (isPostBienniumClose()) {
+      const cur = getCurrentBiennium()
+      const nxt = getNextBiennium()
+      const hasRealNext = nxt && cur && nxt.session !== cur.session
+      return `Passed ${chamber} — must be reintroduced${hasRealNext ? ` in ${nxt.session}` : ' next session'}`
+    }
+    return `Passed ${chamber} — carries to next session`
+  }
   if (cl === 'DEAD') return 'Did not advance — session ended'
   const s = bill?.stage || 1
   if (s >= 6) return 'Signed into law'

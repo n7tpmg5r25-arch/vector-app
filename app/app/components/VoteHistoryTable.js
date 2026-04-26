@@ -30,6 +30,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { formatSessionDate } from '../../lib/session-config'
+import PartyMicrobar from './PartyMicrobar'
 
 const VOTE_COLORS = {
   YEA:     { bg: 'rgba(74,222,128,0.14)',  text: '#4ade80', border: 'rgba(74,222,128,0.30)' },
@@ -84,9 +85,13 @@ function fmtDate(dateStr) {
 
 /* ── BY-BILL MODE ─────────────────────────────────────────── */
 
-function ByBillRow({ rc, expanded, onToggle, votes, votesLoading }) {
+function ByBillRow({ rc, expanded, onToggle, votes, votesLoading, buckets }) {
   const isFinal = isFinalPassage(rc.motion)
   const passed = (rc.result || '').toLowerCase() === 'passed'
+  const hasBuckets = buckets && (
+    (buckets.yesD + buckets.yesR + buckets.yesU
+     + buckets.noD + buckets.noR + buckets.noU) > 0
+  )
   return (
     <div style={{
       background: 'var(--bg-card)',
@@ -148,6 +153,27 @@ function ByBillRow({ rc, expanded, onToggle, votes, votesLoading }) {
             </span>
             <span style={{ color: 'var(--text-faint)', marginLeft: 'auto', fontSize: 10 }}>{fmtMargin(rc)}</span>
           </div>
+          {/* Thread 18.6: per-row party-colored microbar + numeric split. */}
+          {hasBuckets && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+              <PartyMicrobar
+                yesD={buckets.yesD} yesR={buckets.yesR} yesU={buckets.yesU}
+                noD={buckets.noD}   noR={buckets.noR}   noU={buckets.noU}
+                width={88} height={9}
+              />
+              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-mid)' }}>
+                {buckets.yesD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.yesD}D</span>}
+                {buckets.yesD > 0 && buckets.yesR > 0 && <span style={{ color: 'var(--text-faint)' }}>·</span>}
+                {buckets.yesR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.yesR}R</span>}
+                <span style={{ color: 'var(--text-faint)', marginLeft: 4 }}>Yes</span>
+                <span style={{ color: 'var(--text-faint)', margin: '0 6px' }}>/</span>
+                {buckets.noR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.noR}R</span>}
+                {buckets.noR > 0 && buckets.noD > 0 && <span style={{ color: 'var(--text-faint)' }}>·</span>}
+                {buckets.noD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.noD}D</span>}
+                <span style={{ color: 'var(--text-faint)', marginLeft: 4 }}>No</span>
+              </span>
+            </div>
+          )}
         </div>
         <span style={{
           color: 'var(--text-faint)', fontSize: 12,
@@ -300,7 +326,7 @@ function ByMemberRow({ row }) {
 
 /* ── PUBLIC API ───────────────────────────────────────────── */
 
-export default function VoteHistoryTable({ mode, rollCalls, byMemberRows }) {
+export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, partyBuckets }) {
   // Header (scope label / count) is rendered by <VotingRecordHeader> at the
   // call site as of Thread 15.1 (2026-04-25). This component is now rows-only
   // so the two surfaces (bill detail + members) can never drift again.
@@ -352,6 +378,7 @@ export default function VoteHistoryTable({ mode, rollCalls, byMemberRows }) {
             onToggle={() => setExpandedId(expandedId === rc.id ? null : rc.id)}
             votes={votesById[rc.id]}
             votesLoading={loadingId === rc.id}
+            buckets={partyBuckets ? partyBuckets[rc.id] : null}
           />
         ))}
       </div>

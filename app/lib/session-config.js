@@ -80,6 +80,26 @@ export function isInterimPeriod() {
   return now > new Date(biennium.end)
 }
 
+/** True when the legislature is past the final sine die of the current
+ *  biennium. In the current BIENNIUMS shape, biennium.end IS the final
+ *  sine die so this is functionally equivalent to isInterimPeriod() —
+ *  but kept as a semantically explicit helper so call sites can read
+ *  "post-biennium-close" intent without having to know the data shape.
+ *
+ *  Use this to distinguish:
+ *    • Intra-biennium interim (long-session sine die → short-session
+ *      start) — bills genuinely carry over within the biennium.
+ *    • Post-biennium-close interim (short-session sine die → next
+ *      biennium prefiling) — bills die unless reintroduced.
+ *
+ *  Thread 18 (2026-04-26) — see BUG_ASSESSMENT_2026-04-26.md Bug #3.
+ */
+export function isPostBienniumClose() {
+  const b = getCurrentBiennium()
+  if (!b || !b.end) return false
+  return new Date() > new Date(b.end)
+}
+
 /** Key session cutoff milestones for the current biennium.
  *  Returns an array of `{ label, date, dateFormatted, passed, daysLeft }`
  *  — callers typically do `.filter(c => !c.passed)` to get upcoming ones.

@@ -10,10 +10,13 @@ import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
-import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
+import { isInterimPeriod, isPostBienniumClose, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
 import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
 import VotingRecordHeader from '../../components/VotingRecordHeader'
+import VoteSplitBar from '../../components/VoteSplitBar'
+import PartyMicrobar from '../../components/PartyMicrobar'
+import { isFinalPassage, bucketMemberVotes, padBucketsToReported, characterize } from '../../../lib/vote-helpers'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
@@ -116,6 +119,76 @@ const XF_TOOLTIPS = {
   'Minority only':       'Sponsored only by the minority party, reducing passage odds in a majority-controlled chamber.',
   'Narrow margin':       'Floor vote passed by a slim margin, suggesting fragile support.',
   'Cutoff warning':      'Approaching a legislative cutoff deadline \u2014 time pressure is building.',
+}
+
+/* ── Latest Floor Vote Strip (Thread 18.4) ───────────────────
+ * Inline tappable strip rendered between status banners and the
+ * sparkline hero on bill detail. Quick-glance partisan readout for
+ * any bill with a Final Passage roll call. Tapping opens the Votes
+ * tab so the user can see the full split.
+ *
+ * Reads partyBucketsByRcId from the parent page (single batch fetch
+ * shared with VoteSplitBar + VoteHistoryTable). Display-only (G5).
+ */
+function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes }) {
+  const fp = (rollCalls || []).filter(rc => isFinalPassage(rc.motion || ''))
+  if (fp.length === 0) return null
+  const latest = fp[0]
+  const buckets = (partyBuckets && partyBuckets[latest.id]) || {
+    yesD: 0, yesR: 0, yesU: latest.yeas || 0,
+    noD: 0,  noR: 0,  noU: latest.nays || 0,
+  }
+  const verdict = characterize(buckets)
+  const passed = (latest.result || '').toLowerCase() === 'passed'
+  const dateLbl = formatSessionDate(latest.vote_date)
+  const chamberAccent = latest.chamber === 'House' ? '#4d9aff' : '#ffa84d'
+
+  return (
+    <button
+      onClick={onOpenVotes}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+        width: '100%', textAlign: 'left',
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)', padding: '8px 12px',
+        color: 'inherit', cursor: 'pointer', fontFamily: 'inherit',
+        transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,151,90,0.35)' }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+      aria-label={`Latest floor vote: ${latest.chamber}, ${dateLbl}, ${latest.yeas} yea ${latest.nays} nay, ${passed ? 'passed' : 'failed'}. Tap to view full breakdown.`}
+    >
+      <span style={{
+        fontSize: 9, padding: '2px 7px', borderRadius: 6, flexShrink: 0,
+        background: latest.chamber === 'House' ? 'rgba(77,154,255,0.10)' : 'rgba(255,168,77,0.10)',
+        color: chamberAccent,
+        border: `1px solid ${latest.chamber === 'House' ? 'rgba(77,154,255,0.25)' : 'rgba(255,168,77,0.25)'}`,
+        fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
+      }}>
+        Latest · {latest.chamber}
+      </span>
+      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)' }}>
+        {dateLbl}
+      </span>
+      <span style={{
+        fontSize: 11, fontFamily: 'var(--font-mono)',
+        color: passed ? 'var(--teal)' : 'var(--danger)', fontWeight: 600,
+      }}>
+        {latest.yeas}/{latest.nays}
+      </span>
+      <PartyMicrobar
+        yesD={buckets.yesD} yesR={buckets.yesR} yesU={buckets.yesU}
+        noD={buckets.noD}   noR={buckets.noR}   noU={buckets.noU}
+        width={72} height={9}
+      />
+      {verdict && (
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+          {verdict}
+        </span>
+      )}
+      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-faint)' }}>›</span>
+    </button>
+  )
 }
 
 /* ── Animated Sparkline Component ─────────────────── */
@@ -335,6 +408,26 @@ export default function BillDetailPage() {
   const [savingNote, setSavingNote]     = useState(false)
   // Thread 11: Roll-call history for this bill (display-only, G5 frozen-engine).
   const [rollCalls, setRollCalls] = useState([])
+  // Thread 18.4 + 18.6: party-bucketed member_votes for every roll_call.
+  // Single fetch shared by VoteSplitBar (Votes tab), LatestFloorVoteStrip
+  // (above sparkline), and per-row PartyMicrobars in VoteHistoryTable.
+  const [partyBucketsByRcId, setPartyBucketsByRcId] = useState({})
+  // Thread 18.5: one-shot guard so we only auto-default tab on first
+  // bill load. After that, manual tab clicks stick.
+  const [tabInitialized, setTabInitialized] = useState(false)
+
+  // Thread 18.5: when the bill is terminal (LAW/PASSED_CHAMBER/DEAD) AND
+  // has at least one Final Passage roll call, default the landing tab to
+  // 'votes'. The proof-of-outcome IS the votes; users shouldn't have to
+  // tap to find it. One-shot — manual clicks afterward stick.
+  useEffect(() => {
+    if (tabInitialized || !bill) return
+    const cl = (bill.confidence_label || '').toUpperCase()
+    const isTerminal = cl === 'LAW' || cl === 'PASSED_CHAMBER' || cl === 'DEAD'
+    const hasFP = (rollCalls || []).some(rc => isFinalPassage(rc.motion || ''))
+    if (isTerminal && hasFP) setTab('votes')
+    setTabInitialized(true)
+  }, [bill, rollCalls, tabInitialized])
 
   useEffect(() => {
     if (viewerLoading) return
@@ -431,6 +524,33 @@ export default function BillDetailPage() {
         .order('vote_date', { ascending: false })
         .order('id', { ascending: true })
       setRollCalls(rcData || [])
+
+      // Thread 18.4/18.6: pull party + vote for ALL roll_calls in one batch
+      // and bucket them per roll_call. Lightweight payload (party + vote
+      // only — no member names) feeds VoteSplitBar, the Latest Floor Vote
+      // strip, and per-row PartyMicrobars. The expanded member-breakdown
+      // drawer still lazy-fetches full names.
+      try {
+        const ids = (rcData || []).map(rc => rc.id)
+        if (ids.length > 0) {
+          const { data: mvData } = await supabase
+            .from('member_votes')
+            .select('roll_call_id, party, vote')
+            .in('roll_call_id', ids)
+          const grouped = {}
+          for (const v of (mvData || [])) {
+            ;(grouped[v.roll_call_id] = grouped[v.roll_call_id] || []).push(v)
+          }
+          const out = {}
+          for (const rc of (rcData || [])) {
+            const b = bucketMemberVotes(grouped[rc.id] || [])
+            out[rc.id] = padBucketsToReported(b, rc)
+          }
+          setPartyBucketsByRcId(out)
+        }
+      } catch (err) {
+        console.warn('roll_call party-buckets fetch failed', err)
+      }
 
       setLoading(false)
     }
@@ -794,7 +914,25 @@ export default function BillDetailPage() {
             This bill did not advance before session ended on {formatSessionDate(getCurrentBiennium().end)}. It may be reintroduced in the {getNextBiennium().session} session.
           </div>
         )}
-        {isInterimPeriod() && bill.confidence_label === 'PASSED_CHAMBER' && (
+        {/* Thread 18.2: post-biennium-close branch. Once the short-session
+            sine die has passed, PASSED_CHAMBER bills are dead unless
+            reintroduced. The pre-close intra-biennium-recess branch
+            remains for forward compatibility. */}
+        {bill.confidence_label === 'PASSED_CHAMBER' && isPostBienniumClose() && (() => {
+          const _cur = getCurrentBiennium()
+          const _nxt = getNextBiennium()
+          const _hasRealNext = _nxt && _cur && _nxt.session !== _cur.session
+          return (
+            <div style={{
+              background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.2)',
+              borderRadius: 'var(--radius)', padding: '10px 14px',
+              fontSize: 12, color: 'var(--gold)', lineHeight: 1.5,
+            }}>
+              This bill passed at least one chamber but did not become law before the biennium ended on {formatSessionDate(_cur.end)}. To advance, it must be reintroduced{_hasRealNext ? ` in the ${_nxt.session} session` : ' in the next session'}.
+            </div>
+          )
+        })()}
+        {bill.confidence_label === 'PASSED_CHAMBER' && isInterimPeriod() && !isPostBienniumClose() && (
           <div style={{
             background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.2)',
             borderRadius: 'var(--radius)', padding: '10px 14px',
@@ -812,6 +950,15 @@ export default function BillDetailPage() {
             Signed into law.
           </div>
         )}
+
+        {/* Thread 18.4: Latest Floor Vote strip — surfaced above the
+            sparkline so the lobbyist-grade headline is the first thing
+            below the banner. Tappable; opens the Votes tab. */}
+        <LatestFloorVoteStrip
+          rollCalls={rollCalls}
+          partyBuckets={partyBucketsByRcId}
+          onOpenVotes={() => setTab('votes')}
+        />
 
         {/* ── SPARKLINE HERO ──────────────────────────────── */}
         <div style={{
@@ -1514,7 +1661,21 @@ export default function BillDetailPage() {
                     href={`/members?selectedName=${encodeURIComponent(bill.prime_sponsor)}`}
                     style={{ color: 'var(--teal)', textDecoration: 'none', borderBottom: '1px dotted rgba(184,151,90,0.4)' }}
                   >
-                    {bill.prime_sponsor}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
+                    {bill.prime_sponsor}
+                    {bill.prime_party && (
+                      <>
+                        <span aria-hidden="true" style={{
+                          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                          background: bill.prime_party.charAt(0) === 'D' ? '#4d9aff'
+                            : bill.prime_party.charAt(0) === 'R' ? '#ef4444'
+                            : 'var(--text-faint)',
+                          marginLeft: 6, verticalAlign: 'middle',
+                        }}/>
+                        <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', border: 0 }}>
+                          ({bill.prime_party.charAt(0)})
+                        </span>
+                      </>
+                    )}
                   </Link>
                 )
                 : '—',
@@ -1859,12 +2020,27 @@ export default function BillDetailPage() {
         {/* ── TABS ───────────────────────────────────────── */}
         <div>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16, overflowX: 'auto' }}>
-            {[
-              { key: 'trajectory', label: 'Trajectory' },
-              { key: 'signals',    label: 'Signals' },
-              { key: 'votes',      label: 'Votes' },
-              { key: 'signal',     label: 'Signal Strength' },  // Phase 5C.6: renamed from "confidence"
-            ].map(({ key, label }) => (
+            {(() => {
+              // Thread 18.5: reorder tabs when bill is terminal AND has a
+              // Final Passage roll call. Votes IS the proof of outcome —
+              // surface it first.
+              const _cl = (bill.confidence_label || '').toUpperCase()
+              const _hasFP = (rollCalls || []).some(rc => isFinalPassage(rc.motion || ''))
+              const _isTerminal = ['LAW','PASSED_CHAMBER','DEAD'].includes(_cl) && _hasFP
+              const _tabs = _isTerminal
+                ? [
+                    { key: 'votes',      label: 'Votes' },
+                    { key: 'trajectory', label: 'Trajectory' },
+                    { key: 'signals',    label: 'Signals' },
+                    { key: 'signal',     label: 'Signal Strength' },
+                  ]
+                : [
+                    { key: 'trajectory', label: 'Trajectory' },
+                    { key: 'signals',    label: 'Signals' },
+                    { key: 'votes',      label: 'Votes' },
+                    { key: 'signal',     label: 'Signal Strength' },
+                  ]
+              return _tabs.map(({ key, label }) => (
               <button key={key} onClick={() => setTab(key)} style={{
                 padding: '8px 14px', background: 'none', border: 'none',
                 borderBottom: tab === key ? '2px solid var(--teal)' : '2px solid transparent',
@@ -1875,7 +2051,8 @@ export default function BillDetailPage() {
                 textShadow: tab === key ? '0 0 8px rgba(184,151,90,0.3)' : 'none',
                 whiteSpace: 'nowrap',
               }}>{label}</button>
-            ))}
+            ))
+            })()}
           </div>
 
           {/* ── TRAJECTORY TAB ─────────────────────────── */}
@@ -2085,55 +2262,11 @@ export default function BillDetailPage() {
           {/* ── VOTES TAB ──────────────────────────────── */}
           {tab === 'votes' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {floorMargin !== null ? (
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
-                    Floor Vote Margin
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 800, color: scoreColor, textShadow: `0 0 16px ${scoreColor === 'var(--teal)' ? 'rgba(184,151,90,0.4)' : 'transparent'}` }}>
-                      {floorMargin > 0 ? '+' : ''}{floorMargin}%
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Average floor margin</div>
-                      <div style={{ fontSize: 11, color: floorMargin > 10 ? 'var(--teal)' : floorMargin > 0 ? 'var(--gold)' : 'var(--danger)' }}>
-                        {floorMargin >= 20 ? 'Strong Majority' : floorMargin >= 10 ? 'Solid Majority' : floorMargin >= 0 ? 'Narrow Majority' : 'Minority Vote'}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ position: 'relative', height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{
-                      position: 'absolute', left: '50%', top: 0, bottom: 0,
-                      width: `${Math.abs(floorMargin) / 2}%`,
-                      background: floorMargin >= 0 ? 'var(--teal)' : 'var(--danger)',
-                      transform: floorMargin >= 0 ? 'none' : 'translateX(-100%)',
-                      borderRadius: 4,
-                      boxShadow: `0 0 8px ${floorMargin >= 0 ? 'rgba(184,151,90,0.3)' : 'rgba(196,71,48,0.3)'}`,
-                    }}/>
-                    <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.1)' }}/>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
-                    <span>Nay</span><span>50/50</span><span>Yea</span>
-                  </div>
-                  {bill.avg_floor_margin >= 0.1 && (
-                    <div style={{
-                      marginTop: 10, padding: '8px 12px',
-                      background: 'var(--teal-pale)', border: '1px solid rgba(184,151,90,0.2)',
-                      borderRadius: 8, fontSize: 11, color: 'var(--teal)',
-                    }}>
-                      ▲ Strong floor margin (+8% X Factor applied to trajectory score)
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 28, marginBottom: 10, filter: 'grayscale(0.5)' }}>🗳️</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>No floor vote recorded yet</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                    Floor vote data will appear here once the bill reaches the floor.
-                  </div>
-                </div>
-              )}
+              {/* Thread 18.1: replace the broken bills.avg_floor_margin
+                  card (NULL on all 8,817 rows — pre-existing extractFeatures
+                  XML-shape bug, G5-frozen) with VoteSplitBar computed live
+                  from roll_calls + member_votes. */}
+              <VoteSplitBar rollCalls={rollCalls} partyBuckets={partyBucketsByRcId} />
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {[
@@ -2161,7 +2294,7 @@ export default function BillDetailPage() {
                   mode="by-bill"
                   scopeLabel={bienniumShortLabel(bill.session || getCurrentSession()) + ' session'}
                 />
-                <VoteHistoryTable mode="by-bill" rollCalls={rollCalls} />
+                <VoteHistoryTable mode="by-bill" rollCalls={rollCalls} partyBuckets={partyBucketsByRcId} />
               </div>
             </div>
           )}
