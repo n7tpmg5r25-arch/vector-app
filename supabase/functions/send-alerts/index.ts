@@ -14,7 +14,7 @@ import { buildAlertEmail, buildTestEmail, buildHearingSubject } from "../_shared
  * Headers required: x-function-secret (shared secret auth)
  */
 
-const APP_URL = 'https://vector-app-liard.vercel.app';
+const APP_URL = 'https://vectorwa.com';
 
 Deno.serve(async (req: Request) => {
   const startTime = Date.now();

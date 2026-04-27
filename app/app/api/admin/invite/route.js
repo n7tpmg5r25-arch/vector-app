@@ -180,7 +180,7 @@ export async function POST(request) {
     // action_link is our fallback for the admin UI.
     const origin = request.headers.get('origin')
       || new URL(request.url).origin
-      || 'https://vector-app-liard.vercel.app'
+      || 'https://vectorwa.com'
     const redirectTo = `${origin}/auth/callback`
 
     let magicLink = null
