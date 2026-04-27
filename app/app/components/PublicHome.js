@@ -1,36 +1,97 @@
 'use client'
 /**
- * PublicHome — Phase 12 Batch 4
+ * PublicHome -- Phase 12 Batch 4 + Thread 24 (2026-04-26)
  *
- * The anonymous-visitor home page. Renders only when:
+ * Anonymous-visitor home page. Renders only when:
  *   useViewer() returns !user && publicLayerEnabled === true
- * and the proxy.js gate has admitted the request (proxy gate also branches
- * on NEXT_PUBLIC_ENABLE_PUBLIC_LAYER === 'true' for the public allowlist).
+ * and the proxy gate has admitted the request.
  *
- * Layout per Phase 12 plan §6 + B6 brand anchor (Brand v4.6):
- *   - PublicNav (top bar, logo + Sign in)
- *   - Hero band with §10 logo lockup + §02 functional descriptor
- *   - Three entry tiles: Search / Committees / Members
+ * Thread 24 layout:
+ *   - PublicNav top bar -- wordmark, How it works, About, Sign in
+ *   - Hero band -- Section 10 logo lockup + Section 02 functional descriptor
+ *   - "What is Vector | WA" 2-paragraph explainer
+ *   - Interim-only "How did the {bienniumShortLabel} session end?" tile
+ *     (gated on isInterimPeriod())
+ *   - "By the numbers" datasheet panel (4 stat cells: bills tracked /
+ *     calibration cohort / sessions covered / refresh cadence) -- replaces
+ *     the persona-card concept after preview review found it off-brand
  *   - Bills-moving widget (interim-aware)
- *   - Global Footer (rendered by app/app/layout.tsx) carries the §02 ownership line
+ *   - Top categories shortcut grid
+ *   - Three generic browse tiles (Search / Committees / Members)
+ *   - Global Footer (rendered by the root layout) carries Section 02 line
  *
- * Brand v4.6 constraints:
- *   - Vector | WA palette only — no Shorepine firm Forest / Parchment here
- *   - Karla body (already site-wide)
- *   - §10 lockup: vector-wa-primary.svg, never composite with the firm mark
- *   - §02 descriptor: "Free, nonpartisan legislative intelligence for Washington State."
- *   - §14 voice: actionable signal, plain English, no overclaim
+ * G1 -- Sessions-covered count derives from getAllSessions().length so
+ *       rollover years auto-roll. No hardcoded biennium literals.
+ * G5 -- 8,062 calibration cohort literal preserved verbatim (frozen until
+ *       2027-04 calibration refresh per scoreBill freeze). No scoreBill
+ *       or extractFeatures touches.
+ * G6 -- Page-scoped component; PublicNav is shared but not globally mounted.
+ *       Footer changes preserve Thread 19.1 viewer-aware bottom-line.
  */
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import PublicNav from './PublicNav'
 import BillsMovingWidget from './BillsMovingWidget'
+import {
+  isInterimPeriod,
+  getCurrentSession,
+  bienniumShortLabel,
+  getAllSessions,
+} from '../../lib/session-config'
+import { createBrowserClient } from '../../lib/supabase'
+
+// Top categories for the shortcut grid. Names sourced from the canonical
+// taxonomy in app/lib/categories (15-category list). Hardcoded subset of 6
+// highest-salience for anon visitors. Reorder eyeball recommended if the
+// canonical list is reordered -- chips link to /search?category=X and the
+// search page expects exact-match category strings.
+const TOP_CATEGORIES = [
+  'Health',
+  'Education',
+  'Housing',
+  'Criminal Justice',
+  'Environment',
+  'Transportation',
+]
+
+const SECTION_EYEBROW = {
+  fontSize: 10,
+  color: 'var(--text-faint)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  fontWeight: 600,
+  marginBottom: 10,
+}
 
 export default function PublicHome() {
+  const interim = isInterimPeriod()
+  const sessionShort = bienniumShortLabel(getCurrentSession())
+  const sessionsCovered = getAllSessions().length
+
+  // Live bills-tracked count for the datasheet. Single cheap COUNT query --
+  // scoped to the current session so the number reflects "what we're
+  // watching right now", matching the project's stated ~3.4k scale. As the
+  // session-config rolls forward, this rolls with it (no edit needed).
+  const [billsTracked, setBillsTracked] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createBrowserClient()
+    supabase
+      .from('bills')
+      .select('bill_id', { count: 'exact', head: true })
+      .eq('session', getCurrentSession())
+      .eq('legislation_type', 'bill')
+      .then(({ count }) => {
+        if (!cancelled && typeof count === 'number') setBillsTracked(count)
+      })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div style={{ fontFamily: 'var(--font-body)', minHeight: '100vh', paddingBottom: 40 }}>
       <PublicNav />
 
-      {/* ── HERO ─────────────────────────────────────────────────────── */}
+      {/* ---- HERO ---- */}
       <header
         style={{
           padding: '56px 20px 36px',
@@ -39,7 +100,6 @@ export default function PublicHome() {
           overflow: 'hidden',
         }}
       >
-        {/* Subtle radial glow — same treatment as the owner home */}
         <div
           aria-hidden="true"
           style={{
@@ -52,7 +112,6 @@ export default function PublicHome() {
         />
 
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto' }}>
-          {/* §10 lockup — primary logo on dark hero */}
           <img
             src="/logos/vector-wa-primary.svg"
             alt="Vector | WA"
@@ -65,7 +124,6 @@ export default function PublicHome() {
             }}
           />
 
-          {/* §02 functional descriptor */}
           <p
             style={{
               fontSize: 18,
@@ -79,13 +137,11 @@ export default function PublicHome() {
             Free, nonpartisan legislative intelligence for Washington State.
           </p>
 
-          {/* §14 voice — single supporting line, no overclaim */}
           <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--text-mid)', maxWidth: 560, margin: 0 }}>
             Trajectory scores, momentum, and committee activity for every bill in Olympia. Built
             for advocates, staff, journalists, and anyone who wants to read the building.
           </p>
 
-          {/* Thread 9 — discoverable explainer link for first-time visitors */}
           <Link
             href="/how-it-works"
             style={{
@@ -102,19 +158,155 @@ export default function PublicHome() {
               paddingBottom: 1,
             }}
           >
-            How Vector works <span aria-hidden="true">→</span>
+            How Vector works <span aria-hidden="true">{'\u2192'}</span>
           </Link>
         </div>
       </header>
 
-      {/* ── ENTRY TILES ──────────────────────────────────────────────── */}
-      <section
-        style={{
-          padding: '8px 16px 28px',
-          maxWidth: 720,
-          margin: '0 auto',
-        }}
-      >
+      {/* ---- EXPLAINER ---- */}
+      <section style={{ padding: '24px 20px 8px', maxWidth: 720, margin: '0 auto' }}>
+        <div style={SECTION_EYEBROW}>What is Vector | WA</div>
+        <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-mid)', margin: '0 0 12px' }}>
+          {'Vector | WA is a Washington State legislative intelligence tool. It watches every bill in Olympia, scores its trajectory from 0 to 99, and refreshes nightly. The score blends five procedural signals \u2014 committee placement, sponsor profile, momentum, historical category pass rates, and fiscal note size \u2014 calibrated against thousands of past bills with known outcomes.'}
+        </p>
+        <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-mid)', margin: 0 }}>
+          {'The site is free, nonpartisan, and built for journalists, advocates, lobbyists, students, legislative staff, and anyone who needs to read the docket without paying for an enterprise tracker. The public site launches mid 2027 \u2014 for now you can browse every bill, every committee, and every legislator at no cost.'}
+        </p>
+      </section>
+
+      {/* ---- INTERIM-ONLY OUTCOMES TILE ---- */}
+      {interim && (
+        <section style={{ padding: '14px 20px 0', maxWidth: 720, margin: '0 auto' }}>
+          <Link
+            href="/outcomes"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              padding: '14px 16px',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.25)',
+              borderRadius: 10,
+              textDecoration: 'none',
+              color: 'inherit',
+              transition: 'border-color 0.15s, background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--teal)'
+              e.currentTarget.style.background = 'rgba(184,151,90,0.1)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(184,151,90,0.25)'
+              e.currentTarget.style.background = 'rgba(184,151,90,0.06)'
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--gold)',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                Interim
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+                How did the {sessionShort} session end?
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                {'Final tally \u2014 what passed, what carried over, what died.'}
+              </div>
+            </div>
+            <span aria-hidden="true" style={{ fontSize: 18, color: 'var(--teal)', flexShrink: 0 }}>{'\u2192'}</span>
+          </Link>
+        </section>
+      )}
+
+      {/* ---- BY THE NUMBERS (Thread 24 datasheet) ---- */}
+      <section style={{ padding: '24px 20px 12px', maxWidth: 720, margin: '0 auto' }}>
+        <div style={SECTION_EYEBROW}>By the numbers</div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: 8,
+          }}
+        >
+          <StatCell
+            value={billsTracked != null ? billsTracked.toLocaleString() : '\u2014'}
+            label="bills tracked"
+          />
+          <StatCell value="8,062" label="calibration cohort" />
+          <StatCell value={String(sessionsCovered)} label="sessions covered" />
+          <StatCell value="Nightly" label="refresh" mono={false} />
+        </div>
+      </section>
+
+      {/* ---- BILLS-MOVING WIDGET ---- */}
+      <section style={{ maxWidth: 720, margin: '0 auto', padding: '12px 0 8px' }}>
+        <BillsMovingWidget />
+      </section>
+
+      {/* ---- TOP CATEGORIES SHORTCUT ---- */}
+      <section style={{ maxWidth: 720, margin: '0 auto', padding: '20px 20px 8px' }}>
+        <div style={SECTION_EYEBROW}>Browse by category</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {TOP_CATEGORIES.map((cat) => (
+            <Link
+              key={cat}
+              href={`/search?category=${encodeURIComponent(cat)}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-mid)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                textDecoration: 'none',
+                transition: 'border-color 0.15s, color 0.15s, background 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--teal)'
+                e.currentTarget.style.color = 'var(--teal)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)'
+                e.currentTarget.style.color = 'var(--text-mid)'
+              }}
+            >
+              {cat}
+            </Link>
+          ))}
+          <Link
+            href="/search"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 500,
+              color: 'var(--teal)',
+              background: 'transparent',
+              border: '1px dashed rgba(184,151,90,0.3)',
+              borderRadius: 16,
+              textDecoration: 'none',
+            }}
+          >
+            {'All categories \u2192'}
+          </Link>
+        </div>
+      </section>
+
+      {/* ---- ENTRY TILES (existing -- generic browse) ---- */}
+      <section style={{ padding: '20px 16px 28px', maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ ...SECTION_EYEBROW, paddingLeft: 4 }}>Or just browse</div>
         <div
           style={{
             display: 'grid',
@@ -139,13 +331,45 @@ export default function PublicHome() {
           />
         </div>
       </section>
+    </div>
+  )
+}
 
-      {/* ── BILLS-MOVING WIDGET ──────────────────────────────────────── */}
-      <section style={{ maxWidth: 720, margin: '0 auto', padding: '8px 0 24px' }}>
-        <BillsMovingWidget />
-      </section>
-
-      {/* Footer (with §02 ownership line) is rendered globally by layout.tsx */}
+function StatCell({ value, label, mono = true }) {
+  return (
+    <div
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '14px 12px',
+        textAlign: 'center',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)',
+          fontSize: 22,
+          fontWeight: 700,
+          color: 'var(--teal)',
+          lineHeight: 1.1,
+          textShadow: '0 0 12px rgba(184,151,90,0.25)',
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: 9,
+          color: 'var(--text-faint)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          marginTop: 6,
+          lineHeight: 1.3,
+        }}
+      >
+        {label}
+      </div>
     </div>
   )
 }

@@ -4,29 +4,25 @@ import Link from 'next/link'
 import { useViewer } from '../../lib/viewer-capabilities'
 
 /**
- * Global app footer — mounted in app/app/layout.tsx and rendered on every
+ * Global app footer -- mounted in the root layout and rendered on every
  * route. Because the same component lands across all three layers (public,
- * owner, client portal), the bottom attribution line BRANCHES on viewer role
- * to keep the public-vs-internal brand split intact (Phase 2 directive D1
- * + Universal Guardrail G6 — Layer Discipline).
+ * owner, client portal), the bottom attribution line BRANCHES on viewer
+ * role to keep the public-vs-internal brand split intact (Phase 2 directive
+ * D1 + Universal Guardrail G6 -- Layer Discipline).
  *
- *   role === 'public'  → forward-looking launch framing (Vector | WA stands
- *                        alone publicly until Shorepine GR launches Sep 2027).
- *   role === 'owner'   → firm attribution restored — operator IS Shorepine
- *                        on /watchlist, /settings, /admin/*, /auth/callback.
- *   role === 'client'  → bottom strip suppressed; the client portal pages
- *                        (c/[slug]/page.js + c/[slug]/bill/[id]/page.js)
- *                        render their own inline Shorepine attribution.
- *                        Skipping here prevents the duplicate Shorepine line
- *                        a client would otherwise see (global + inline).
+ *   role === 'public'  -> forward-looking launch framing (Vector | WA stands
+ *                         alone publicly until Shorepine GR launches Sep 2027).
+ *   role === 'owner'   -> firm attribution restored -- operator IS Shorepine
+ *                         on /watchlist, /settings, /admin/*, /auth/callback.
+ *   role === 'client'  -> bottom strip suppressed; the client portal pages
+ *                         render their own inline Shorepine attribution.
  *
- * The first two lines (legal-disclosure + disclaimers link) render on every
- * layer regardless. Those are universal, layer-agnostic content.
+ * The first two lines (legal-disclosure + disclaimers/about links) render on
+ * every layer regardless. Those are universal, layer-agnostic content.
  *
- * During the brief auth-resolve window (loading=true), the bottom strip
- * is hidden entirely. This matches the Nav loading-aware pattern from
- * Thread 15.2 — better to show no copy briefly than to flash the wrong
- * copy.
+ * Thread 24 (2026-04-26) -- added the About link inline alongside Full
+ * disclaimers. The About page is public-shaped and exists for all viewers,
+ * so the link is universal copy; only the bottom attribution stays branched.
  */
 export default function Footer() {
   const { capabilities, loading } = useViewer()
@@ -37,11 +33,8 @@ export default function Footer() {
     if (role === 'public') {
       bottomLine = 'Public site launching mid 2027.'
     } else if (role === 'owner') {
-      bottomLine = 'Vector | WA — a product of Shorepine Government Relations.'
+      bottomLine = 'Vector | WA -- a product of Shorepine Government Relations.'
     }
-    // role === 'client' → leave bottomLine null. Client portal pages render
-    // their own per-page Shorepine attribution; suppressing here keeps it
-    // from doubling.
   }
 
   return (
@@ -65,6 +58,10 @@ export default function Footer() {
           Not legal advice. Nonpartisan. Free.{' '}
           <Link href="/disclaimers" style={{ color: '#d4b47a', textDecoration: 'underline' }}>
             Full disclaimers
+          </Link>
+          {' \u00b7 '}
+          <Link href="/about" style={{ color: '#d4b47a', textDecoration: 'underline' }}>
+            About Vector
           </Link>
           .
         </div>

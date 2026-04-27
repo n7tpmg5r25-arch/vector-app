@@ -4,23 +4,18 @@ import { NextResponse } from 'next/server'
 // Phase 12 public layer: when NEXT_PUBLIC_ENABLE_PUBLIC_LAYER is 'true',
 // anon visitors are admitted to the routes in this allowlist instead of
 // being redirected to /login. With the flag false (production default)
-// this list is never consulted — behavior is byte-identical to
+// this list is never consulted -- behavior is byte-identical to
 // pre-Batch-4.
 //
 // Each batch expanded the list:
-//   Batch 4:                 '/'                    (shipped)
-//   Batch 5:                 '/bill/[id]'           (shipped, prefix: '/bill/')
-//   Batch 6 (this thread):   '/search', '/committees', '/committees/[slug]',
+//   Batch 4:                 '/'
+//   Batch 5:                 '/bill/[id]' (prefix: '/bill/')
+//   Batch 6:                 '/search', '/committees', '/committees/[slug]',
 //                            '/members', '/methodology', '/outcomes',
 //                            '/hearings'
-//   Thread 9:                '/how-it-works'         (public explainer)
-// '/disclaimers' is already public-shaped and is matched by isAlwaysPublic
-// below (no flag dependency).
-//
-// Private routes that stay behind /login even with the flag on: /watchlist,
-// /settings, /admin/*, /saved-searches, /alerts, /thresholds, /feedback.
-// Those routes consume private user state (tracked_bills, notification_prefs,
-// bill_notes, followed committees) and have no anon read path.
+//   Thread 9:                '/how-it-works'
+//   Thread 24:               '/about'
+// '/disclaimers' is matched by isAlwaysPublic below (no flag dependency).
 function isPublicLayerRoute(pathname) {
   if (pathname === '/') return true
   if (pathname.startsWith('/bill/')) return true
@@ -32,11 +27,10 @@ function isPublicLayerRoute(pathname) {
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
   if (pathname === '/how-it-works') return true
+  if (pathname === '/about') return true
   return false
 }
 
-// Routes that are public regardless of the public-layer flag — magic-link
-// entry points and the existing public disclaimers page.
 function isAlwaysPublic(pathname) {
   return (
     pathname === '/login' ||
@@ -53,7 +47,6 @@ export async function proxy(req) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
-        // 11.1.1 — migrated to getAll/setAll API (newer @supabase/ssr)
         getAll: () => req.cookies.getAll(),
         setAll: (cookiesToSet) => {
           cookiesToSet.forEach(({ name, value, options }) => {
@@ -70,8 +63,6 @@ export async function proxy(req) {
   const isLoginPage = pathname === '/login'
   const publicLayerOn = process.env.NEXT_PUBLIC_ENABLE_PUBLIC_LAYER === 'true'
 
-  // Anon visitor: redirect to /login UNLESS the route is always-public, OR
-  // the public-layer flag is on AND the route is in the public allowlist.
   if (
     !session &&
     !isAlwaysPublic(pathname) &&
