@@ -1,17 +1,16 @@
 'use client'
 /**
- * PublicNav — Phase 12 Batch 4
+ * PublicNav -- Phase 12 Batch 4 + Thread 24 (2026-04-26)
  *
  * Top bar shown to anonymous visitors when the public layer is enabled.
- * Per Phase 12 plan §6 and the v4.6 B6 brand anchor:
- *   - Wordmark left (vector-wa-primary.svg, §10 lockup)
- *   - "Sign in" CTA right (Brass accent)
- *   - Vector | WA palette only — no Shorepine firm Forest/Parchment here
- *   - Karla body (already site-wide via globals.css)
+ *   - Wordmark left (vector-wa-primary logo, Section 10 lockup)
+ *   - "How it works" + "About" + "Sign in" right
+ *     (Thread 24 added the About link between How it works and Sign in)
+ *   - Vector | WA palette only -- no Shorepine firm Forest/Parchment
  *
- * NOT a replacement for app/app/components/Nav.js. The owner bottom-icon
- * Nav stays unchanged for logged-in viewers. PublicNav is mounted only
- * inside PublicHome (and, in Batches 5-7, on the other public surfaces).
+ * NOT a replacement for the owner Nav. PublicNav is mounted only inside
+ * PublicHome and other public surfaces. Per CLAUDE.md G6, this is a top-bar
+ * component shared across public routes -- not globally mounted.
  */
 import Link from 'next/link'
 
@@ -34,10 +33,9 @@ export default function PublicNav() {
         fontFamily: 'var(--font-body)',
       }}
     >
-      {/* §10 lockup — primary SVG, no composite with Shorepine firm mark */}
       <Link
         href="/"
-        aria-label="Vector | WA — home"
+        aria-label="Vector | WA -- home"
         style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
       >
         <img
@@ -52,25 +50,9 @@ export default function PublicNav() {
         />
       </Link>
 
-      {/* Right cluster — secondary "How it works" link + Sign in CTA */}
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 }}>
-        <Link
-          href="/how-it-works"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            fontSize: 13,
-            fontWeight: 500,
-            letterSpacing: '0.01em',
-            color: 'var(--text-muted)',
-            textDecoration: 'none',
-            transition: 'color 0.15s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--teal)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
-        >
-          How it works
-        </Link>
+        <NavLink href="/how-it-works">How it works</NavLink>
+        <NavLink href="/about">About</NavLink>
 
         <Link
           href="/login"
@@ -101,5 +83,27 @@ export default function PublicNav() {
         </Link>
       </div>
     </nav>
+  )
+}
+
+function NavLink({ href, children }) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        fontSize: 13,
+        fontWeight: 500,
+        letterSpacing: '0.01em',
+        color: 'var(--text-muted)',
+        textDecoration: 'none',
+        transition: 'color 0.15s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--teal)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+    >
+      {children}
+    </Link>
   )
 }

@@ -4,7 +4,7 @@
  * Update this file when a new biennium begins.
  */
 
-// ── Biennium definitions ──────────────────────────────────
+// -- Biennium definitions --------------------------------
 // Each entry: { session, start, end, prefilingOpens }
 const BIENNIUMS = [
   {
@@ -16,23 +16,23 @@ const BIENNIUMS = [
   {
     session: '2027-2028',
     start:   '2027-01-11',   // 2nd Monday of Jan 2027 per WA Const. Art II §12
-    end:     '2028-03-10',   // Estimated — 2028 short session sine die, Day 60 from Jan 10
+    end:     '2028-03-10',   // Estimated -- 2028 short session sine die, Day 60 from Jan 10
     prefilingOpens: '2026-12-01',
   },
 ]
 
 // Historical biennia with bill data in the warehouse (pre-BIENNIUMS
-// sessions — kept in a separate array because they're read-only and
+// sessions -- kept in a separate array because they're read-only and
 // don't need cutoff tables / prefile dates). Update when a session
 // ages out of BIENNIUMS into history.
 const HISTORICAL_SESSIONS = ['2023-2024', '2021-2022']
 
-// ── Derived helpers ───────────────────────────────────────
+// -- Derived helpers -------------------------------------
 
 /** Current biennium session string, e.g. '2025-2026' or '2027-2028'
  *  Switches to the next biennium when pre-filing opens (typically Dec 1),
  *  NOT when the session starts (Jan 13). Pre-filing is when lobbyists
- *  begin scanning new bills — the app should default to the new session
+ *  begin scanning new bills -- the app should default to the new session
  *  as soon as there's something to see. */
 export function getCurrentSession() {
   const now = new Date()
@@ -60,7 +60,7 @@ export function getCurrentBiennium() {
 /** All sessions with bill data (current + historical), newest first.
  *  Future biennia are filtered out until prefiling has opened, so
  *  session pickers don't advertise an empty session before Dec 1
- *  of the rollover year. Single source of truth — replaces the
+ *  of the rollover year. Single source of truth -- replaces the
  *  `const SESSIONS = ['2025-2026', '2023-2024', '2021-2022']`
  *  arrays that used to live in page files. */
 export function getAllSessions() {
@@ -82,17 +82,17 @@ export function isInterimPeriod() {
 
 /** True when the legislature is past the final sine die of the current
  *  biennium. In the current BIENNIUMS shape, biennium.end IS the final
- *  sine die so this is functionally equivalent to isInterimPeriod() —
+ *  sine die so this is functionally equivalent to isInterimPeriod() --
  *  but kept as a semantically explicit helper so call sites can read
  *  "post-biennium-close" intent without having to know the data shape.
  *
  *  Use this to distinguish:
- *    • Intra-biennium interim (long-session sine die → short-session
- *      start) — bills genuinely carry over within the biennium.
- *    • Post-biennium-close interim (short-session sine die → next
- *      biennium prefiling) — bills die unless reintroduced.
+ *    - Intra-biennium interim (long-session sine die -> short-session
+ *      start) -- bills genuinely carry over within the biennium.
+ *    - Post-biennium-close interim (short-session sine die -> next
+ *      biennium prefiling) -- bills die unless reintroduced.
  *
- *  Thread 18 (2026-04-26) — see BUG_ASSESSMENT_2026-04-26.md Bug #3.
+ *  Thread 18 (2026-04-26).
  */
 export function isPostBienniumClose() {
   const b = getCurrentBiennium()
@@ -100,24 +100,72 @@ export function isPostBienniumClose() {
   return new Date() > new Date(b.end)
 }
 
+/** Most recent session whose sine die has passed. Used by interim-aware
+ *  surfaces (BillsMovingWidget, PublicHome interim outcomes tile) to
+ *  anchor "what just happened" framing without hardcoding a literal like
+ *  '2025-2026'. As BIENNIUMS rolls forward, this rolls with it.
+ *
+ *  Logic:
+ *    - If the current biennium is post-sine-die (isPostBienniumClose),
+ *      IT is the most recent closed session.
+ *    - Otherwise the current biennium is active or in prefile, and the
+ *      most recent closed is the next-most-recent in getAllSessions.
+ *
+ *  Edge case: returns null when getAllSessions is empty. In practice WA
+ *  Vector's HISTORICAL_SESSIONS guarantees at least one closed session,
+ *  so callers can assume non-null.
+ *
+ *  Thread 24 (2026-04-26).
+ */
+export function getMostRecentClosedSession() {
+  const all = getAllSessions()
+  if (all.length === 0) return null
+  if (isPostBienniumClose()) return getCurrentSession()
+  const cur = getCurrentSession()
+  for (const s of all) {
+    if (s !== cur) return s
+  }
+  return null
+}
+
+/** All sessions whose sine die has passed, newest first.
+ *
+ *  Used by the BillsMovingWidget interim sine-die-snapshot toggle and
+ *  the funnel/categories panel to populate session-scoped queries
+ *  dynamically. Replaces the static
+ *    const CLOSED_SESSIONS = ['2025-2026', '2023-2024', '2021-2022']
+ *  literal that would have stale-out at every biennium close.
+ *
+ *  Includes the current biennium when it has post-sine-died (i.e., when
+ *  isPostBienniumClose returns true). Excludes it during active-session
+ *  and prefile windows.
+ *
+ *  Thread 24 (2026-04-26).
+ */
+export function getClosedSessions() {
+  const all = getAllSessions()
+  if (isPostBienniumClose()) return all
+  const cur = getCurrentSession()
+  return all.filter((s) => s !== cur)
+}
+
 /** Key session cutoff milestones for the current biennium.
  *  Returns an array of `{ label, date, dateFormatted, passed, daysLeft }`
- *  — callers typically do `.filter(c => !c.passed)` to get upcoming ones.
+ *  -- callers typically do `.filter(c => !c.passed)` to get upcoming ones.
  *  Returns `[]` when we don't have cutoff data for the current biennium
  *  (e.g., a future biennium whose calendar hasn't been filed yet).
  *
  *  Reshaped 2026-04-22 (DATA_FRESHNESS #33). Previously returned a plain
  *  object `{ policyCutoff, fiscalCutoff, ... }` that never matched the
- *  array-shape three call sites in generate-pdf.js were using. Only
- *  consumers of this function were in generate-pdf.js; the object-shape
+ *  array-shape three call sites in generate-pdf were using. Only
+ *  consumers of this function were in generate-pdf; the object-shape
  *  had no real readers. */
 export function getSessionCutoffs() {
   const b = getCurrentBiennium()
   const now = new Date()
 
-  // WA Legislature cutoff milestones. Dates come from
-  // https://leg.wa.gov/legislature/pages/cutoffs.aspx — update when
-  // the next biennium's calendar is published (typically fall before).
+  // WA Legislature cutoff milestones. Update when the next biennium's
+  // calendar is published (typically fall before).
   let raw = []
   if (b.session === '2025-2026') {
     raw = [
@@ -139,7 +187,7 @@ export function getSessionCutoffs() {
       { label: 'Opposite Floor Cutoff', date: '2027-03-31' }, // ESTIMATE
     ]
   }
-  // Unknown biennium → empty array. .filter() on [] is safe.
+  // Unknown biennium -> empty array. .filter() on [] is safe.
 
   return raw.map(m => ({
     ...m,
@@ -156,7 +204,7 @@ export function daysUntil(dateStr) {
 }
 
 /** Format a date string as "January 13, 2027" (timezone-safe).
- *  Returns "session dates TBD" when dateStr is null/undefined/malformed —
+ *  Returns "session dates TBD" when dateStr is null/undefined/malformed --
  *  prevents crashes on interim pages when a future biennium hasn't yet
  *  been populated in BIENNIUMS. */
 export function formatSessionDate(dateStr) {
@@ -171,11 +219,7 @@ export function formatSessionDate(dateStr) {
   })
 }
 
-/** Short biennium label for display: '2025-2026' → '2025-26'.
- *  Lifted from app/app/committees/page.js per Universal Guardrail G1
- *  (Thread 11) so any new file can import it without copy-paste. Pairs
- *  with getCurrentBiennium() / getNextBiennium() to keep interim-mode
- *  copy auto-rolling without a per-cycle code edit. */
+/** Short biennium label for display: '2025-2026' -> '2025-26'. */
 export function bienniumShortLabel(session) {
   if (!session || typeof session !== 'string') return ''
   const parts = session.split('-')
@@ -184,8 +228,7 @@ export function bienniumShortLabel(session) {
 }
 
 /** Day-of-session counter (1-indexed) for the current biennium, or null
- *  when not in active session. Lifted from committees/page.js per G1
- *  (Thread 11) so member + bill detail pages can use it without dup. */
+ *  when not in active session. */
 export function dayOfSessionOrNull() {
   const b = getCurrentBiennium()
   if (!b) return null
@@ -196,7 +239,7 @@ export function dayOfSessionOrNull() {
   return Math.floor((now - start) / 86400000) + 1
 }
 
-// ── Convenience constants (for the current cycle) ─────────
+// -- Convenience constants (for the current cycle) -------
 export const SESSION_CONFIG = {
   get current()       { return getCurrentSession() },
   get isInterim()     { return isInterimPeriod() },
