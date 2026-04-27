@@ -15,7 +15,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
  * so Supabase MCP deploy doesn't need extra files.
  */
 
-const APP_URL = 'https://vector-app-liard.vercel.app';
+const APP_URL = 'https://vectorwa.com';
 const PUBLIC_LAUNCH = 'August 2027';
 
 // ── Brand colors (email palette — Forest + Brass + Parchment) ──────────

@@ -16,7 +16,7 @@ import { buildDigestEmail } from "../_shared/email-template.ts";
  * Also callable manually via curl with x-function-secret header.
  */
 
-const APP_URL = 'https://vector-app-liard.vercel.app';
+const APP_URL = 'https://vectorwa.com';
 
 // Session dates — update when new biennium begins.
 // Canonical source: app/lib/session-config.js BIENNIUMS.
