@@ -529,6 +529,16 @@ export default function MethodologyPage() {
               Supabase data every time you open this page, so as soon as the next biennium's
               outcomes are final the numbers above update automatically — no manual refresh needed.
             </div>
+            {/* Thread 31 (2026-04-27): cumulative roll-call coverage note. The
+                bill scoring engine has data back to 2021-2022, but member-level
+                roll-call votes were only ingested starting with the 2025-2026
+                biennium. As successive bienniums close, the cumulative member
+                voting profile grows — per-session breakdowns remain available
+                via the session selector on /members. */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+              Member voting records cover 2025-2026 onward. Each successive biennium adds to the cumulative record;
+              per-session breakdowns remain available via the session selector on the members page.
+            </div>
           </div>
         </div>
 

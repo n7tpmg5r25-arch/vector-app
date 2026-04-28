@@ -27,6 +27,32 @@ const BIENNIUMS = [
 // ages out of BIENNIUMS into history.
 const HISTORICAL_SESSIONS = ['2023-2024', '2021-2022']
 
+// -- Roll-call vote data coverage ------------------------
+// Vote data ingestion (roll_calls + member_votes) began with the 2025-2026
+// biennium under Thread 6 (2026-04-25). Sessions before this exist in the
+// warehouse for bills + sponsorship + committee data, but member-level
+// roll-call votes are not available. Update this constant if historical
+// roll-call backfill ever ships. Centralizing it here means UI surfaces
+// (VoteHistoryTable empty states, methodology footnotes) auto-route the
+// right copy without per-page edits when bienniums roll forward (D6).
+//
+// Thread 31 (2026-04-27).
+export const VOTE_DATA_FIRST_SESSION = '2025-2026'
+
+/** True if the given session string has roll-call vote data in the
+ *  warehouse. Returns true for 'all' (the all-sessions union always
+ *  includes the covered window). String-year compare on the YYYY prefix
+ *  is safe for the YYYY-YYYY format used throughout BIENNIUMS +
+ *  HISTORICAL_SESSIONS. */
+export function hasRollCallData(session) {
+  if (!session) return true
+  if (session === 'all') return true
+  const sessionFirstYear = parseInt(String(session).slice(0, 4), 10)
+  const cutoffFirstYear  = parseInt(VOTE_DATA_FIRST_SESSION.slice(0, 4), 10)
+  if (Number.isNaN(sessionFirstYear) || Number.isNaN(cutoffFirstYear)) return true
+  return sessionFirstYear >= cutoffFirstYear
+}
+
 // -- Derived helpers -------------------------------------
 
 /** Current biennium session string, e.g. '2025-2026' or '2027-2028'
