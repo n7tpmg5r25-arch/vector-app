@@ -826,11 +826,16 @@ function MembersContent() {
                 mode="by-member"
                 scopeLabel={selectedSession === 'all' ? 'All Sessions' : selectedSession}
                 count={memberVotes.length}
+                showScopeStamp
               />
               {votesLoading ? (
                 <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
               ) : (
-                <VoteHistoryTable mode="by-member" byMemberRows={memberVotes} />
+                <VoteHistoryTable
+                  mode="by-member"
+                  byMemberRows={memberVotes}
+                  sessionContext={selectedSession}
+                />
               )}
             </div>
           )}

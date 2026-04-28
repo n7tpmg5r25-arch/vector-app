@@ -29,7 +29,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
-import { formatSessionDate } from '../../lib/session-config'
+import { formatSessionDate, hasRollCallData, VOTE_DATA_FIRST_SESSION } from '../../lib/session-config'
 import PartyMicrobar from './PartyMicrobar'
 
 const VOTE_COLORS = {
@@ -326,7 +326,7 @@ function ByMemberRow({ row }) {
 
 /* ── PUBLIC API ───────────────────────────────────────────── */
 
-export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, partyBuckets }) {
+export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, partyBuckets, sessionContext }) {
   // Header (scope label / count) is rendered by <VotingRecordHeader> at the
   // call site as of Thread 15.1 (2026-04-25). This component is now rows-only
   // so the two surfaces (bill detail + members) can never drift again.
@@ -388,13 +388,26 @@ export default function VoteHistoryTable({ mode, rollCalls, byMemberRows, partyB
   // ── BY-MEMBER ──
   if (mode === 'by-member') {
     if (!byMemberRows || byMemberRows.length === 0) {
+      // Thread 31 (2026-04-27): session-aware empty state. When the user is
+      // looking at a session that pre-dates roll-call ingestion (Thread 6 began
+      // collecting in 2025-2026), the empty render needs to say "this isn't
+      // available", not "this legislator didn't vote." VOTE_DATA_FIRST_SESSION
+      // lives in session-config.js so future bienniums route correctly without
+      // touching this file again (D6).
+      const sessionHasData = hasRollCallData(sessionContext)
+      const message = sessionHasData
+        ? (sessionContext === 'all'
+            ? `No recorded floor or committee votes yet. Vote data covers ${VOTE_DATA_FIRST_SESSION} onward.`
+            : 'No recorded floor or committee votes for this legislator yet.')
+        : `Roll-call vote data isn’t available for the ${sessionContext} biennium. Vector | WA began recording roll calls in the ${VOTE_DATA_FIRST_SESSION} session.`
       return (
         <div style={{
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius)', padding: '16px',
           textAlign: 'center', color: 'var(--text-muted)', fontSize: 12,
+          lineHeight: 1.55,
         }}>
-          No recorded floor or committee votes for this legislator yet.
+          {message}
         </div>
       )
     }
