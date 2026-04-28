@@ -10,6 +10,7 @@ import { useDebouncedValue } from '../../lib/use-debounced-value'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
+import CohortCitation from '../components/CohortCitation'
 
 import { CATEGORIES } from '../../lib/categories'
 const STAGES = [
@@ -122,6 +123,23 @@ function SearchContent() {
     if (sortBy === 'score') q = q.order('final_score', { ascending: false })
     else if (sortBy === 'number') q = q.order('bill_number_seq', { ascending: true })
     else if (sortBy === 'action') q = q.order('last_action_date', { ascending: false, nullsFirst: false })
+    else if (sortBy === 'movers') {
+      // Thread 25 — bills that just moved.
+      // Active session: clamp to last 7 days of last_action_date so the page
+      // surfaces only genuinely recent activity. Interim: drop the date clamp
+      // (most bills haven't moved in months) and just sort by recency.
+      // Tie-break on final_score so the most consequential mover sits on top
+      // when several share the same action date.
+      if (!isInterimPeriod()) {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
+          .toISOString()
+          .split('T')[0]
+        q = q.gte('last_action_date', sevenDaysAgo)
+      }
+      q = q
+        .order('last_action_date', { ascending: false, nullsFirst: false })
+        .order('final_score',      { ascending: false, nullsFirst: false })
+    }
 
     const { data, error } = await q
 
@@ -315,6 +333,7 @@ function SearchContent() {
             <option value="score">Top Score</option>
             <option value="number">Bill #</option>
             <option value="action">Recent</option>
+            <option value="movers">{isInterimPeriod() ? 'Movers (recent)' : 'Movers (last 7 days)'}</option>
           </select>
         </div>
 
@@ -355,6 +374,56 @@ function SearchContent() {
 
       {/* Results */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Thread 25 — results summary line + frozen cohort cite.
+            "Showing N bills" gives the journalist a quotable filter context;
+            the cite anchors any quoted statistic in the calibrated cohort. */}
+        {!loading && bills.length > 0 && (() => {
+          const activeFilters = []
+          if (chamber !== 'All') activeFilters.push(chamber)
+          if (stage > 0) {
+            const s = STAGES.find(s => s.value === stage)
+            if (s) activeFilters.push(s.label)
+          }
+          if (category !== 'All') activeFilters.push(category)
+          if (outcome !== 'All' && isInterimPeriod()) {
+            const o = { LAW: 'Signed into Law', PASSED_CHAMBER: 'Passed Chamber', DEAD: 'Dead' }[outcome]
+            if (o) activeFilters.push(o)
+          }
+          if (debouncedQuery.trim()) activeFilters.push(`"${debouncedQuery.trim()}"`)
+          if (sortBy === 'movers') activeFilters.push(isInterimPeriod() ? 'Movers' : 'Movers (last 7 days)')
+          const countLabel = `${bills.length}${hasMore ? '+' : ''} bill${bills.length === 1 ? '' : 's'}`
+          return (
+            <div style={{
+              fontSize: 11, color: 'var(--text-faint)',
+              padding: '2px 2px 6px',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+              borderBottom: '1px solid var(--border)', marginBottom: 4,
+            }}>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Showing {countLabel}</span>
+              {activeFilters.length > 0 && (
+                <>
+                  <span aria-hidden="true">&#183;</span>
+                  <span>Filtered by:</span>
+                  {activeFilters.map((f, i) => (
+                    <span key={i} style={{
+                      padding: '1px 7px', borderRadius: 10, fontSize: 10,
+                      background: 'rgba(184,151,90,0.08)', color: 'var(--text-muted)',
+                      border: '1px solid var(--border)',
+                    }}>{f}</span>
+                  ))}
+                </>
+              )}
+            </div>
+          )
+        })()}
+        {!loading && bills.length > 0 && (
+          <div style={{
+            fontSize: 10, color: 'var(--text-faint)', lineHeight: 1.4,
+            padding: '0 2px 8px', fontStyle: 'italic',
+          }}>
+            <CohortCitation variant="calibration" />
+          </div>
+        )}
         {bills.map((bill, idx) => {
           const isWatched = watchedIds.has(bill.bill_id)
           return (

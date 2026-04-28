@@ -16,10 +16,11 @@
  * Variants:
  *  - "bills-first"   (default): "8,062 bills spanning three biennia (2021-22, 2023-24, and 2025-26)"
  *  - "biennia-first":           "three biennia (2021-22, 2023-24, and 2025-26 — 8,062 bills)"
+ *  - "calibration"  (Thread 25): "Trajectory scores calibrated on 8,062 closed bills (2021-22, 2023-24, and 2025-26 — 2,155 LAW)"
  */
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '../../lib/supabase'
-import { fetchTotalScoredBills, joinBiennia } from '../../lib/app-stats'
+import { fetchTotalScoredBills, joinBiennia, CALIBRATION_LAW_FALLBACK } from '../../lib/app-stats'
 
 // Fallback matches the engine calibration cohort (scoreBill() as of 2025-26).
 const FALLBACK_TOTAL = 8062
@@ -61,6 +62,17 @@ export default function CohortCitation({ variant = 'bills-first' }) {
 
   if (variant === 'biennia-first') {
     return <span>{countWord} biennia ({biennaList} &mdash; {totalStr} bills)</span>
+  }
+  if (variant === 'calibration') {
+    // Thread 25 — inline cite for /search header.
+    // LAW count is the frozen calibration constant (G5); only the total +
+    // biennia list refresh from the live query.
+    const lawStr = CALIBRATION_LAW_FALLBACK.toLocaleString('en-US')
+    return (
+      <span>
+        Trajectory scores calibrated on {totalStr} closed bills ({biennaList} &mdash; {lawStr} LAW)
+      </span>
+    )
   }
   // default: bills-first
   return <span>{totalStr} bills spanning {countWord} biennia ({biennaList})</span>
