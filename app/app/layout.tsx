@@ -2,6 +2,7 @@ import './globals.css'
 import RegisterSW from './components/RegisterSW'
 import Footer from './components/Footer'
 import SessionBanner from './components/SessionBanner'
+import PublicBottomNav from './components/PublicBottomNav'
 
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
@@ -47,6 +48,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionBanner />
         {children}
         <Footer />
+        {/* Thread 29 (2026-04-27) — anon bottom-nav. Globally mounted but
+            self-gates per layer (G6): renders only when role === 'public'
+            AND pathname is a public-layer surface. Owner + client viewers
+            see nothing here so the existing authed Nav.js / portal segment
+            chrome is not doubled. See app/app/components/PublicBottomNav.js. */}
+        <PublicBottomNav />
       </body>
     </html>
   )
