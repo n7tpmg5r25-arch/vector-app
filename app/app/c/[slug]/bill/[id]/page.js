@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
+import BackChip from '../../../../components/BackChip'
 import { isAdmin } from '../../../../../lib/admin'
 import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/shorepine'
 import { getCurrentSession, formatSessionDate, isPostBienniumClose, getCurrentBiennium, getNextBiennium } from '../../../../../lib/session-config'
@@ -362,12 +363,11 @@ export default async function ClientBillBriefPage({ params }) {
             color: SHOREPINE.slate,
           }}
         >
-          <Link
-            href={`/c/${client.slug}`}
-            style={{ color: SHOREPINE.forest, textDecoration: 'none', fontWeight: 600 }}
-          >
-            ← Back to {client.name} watchlist
-          </Link>
+          <BackChip
+            label="Back"
+            fallbackPath={`/c/${client.slug}`}
+            style={{ color: SHOREPINE.forest, fontWeight: 600 }}
+          />
         </nav>
 
         {/* ── Body ────────────────────────────────────────────────── */}
