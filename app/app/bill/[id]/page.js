@@ -11,6 +11,7 @@ import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, isPostBienniumClose, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
+import { goBackOrFallback } from '../../../lib/nav-back'
 import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
 import VotingRecordHeader from '../../components/VotingRecordHeader'
@@ -806,7 +807,7 @@ export default function BillDetailPage() {
         borderBottom: '1px solid var(--border)',
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 50,
       }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--teal)', fontWeight: 500, cursor: 'pointer' }}>
+        <button onClick={() => goBackOrFallback(router, '/')} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--teal)', fontWeight: 500, cursor: 'pointer' }}>
           ← Back
         </button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
