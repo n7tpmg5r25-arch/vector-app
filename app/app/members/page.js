@@ -5,13 +5,24 @@ import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
-import { getCurrentSession, getAllSessions } from '../../lib/session-config'
+import { getCurrentSession, getAllSessions, bienniumShortLabel } from '../../lib/session-config'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
+
+// Thread 22: procedural shelves to filter out of the "Top committees"
+// readout on the Overview tab. Mirrors the same filter pattern used in
+// app/app/committees/page.js so a sponsor's Rules-stack queue rows don't
+// dominate over the substantive committee where they're actually working.
+// "Rules 2 Review" = the post-2nd-reading parking lot every alive bill
+// passes through; "Rules" = pre-floor queue. Empty string + null get
+// dropped via a separate guard so we don't typo-protect them here.
+const PROCEDURAL_SHELF_NAMES = new Set([
+  'rules', 'rules 2 review',
+])
 
 // Derive the session list from session-config so we don't have to hand-edit
 // every page at each biennium rollover. getAllSessions() returns newest-first
@@ -47,7 +58,14 @@ function MembersContent() {
   // Wilson, J. resolve to distinct member_ids and render as separate
   // legislators in the member list above (different members.name keys).
   const [memberVotes, setMemberVotes]     = useState([])  // by-member rows for VoteHistoryTable
+  // Thread 22: per-roll-call party splits (D/R yes/no) for the same 100
+  // roll calls loaded into memberVotes. Powers the cross-party voting
+  // signal on the Overview tab. Display-only (G5).
+  const [partyBucketsByRcId, setPartyBucketsByRcId] = useState({})
   const [votesLoading, setVotesLoading]   = useState(false)
+  // Thread 22: tabbed member detail (Overview / Voting / Bills). Reset
+  // to 'overview' whenever a member is opened so each click feels fresh.
+  const [activeTab, setActiveTab] = useState('overview')
   const [chamber, setChamber]         = useState('All')
   const [party, setParty]             = useState('All')
   const [query, setQuery]             = useState('')
@@ -202,6 +220,7 @@ function MembersContent() {
   const loadMemberVotes = useCallback(async (m) => {
     setVotesLoading(true)
     setMemberVotes([])
+    setPartyBucketsByRcId({})
     if (!m?.name) { setVotesLoading(false); return }
 
     try {
@@ -281,6 +300,35 @@ function MembersContent() {
         .sort((a, b) => (b.vote_date || '').localeCompare(a.vote_date || ''))
 
       setMemberVotes(stitched)
+
+      // ── Thread 22: per-roll-call party splits for the cross-party signal.
+      // One additional fetch over the same 100 roll calls — pull every D/R
+      // member's vote (not just this member's), aggregate in JS into
+      // {[rcId]: {yesD, yesR, noD, noR}}. Stays well under Supabase's 1000-row
+      // cap because we're scoped to ≤100 rcIds × ~150 members. Display-only.
+      try {
+        const { data: allMv, error: pbErr } = await supabase
+          .from('member_votes')
+          .select('roll_call_id, vote, party')
+          .in('roll_call_id', rollIds)
+          .in('party', ['D', 'R'])
+          .in('vote', ['YEA', 'NAY'])
+        if (pbErr) console.warn('loadMemberVotes: party-split lookup failed', pbErr)
+        const buckets = {}
+        for (const r of (allMv || [])) {
+          if (!buckets[r.roll_call_id]) {
+            buckets[r.roll_call_id] = { yesD: 0, yesR: 0, noD: 0, noR: 0 }
+          }
+          const b = buckets[r.roll_call_id]
+          if (r.party === 'D' && r.vote === 'YEA') b.yesD++
+          else if (r.party === 'D' && r.vote === 'NAY') b.noD++
+          else if (r.party === 'R' && r.vote === 'YEA') b.yesR++
+          else if (r.party === 'R' && r.vote === 'NAY') b.noR++
+        }
+        setPartyBucketsByRcId(buckets)
+      } catch (pbThrow) {
+        console.error('loadMemberVotes: party-split aggregation threw', pbThrow)
+      }
     } catch (err) {
       console.error('loadMemberVotes threw', err)
     } finally {
@@ -290,8 +338,19 @@ function MembersContent() {
 
   function selectMember(m) {
     setSelected(m)
+    setActiveTab('overview')  // Thread 22: each open lands on Overview
     loadMemberBills(m.name)
     loadMemberVotes(m)
+  }
+  // Thread 22: shared close handler. Inline rather than goBackOrFallback()
+  // because the detail is a state-toggle on the same /members route — there
+  // is no separate URL to back-navigate from. Keeps the existing UX.
+  function closeDetail() {
+    setSelected(null)
+    setMemberBills([])
+    setMemberVotes([])
+    setPartyBucketsByRcId({})
+    setActiveTab('overview')
   }
   // Note: no useEffect to refetch on selectedSession change — the list-view
   // select that owns selectedSession also calls setSelected(null), so a
@@ -360,6 +419,11 @@ function MembersContent() {
 
   // Popover state for mobile tap
   const [popover, setPopover] = useState(null) // { name, x, y, member }
+  // Thread 22: heatmap legend tooltip — explainer panel for the composite.
+  // Toggled by the ? icon next to "LEGISLATIVE SUCCESS"; works on both
+  // touch and pointer (no hover-only behavior). Audit-derived (Thread 20):
+  // the score is opaque without context.
+  const [legendOpen, setLegendOpen] = useState(false)
 
   const tierLabel = (tier) => TIER_LABELS[tier] || TIER_LABELS[4]
 
@@ -381,10 +445,12 @@ function MembersContent() {
             pointerEvents: 'none',
           }}/>
           <div style={{ position: 'relative', zIndex: 1 }}>
+            {/* Thread 22: chip-styled back affordance. Inline state-toggle —
+                see closeDetail() above for why this isn't goBackOrFallback(). */}
             <button
-              onClick={() => { setSelected(null); setMemberBills([]) }}
-              style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--teal)', cursor: 'pointer', marginBottom: 12, padding: 0 }}
-            >← Members</button>
+              onClick={closeDetail}
+              style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--teal)', cursor: 'pointer', marginBottom: 12, padding: 0, fontFamily: 'inherit' }}
+            >← Back</button>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
@@ -432,121 +498,394 @@ function MembersContent() {
           </div>
         </div>
 
-        <div style={{ padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-            {[
-              { label: 'Bills', value: selectedMember.bill_count, color: 'var(--teal)' },
-              { label: 'Cmte Passes', value: selectedMember.committee_passes, color: 'var(--teal-mid)' },
-              { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? '#4ade80' : 'var(--text-muted)' },
-              { label: 'Avg Score', value: selectedMember.avg_score, color: selectedMember.avg_score >= 45 ? 'var(--teal)' : selectedMember.avg_score >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
-              }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Per-biennium breakdown when viewing All Sessions */}
-          {selectedSession === 'all' && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-                Per-Session Breakdown
-              </div>
-              {SESSIONS.filter(s => selectedMember.bySession[s]).map(s => {
-                const d = selectedMember.bySession[s]
-                return (
-                  <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', minWidth: 72 }}>{s}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-mid)', flex: 1 }}>
-                      {d.bill_count} bills · {d.committee_passes} cmte · {d.laws_passed} laws · avg {d.avg_score}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {selectedMember.committees && selectedMember.committees.length > 0 && (
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                Committee Affiliations
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {selectedMember.committees.sort().map(c => (
-                  <span key={c} style={{
-                    fontSize: 11, padding: '4px 10px', borderRadius: 8,
-                    background: 'var(--bg-surface)', color: 'var(--text-mid)',
-                    border: '1px solid var(--border)', lineHeight: 1.3,
-                  }}>{c}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-            Sponsored Bills · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
-          </div>
-
-          {billsLoading ? (
-            <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
-          ) : memberBills.map((bill, idx) => (
-            <Link
-              key={bill.bill_id}
-              href={`/bill/${bill.bill_id}`}
-              prefetch={false}
-              style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)', padding: '12px 14px',
-                cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
-                marginBottom: 6, transition: 'border-color 0.2s',
-                animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
-                textDecoration: 'none', color: 'inherit',
-              }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-            >
-              <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
-                  {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                  <span style={{ marginLeft: 8, color: 'var(--text-faint)' }}>{STAGE_LABELS[bill.stage] || 'Intro'}</span>
-                  {selectedSession === 'all' && bill.session && (
-                    <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--teal)', opacity: 0.7 }}>{bill.session}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                  {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
-                  {bill.committee_name || 'No committee assigned'}
-                  {bill.committee_passed && <span style={{ marginLeft: 8, color: 'var(--teal)', fontWeight: 600 }}>Comm. Pass</span>}
-                  {bill.has_public_hearing && <span style={{ marginLeft: 8, color: 'var(--teal-mid)' }}>● Hearing</span>}
-                </div>
-              </div>
-            </Link>
+        {/* ── Thread 22: TAB STRIP ─────────────────────────
+            Mirrors the bill detail tab pattern (Thread 18). Three tabs;
+            Overview default. Per-session breakdown lives on Overview AND
+            on Sponsored Bills (matches the existing "All Sessions" UX
+            on both surfaces). G5 frozen-engine: nothing in any tab calls
+            scoreBill / extractFeatures. */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid var(--border)',
+          padding: '0 16px',
+          marginBottom: 14,
+          marginTop: 4,
+          overflowX: 'auto',
+        }}>
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'voting',   label: 'Voting Record' },
+            { key: 'bills',    label: 'Sponsored Bills' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setActiveTab(key)} style={{
+              padding: '10px 14px', background: 'none', border: 'none',
+              borderBottom: activeTab === key ? '2px solid var(--teal)' : '2px solid transparent',
+              fontSize: 12, fontWeight: activeTab === key ? 600 : 400,
+              color: activeTab === key ? 'var(--teal)' : 'var(--text-muted)',
+              cursor: 'pointer', flexShrink: 0, marginBottom: -1,
+              textShadow: activeTab === key ? '0 0 8px rgba(184,151,90,0.3)' : 'none',
+              whiteSpace: 'nowrap', fontFamily: 'inherit',
+            }}>{label}</button>
           ))}
+        </div>
 
-          {/* ── Thread 11.1: Voting record ───────────────────
+        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* ─────────────────────────────────────────────
+              OVERVIEW TAB
+              ───────────────────────────────────────────── */}
+          {activeTab === 'overview' && (() => {
+            // ── Thread 22 derived intelligence (computed every render — cheap;
+            //    bills/votes already in memory, no extra queries). G5: pure.
+            const sessionLabel = selectedSession === 'all' ? 'All Sessions' : selectedSession
+            const bienShort = selectedSession === 'all' ? null : (bienniumShortLabel(selectedSession) || selectedSession)
+
+            // Cross-pollination: HIGH-tier bills (final_score >= 75) the member
+            // is sponsoring + grouped category counts. Primary lobbyist signal.
+            const highTierBills = (memberBills || []).filter(b => (b.final_score || 0) >= 75)
+            const highTierCats = {}
+            for (const b of highTierBills) {
+              const c = (b.category && b.category.trim()) || 'Uncategorized'
+              highTierCats[c] = (highTierCats[c] || 0) + 1
+            }
+            const highTierCatsSorted = Object.entries(highTierCats).sort((a, b) => b[1] - a[1])
+
+            // Cross-party: count contested votes (parties split) + crosses with
+            // opposite majority. Independent caucusers (party not D/R) gracefully
+            // skipped — the card doesn't render at all in that case.
+            const ownParty = selectedMember.party
+            const oppParty = ownParty === 'D' ? 'R' : ownParty === 'R' ? 'D' : null
+            let contested = 0, crossed = 0
+            if (oppParty) {
+              for (const v of (memberVotes || [])) {
+                if (v.member_vote !== 'YEA' && v.member_vote !== 'NAY') continue
+                const b = partyBucketsByRcId[v.roll_call_id]
+                if (!b) continue
+                const dMaj = b.yesD > b.noD ? 'YEA' : 'NAY'
+                const rMaj = b.yesR > b.noR ? 'YEA' : 'NAY'
+                if (dMaj === rMaj) continue  // unanimous → not contested
+                contested++
+                const oppMaj = oppParty === 'D' ? dMaj : rMaj
+                if (v.member_vote === oppMaj) crossed++
+              }
+            }
+            const crossPct = contested > 0 ? Math.round((crossed / contested) * 100) : null
+
+            // Stage funnel: monotonic narrowing — every bill counts at every
+            // stage it has reached. WA-actual stage values: 1 / 3 / 4 / 6.
+            const funnel = [
+              { key: 1, label: 'Introduced',  min: 1 },
+              { key: 3, label: 'Comm. Pass',  min: 3 },
+              { key: 4, label: 'Floor Pass',  min: 4 },
+              { key: 6, label: 'Signed',      min: 6 },
+            ].map(s => ({
+              ...s,
+              count: (memberBills || []).filter(b => (b.stage || 0) >= s.min).length,
+            }))
+            const funnelMax = funnel[0].count || 0
+
+            // Top committees (procedural shelves filtered).
+            const committeeCounts = {}
+            for (const b of (memberBills || [])) {
+              const raw = (b.committee_name || '').trim()
+              if (!raw) continue
+              if (PROCEDURAL_SHELF_NAMES.has(raw.toLowerCase())) continue
+              committeeCounts[raw] = (committeeCounts[raw] || 0) + 1
+            }
+            const topCommittees = Object.entries(committeeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3)
+
+            // Pass-rate gauge (re-derived from currently loaded memberBills so
+            // it's consistent with what we render below; selectedMember.pass_rate
+            // is already-computed, but recomputing here costs nothing and stays
+            // honest if memberBills has been filtered/scoped).
+            const passRate = (memberBills || []).length > 0
+              ? Math.round((memberBills.filter(b => b.committee_passed).length / memberBills.length) * 100)
+              : 0
+            const gaugeColor = passRate >= 60 ? 'var(--teal)' : passRate >= 30 ? 'var(--gold)' : 'var(--text-muted)'
+            // Half-circle arc length: π × r where r = 30. Drawn from (8,38) to (68,38).
+            const arcLen = Math.PI * 30
+            const fillLen = (arcLen * passRate) / 100
+
+            return (
+              <>
+                {/* Existing 4-stat strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                  {[
+                    { label: 'Bills', value: selectedMember.bill_count, color: 'var(--teal)' },
+                    { label: 'Cmte Passes', value: selectedMember.committee_passes, color: 'var(--teal-mid)' },
+                    { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? '#4ade80' : 'var(--text-muted)' },
+                    { label: 'Avg Score', value: selectedMember.avg_score, color: selectedMember.avg_score >= 45 ? 'var(--teal)' : selectedMember.avg_score >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
+                    }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
+                {selectedSession === 'all' && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Per-Session Breakdown
+                    </div>
+                    {SESSIONS.filter(s => selectedMember.bySession[s]).map(s => {
+                      const d = selectedMember.bySession[s]
+                      return (
+                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', minWidth: 72 }}>{s}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-mid)', flex: 1 }}>
+                            {d.bill_count} bills · {d.committee_passes} cmte · {d.laws_passed} laws · avg {d.avg_score}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Cross-pollination — HIGH-tier sponsorship + categories.
+                    Primary lobbyist signal (audit Thread 20). */}
+                {highTierBills.length > 0 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                      HIGH-tier Activity
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: 8 }}>
+                      Sponsoring{' '}
+                      <span style={{ color: 'var(--teal)', fontWeight: 700 }}>
+                        {highTierBills.length} HIGH-tier bill{highTierBills.length === 1 ? '' : 's'}
+                      </span>
+                      {' '}{bienShort ? `in ${bienShort}` : 'across recent sessions'}.
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {highTierCatsSorted.map(([cat, n]) => (
+                        <span key={cat} style={{
+                          fontSize: 10, padding: '3px 9px', borderRadius: 8,
+                          background: 'rgba(184,151,90,0.08)', color: 'var(--gold)',
+                          border: '1px solid rgba(184,151,90,0.25)',
+                        }}>
+                          {cat}<span style={{ color: 'var(--text-mid)', marginLeft: 4 }}>×{n}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic', lineHeight: 1.4 }}>
+                      HIGH-tier = trajectory score ≥ 75. Historically ~5 in 6 HIGH bills become law (N=8,062, 3 bienniums).
+                    </div>
+                  </div>
+                )}
+
+                {/* Cross-party voting signal — staffer persona (audit Thread 20).
+                    Suppressed for independents and when contested sample is too
+                    thin to be meaningful (< 5 contested votes loaded). */}
+                {crossPct !== null && contested >= 5 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Cross-Party Signal
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                      Crosses with the{' '}
+                      <span style={{ color: oppParty === 'R' ? '#ff6b6b' : '#4d9aff', fontWeight: 700 }}>
+                        {oppParty === 'D' ? 'Democrats' : 'Republicans'}
+                      </span>
+                      {' '}on{' '}
+                      <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                        {crossPct}%
+                      </span>
+                      {' '}of contested votes
+                      <span style={{ color: 'var(--text-muted)' }}>{` (${crossed} of ${contested})`}</span>.
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+                      Sample: most-recent {memberVotes.length} roll calls in {sessionLabel}. Contested = D and R majorities split.
+                    </div>
+                  </div>
+                )}
+
+                {/* Stage funnel — where this member's bills end up. */}
+                {funnelMax > 0 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Where Their Bills End Up
+                    </div>
+                    {funnel.map(s => {
+                      const pct = funnelMax > 0 ? (s.count / funnelMax) * 100 : 0
+                      const tone = s.key === 6 ? 'rgba(74,222,128,0.55)'
+                                : s.key === 4 ? 'rgba(184,151,90,0.55)'
+                                : s.key === 3 ? 'rgba(58,122,138,0.55)'
+                                :               'rgba(138,128,112,0.45)'
+                      return (
+                        <div key={s.key} style={{ marginBottom: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                            <span style={{ color: 'var(--text-mid)' }}>{s.label}</span>
+                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{s.count}</span>
+                          </div>
+                          <div style={{ height: 6, background: 'var(--bg-surface)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${pct}%`, height: '100%', background: tone,
+                              transition: 'width 0.3s',
+                            }}/>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Committee pass-rate gauge */}
+                {(memberBills || []).length > 0 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Committee Pass Rate
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <svg width="76" height="42" viewBox="0 0 76 42" style={{ flexShrink: 0 }}>
+                        <path d="M 8 38 A 30 30 0 0 1 68 38" stroke="var(--bg-surface)" strokeWidth="6" fill="none" strokeLinecap="round" />
+                        <path
+                          d="M 8 38 A 30 30 0 0 1 68 38"
+                          stroke={gaugeColor}
+                          strokeWidth="6" fill="none" strokeLinecap="round"
+                          strokeDasharray={`${fillLen} ${arcLen}`}
+                        />
+                      </svg>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: gaugeColor, lineHeight: 1 }}>
+                          {passRate}%
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.3 }}>
+                          of sponsored bills cleared committee
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Top committees (procedural shelves filtered) */}
+                {topCommittees.length > 0 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Most Active Committees
+                    </div>
+                    {topCommittees.map(([name, n], i) => (
+                      <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', width: 14, textAlign: 'right' }}>{i + 1}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>{name}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{n} bill{n === 1 ? '' : 's'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Existing committee-affiliations chip strip — preserved for
+                    completeness (small text, fast scan of all committees) */}
+                {selectedMember.committees && selectedMember.committees.length > 0 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      All Committee Affiliations
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {selectedMember.committees.sort().map(c => (
+                        <span key={c} style={{
+                          fontSize: 11, padding: '4px 10px', borderRadius: 8,
+                          background: 'var(--bg-surface)', color: 'var(--text-mid)',
+                          border: '1px solid var(--border)', lineHeight: 1.3,
+                        }}>{c}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+
+          {/* ─────────────────────────────────────────────
+              VOTING RECORD TAB
               Display-only (G5 frozen-engine). member_id resolved via the
               legislator_party_history roster cache; surname fallback only
               kicks in for legislators not yet in the roster (chamber-fenced
-              so it can never lump two same-surname members together). */}
-          <div style={{ marginTop: 14 }}>
-            <VotingRecordHeader
-              mode="by-member"
-              scopeLabel={selectedSession === 'all' ? 'All Sessions' : selectedSession}
-              count={memberVotes.length}
-            />
-            {votesLoading ? (
-              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
-            ) : (
-              <VoteHistoryTable mode="by-member" byMemberRows={memberVotes} />
-            )}
-          </div>
+              so it can never lump two same-surname members together).
+              ───────────────────────────────────────────── */}
+          {activeTab === 'voting' && (
+            <div>
+              <VotingRecordHeader
+                mode="by-member"
+                scopeLabel={selectedSession === 'all' ? 'All Sessions' : selectedSession}
+                count={memberVotes.length}
+              />
+              {votesLoading ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
+              ) : (
+                <VoteHistoryTable mode="by-member" byMemberRows={memberVotes} />
+              )}
+            </div>
+          )}
+
+          {/* ─────────────────────────────────────────────
+              SPONSORED BILLS TAB
+              Same card list that used to live below the stat strip — moved
+              here unchanged so the visual + click target stays consistent.
+              ───────────────────────────────────────────── */}
+          {activeTab === 'bills' && (
+            <>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
+                Sponsored Bills · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
+              </div>
+
+              {billsLoading ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+              ) : memberBills.map((bill, idx) => (
+                <Link
+                  key={bill.bill_id}
+                  href={`/bill/${bill.bill_id}`}
+                  prefetch={false}
+                  style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                    cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
+                    marginBottom: 6, transition: 'border-color 0.2s',
+                    animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
+                    textDecoration: 'none', color: 'inherit',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                >
+                  <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
+                      {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                      <span style={{ marginLeft: 8, color: 'var(--text-faint)' }}>{STAGE_LABELS[bill.stage] || 'Intro'}</span>
+                      {selectedSession === 'all' && bill.session && (
+                        <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--teal)', opacity: 0.7 }}>{bill.session}</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
+                      {bill.committee_name || 'No committee assigned'}
+                      {bill.committee_passed && <span style={{ marginLeft: 8, color: 'var(--teal)', fontWeight: 600 }}>Comm. Pass</span>}
+                      {bill.has_public_hearing && <span style={{ marginLeft: 8, color: 'var(--teal-mid)' }}>● Hearing</span>}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </>
+          )}
         </div>
         {!viewerLoading && !isAnonPublic && <Nav/>}
       </div>
@@ -762,6 +1101,23 @@ function MembersContent() {
                 {/* Legend */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>LEGISLATIVE SUCCESS</span>
+                  {/* Thread 22: tappable explainer toggle — closes the audit
+                      ask for a tooltip on the heatmap composite. */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setLegendOpen(o => !o) }}
+                    aria-expanded={legendOpen}
+                    aria-label="What is the legislative success score?"
+                    style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      background: legendOpen ? 'var(--bg-surface)' : 'transparent',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                      fontSize: 9, fontWeight: 700, lineHeight: 1,
+                      padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >?</button>
                   {[
                     { label: '55+', ...effColor(60) },
                     { label: '35–54', ...effColor(40) },
@@ -780,6 +1136,26 @@ function MembersContent() {
                     <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Chair</span>
                   </div>
                 </div>
+                {/* Thread 22: legend explainer panel. Lives between the legend
+                    strip and the per-cell tap hint so it doesn't push layout
+                    when collapsed (it just doesn't render). */}
+                {legendOpen && (
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      margin: '4px auto 8px',
+                      maxWidth: 420,
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', padding: '10px 12px',
+                      fontSize: 11, lineHeight: 1.5, color: 'var(--text-mid)',
+                    }}
+                  >
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+                      How the score is built
+                    </div>
+                    A composite weighted across four signals: <b>Position Power</b> (25% — sponsor tier + chair bonus), <b>Committee Pass Rate</b> (30% — % of sponsored bills clearing committee, the hardest chokepoint), <b>Law Rate</b> (25% — % signed into law), and <b>Avg Trajectory</b> (20% — mean bill quality). Members under 3 sponsored bills get a 40% volume penalty so a single lucky bill can't dominate the leaderboard.
+                  </div>
+                )}
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', marginBottom: 14, opacity: 0.7 }}>
                   Tap cell for info · tap again to open detail
                 </div>
