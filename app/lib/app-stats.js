@@ -9,9 +9,22 @@
  * should fall back to a baked-in constant that matches the engine
  * calibration cohort (historically N=8,062, the scoreBill() calibration
  * cohort as of the 2025-26 biennium).
+ *
+ * Calibration constants (G5 frozen):
+ *  - CALIBRATION_LAW_FALLBACK = 2155 (total LAW outcomes across the
+ *    calibration cohort; sum of HIGH/MOD/LOW/VERY-LOW law counts in
+ *    methodology CALIBRATION_FALLBACK). Frozen until the post-2027
+ *    session calibration refresh — see Universal guardrails §G5.
  */
 
 import { getAllSessions } from './session-config'
+
+/**
+ * Total LAW outcomes across the engine calibration cohort
+ * (Phase 7D.3 — April 12, 2026 — 8,062 bills-only across 3 bienniums).
+ * Frozen literal per G5; do not modernize until the Jan 2028 recalibration.
+ */
+export const CALIBRATION_LAW_FALLBACK = 2155
 
 /**
  * Count of "bills" (legislation_type = 'bill', which excludes resolutions
