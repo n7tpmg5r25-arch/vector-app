@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
+import CohortCitation from '../components/CohortCitation'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod } from '../../lib/session-config'
 import { fetchTotalScoredBills, joinBiennia, formatRecalculatedStamp } from '../../lib/app-stats'
@@ -231,6 +232,42 @@ export default function MethodologyPage() {
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+        {/* Thread 26 — TL;DR card.
+            Audit-finalized 2026-04-26 by Thread 20 persona audit: Mira (Student)
+            and Dana (Staffer) hit horizontal-scroll on the calibration tables
+            at 480px and had to scroll past two tables before reaching the proof
+            point + recalculated stamp. This card front-loads the headline
+            number + cohort cite + stamp so the page reads correctly above the
+            fold. CohortCitation handles the live cohort literal (G5-frozen
+            fallback). */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--brass)',
+          borderRadius: 'var(--radius)',
+          padding: '14px 16px',
+        }}>
+          <div style={{
+            fontSize: 10,
+            color: 'var(--brass)',
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            marginBottom: 8,
+            fontWeight: 700,
+          }}>
+            TL;DR
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+            Vector scores bills 0&ndash;99 from 5 signals &times; X factors.{' '}
+            <span style={{ color: 'var(--teal)', fontWeight: 600 }}>HIGH bills (75&ndash;99) pass at ~84%</span>.
+            {' '}Recalibrated nightly. Calibrated on <CohortCitation variant="bills-first" />.
+          </div>
+          {cohortStamp && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-faint)' }}>
+              Recalculated: {cohortStamp}.
+            </div>
+          )}
+        </div>
+
         {/* INTRO */}
         <div style={{
           background: 'var(--bg-card)',
@@ -266,34 +303,58 @@ export default function MethodologyPage() {
               model is any good, higher buckets should pass at meaningfully higher rates — and they do,
               with clean monotonic separation.
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                fontSize: 12,
-                borderCollapse: 'collapse',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Score</th>
-                    <th style={{ textAlign: 'left',  padding: '10px 8px',  fontWeight: 600 }}>Tier</th>
-                    <th style={{ textAlign: 'right', padding: '10px 8px',  fontWeight: 600 }}>Bills</th>
-                    <th style={{ textAlign: 'right', padding: '10px 8px',  fontWeight: 600 }}>Chamber</th>
-                    <th style={{ textAlign: 'right', padding: '10px 16px', fontWeight: 600 }}>Law</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {calibration.map((c, i) => (
-                    <tr key={c.bucket} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{c.bucket}</td>
-                      <td style={{ padding: '12px 8px', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.label}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>{c.bills.toLocaleString()}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right' }}>{c.chamber.toFixed(1)}%</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.law.toFixed(1)}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Thread 26 — card-per-bucket vertical layout replaces the
+                horizontal-scrolling table. One card per HIGH/MOD/LOW/VERY-LOW
+                row so the whole thing fits inside a 480px column without an
+                inner scroll bar. Uses pure flex/grid — no media queries (the
+                site is mobile-only by directive, so a single layout is the
+                right tool). */}
+            <div>
+              {calibration.map((c) => (
+                <div key={c.bucket} style={{
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--border)',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    marginBottom: 10,
+                  }}>
+                    <span style={{
+                      fontSize: 14,
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 600,
+                    }}>{c.bucket}</span>
+                    <span style={{
+                      fontSize: 12,
+                      color: TIER_COLOR[c.label],
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                    }}>{c.label}</span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 12,
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Bills</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.bills.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Chamber</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.chamber.toFixed(1)}%</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law</div>
+                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.law.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
               Source: Vector | WA database, full {sourceSession} biennium outcomes. N={totalN.toLocaleString()}.
@@ -316,42 +377,56 @@ export default function MethodologyPage() {
               with 95% Wilson confidence intervals showing the range of plausible truth given the
               sample size in each bucket.
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                fontSize: 12,
-                borderCollapse: 'collapse',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Score</th>
-                    <th style={{ textAlign: 'left',  padding: '10px 8px',  fontWeight: 600 }}>Tier</th>
-                    <th style={{ textAlign: 'right', padding: '10px 8px',  fontWeight: 600 }}>Law Rate</th>
-                    <th style={{ textAlign: 'right', padding: '10px 16px', fontWeight: 600 }}>95% CI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {COMBINED_3B.map(c => (
-                    <tr key={c.bucket} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>{c.bucket}</td>
-                      <td style={{ padding: '12px 8px', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.label}</td>
-                      <td style={{ padding: '12px 8px', textAlign: 'right', color: TIER_COLOR[c.label], fontWeight: 600 }}>{c.rate}</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 11 }}>{c.ci}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Thread 26 — same card layout as the per-biennium table above. */}
+            <div>
+              {COMBINED_3B.map((c) => (
+                <div key={c.bucket} style={{
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--border)',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    marginBottom: 10,
+                  }}>
+                    <span style={{
+                      fontSize: 14,
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--text-primary)',
+                      fontWeight: 600,
+                    }}>{c.bucket}</span>
+                    <span style={{
+                      fontSize: 12,
+                      color: TIER_COLOR[c.label],
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                    }}>{c.label}</span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1.5fr',
+                    gap: 12,
+                    fontFamily: 'var(--font-mono)',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law Rate</div>
+                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.rate}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>95% CI</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.ci}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
               Source: Vector | WA combined biennia (bills only), N={cohortTotalStr}. CIs computed via Wilson score interval.
               These exact values are wired into the scoring engine's pass_probability ladder &mdash;
               when a bill shows "84% chance of becoming law", this is the row it came from.
-              {cohortStamp && (
-                <div style={{ marginTop: 6, opacity: 0.75 }}>
-                  Recalculated: {cohortStamp}.
-                </div>
-              )}
+              {/* Thread 26: Recalculated stamp hoisted to the TL;DR card at the
+                  top of the page — see audit-finalized scope §2. */}
             </div>
           </div>
         </div>
