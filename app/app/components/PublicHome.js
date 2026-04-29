@@ -29,7 +29,6 @@
  *       Footer changes preserve Thread 19.1 viewer-aware bottom-line.
  */
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 import PublicNav from './PublicNav'
 import BillsMovingWidget from './BillsMovingWidget'
 import {
@@ -38,7 +37,6 @@ import {
   bienniumShortLabel,
   getAllSessions,
 } from '../../lib/session-config'
-import { createBrowserClient } from '../../lib/supabase'
 
 // Top categories for the shortcut grid. Names sourced from the canonical
 // taxonomy in app/lib/categories (15-category list). Hardcoded subset of 6
@@ -66,26 +64,12 @@ const SECTION_EYEBROW = {
 export default function PublicHome() {
   const interim = isInterimPeriod()
   const sessionShort = bienniumShortLabel(getCurrentSession())
-  const sessionsCovered = getAllSessions().length
-
-  // Live bills-tracked count for the datasheet. Single cheap COUNT query --
-  // scoped to the current session so the number reflects "what we're
-  // watching right now", matching the project's stated ~3.4k scale. As the
-  // session-config rolls forward, this rolls with it (no edit needed).
-  const [billsTracked, setBillsTracked] = useState(null)
-  useEffect(() => {
-    let cancelled = false
-    const supabase = createBrowserClient()
-    supabase
-      .from('bills')
-      .select('bill_id', { count: 'exact', head: true })
-      .eq('session', getCurrentSession())
-      .eq('legislation_type', 'bill')
-      .then(({ count }) => {
-        if (!cancelled && typeof count === 'number') setBillsTracked(count)
-      })
-    return () => { cancelled = true }
-  }, [])
+  // Thread 36.4 — datasheet labels "years covered" not "sessions covered".
+  // WA Legislature uses 2-year bienniums; getAllSessions().length returns the
+  // number of bienniums (3 = 2021-22 + 2023-24 + 2025-26). A casual reader
+  // hears "session" and thinks of an annual session, so 3 reads as wrong.
+  // Multiplying by 2 gives the unambiguous span: 6 years of data.
+  const yearsCovered = getAllSessions().length * 2
 
   return (
     <div style={{ fontFamily: 'var(--font-body)', minHeight: '100vh', paddingBottom: 40 }}>
@@ -116,10 +100,11 @@ export default function PublicHome() {
             src="/logos/vector-wa-primary.svg"
             alt="Vector | WA"
             style={{
-              height: 88,
-              width: 'auto',
+              height: 120,
+              width: 120,
               display: 'block',
               marginBottom: 18,
+              borderRadius: 16,
               filter: 'drop-shadow(0 0 24px rgba(184,151,90,0.28))',
             }}
           />
@@ -170,7 +155,7 @@ export default function PublicHome() {
           {'Vector | WA is a Washington State legislative intelligence tool. It watches every bill in Olympia, scores its trajectory from 0 to 99, and refreshes nightly. The score blends five procedural signals \u2014 committee placement, sponsor profile, momentum, historical category pass rates, and fiscal note size \u2014 calibrated against thousands of past bills with known outcomes.'}
         </p>
         <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-mid)', margin: 0 }}>
-          {'The site is free, nonpartisan, and built for journalists, advocates, lobbyists, students, legislative staff, and anyone who needs to read the docket without paying for an enterprise tracker. The public site launches mid 2027 \u2014 for now you can browse every bill, every committee, and every legislator at no cost.'}
+          {'The site is free, nonpartisan, and built for anyone who needs to read the docket without paying for an enterprise tracker. The public site launches mid 2027 \u2014 for now, every bill, every committee, and every legislator is here at no cost.'}
         </p>
       </section>
 
@@ -226,7 +211,14 @@ export default function PublicHome() {
         </section>
       )}
 
-      {/* ---- BY THE NUMBERS (Thread 24 datasheet) ---- */}
+      {/* ---- BY THE NUMBERS (Thread 24 datasheet, refined Thread 36.4) ----
+           Three cells: calibration cohort + years covered + refresh cadence.
+           Bills Tracked tile dropped per Colin 2026-04-28: redundant given
+           the BillsMovingWidget below shows live activity.
+           "Years covered" replaces "Sessions covered" because WA bienniums
+           read as ambiguous to non-WA-native journalists ("3 sessions" reads
+           as 3 annual sessions, not 3 bienniums).
+           All three values now use mono so the visual rhythm is consistent. */}
       <section style={{ padding: '24px 20px 12px', maxWidth: 720, margin: '0 auto' }}>
         <div style={SECTION_EYEBROW}>By the numbers</div>
         <div
@@ -236,13 +228,9 @@ export default function PublicHome() {
             gap: 8,
           }}
         >
-          <StatCell
-            value={billsTracked != null ? billsTracked.toLocaleString() : '\u2014'}
-            label="bills tracked"
-          />
           <StatCell value="8,062" label="calibration cohort" />
-          <StatCell value={String(sessionsCovered)} label="sessions covered" />
-          <StatCell value="Nightly" label="refresh" mono={false} />
+          <StatCell value={String(yearsCovered)} label="years covered" />
+          <StatCell value="Daily" label="refresh" />
         </div>
       </section>
 
@@ -335,7 +323,7 @@ export default function PublicHome() {
   )
 }
 
-function StatCell({ value, label, mono = true }) {
+function StatCell({ value, label }) {
   return (
     <div
       style={{
@@ -348,7 +336,7 @@ function StatCell({ value, label, mono = true }) {
     >
       <div
         style={{
-          fontFamily: mono ? 'var(--font-mono)' : 'var(--font-body)',
+          fontFamily: 'var(--font-mono)',
           fontSize: 22,
           fontWeight: 700,
           color: 'var(--teal)',

@@ -56,6 +56,17 @@
   --green-mid:     #a0824a;
   --green-light:   #6e5a38;
   --green-pale:    rgba(184,151,90,0.08);
+
+  /* Party colors (Thread 36) — single canonical D blue + R red across the
+     site. Bill detail prime sponsor dot, PartyMicrobar, VoteSplitBar, and
+     the members heatmap all reference these. The pale variants are for
+     background tinting on member-detail headers + chips. */
+  --party-d:        #4d9aff;
+  --party-r:        #ef4444;
+  --party-d-pale:   rgba(77,154,255,0.12);
+  --party-r-pale:   rgba(239,68,68,0.12);
+  --party-d-border: rgba(77,154,255,0.3);
+  --party-r-border: rgba(239,68,68,0.3);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -418,7 +418,7 @@ export default function CommitteeDetail() {
                       {/* Party dot */}
                       <div style={{
                         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                        background: m.party === 'D' ? '#4A90D9' : m.party === 'R' ? '#D94A4A' : 'var(--text-faint)',
+                        background: m.party === 'D' ? 'var(--party-d)' : m.party === 'R' ? 'var(--party-r)' : 'var(--text-faint)',
                       }} title={m.party === 'D' ? 'Democrat' : m.party === 'R' ? 'Republican' : ''} />
                       {/* Name */}
                       <div style={{ flex: 1, minWidth: 0 }}>

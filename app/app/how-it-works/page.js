@@ -305,6 +305,51 @@ export default function HowItWorksPage() {
           </div>
         </div>
 
+        {/* SECTION 4 — INSTALL AS AN APP (Thread 36.8) */}
+        <div>
+          <div style={EYEBROW}>4 · Install Vector | WA as an app</div>
+          <div style={CARD}>
+            <p style={{ marginTop: 0, marginBottom: 14 }}>
+              Vector | WA is a <span style={HIGHLIGHT}>progressive web app</span>. Once installed,
+              it opens like a native app &mdash; no browser bar, faster cold start, and bills
+              you&apos;ve already opened stay accessible offline.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  iPhone &amp; iPad &middot; Safari
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                  Tap the share sheet (the square with an up arrow), scroll to{' '}
+                  <span style={HIGHLIGHT}>Add to Home Screen</span>, then tap Add. The icon lands on
+                  your home screen next to the rest of your apps.
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Android &middot; Chrome
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                  Tap the menu (three dots, top right) and choose{' '}
+                  <span style={HIGHLIGHT}>Install app</span> or{' '}
+                  <span style={HIGHLIGHT}>Add to Home screen</span>. Chrome may also offer an
+                  install banner on its own after a few visits.
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                  Desktop &middot; Chrome / Edge
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+                  Look for the small install icon in the address bar (a monitor with a down arrow,
+                  right of the URL). Click it and confirm{' '}
+                  <span style={HIGHLIGHT}>Install</span>. Vector | WA opens in its own window.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* TAIL — GO DEEPER */}
         <div style={{
           background: 'var(--bg-card)',
