@@ -100,16 +100,49 @@ function billLabel(bill) {
   return prefix + ' ' + (bill.bill_number || '')
 }
 
-/** Strip markdown headers + collapse whitespace from an AI summary. Mirrors
- *  the firm-brief sanitization (generate-pdf.js line 437). */
-function cleanSummary(raw) {
-  if (!raw) return ''
-  return String(raw)
-    .split('\n')
-    .filter(line => !line.trim().startsWith('#'))
-    .join(' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
+/** Parse an AI summary into structured {heading, body} sections.
+ *
+ *  Source summaries from Claude follow a consistent pattern: ALL-CAPS phrases
+ *  (e.g. "EXECUTIVE SUMMARY", "WHO IS AFFECTED", "KEY PROVISIONS") act as
+ *  section headers, with paragraph bodies underneath. The earlier flat
+ *  cleanSummary() collapsed those into one wall of text. This structured
+ *  version preserves the hierarchy so drawAISummary can render headings
+ *  bolded with paragraph spacing.
+ *
+ *  Markdown ## headers and ** bold markers are stripped; ALL-CAPS phrases
+ *  of 4–40 chars are detected as headings.
+ */
+function structureSummary(raw) {
+  if (!raw) return []
+  const lines = String(raw)
+    .split(/\r?\n/)
+    .map(line => line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim())
+    .filter(line => line.length > 0)
+
+  const sections = []
+  let curHeading = null
+  let curBody    = []
+  const flush = () => {
+    if (curHeading || curBody.length > 0) {
+      sections.push({
+        heading: curHeading,
+        body: curBody.join(' ').replace(/\s{2,}/g, ' ').trim(),
+      })
+    }
+  }
+  for (const line of lines) {
+    const isHeading = line.length >= 4 && line.length <= 40 &&
+      /^[A-Z][A-Z0-9 \-/&]{3,}$/.test(line)
+    if (isHeading) {
+      flush()
+      curHeading = line
+      curBody = []
+    } else {
+      curBody.push(line)
+    }
+  }
+  flush()
+  return sections.filter(s => s.heading || s.body)
 }
 
 /** Compose the interim/session context strip that sits under the logo. */
@@ -525,8 +558,8 @@ function drawBillTimeline(doc, y, m, contentW, snapshots, ph) {
  * forward from the firm brief.
  */
 function drawAISummary(doc, y, m, contentW, bill, ph) {
-  const raw = cleanSummary(bill.custom_summary || bill.ai_summary || '')
-  if (!raw) return y
+  const sections = structureSummary(bill.custom_summary || bill.ai_summary || '')
+  if (sections.length === 0) return y
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
@@ -543,19 +576,35 @@ function drawAISummary(doc, y, m, contentW, bill, ph) {
   doc.text(aiLabel, m + headerW + 4, y)
 
   let cy = y + 4
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...P.primary)
-  // Render the full summary — the bill summary IS the value of this PDF for
-  // a lobbyist, so we'd rather flow to a second page than cut a sentence.
-  // checkPageBreak handles graceful overflow per line.
-  const lines = doc.splitTextToSize(raw, contentW)
-  lines.forEach(line => {
-    cy = checkPageBreak(doc, cy, 4, ph)
-    doc.text(line, m, cy)
-    cy += 4
+
+  sections.forEach((section, idx) => {
+    // Subheading (when present) — bolded, brass, slightly larger than body
+    if (section.heading) {
+      cy = checkPageBreak(doc, cy, 5, ph)
+      // Add a small gap above subheadings (except the very first)
+      if (idx > 0) cy += 1
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...P.accent)
+      doc.text(section.heading, m, cy + 2.5)
+      cy += 4.5
+    }
+    // Body paragraph
+    if (section.body) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(...P.primary)
+      const bodyLines = doc.splitTextToSize(section.body, contentW)
+      bodyLines.forEach(line => {
+        cy = checkPageBreak(doc, cy, 4, ph)
+        doc.text(line, m, cy + 1)
+        cy += 4
+      })
+      cy += 1.5  // small gap after each section's body
+    }
   })
-  return cy + 3
+
+  return cy + 2
 }
 
 /**
