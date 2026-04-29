@@ -689,6 +689,33 @@ export default function BillDetailPage() {
     setExporting(false)
   }
 
+  /* ── Thread 32: Public Print Brief PDF (single-bill, Vector-branded) ──
+   * Anon visitors don't have a session for the cohort fetch and don't own
+   * notes to attach — this generator skips both. Lazy-loaded mirrors the
+   * firm-brief pattern so the bundle stays small for visitors who never
+   * click the button. Directive D1: zero Shorepine references. */
+  async function exportPublicBriefPdf() {
+    if (!bill || exporting) return
+    setExporting(true)
+    try {
+      const { generatePublicBriefPDF } = await import('../../../lib/generate-public-pdf')
+      await generatePublicBriefPDF({
+        bill,
+        scoreFeatures:      latestSnap?.xf_factors || [],
+        rollCalls:          rollCalls || [],
+        partyBucketsByRcId: partyBucketsByRcId || {},
+        recentAmendments:   amendments || [],
+        snapshots:          snapshots || [],
+        fiscalNote:         (fiscalHistory && fiscalHistory.length > 0) ? fiscalHistory[0] : null,
+        generatedAt:        new Date(),
+      })
+    } catch (err) {
+      console.error('Public PDF export failed:', err)
+      alert('PDF export failed. Please try again.')
+    }
+    setExporting(false)
+  }
+
   async function shareBill() {
     if (!bill) return
     const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
@@ -842,10 +869,11 @@ export default function BillDetailPage() {
               cursor: 'pointer', transition: 'all 0.15s',
             }}
           >{shared ? '✓ Copied' : '↗ Share'}</button>
-          {/* Thread 12.3: PDF brief in the top action row, gated by canSave
-              (parity with Watch — anon visitors don't have a session for the
-              live cohort fetch and don't own notes to attach). */}
-          {capabilities.canSave && (
+          {/* Thread 32 (D7): PDF brief in the top action row.
+              Owner gets the firm Brief (multi-bill capable, Shorepine palette).
+              Anon gets the public Print Brief (single-bill, Vector palette,
+              take-it-to-the-hearing). Mutually exclusive — no double buttons. */}
+          {capabilities.canSave ? (
             <button
               onClick={exportBriefPdf}
               disabled={exporting}
@@ -860,6 +888,21 @@ export default function BillDetailPage() {
                 transition: 'all 0.15s',
               }}
             >{exporting ? '⏳ Generating' : '📄 Brief'}</button>
+          ) : (
+            <button
+              onClick={exportPublicBriefPdf}
+              disabled={exporting}
+              style={{
+                padding: '7px 12px',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: 20, fontSize: 12, fontWeight: 500,
+                color: 'var(--text-muted)',
+                cursor: exporting ? 'wait' : 'pointer',
+                opacity: exporting ? 0.6 : 1,
+                transition: 'all 0.15s',
+              }}
+            >{exporting ? '⏳ Generating' : '📄 Print Brief'}</button>
           )}
           {capabilities.canSave && (
             <button

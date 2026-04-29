@@ -14,14 +14,25 @@ import {
   isInterimPeriod, getCurrentBiennium, getNextBiennium,
   getSessionCutoffs, formatSessionDate, daysUntil,
 } from './session-config'
-
-// ── Stage labels (index = stage number from DB) ──────────────
-const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed Floor', 'Conference', 'Signed into Law']
+// Thread 32 — shared color/tier/layout helpers. Helpers default to
+// SHOREPINE_PALETTE so this firm-brief generator stays byte-equivalent
+// pre/post extraction (verified against baseline-pre-refactor.pdf).
+import {
+  STAGE_LABELS,
+  TIER_HIGH, TIER_MODERATE, TIER_LOW,
+  loadImageAsBase64,
+  getScoreColor, getScoreTierLabel, getOutcomeColor,
+  checkPageBreak,
+} from './pdf-shared'
 
 // ── Summary truncation limit (max lines in PDF card) ────────
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
+// These remain as legacy module-level constants because they are referenced
+// inline throughout this file via spread (e.g. doc.setTextColor(...TEAL)).
+// The same values are also exposed on SHOREPINE_PALETTE in pdf-shared.js for
+// helpers that take a palette object — keep both in sync if either changes.
 const FOREST = [26, 74, 46]      // Forest #1a4a2e (brand guide v1.1 §14)
 const TEAL  = [45, 107, 69]      // Forest Mid (Shorepine #2d6b45)
 const GOLD  = [184, 151, 90]     // Brass (Shorepine #b8975a)
@@ -31,54 +42,7 @@ const WHITE = [255, 255, 255]
 const RED   = [196, 71, 48]      // Ember (Shorepine #c44730)
 const MUTED = [138, 128, 112]    // Stone (Shorepine #8a8070)
 
-// ── Score tier thresholds (match ScoreBadge from 6L.1) ───────
-const TIER_HIGH     = 75
-const TIER_MODERATE = 60
-const TIER_LOW      = 45
-
-function getScoreColor(score) {
-  if (score >= TIER_HIGH)     return TEAL
-  if (score >= TIER_MODERATE) return [58, 122, 138]  // Deep Teal (Shorepine)
-  if (score >= TIER_LOW)      return GOLD
-  return MUTED
-}
-
-function getScoreTierLabel(score) {
-  if (score >= TIER_HIGH)     return 'HIGH'
-  if (score >= TIER_MODERATE) return 'MODERATE'
-  if (score >= TIER_LOW)      return 'LOW'
-  return 'VERY LOW'
-}
-
-// Card border color based on outcome
-function getOutcomeColor(bill) {
-  const cl = (bill.confidence_label || '').toUpperCase()
-  if (cl === 'LAW')        return TEAL
-  if (cl === 'PASSED_CHAMBER') return GOLD
-  if (cl === 'DEAD')       return [138, 128, 112]
-  // Active bill — use score color
-  return getScoreColor(bill.final_score || 0)
-}
-
 // ── Helpers ──────────────────────────────────────────────────
-
-/** Load image from URL as base64 data URL. Returns null on failure. */
-function loadImageAsBase64(url) {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0)
-      resolve(canvas.toDataURL('image/png'))
-    }
-    img.onerror = () => resolve(null)
-    img.src = url
-  })
-}
 
 /** Display-ready bill title with fallback. */
 function getBillTitle(bill) {
@@ -168,24 +132,6 @@ function getDeltaNarrative(billId, bill, scoreDeltas, changes) {
   if (parts.length === 0) return 'No change this week'
   return parts.join(' -- ')
 }
-
-/**
- * Check if we need a new page. If so, add one and return reset y.
- * @param {jsPDF} doc
- * @param {number} y - current y position
- * @param {number} needed - vertical space needed (mm)
- * @param {number} ph - page height
- * @returns {number} new y position
- */
-function checkPageBreak(doc, y, needed, ph) {
-  const footerReserve = 30  // keep clear of methodology + footer area on last page
-  if (y + needed > ph - footerReserve) {
-    doc.addPage()
-    return 28  // top margin on continuation pages (leaves room for repeated header)
-  }
-  return y
-}
-
 
 // ── Bill grouping ───────────────────────────────────────────
 // Groups: Signed into Law → Active (by score desc) → Passed Chamber → Did Not Advance
