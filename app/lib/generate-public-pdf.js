@@ -56,6 +56,43 @@ const PARTY_COLOR = {
 // Sponsor-tier copy (matches bill page line 2330)
 const SPONSOR_TIER_LABEL = { 1: 'Leadership', 2: 'Senior', 3: 'Member' }
 
+/**
+ * Fetch an SVG, apply hex-color swaps in the source text, then rasterize to
+ * a base64 PNG via canvas. Used to repaint the primary logo's wordmark from
+ * the parchment '#ebeae4' (designed for dark backgrounds) to dark Vector
+ * primary so it's legible on the white PDF page. Returns null on any failure
+ * — caller handles the text fallback.
+ */
+async function loadSvgWithFillSwap(url, swaps) {
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    let svg = await resp.text()
+    Object.keys(swaps).forEach(from => {
+      // case-insensitive global replace, preserves quotes
+      const re = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+      svg = svg.replace(re, swaps[from])
+    })
+    const dataUrl = 'data:image/svg+xml;base64,' +
+      btoa(unescape(encodeURIComponent(svg)))
+    return await new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width  = img.naturalWidth  || 895
+        canvas.height = img.naturalHeight || 500
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => resolve(null)
+      img.src = dataUrl
+    })
+  } catch (e) {
+    return null
+  }
+}
+
 // ── Display helpers ─────────────────────────────────────────────
 
 function billLabel(bill) {
@@ -199,7 +236,12 @@ async function drawHeaderBand(doc, y, m, contentW, pw, generatedAt) {
 
   let logoDrawn = false
   try {
-    const dataUrl = await loadImageAsBase64('/logos/vector-wa-primary.svg')
+    // Repaint the wordmark fill from parchment (#ebeae4) to Vector primary
+    // (#0e1014) so it's readable on the white PDF page. Gold arc + separator
+    // (#b8975a) stay untouched.
+    const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
+      '#ebeae4': '#0e1014',
+    })
     if (dataUrl) {
       doc.addImage(dataUrl, 'PNG', m, y - 1, logoW, logoH)
       logoDrawn = true
@@ -357,48 +399,46 @@ function drawScoreBox(doc, y, m, contentW, bill) {
   const color = getOutcomeColor(bill, P)
   const oneLiner = getScoreOneLiner(bill, score)
 
-  const boxH = 28
+  // Compacted from 28mm to 18mm in the Thread 32 lobbyist redesign — the
+  // earlier box was visually heavy for the content it carried.
+  const boxH = 18
   doc.setFillColor(...P.surface)
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
   doc.roundedRect(m, y, contentW, boxH, 2, 2, 'FD')
 
-  // Left: big score. Measure width at the LARGE font size before switching
-  // to the small one for the "/100" suffix — otherwise the suffix overlaps
-  // the score graphic (caught in Thread 32 first preview).
+  // Left strip: score number + /100 + tier label, all on the left third
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(28)
+  doc.setFontSize(20)
   doc.setTextColor(...color)
   const scoreW = doc.getTextWidth(String(score))
-  doc.text(String(score), m + 6, y + 18)
+  doc.text(String(score), m + 6, y + 12)
 
-  // Score "/100" suffix — small, muted, baseline-aligned with the big number
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...P.muted)
-  doc.text('/100', m + 6 + scoreW + 1.5, y + 18)
-
-  // Tier label below score
-  doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
-  doc.setTextColor(...color)
-  doc.text(String(tier).toUpperCase(), m + 6, y + 24)
+  doc.setTextColor(...P.muted)
+  doc.text('/100', m + 6 + scoreW + 1, y + 12)
 
-  // Right: label + one-liner
-  const txtX = m + 36
-  const txtW = contentW - 36 - 6
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...color)
+  doc.text(String(tier).toUpperCase(), m + 6, y + 16)
+
+  // Right side: label + one-liner
+  const txtX = m + 30
+  const txtW = contentW - 30 - 6
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
-  doc.text('TRAJECTORY SCORE', txtX, y + 7)
+  doc.text('TRAJECTORY SCORE', txtX, y + 5)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8.5)
   doc.setTextColor(...P.primary)
-  const lines = doc.splitTextToSize(oneLiner, txtW)
-  lines.slice(0, 3).forEach((line, i) => doc.text(line, txtX, y + 13 + i * 4.2))
+  const lines = doc.splitTextToSize(oneLiner, txtW).slice(0, 2)
+  lines.forEach((line, i) => doc.text(line, txtX, y + 10 + i * 4))
 
-  return y + boxH + 5
+  return y + boxH + 4
 }
 
 /**
@@ -416,14 +456,16 @@ function drawAISummary(doc, y, m, contentW, bill, ph) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
+  // Measure header width AT 7pt before switching font sizes (same width-at-
+  // wrong-size trap that caused the /100 overlap in the first preview)
+  const headerW = doc.getTextWidth('WHAT THE BILL DOES')
   doc.text('WHAT THE BILL DOES', m, y)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(6)
   doc.setTextColor(...P.accent)
   const aiLabel = bill.custom_summary ? 'AI-GENERATED · EDITED' : 'AI-GENERATED'
-  const labelW = doc.getTextWidth('WHAT THE BILL DOES')
-  doc.text(aiLabel, m + labelW + 4, y)
+  doc.text(aiLabel, m + headerW + 4, y)
 
   let cy = y + 4
   doc.setFont('helvetica', 'normal')
