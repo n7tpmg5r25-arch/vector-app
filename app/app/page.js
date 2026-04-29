@@ -11,6 +11,8 @@ import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
 import DropdownMenu from './components/DropdownMenu'
+import VectorLoader from './components/VectorLoader'
+import { Check } from 'lucide-react'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -619,7 +621,7 @@ export default function HomePage() {
                     {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {bill.committee_passed && <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>✓ CMTE PASS</span>}
+                    {bill.committee_passed && <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS</span>}
                     {bill.has_public_hearing && <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>● HEARING</span>}
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>{STAGE_SHORT[bill.stage] || 'Intro'}</span>
                   </div>
@@ -643,11 +645,11 @@ export default function HomePage() {
             </div>
             <button
               onClick={() => router.push('/search')}
+              className="vec-cta-primary"
               style={{
                 padding: '8px 20px',
                 background: 'var(--teal)', color: 'var(--bg)',
                 border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                boxShadow: 'var(--teal-glow)',
               }}
             >Browse {SESSION} Bills</button>
           </div>
@@ -722,7 +724,7 @@ export default function HomePage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {loading ? (
-              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+              <VectorLoader label="Loading top bills" size="sm" />
             ) : topBills.map((bill, idx) => {
               const delta = scoreDeltas[bill.bill_id]
               return (
@@ -791,7 +793,7 @@ export default function HomePage() {
                       {STAGE_SHORT[bill.stage] || 'Intro'}
                     </span>
                     {bill.committee_passed && (
-                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>✓ Pass</span>
+                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Pass</span>
                     )}
                   </div>
                 </div>

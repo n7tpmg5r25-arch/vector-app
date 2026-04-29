@@ -10,6 +10,8 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
+import VectorLoader from '../components/VectorLoader'
+import { Check, Bookmark, Clipboard } from 'lucide-react'
 
 import { STAGE_SHORT } from '../../lib/stages'
 export default function WatchlistPage() {
@@ -510,20 +512,21 @@ export default function WatchlistPage() {
         {/* Thread 7: desktop-only column-header strip. Mobile renders
             display:none so the existing card stack is unchanged. */}
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+          <VectorLoader label="Loading watchlist" />
         ) : sorted.length === 0 ? (
           <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 16, filter: 'grayscale(0.5)' }}>📋</div>
+            <div style={{ display: 'inline-flex', marginBottom: 16, color: 'var(--text-faint)', opacity: 0.6 }}>
+              <Clipboard size={32} aria-hidden="true" strokeWidth={1.5} />
+            </div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--teal)', marginBottom: 8, fontWeight: 600 }}>
               No bills tracked yet
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
               Search bills and tap + Watch to add them here.
             </div>
-            <button onClick={() => router.push('/search')} style={{
+            <button onClick={() => router.push('/search')} className="vec-cta-primary" style={{
               padding: '10px 24px', background: 'var(--teal)', color: 'var(--bg)',
               border: 'none', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              boxShadow: 'var(--teal-glow)',
             }}>Browse Bills</button>
           </div>
         ) : sorted.map(({ bill_id, tag, notes, bills: bill }, idx) => {
@@ -610,7 +613,7 @@ export default function WatchlistPage() {
                     <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>{'●'} HEARING</span>
                   )}
                   {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{'✓'} CMTE PASS</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS</span>
                   )}
                   {!bill.bipartisan && (
                     <span style={{ fontSize: 9, color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>Minority Only</span>
@@ -650,7 +653,9 @@ export default function WatchlistPage() {
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <div style={{ fontSize: 14, color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>🔖</div>
+                <div style={{ display: 'inline-flex', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>
+                  <Bookmark size={14} aria-hidden="true" fill="currentColor" />
+                </div>
                 {/* Phase 7S: quick-note pencil icon */}
                 <button
                   onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}

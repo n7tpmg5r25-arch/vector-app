@@ -15,6 +15,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import DropdownMenu from '../components/DropdownMenu'
+import VectorLoader from '../components/VectorLoader'
 
 import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
@@ -259,7 +260,7 @@ export default function OutcomesPage() {
         </div>
 
         {loading ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+          <VectorLoader label="Loading outcomes" />
         ) : sorted.slice(0, 100).map((bill, idx) => (
           <Link
             key={bill.bill_id}

@@ -108,6 +108,90 @@ input, textarea { font-family: var(--font-body); }
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* Lucide Loader2 spin (Thread 35) — used by Brief / Print Brief PDF buttons */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* VectorLoader brass arrow pulse (Thread 35) */
+@keyframes vectorLoaderPulse {
+  0%, 100% { opacity: 0.45; transform: translateX(0); }
+  50%      { opacity: 1;    transform: translateX(2px); }
+}
+.vec-loader-arrow {
+  animation: vectorLoaderPulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-loader-arrow { animation: none; }
+}
+
+/* ── Thread 35 PRIMARY CTA POLISH ───────────────
+   Adds a subtle brass-glow + 1px lift on hover to every "primary"
+   button. Not applied via CSS reset; opt-in via the .vec-cta-primary
+   utility class so we don't accidentally style every <button>. The
+   disabled state replaces opacity:0.5 with a brass-on-dark cross-hatch
+   so the button stays legible while telegraphing "wait". */
+.vec-cta-primary {
+  box-shadow: 0 0 24px rgba(184,151,90,0.12);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+.vec-cta-primary:hover:not(:disabled) {
+  box-shadow: 0 0 28px rgba(184,151,90,0.22), 0 4px 12px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+.vec-cta-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.vec-cta-primary:disabled,
+.vec-cta-primary[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(14,16,20,0.0) 0,
+    rgba(14,16,20,0.0) 6px,
+    rgba(14,16,20,0.18) 6px,
+    rgba(14,16,20,0.18) 12px
+  );
+  box-shadow: 0 0 24px rgba(184,151,90,0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-cta-primary { transition: none; }
+  .vec-cta-primary:hover:not(:disabled) { transform: none; }
+}
+
+/* ── Thread 35 MICROTYPOGRAPHY ───────────────
+   Tabular figures everywhere a column of numbers shows up. The whole
+   monospace family gets tnum at the body level so vote tallies, score
+   columns, member-vote counts, day-counts, and the like all align
+   vertically without per-site CSS. Karla also benefits from tnum on
+   numeric-heavy strips (mobile bottom-nav badges, score labels).
+
+   Eyebrow utility consolidates the three letter-spacings that were
+   floating around the codebase (0.08 / 0.1 / 0.12) to a single
+   0.12em — apply via className="vec-eyebrow" rather than retyping
+   the inline style on every uppercase label.
+
+   These are additive; no existing inline letter-spacing values are
+   removed (Thread 35 is a polish bundle, not a refactor). Sites that
+   want tighter spacing can still override inline. */
+body {
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+code, pre, .font-mono, [style*="font-mono"], [style*="--font-mono"] {
+  font-feature-settings: 'tnum' 1, 'lnum' 1, 'zero' 1;
+}
+.vec-eyebrow {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-faint);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.vec-tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
 
 /* Mobile-first: this app is intentionally mobile-only. Threads 7 + 8
    experimented with desktop responsive layouts (bottom-tab → top-bar

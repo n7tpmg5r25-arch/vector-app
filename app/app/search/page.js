@@ -12,6 +12,7 @@ import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import CohortCitation from '../components/CohortCitation'
 import DropdownMenu from '../components/DropdownMenu'
+import VectorLoader from '../components/VectorLoader'
 
 import { CATEGORIES } from '../../lib/categories'
 const STAGES = [
@@ -523,7 +524,7 @@ function SearchContent() {
         })}
 
         {loading && (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+          <VectorLoader label="Searching bills" size="sm" />
         )}
 
         {!loading && hasMore && bills.length > 0 && (
@@ -542,8 +543,8 @@ function SearchContent() {
         )}
 
         {!loading && bills.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-            No bills found. Try adjusting your filters.
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, lineHeight: 1.55 }}>
+            No bills match your filters. Try widening the chamber, removing a category, or shortening the search query.
           </div>
         )}
       </div>
@@ -555,7 +556,7 @@ function SearchContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading search...</div>}>
+    <Suspense fallback={<VectorLoader label="Loading search" />}>
       <SearchContent />
     </Suspense>
   )

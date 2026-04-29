@@ -23,6 +23,7 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
+import VectorLoader from '../components/VectorLoader'
 
 import { STAGE_SHORT } from '../../lib/stages'
 import {
@@ -521,7 +522,7 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
   }
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading…</div>
+    return <VectorLoader label="Loading committees" />
   }
 
   // Sub-task 3 — date anchor above the sort row so By-Committee never looks

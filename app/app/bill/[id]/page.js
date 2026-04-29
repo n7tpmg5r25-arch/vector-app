@@ -19,6 +19,8 @@ import VoteSplitBar from '../../components/VoteSplitBar'
 import PartyMicrobar from '../../components/PartyMicrobar'
 import { isFinalPassage, bucketMemberVotes, padBucketsToReported, characterize } from '../../../lib/vote-helpers'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
+import VectorLoader from '../../components/VectorLoader'
+import { Check, ArrowUpRight, FileText, Bookmark, Loader2 } from 'lucide-react'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -732,8 +734,8 @@ export default function BillDetailPage() {
   }
 
   if (loading) return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh' }}>
-      Loading...
+    <div style={{ fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh', paddingTop: 40 }}>
+      <VectorLoader label="Loading bill detail" />
     </div>
   )
   if (!bill) return (
@@ -749,14 +751,16 @@ export default function BillDetailPage() {
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
         }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>📄</div>
+          <div style={{ display: 'inline-flex', marginBottom: 12, color: 'var(--text-muted)', opacity: 0.7 }}>
+            <FileText size={28} aria-hidden="true" strokeWidth={1.5} />
+          </div>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 10 }}>
             Bill not found
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
-            This bill ID isn't in the Vector | WA index. It may have been
+            This bill ID isn’t in the Vector | WA index. It may have been
             withdrawn, renumbered, or the link may be malformed. Use search to
-            find the bill you're looking for.
+            find the bill you’re looking for.
           </div>
           <button
             onClick={() => router.push('/search')}
@@ -868,7 +872,12 @@ export default function BillDetailPage() {
               color: shared ? 'var(--teal)' : 'var(--text-muted)',
               cursor: 'pointer', transition: 'all 0.15s',
             }}
-          >{shared ? '✓ Copied' : '↗ Share'}</button>
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {shared ? <Check size={14} aria-hidden="true" /> : <ArrowUpRight size={14} aria-hidden="true" />}
+              {shared ? 'Copied' : 'Share'}
+            </span>
+          </button>
           {/* Thread 32 (D7): PDF brief in the top action row.
               Owner gets the firm Brief (multi-bill capable, Shorepine palette).
               Anon gets the public Print Brief (single-bill, Vector palette,
@@ -877,6 +886,7 @@ export default function BillDetailPage() {
             <button
               onClick={exportBriefPdf}
               disabled={exporting}
+              className="vec-cta-primary"
               style={{
                 padding: '7px 12px',
                 background: 'transparent',
@@ -884,14 +894,18 @@ export default function BillDetailPage() {
                 borderRadius: 20, fontSize: 12, fontWeight: 500,
                 color: 'var(--text-muted)',
                 cursor: exporting ? 'wait' : 'pointer',
-                opacity: exporting ? 0.6 : 1,
-                transition: 'all 0.15s',
               }}
-            >{exporting ? '⏳ Generating' : '📄 Brief'}</button>
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
+                {exporting ? 'Generating' : 'Brief'}
+              </span>
+            </button>
           ) : (
             <button
               onClick={exportPublicBriefPdf}
               disabled={exporting}
+              className="vec-cta-primary"
               style={{
                 padding: '7px 12px',
                 background: 'transparent',
@@ -899,25 +913,34 @@ export default function BillDetailPage() {
                 borderRadius: 20, fontSize: 12, fontWeight: 500,
                 color: 'var(--text-muted)',
                 cursor: exporting ? 'wait' : 'pointer',
-                opacity: exporting ? 0.6 : 1,
-                transition: 'all 0.15s',
               }}
-            >{exporting ? '⏳ Generating' : '📄 Print Brief'}</button>
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
+                {exporting ? 'Generating' : 'Print Brief'}
+              </span>
+            </button>
           )}
           {capabilities.canSave && (
             <button
               onClick={toggleWatch}
               disabled={saving}
+              className="vec-cta-primary"
               style={{
                 padding: '7px 16px',
                 background: tracked ? 'var(--gold-pale)' : 'var(--teal-pale)',
                 border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'rgba(184,151,90,0.3)'}`,
                 borderRadius: 20, fontSize: 12, fontWeight: 600,
                 color: tracked ? 'var(--gold)' : 'var(--teal)',
-                cursor: 'pointer', transition: 'all 0.15s',
-                boxShadow: tracked ? 'var(--gold-glow)' : 'none',
+                cursor: 'pointer',
+                boxShadow: tracked ? 'var(--gold-glow)' : '0 0 24px rgba(184,151,90,0.12)',
               }}
-            >{tracked ? '🔖 Watching' : '+ Watch'}</button>
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                {tracked ? <Bookmark size={14} aria-hidden="true" fill="currentColor" /> : null}
+                {tracked ? 'Watching' : '+ Watch'}
+              </span>
+            </button>
           )}
         </div>
       </div>
@@ -2202,7 +2225,7 @@ export default function BillDetailPage() {
                 {(() => {
                   const sortedAsc = [...snapshots].sort((a, b) => (a.snapshot_date || '').localeCompare(b.snapshot_date || ''))
                   if (sortedAsc.length === 0) {
-                    return <div style={{ fontSize: 11, color: 'var(--text-faint)', padding: '4px 0' }}>No snapshots yet.</div>
+                    return <div style={{ fontSize: 11, color: 'var(--text-faint)', padding: '4px 0' }}>No score history yet — snapshots accumulate after the next nightly sync.</div>
                   }
                   // Build display rows: change rows + "unchanged-run" markers.
                   const rows = []

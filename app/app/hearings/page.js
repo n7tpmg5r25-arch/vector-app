@@ -9,6 +9,8 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
+import VectorLoader from '../components/VectorLoader'
+import { Bookmark, Calendar, Check } from 'lucide-react'
 
 export default function HearingsPage() {
   const router = useRouter()
@@ -214,14 +216,14 @@ export default function HearingsPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                       {h.bills?.chamber === 'House' ? 'HB' : 'SB'} {h.bills?.bill_number}
-                      {watchedIds.has(h.bill_id) && <span style={{ marginLeft: 6, color: 'var(--gold)' }}>🔖</span>}
+                      {watchedIds.has(h.bill_id) && <Bookmark size={11} aria-hidden="true" fill="var(--gold)" stroke="var(--gold)" style={{ marginLeft: 6, verticalAlign: 'text-bottom' }} />}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4 }}>
                       {h.bills?.title || h.bills?.committee_name || `Bill ${h.bills?.bill_number}`}
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
-                        📅 {formatDate(h.hearing_date)}
+                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={11} aria-hidden="true" /> {formatDate(h.hearing_date)}
                       </span>
                       {h.committee_name && (
                         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{h.committee_name}</span>
@@ -249,7 +251,7 @@ export default function HearingsPage() {
         )}
 
         {loading ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+          <VectorLoader label="Loading hearings" />
         ) : isInterim && hearings.length === 0 && displayBills.length === 0 ? (
           /* 6B.5: Full interim empty state when hearings table has no data */
           <div style={{
@@ -257,7 +259,9 @@ export default function HearingsPage() {
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>📅</div>
+            <div style={{ display: 'inline-flex', marginBottom: 12, color: 'var(--text-muted)', opacity: 0.7 }}>
+              <Calendar size={28} aria-hidden="true" strokeWidth={1.5} />
+            </div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 10 }}>
               Legislature is in interim
             </div>
@@ -267,11 +271,11 @@ export default function HearingsPage() {
             </div>
             <button
               onClick={() => typeof window !== 'undefined' && (window.location.href = '/outcomes')}
+              className="vec-cta-primary"
               style={{
                 marginTop: 16, padding: '8px 20px',
                 background: 'var(--teal)', color: 'var(--bg)',
                 border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                boxShadow: 'var(--teal-glow)',
               }}
             >View session outcomes</button>
           </div>
@@ -281,14 +285,16 @@ export default function HearingsPage() {
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12, filter: 'grayscale(0.5)' }}>📅</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 8 }}>
-              {view === 'watched' ? 'No watched bills had hearings' : 'No hearings found'}
+            <div style={{ display: 'inline-flex', marginBottom: 12, color: 'var(--text-faint)', opacity: 0.6 }}>
+              <Calendar size={28} aria-hidden="true" strokeWidth={1.5} />
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--teal)', marginBottom: 8 }}>
+              {view === 'watched' ? 'No hearings on your watched bills' : 'No hearings scheduled right now'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
               {view === 'watched'
-                ? 'Add bills to your watchlist to track their hearings here.'
-                : (() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session); return `Hearing data will populate when the ${_hasRealNext ? n.session : 'next'} session opens.`; })()}
+                ? 'None of your watched bills have an upcoming hearing. Add more bills from Search, or switch to All to see everything on the calendar.'
+                : (() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session); return `Check back when session resumes — hearings populate as committees post their schedules${_hasRealNext ? ` for the ${n.session} session` : ''}.`; })()}
             </div>
           </div>
         ) : (
@@ -319,10 +325,10 @@ export default function HearingsPage() {
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                     </span>
-                    {watchedIds.has(bill.bill_id) && <span style={{ color: 'var(--gold)', fontSize: 10 }}>🔖</span>}
+                    {watchedIds.has(bill.bill_id) && <Bookmark size={10} aria-hidden="true" fill="var(--gold)" stroke="var(--gold)" />}
                     {bill.committee_passed && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8, fontWeight: 600 }}>
-                        ✓ Pass
+                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <Check size={9} aria-hidden="true" strokeWidth={3} /> Pass
                       </span>
                     )}
                   </div>
@@ -331,8 +337,8 @@ export default function HearingsPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     {bill.hearing_date && (
-                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>
-                        📅 {formatDate(bill.hearing_date)}
+                      <span style={{ fontSize: 10, color: 'var(--teal)', fontFamily: 'var(--font-mono)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={11} aria-hidden="true" /> {formatDate(bill.hearing_date)}
                       </span>
                     )}
                     <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
