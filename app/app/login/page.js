@@ -123,11 +123,12 @@ function LoginPageInner() {
         <img
           src="/logos/vector-wa-primary.svg"
           alt="Vector | WA"
-          width={140}
-          height={140}
+          width={280}
+          height={153}
           style={{
+            maxWidth: '80%',
+            height: 'auto',
             display: 'inline-block',
-            borderRadius: 18,
             filter: 'drop-shadow(0 0 18px rgba(184,151,90,0.25))',
           }}
         />

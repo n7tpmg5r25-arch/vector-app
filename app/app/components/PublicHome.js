@@ -100,11 +100,10 @@ export default function PublicHome() {
             src="/logos/vector-wa-primary.svg"
             alt="Vector | WA"
             style={{
-              height: 120,
-              width: 120,
+              height: 88,
+              width: 'auto',
               display: 'block',
               marginBottom: 18,
-              borderRadius: 16,
               filter: 'drop-shadow(0 0 24px rgba(184,151,90,0.28))',
             }}
           />
