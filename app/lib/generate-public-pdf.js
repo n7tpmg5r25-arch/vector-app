@@ -353,11 +353,14 @@ function drawStatusPill(doc, y, m, contentW, bill) {
   const interim    = isInterimPeriod()
 
   // Build the right-side detail string differently per state:
-  //  - Terminal bills: just the stage sentence (it's already complete).
+  //  - Terminal bills: append the action date so the lobbyist sees WHEN the
+  //    outcome landed ("Signed into law · Mar 12, 2026"). Thread 32 add A.
   //  - Active during session: append hearing date or cutoff days when known.
   //  - Active during interim: append the recent-action date if we have one.
   let text = stageLine
-  if (!isTerminal) {
+  if (isTerminal) {
+    if (dateLbl) text = stageLine + '  ·  ' + dateLbl
+  } else {
     const tail = []
     if (!interim) {
       if (bill.hearing_date) {
@@ -439,6 +442,78 @@ function drawScoreBox(doc, y, m, contentW, bill) {
   lines.forEach((line, i) => doc.text(line, txtX, y + 10 + i * 4))
 
   return y + boxH + 4
+}
+
+/**
+ * NEW Section — Bill timeline. Walks the snapshots history (which carries
+ * `stage` + `created_at` per row) and captures the FIRST appearance of each
+ * stage as the date the bill moved into that stage. Renders as a horizontal
+ * arrow flow ("Introduced Jan 14 -> Out of committee Feb 3 -> ...").
+ *
+ * Snapshot data may not stretch back to the bill's introduction (Vector
+ * didn't always exist) so the earliest stage shown reflects the earliest
+ * snapshot we have, not necessarily a true first-day-of-bill record.
+ */
+function buildBillTimeline(snapshots) {
+  if (!snapshots || snapshots.length === 0) return []
+  const sorted = [...snapshots].sort((a, b) => {
+    const da = new Date(a.created_at || a.snapshot_date || 0).getTime()
+    const db = new Date(b.created_at || b.snapshot_date || 0).getTime()
+    return da - db
+  })
+  const STAGE_NAMES = {
+    1: 'Introduced',
+    2: 'In committee',
+    3: 'Out of committee',
+    4: 'Passed floor',
+    5: 'Sent to other chamber',
+    6: 'Signed into law',
+  }
+  const events = []
+  const seen = new Set()
+  sorted.forEach(snap => {
+    const s = snap.stage
+    if (s != null && !seen.has(s) && STAGE_NAMES[s]) {
+      seen.add(s)
+      const d = snap.created_at || snap.snapshot_date
+      if (d) events.push({ label: STAGE_NAMES[s], date: d, stage: s })
+    }
+  })
+  return events
+}
+
+function drawBillTimeline(doc, y, m, contentW, snapshots, ph) {
+  const events = buildBillTimeline(snapshots)
+  if (events.length < 2) return y  // Not worth a section with only one event
+
+  y = checkPageBreak(doc, y, 12, ph)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.muted)
+  doc.text('BILL TIMELINE', m, y)
+
+  // Build the flow string: "Label MMM DD  ->  Label MMM DD  ->  ..."
+  const parts = events.map(e => {
+    let dateLbl = ''
+    try {
+      dateLbl = new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch (err) {}
+    return e.label + (dateLbl ? ' ' + dateLbl : '')
+  })
+  const flowText = parts.join('  >  ')
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.primary)
+  const lines = doc.splitTextToSize(flowText, contentW)
+  let cy = y + 4
+  lines.forEach(line => {
+    cy = checkPageBreak(doc, cy, 4, ph)
+    doc.text(line, m, cy + 1)
+    cy += 4.2
+  })
+  return cy + 3
 }
 
 /**
@@ -961,6 +1036,7 @@ export async function generatePublicBriefPDF({
   recentRollCall = null,
   partyBuckets = null,
   recentAmendments = [],
+  snapshots = null,        // Thread 32 add B — fed to drawBillTimeline
   companion = null,
   fiscalNote = null,
   generatedAt = new Date(),
@@ -986,6 +1062,10 @@ export async function generatePublicBriefPDF({
 
   // Section 4 — Trajectory score box
   y = drawScoreBox(doc, y, m, contentW, bill)
+
+  // NEW Section (Thread 32 add B) — Bill timeline. Walks snapshot stage
+  // history. Skipped silently when fewer than 2 stage transitions are known.
+  y = drawBillTimeline(doc, y, m, contentW, snapshots, ph)
 
   // NEW Section — What the bill does (AI summary, biggest content fix from
   // Thread 32 first-preview lobbyist review)

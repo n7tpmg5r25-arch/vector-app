@@ -705,6 +705,7 @@ export default function BillDetailPage() {
         rollCalls:          rollCalls || [],
         partyBucketsByRcId: partyBucketsByRcId || {},
         recentAmendments:   amendments || [],
+        snapshots:          snapshots || [],
         fiscalNote:         (fiscalHistory && fiscalHistory.length > 0) ? fiscalHistory[0] : null,
         generatedAt:        new Date(),
       })
