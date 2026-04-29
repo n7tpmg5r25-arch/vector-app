@@ -90,9 +90,7 @@ export default function AboutPage() {
             <p style={{ marginBottom: 0 }}>
               The site is built for anyone who works with Washington State legislation: legislative
               staff, advocates, registered lobbyists, journalists, researchers, students, and the
-              general public. It&apos;s not a registered lobbying entity, doesn&apos;t represent
-              clients before the Legislature, and doesn&apos;t take partisan positions. The only
-              job is to make the public record easier to read.
+              general public. The only job is to make the public record easier to read.
             </p>
           </div>
         </div>

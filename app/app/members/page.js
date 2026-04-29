@@ -695,7 +695,7 @@ function MembersContent() {
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>
                       Crosses with the{' '}
-                      <span style={{ color: oppParty === 'R' ? '#ff6b6b' : '#4d9aff', fontWeight: 700 }}>
+                      <span style={{ color: oppParty === 'R' ? 'var(--party-r)' : 'var(--party-d)', fontWeight: 700 }}>
                         {oppParty === 'D' ? 'Democrats' : 'Republicans'}
                       </span>
                       {' '}on{' '}
@@ -987,7 +987,7 @@ function MembersContent() {
             <button key={p} onClick={() => setParty(p)} style={{
               padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500, flexShrink: 0,
               background: party === p ? (p === 'D' ? 'rgba(30,100,200,0.2)' : p === 'R' ? 'rgba(200,50,50,0.2)' : 'var(--bg-surface)') : 'transparent',
-              color: party === p ? (p === 'D' ? '#4d9aff' : p === 'R' ? '#ff6b6b' : 'var(--text-primary)') : 'var(--text-muted)',
+              color: party === p ? (p === 'D' ? 'var(--party-d)' : p === 'R' ? 'var(--party-r)' : 'var(--text-primary)') : 'var(--text-muted)',
               border: `1px solid ${party === p ? 'transparent' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}>{p === 'D' ? 'Dem' : p === 'R' ? 'Rep' : 'All'}</button>
@@ -1295,11 +1295,11 @@ function MembersContent() {
             >
               <div style={{
                 width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                background: member.party === 'D' ? 'rgba(30,100,200,0.12)' : member.party === 'R' ? 'rgba(200,50,50,0.12)' : 'var(--bg-surface)',
-                border: `1.5px solid ${member.party === 'D' ? 'rgba(77,154,255,0.3)' : member.party === 'R' ? 'rgba(255,107,107,0.3)' : 'var(--border)'}`,
+                background: member.party === 'D' ? 'var(--party-d-pale)' : member.party === 'R' ? 'var(--party-r-pale)' : 'var(--bg-surface)',
+                border: `1.5px solid ${member.party === 'D' ? 'var(--party-d-border)' : member.party === 'R' ? 'var(--party-r-border)' : 'var(--border)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700,
-                color: member.party === 'D' ? '#4d9aff' : member.party === 'R' ? '#ff6b6b' : 'var(--text-muted)',
+                color: member.party === 'D' ? 'var(--party-d)' : member.party === 'R' ? 'var(--party-r)' : 'var(--text-muted)',
               }}>
                 {member.name.split(' ').map(n => n[0]).slice(-2).join('')}
               </div>

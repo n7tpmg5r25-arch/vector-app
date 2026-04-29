@@ -13,6 +13,7 @@ import ScoreBadge from '../components/ScoreBadge'
 import CohortCitation from '../components/CohortCitation'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
+import { Check } from 'lucide-react'
 
 import { CATEGORIES } from '../../lib/categories'
 const STAGES = [
@@ -499,10 +500,10 @@ function SearchContent() {
                 })()}
                 <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
                   {bill.has_public_hearing && (
-                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>&#9679; Hearing</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>Hearing</span>
                   )}
                   {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>&#10003; Comm. Pass</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Comm. Pass</span>
                   )}
                 </div>
               </div>
