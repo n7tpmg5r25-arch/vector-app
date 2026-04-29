@@ -10,6 +10,7 @@ import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
+import DropdownMenu from './components/DropdownMenu'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -297,28 +298,22 @@ export default function HomePage() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* 6D.1: Session picker dropdown */}
             {availableSessions.length > 1 ? (
-              <select
+              <DropdownMenu
                 value={SESSION}
-                onChange={e => setSession(e.target.value)}
-                style={{
+                onChange={v => setSession(v)}
+                options={availableSessions.map(s => ({ value: s, label: s }))}
+                ariaLabel="Session selector"
+                triggerStyle={{
                   background: 'rgba(184,151,90,0.08)',
                   border: '1px solid rgba(184,151,90,0.25)',
-                  borderRadius: 20, padding: '4px 12px',
-                  fontSize: 11, color: 'var(--teal)',
+                  borderRadius: 20,
+                  padding: '4px 26px 4px 12px',
+                  fontSize: 11,
+                  color: 'var(--teal)',
                   fontFamily: 'var(--font-mono)',
-                  cursor: 'pointer', outline: 'none',
-                  WebkitAppearance: 'none', MozAppearance: 'none',
-                  appearance: 'none',
-                  backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'8\' height=\'5\' viewBox=\'0 0 8 5\' fill=\'none\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1l3 3 3-3\' stroke=\'%2300e5cc\' stroke-width=\'1.5\' stroke-linecap=\'round\'/%3E%3C/svg%3E")',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'right 10px center',
-                  paddingRight: 26,
+                  minHeight: 26,
                 }}
-              >
-                {availableSessions.map(s => (
-                  <option key={s} value={s} style={{ background: '#0a0f1a', color: '#ccc' }}>{s}</option>
-                ))}
-              </select>
+              />
             ) : (
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,

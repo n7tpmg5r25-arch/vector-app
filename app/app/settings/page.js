@@ -7,6 +7,7 @@ import { getCurrentSession, isInterimPeriod, getNextBiennium, formatSessionDate 
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import CohortCitation from '../components/CohortCitation'
+import DropdownMenu from '../components/DropdownMenu'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -225,21 +226,23 @@ export default function SettingsPage() {
                   <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
                     Digest day
                   </label>
-                  <select
+                  <DropdownMenu
                     value={digestDay}
-                    onChange={e => setDigestDay(e.target.value)}
-                    style={{
-                      width: '100%', padding: '8px 12px',
+                    onChange={v => setDigestDay(v)}
+                    options={DAYS.map(d => ({ value: d.value, label: d.label }))}
+                    ariaLabel="Digest day"
+                    width="100%"
+                    triggerStyle={{
+                      width: '100%',
+                      padding: '8px 32px 8px 12px',
                       background: 'rgba(14,16,20,0.6)',
                       border: '1px solid var(--border)',
-                      borderRadius: 6, color: 'var(--text-primary)',
-                      fontSize: 14, outline: 'none',
+                      borderRadius: 6,
+                      color: 'var(--text-primary)',
+                      fontSize: 14,
+                      minHeight: 44,
                     }}
-                  >
-                    {DAYS.map(d => (
-                      <option key={d.value} value={d.value}>{d.label}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
 

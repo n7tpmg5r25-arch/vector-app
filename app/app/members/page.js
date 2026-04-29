@@ -12,6 +12,7 @@ import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
+import DropdownMenu from '../components/DropdownMenu'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
 // readout on the Overview tab. Mirrors the same filter pattern used in
@@ -913,19 +914,25 @@ function MembersContent() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
             Members
           </div>
-          <select
+          <DropdownMenu
             value={selectedSession}
-            onChange={e => { setSelectedSession(e.target.value); setSelected(null); setMemberBills([]) }}
-            style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 8, padding: '5px 10px', fontSize: 11,
-              color: 'var(--teal)', fontFamily: 'var(--font-mono)',
-              cursor: 'pointer', outline: 'none',
+            onChange={v => { setSelectedSession(v); setSelected(null); setMemberBills([]) }}
+            options={[
+              ...SESSIONS.map(s => ({ value: s, label: s })),
+              { value: 'all', label: 'All Sessions' },
+            ]}
+            ariaLabel="Session selector"
+            triggerStyle={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '5px 28px 5px 10px',
+              fontSize: 11,
+              color: 'var(--teal)',
+              fontFamily: 'var(--font-mono)',
+              minHeight: 28,
             }}
-          >
-            {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            <option value="all">All Sessions</option>
-          </select>
+          />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
