@@ -471,7 +471,10 @@ function drawAISummary(doc, y, m, contentW, bill, ph) {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
   doc.setTextColor(...P.primary)
-  const lines = doc.splitTextToSize(raw, contentW).slice(0, 5)
+  // Render the full summary — the bill summary IS the value of this PDF for
+  // a lobbyist, so we'd rather flow to a second page than cut a sentence.
+  // checkPageBreak handles graceful overflow per line.
+  const lines = doc.splitTextToSize(raw, contentW)
   lines.forEach(line => {
     cy = checkPageBreak(doc, cy, 4, ph)
     doc.text(line, m, cy)
