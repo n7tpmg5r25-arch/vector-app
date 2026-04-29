@@ -40,7 +40,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* iOS Add-to-Home-Screen icon. iOS 14+ supports SVG here; older iOS
+            versions fall back to favicon. The SVG is the same square mark
+            referenced by manifest.json (PWA install icon) so iOS + Android +
+            desktop home-screen icons all match. */}
+        <link rel="apple-touch-icon" href="/logos/vector-wa-app-icon.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logos/vector-wa-app-icon.svg" type="image/svg+xml" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body style={{ backgroundColor: '#0e1014' }}>
