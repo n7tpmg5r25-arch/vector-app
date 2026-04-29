@@ -14,6 +14,7 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
+import DropdownMenu from '../components/DropdownMenu'
 
 import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
@@ -215,21 +216,21 @@ export default function OutcomesPage() {
             <button key={c} onClick={() => setChamber(c)} style={chip(chamber === c)}>{c}</button>
           ))}
           <span style={{ width: 1, background: 'var(--border)', flexShrink: 0 }}/>
-          <select
+          <DropdownMenu
             value={category}
-            onChange={e => setCategory(e.target.value)}
-            style={{
-              padding: '5px 8px', borderRadius: 16, fontSize: 11,
+            onChange={v => setCategory(v)}
+            options={CATEGORIES.map(c => ({ value: c, label: c }))}
+            ariaLabel="Filter by category"
+            triggerStyle={{
+              padding: '5px 24px 5px 10px',
+              borderRadius: 16,
+              fontSize: 11,
               background: category !== 'All' ? 'var(--bg-surface)' : 'transparent',
               color: category !== 'All' ? 'var(--text-primary)' : 'var(--text-muted)',
               border: `1px solid ${category !== 'All' ? 'var(--border-light)' : 'var(--border)'}`,
-              cursor: 'pointer', appearance: 'none', paddingRight: 20,
-              backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'10\' height=\'6\' viewBox=\'0 0 10 6\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23666\' stroke-width=\'1.5\' fill=\'none\'/%3E%3C/svg%3E")',
-              backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center',
+              minHeight: 26,
             }}
-          >
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          />
         </div>
 
         {/* Sort controls */}

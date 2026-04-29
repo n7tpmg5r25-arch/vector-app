@@ -11,6 +11,7 @@ import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import CohortCitation from '../components/CohortCitation'
+import DropdownMenu from '../components/DropdownMenu'
 
 import { CATEGORIES } from '../../lib/categories'
 const STAGES = [
@@ -320,21 +321,33 @@ function SearchContent() {
 
         {/* Filters */}
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          <select value={chamber} onChange={e => setChamber(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, color: 'var(--text-mid)', flexShrink: 0 }}>
-            <option>All</option><option>House</option><option>Senate</option>
-          </select>
-          <select value={stage} onChange={e => setStage(Number(e.target.value))}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, color: 'var(--text-mid)', flexShrink: 0 }}>
-            {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, color: 'var(--text-mid)', flexShrink: 0 }}>
-            <option value="score">Top Score</option>
-            <option value="number">Bill #</option>
-            <option value="action">Recent</option>
-            <option value="movers">{isInterimPeriod() ? 'Movers (recent)' : 'Movers (last 7 days)'}</option>
-          </select>
+          <DropdownMenu
+            value={chamber}
+            onChange={v => setChamber(v)}
+            options={[
+              { value: 'All', label: 'All' },
+              { value: 'House', label: 'House' },
+              { value: 'Senate', label: 'Senate' },
+            ]}
+            ariaLabel="Filter by chamber"
+          />
+          <DropdownMenu
+            value={stage}
+            onChange={v => setStage(Number(v))}
+            options={STAGES.map(s => ({ value: s.value, label: s.label }))}
+            ariaLabel="Filter by stage"
+          />
+          <DropdownMenu
+            value={sortBy}
+            onChange={v => setSortBy(v)}
+            options={[
+              { value: 'score', label: 'Top Score' },
+              { value: 'number', label: 'Bill #' },
+              { value: 'action', label: 'Recent' },
+              { value: 'movers', label: isInterimPeriod() ? 'Movers (recent)' : 'Movers (last 7 days)' },
+            ]}
+            ariaLabel="Sort results"
+          />
         </div>
 
         {/* Outcome filter chips — interim only (replaces Outcomes page in nav) */}
