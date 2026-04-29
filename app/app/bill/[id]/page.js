@@ -699,16 +699,14 @@ export default function BillDetailPage() {
     setExporting(true)
     try {
       const { generatePublicBriefPDF } = await import('../../../lib/generate-public-pdf')
-      const recentRollCall = (rollCalls && rollCalls.length > 0) ? rollCalls[0] : null
-      const recentBuckets  = recentRollCall ? (partyBucketsByRcId?.[recentRollCall.id] || null) : null
       await generatePublicBriefPDF({
         bill,
-        scoreFeatures:    latestSnap?.xf_factors || [],
-        recentRollCall,
-        partyBuckets:     recentBuckets,
-        recentAmendments: amendments || [],
-        fiscalNote:       (fiscalHistory && fiscalHistory.length > 0) ? fiscalHistory[0] : null,
-        generatedAt:      new Date(),
+        scoreFeatures:      latestSnap?.xf_factors || [],
+        rollCalls:          rollCalls || [],
+        partyBucketsByRcId: partyBucketsByRcId || {},
+        recentAmendments:   amendments || [],
+        fiscalNote:         (fiscalHistory && fiscalHistory.length > 0) ? fiscalHistory[0] : null,
+        generatedAt:        new Date(),
       })
     } catch (err) {
       console.error('Public PDF export failed:', err)

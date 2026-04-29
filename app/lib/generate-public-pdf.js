@@ -20,7 +20,14 @@
  */
 
 import jsPDF from 'jspdf'
-import { formatSessionDate } from './session-config'
+import {
+  formatSessionDate,
+  isInterimPeriod,
+  getCurrentBiennium,
+  getNextBiennium,
+  getSessionCutoffs,
+  daysUntil,
+} from './session-config'
 import {
   VECTOR_PUBLIC_PALETTE,
   TIER_HIGH, TIER_MODERATE, TIER_LOW,
@@ -38,11 +45,71 @@ const P = VECTOR_PUBLIC_PALETTE
 const VECTOR_DOMAIN = 'vectorwa' + '.' + 'com'
 const VECTOR_BASE_URL = 'https://' + VECTOR_DOMAIN
 
+// Party indicator colors — match the bill detail page's prime-sponsor dot.
+const PARTY_COLOR = {
+  D: [77, 154, 255],
+  R: [239, 68, 68],
+  I: [138, 128, 112],
+  L: [138, 128, 112],
+}
+
+// Sponsor-tier copy (matches bill page line 2330)
+const SPONSOR_TIER_LABEL = { 1: 'Leadership', 2: 'Senior', 3: 'Member' }
+
 // ── Display helpers ─────────────────────────────────────────────
 
 function billLabel(bill) {
   const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
   return prefix + ' ' + (bill.bill_number || '')
+}
+
+/** Strip markdown headers + collapse whitespace from an AI summary. Mirrors
+ *  the firm-brief sanitization (generate-pdf.js line 437). */
+function cleanSummary(raw) {
+  if (!raw) return ''
+  return String(raw)
+    .split('\n')
+    .filter(line => !line.trim().startsWith('#'))
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/** Compose the interim/session context strip that sits under the logo. */
+function getSessionContextLine() {
+  const interim  = isInterimPeriod()
+  const biennium = getCurrentBiennium()
+  if (interim) {
+    const next = getNextBiennium()
+    const ended = formatSessionDate(biennium.end)
+    const safeEnded = (ended && ended !== 'session dates TBD') ? ended : null
+    const parts = []
+    if (safeEnded) parts.push('Session ended ' + safeEnded)
+    parts.push('Outcomes final')
+    if (next.start) {
+      const startLbl = formatSessionDate(next.start)
+      const days = daysUntil(next.start)
+      if (startLbl && startLbl !== 'session dates TBD') {
+        parts.push('Next session ' + startLbl + (days > 0 ? ' (' + days + ' days)' : ''))
+      }
+    }
+    return parts.join('  ·  ')
+  }
+  // Active session
+  let dayOfSession = null
+  try {
+    const start = new Date(biennium.start)
+    const now   = new Date()
+    dayOfSession = Math.ceil((now - start) / 86400000) + 1
+  } catch (e) {}
+  const cutoffs = getSessionCutoffs().filter(c => !c.passed).slice(0, 1)
+  const parts = []
+  if (dayOfSession) parts.push('Day ' + dayOfSession + ' of session')
+  if (cutoffs.length > 0) {
+    const c = cutoffs[0]
+    parts.push(c.label + ': ' + formatSessionDate(c.date) + ' (' + c.daysLeft + ' days)')
+  }
+  return parts.join('  ·  ')
 }
 
 function getBillTitle(bill) {
@@ -124,10 +191,11 @@ function companionStateLabel(state) {
  */
 async function drawHeaderBand(doc, y, m, contentW, pw, generatedAt) {
   // Official primary SVG ships at app/public/logos/vector-wa-primary.svg —
-  // browsers can rasterize SVGs through <img> + canvas, no extra deps.
-  // SVG aspect ratio 895/500 = 1.79.
-  const logoH = 14
-  const logoW = logoH * (895 / 500)  // ~25.06mm
+  // browsers rasterize SVGs through <img> + canvas, no extra deps.
+  // SVG aspect ratio 895/500 = 1.79. Bumped from 14mm to 22mm so the
+  // wordmark below the gold arc is legible (Thread 32 first-preview fix).
+  const logoH = 22
+  const logoW = logoH * (895 / 500)  // ~39.4mm
 
   let logoDrawn = false
   try {
@@ -143,27 +211,36 @@ async function drawHeaderBand(doc, y, m, contentW, pw, generatedAt) {
   if (!logoDrawn) {
     // Text fallback — only renders if the SVG couldn't load
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(14)
+    doc.setFontSize(18)
     doc.setTextColor(...P.primary)
-    doc.text('VECTOR | WA', m, y + 8)
+    doc.text('VECTOR | WA', m, y + 12)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
+    doc.setFontSize(8)
     doc.setTextColor(...P.muted)
-    doc.text('WASHINGTON STATE LEGISLATIVE INTELLIGENCE', m, y + 12.5)
+    doc.text('WASHINGTON STATE LEGISLATIVE INTELLIGENCE', m, y + 18)
   }
 
   // Right side: domain + generated timestamp
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(10)
   doc.setTextColor(...P.accent)
-  doc.text(VECTOR_DOMAIN, pw - m, y + 5, { align: 'right' })
+  doc.text(VECTOR_DOMAIN, pw - m, y + 6, { align: 'right' })
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
+  doc.setFontSize(7.5)
   doc.setTextColor(...P.muted)
   const stamp = generatedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) +
     ' · ' + generatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  doc.text('Generated ' + stamp, pw - m, y + 9.5, { align: 'right' })
+  doc.text('Generated ' + stamp, pw - m, y + 11, { align: 'right' })
+
+  // Session context strip — interim or active-session aware
+  const ctxLine = getSessionContextLine()
+  if (ctxLine) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.muted)
+    doc.text(ctxLine, pw - m, y + 16.5, { align: 'right' })
+  }
 
   // Thin separator under header
   doc.setDrawColor(...P.neutralLt)
@@ -196,30 +273,28 @@ function drawIdentityStrip(doc, y, m, contentW, bill) {
 
   let cy = y + 4 + Math.max(titleLines.length, 1) * 4.5 + 1
 
-  // Meta row: category · session · sponsor (with optional party dot)
+  // Meta row: category · session · sponsor (with optional party dot trailing)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(...P.muted)
   const metaParts = []
   if (bill.category) metaParts.push(bill.category)
   if (bill.session)  metaParts.push(bill.session)
-  if (bill.prime_sponsor) {
-    // Party dot only renders if bill.prime_sponsor_party is populated.
-    // Today the bill row doesn't carry sponsor party — graceful skip.
-    metaParts.push('Sponsor: ' + bill.prime_sponsor)
-  }
-  doc.text(metaParts.join('  ·  '), m, cy + 1)
+  if (bill.prime_sponsor) metaParts.push('Sponsor: ' + bill.prime_sponsor)
+  const metaLine = metaParts.join('  ·  ')
+  doc.text(metaLine, m, cy + 1)
 
-  // Optional party dot
-  if (bill.prime_sponsor && bill.prime_sponsor_party) {
-    const dotColor = bill.prime_sponsor_party === 'D' ? [77, 154, 255]
-                   : bill.prime_sponsor_party === 'R' ? [255, 105, 97]
-                   : [138, 128, 112]
-    // Calculate where "Sponsor: NAME" sits to draw a dot to its right
-    const sponsorTxt = 'Sponsor: ' + bill.prime_sponsor
-    const fullW = doc.getTextWidth(metaParts.join('  ·  '))
-    doc.setFillColor(...dotColor)
-    doc.circle(m + fullW + 2, cy + 0.2, 1.1, 'F')
+  // Optional party dot — bill.prime_party is the canonical column on the
+  // bills row (carries 'D'/'R'/'I'). Drawn just after the sponsor name.
+  const partyChar = (bill.prime_party || '').charAt(0).toUpperCase()
+  if (bill.prime_sponsor && PARTY_COLOR[partyChar]) {
+    const fullW = doc.getTextWidth(metaLine)
+    doc.setFillColor(...PARTY_COLOR[partyChar])
+    doc.circle(m + fullW + 2.4, cy - 0.3, 1.1, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(...PARTY_COLOR[partyChar])
+    doc.text('(' + partyChar + ')', m + fullW + 4, cy + 1)
   }
 
   return cy + 5
@@ -231,11 +306,31 @@ function drawIdentityStrip(doc, y, m, contentW, bill) {
 function drawStatusPill(doc, y, m, contentW, bill) {
   const stageLine = getStagePlainText(bill)
   const dateLbl   = getRecentActionDate(bill)
-  // Terminal bills (LAW/DEAD/PASSED_CHAMBER) have a complete stage sentence;
-  // appending a date reads as repetitive. Active bills get the date suffix.
   const cl = (bill.confidence_label || '').toUpperCase()
   const isTerminal = cl === 'LAW' || cl === 'DEAD' || cl === 'PASSED_CHAMBER'
-  const text = (isTerminal || !dateLbl) ? stageLine : stageLine + ' — ' + dateLbl
+  const interim    = isInterimPeriod()
+
+  // Build the right-side detail string differently per state:
+  //  - Terminal bills: just the stage sentence (it's already complete).
+  //  - Active during session: append hearing date or cutoff days when known.
+  //  - Active during interim: append the recent-action date if we have one.
+  let text = stageLine
+  if (!isTerminal) {
+    const tail = []
+    if (!interim) {
+      if (bill.hearing_date) {
+        try {
+          const h = new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          tail.push('Hearing ' + h)
+        } catch (e) {}
+      } else if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0) {
+        tail.push(bill.days_to_cutoff + ' days to cutoff')
+      }
+    } else if (dateLbl) {
+      tail.push(dateLbl)
+    }
+    if (tail.length) text = stageLine + '  ·  ' + tail.join('  ·  ')
+  }
 
   doc.setFillColor(...P.surface)
   doc.setDrawColor(...P.neutralLt)
@@ -304,6 +399,43 @@ function drawScoreBox(doc, y, m, contentW, bill) {
   lines.slice(0, 3).forEach((line, i) => doc.text(line, txtX, y + 13 + i * 4.2))
 
   return y + boxH + 5
+}
+
+/**
+ * NEW Section — "What the bill does." Plain-English summary from the bill's
+ * AI-generated (or operator-edited) summary column. Truncated to ~5 lines so
+ * it stays compact. Skipped entirely when no summary exists.
+ *
+ * Brand §14/§17 — AI-generated content must be labeled. We carry that label
+ * forward from the firm brief.
+ */
+function drawAISummary(doc, y, m, contentW, bill, ph) {
+  const raw = cleanSummary(bill.custom_summary || bill.ai_summary || '')
+  if (!raw) return y
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.muted)
+  doc.text('WHAT THE BILL DOES', m, y)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6)
+  doc.setTextColor(...P.accent)
+  const aiLabel = bill.custom_summary ? 'AI-GENERATED · EDITED' : 'AI-GENERATED'
+  const labelW = doc.getTextWidth('WHAT THE BILL DOES')
+  doc.text(aiLabel, m + labelW + 4, y)
+
+  let cy = y + 4
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.primary)
+  const lines = doc.splitTextToSize(raw, contentW).slice(0, 5)
+  lines.forEach(line => {
+    cy = checkPageBreak(doc, cy, 4, ph)
+    doc.text(line, m, cy)
+    cy += 4
+  })
+  return cy + 3
 }
 
 /**
@@ -382,33 +514,54 @@ function drawXFactorStrip(doc, y, m, contentW, scoreFeatures) {
  */
 function drawSponsorAndCommittee(doc, y, m, contentW, bill) {
   const colW = (contentW - 6) / 2
+  const cardH = 22
 
-  // Left card — Sponsor
+  // ── Left card — Sponsor ────────────────────────────────────────
   doc.setFillColor(...P.surface)
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.2)
-  doc.roundedRect(m, y, colW, 16, 1.5, 1.5, 'FD')
+  doc.roundedRect(m, y, colW, cardH, 1.5, 1.5, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
   doc.text('PRIME SPONSOR', m + 4, y + 5)
 
+  // Name (bold) + party-letter in colored parens
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(10)
   doc.setTextColor(...P.primary)
-  doc.text(bill.prime_sponsor || '—', m + 4, y + 10)
+  const nameTxt = bill.prime_sponsor || '—'
+  doc.text(nameTxt, m + 4, y + 10.5)
+  const nameW = doc.getTextWidth(nameTxt)
+  const partyChar = (bill.prime_party || '').charAt(0).toUpperCase()
+  if (PARTY_COLOR[partyChar]) {
+    doc.setFontSize(9)
+    doc.setTextColor(...PARTY_COLOR[partyChar])
+    doc.text(' (' + partyChar + ')', m + 4 + nameW, y + 10.5)
+  }
 
+  // Chamber + sponsor tier
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(...P.muted)
-  doc.text(bill.chamber || '', m + 4, y + 14)
+  const tierLbl = SPONSOR_TIER_LABEL[bill.sponsor_tier]
+  const sponsorMeta = [bill.chamber || '', tierLbl].filter(Boolean).join('  ·  ')
+  if (sponsorMeta) doc.text(sponsorMeta, m + 4, y + 14.5)
 
-  // Right card — Committee
+  // Cosponsor count + bipartisan flag
+  const cosponsorN = bill.cosponsor_count || 0
+  const sponsorFoot = []
+  if (cosponsorN > 0) sponsorFoot.push(cosponsorN + ' cosponsor' + (cosponsorN !== 1 ? 's' : ''))
+  if (bill.bipartisan) sponsorFoot.push('Bipartisan')
+  else if (cosponsorN > 0) sponsorFoot.push('Single party')
+  if (sponsorFoot.length) doc.text(sponsorFoot.join('  ·  '), m + 4, y + 18.5)
+
+  // ── Right card — Committee ─────────────────────────────────────
   const rightX = m + colW + 6
   doc.setFillColor(...P.surface)
   doc.setDrawColor(...P.neutralLt)
-  doc.roundedRect(rightX, y, colW, 16, 1.5, 1.5, 'FD')
+  doc.roundedRect(rightX, y, colW, cardH, 1.5, 1.5, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
@@ -416,80 +569,120 @@ function drawSponsorAndCommittee(doc, y, m, contentW, bill) {
   doc.text('COMMITTEE', rightX + 4, y + 5)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(10)
   doc.setTextColor(...P.primary)
   const cmteTxt = bill.committee_name || 'No committee assigned'
-  doc.text(doc.splitTextToSize(cmteTxt, colW - 8)[0] || cmteTxt, rightX + 4, y + 10)
+  doc.text(doc.splitTextToSize(cmteTxt, colW - 8)[0] || cmteTxt, rightX + 4, y + 10.5)
 
+  // Sponsor-is-chair indicator (when applicable)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  if (bill.is_committee_chair) {
+    doc.setTextColor(...P.accent)
+    doc.text('Sponsor is committee chair', rightX + 4, y + 14.5)
+  } else if (bill.chair_alignment) {
+    doc.setTextColor(...P.muted)
+    doc.text('Chair alignment: ' + bill.chair_alignment, rightX + 4, y + 14.5)
+  }
+
+  // Hearing date
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(...P.muted)
-  let footRight = ''
+  let hearingTxt = 'No hearing scheduled'
   if (bill.hearing_date) {
-    try { footRight = 'Hearing ' + formatSessionDate(bill.hearing_date) } catch (e) { footRight = 'Hearing scheduled' }
-  } else {
-    footRight = 'No hearing scheduled'
+    try { hearingTxt = 'Hearing ' + new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) } catch (e) {}
   }
-  doc.text(footRight, rightX + 4, y + 14)
+  doc.text(hearingTxt, rightX + 4, y + 18.5)
 
-  return y + 16 + 4
+  return y + cardH + 4
 }
 
 /**
- * Section 8 — Recent floor vote (if any).
- * Pass null/undefined to gracefully omit.
+ * Section 8 — Floor votes (multi-chamber). Shows the latest vote per chamber
+ * (House and Senate) when both exist, so a 2-chamber bill gets the full
+ * cross-chamber story instead of just the most recent half.
+ *
+ * Accepts `rollCalls` array (page-level state) + `partyBucketsByRcId` map.
+ * Falls back to `recentRollCall` + `partyBuckets` when only the singular
+ * inputs are provided (backwards-compat with the consumer).
  */
-function drawRecentVote(doc, y, m, contentW, recentRollCall, partyBuckets) {
-  if (!recentRollCall) return y
-  const rc = recentRollCall
+function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, fallbackSingle, fallbackBuckets, ph) {
+  // Build a per-chamber latest-vote map. If the array is missing, fall back
+  // to a single recentRollCall (legacy contract).
+  let votes = []
+  if (Array.isArray(rollCalls) && rollCalls.length > 0) {
+    const byChamber = {}
+    rollCalls.forEach(rc => {
+      const ch = rc.chamber || 'Unknown'
+      const prev = byChamber[ch]
+      const newer = !prev || (rc.vote_date && (!prev.vote_date || rc.vote_date > prev.vote_date))
+      if (newer) byChamber[ch] = rc
+    })
+    // Stable order: House, Senate, then anything else
+    if (byChamber.House)  votes.push(byChamber.House)
+    if (byChamber.Senate) votes.push(byChamber.Senate)
+    Object.keys(byChamber).forEach(k => {
+      if (k !== 'House' && k !== 'Senate') votes.push(byChamber[k])
+    })
+  } else if (fallbackSingle) {
+    votes = [fallbackSingle]
+  }
+  if (votes.length === 0) return y
+
+  y = checkPageBreak(doc, y, 6 + votes.length * 14, ph)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
-  doc.text('LATEST FLOOR VOTE', m, y)
+  doc.text(votes.length > 1 ? 'FLOOR VOTES' : 'LATEST FLOOR VOTE', m, y)
   let cy = y + 4
 
-  doc.setFillColor(...P.surface)
-  doc.setDrawColor(...P.neutralLt)
-  doc.setLineWidth(0.2)
-  doc.roundedRect(m, cy, contentW, 12, 1.5, 1.5, 'FD')
+  votes.forEach(rc => {
+    doc.setFillColor(...P.surface)
+    doc.setDrawColor(...P.neutralLt)
+    doc.setLineWidth(0.2)
+    doc.roundedRect(m, cy, contentW, 12, 1.5, 1.5, 'FD')
 
-  // Chamber + date
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(...P.primary)
-  let dateLbl = ''
-  try { dateLbl = formatSessionDate(rc.vote_date) } catch (e) {}
-  doc.text((rc.chamber || '') + ' · ' + dateLbl, m + 4, cy + 4.5)
+    // Chamber + date
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.primary)
+    let dateLbl = ''
+    try { dateLbl = formatSessionDate(rc.vote_date) } catch (e) {}
+    if (dateLbl === 'session dates TBD') dateLbl = ''
+    doc.text((rc.chamber || '') + (dateLbl ? '  ·  ' + dateLbl : ''), m + 4, cy + 4.5)
 
-  // Tally
-  const passed = (rc.result || '').toLowerCase() === 'passed'
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(...(passed ? P.accent : P.danger))
-  const tally = (rc.yeas || 0) + ' yea  /  ' + (rc.nays || 0) + ' nay'
-  doc.text(tally, m + 4, cy + 9.5)
+    // Tally
+    const passed = (rc.result || '').toLowerCase() === 'passed'
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(...(passed ? P.accent : P.danger))
+    const tally = (rc.yeas || 0) + ' yea  /  ' + (rc.nays || 0) + ' nay'
+    doc.text(tally, m + 4, cy + 9.5)
 
-  // Verdict text
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(...P.muted)
-  const verdict = passed ? 'Passed' : 'Failed'
-  doc.text(verdict, m + contentW - 4, cy + 9.5, { align: 'right' })
+    // Verdict (right-aligned)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.muted)
+    doc.text(passed ? 'Passed' : 'Failed', m + contentW - 4, cy + 9.5, { align: 'right' })
 
-  // Party split if available
-  if (partyBuckets) {
-    const pb = partyBuckets
-    const parts = []
-    if (pb.yesD || pb.noD) parts.push('D ' + (pb.yesD || 0) + '-' + (pb.noD || 0))
-    if (pb.yesR || pb.noR) parts.push('R ' + (pb.yesR || 0) + '-' + (pb.noR || 0))
-    if (parts.length > 0) {
-      doc.setFontSize(7)
-      doc.text(parts.join('  ·  '), m + contentW - 4, cy + 4.5, { align: 'right' })
+    // Party split — top-right of card
+    const pb = (partyBucketsByRcId && rc.id && partyBucketsByRcId[rc.id]) || (rollCalls === null && fallbackBuckets) || null
+    if (pb) {
+      const parts = []
+      if ((pb.yesD || 0) + (pb.noD || 0) > 0) parts.push('D ' + (pb.yesD || 0) + '-' + (pb.noD || 0))
+      if ((pb.yesR || 0) + (pb.noR || 0) > 0) parts.push('R ' + (pb.yesR || 0) + '-' + (pb.noR || 0))
+      if (parts.length > 0) {
+        doc.setFontSize(7)
+        doc.text(parts.join('  ·  '), m + contentW - 4, cy + 4.5, { align: 'right' })
+      }
     }
-  }
 
-  return cy + 12 + 4
+    cy += 14
+  })
+
+  return cy + 1
 }
 
 /**
@@ -526,6 +719,94 @@ function drawRecentAmendments(doc, y, m, contentW, recentAmendments, ph) {
     cy += 4.5
   })
 
+  return cy + 3
+}
+
+/**
+ * NEW Section — Political dynamics one-liner. Combines bipartisan_index,
+ * chair_alignment, sponsor_track_record, cross_aisle_count into a single
+ * sentence. Mirrors the on-page Political Dynamics block (page.js:1829).
+ * Returns y unchanged when none of the columns are populated.
+ */
+function drawPoliticalDynamics(doc, y, m, contentW, bill, ph) {
+  const parts = []
+  if (bill.bipartisan_index != null) {
+    const pct = Math.round(Number(bill.bipartisan_index) * 100)
+    parts.push(pct + '% bipartisan support')
+  } else if (bill.cross_aisle_count > 0) {
+    parts.push(bill.cross_aisle_count + ' opposing-party cosponsor' + (bill.cross_aisle_count !== 1 ? 's' : ''))
+  }
+  if (bill.chair_alignment) {
+    parts.push('Chair alignment: ' + bill.chair_alignment)
+  }
+  if (bill.sponsor_track_record != null) {
+    const pct = Math.round(Number(bill.sponsor_track_record) * 100)
+    parts.push("Sponsor's historical pass rate: " + pct + '%')
+  }
+  if (parts.length === 0) return y
+  y = checkPageBreak(doc, y, 8, ph)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.muted)
+  doc.text('POLITICAL DYNAMICS', m, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.primary)
+  // Wrap if longer than one line
+  const sentence = parts.join('  ·  ')
+  const wrapped = doc.splitTextToSize(sentence, contentW).slice(0, 2)
+  let cy = y + 4
+  wrapped.forEach(line => {
+    doc.text(line, m, cy)
+    cy += 4
+  })
+  return cy + 2
+}
+
+/**
+ * NEW Section — What to Watch. Active-session only (skipped for terminal
+ * bills and during interim). Bullets the imminent dates a lobbyist needs:
+ * next hearing, days to cutoff, calendar pressure for the assigned committee.
+ */
+function drawWhatToWatch(doc, y, m, contentW, bill, ph) {
+  const cl = (bill.confidence_label || '').toUpperCase()
+  const isTerminal = cl === 'LAW' || cl === 'DEAD' || cl === 'PASSED_CHAMBER'
+  if (isTerminal || isInterimPeriod()) return y
+
+  const items = []
+  if (bill.hearing_date) {
+    try {
+      const h = new Date(bill.hearing_date)
+      const days = Math.ceil((h - new Date()) / 86400000)
+      const lbl = h.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      items.push('Next hearing: ' + lbl + (days > 0 ? ' (' + days + ' days)' : ''))
+    } catch (e) {}
+  }
+  if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0 && bill.days_to_cutoff <= 21) {
+    items.push('Cutoff in ' + bill.days_to_cutoff + ' day' + (bill.days_to_cutoff !== 1 ? 's' : ''))
+  }
+  if (bill.calendar_pressure != null && bill.calendar_pressure >= 20) {
+    items.push(bill.calendar_pressure + ' agenda items competing this week')
+  }
+  if (items.length === 0) return y
+
+  y = checkPageBreak(doc, y, 6 + items.length * 4.5, ph)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.muted)
+  doc.text('WHAT TO WATCH', m, y)
+  let cy = y + 4
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.primary)
+  items.forEach(item => {
+    doc.text('· ' + item, m, cy + 3)
+    cy += 4.5
+  })
   return cy + 3
 }
 
@@ -614,8 +895,13 @@ function drawFooter(doc, ph, m, pw, bill, generatedAt) {
  * @param {Object} input
  * @param {Object} input.bill                Bills row from Supabase.
  * @param {Array<{l,d,pos}>} [input.scoreFeatures]  latestSnap.xf_factors.
- * @param {Object} [input.recentRollCall]    Most recent floor vote row.
- * @param {Object} [input.partyBuckets]      Optional party split for the vote.
+ * @param {Array}  [input.rollCalls]         Full roll-calls array; PDF picks
+ *                                           the latest per chamber.
+ * @param {Object} [input.partyBucketsByRcId] Map id -> {yesD,yesR,noD,noR,...}.
+ * @param {Object} [input.recentRollCall]    Legacy single-vote shortcut;
+ *                                           overridden by rollCalls when set.
+ * @param {Object} [input.partyBuckets]      Legacy single-bucket companion
+ *                                           to recentRollCall.
  * @param {Array}  [input.recentAmendments]  Last 3-5 amendments.
  * @param {Object} [input.companion]         Reserved for future companion data.
  * @param {Object} [input.fiscalNote]        Reserved for richer fiscal data.
@@ -625,6 +911,8 @@ function drawFooter(doc, ph, m, pw, bill, generatedAt) {
 export async function generatePublicBriefPDF({
   bill,
   scoreFeatures = [],
+  rollCalls = null,
+  partyBucketsByRcId = null,
   recentRollCall = null,
   partyBuckets = null,
   recentAmendments = [],
@@ -641,26 +929,35 @@ export async function generatePublicBriefPDF({
   const contentW = pw - 2 * m
   let y = 16
 
-  // Section 1 — Header band (async; rasterizes the official SVG logo)
+  // Section 1 — Header band (async; rasterizes the official SVG logo +
+  // appends the interim/session context strip)
   y = await drawHeaderBand(doc, y, m, contentW, pw, generatedAt)
 
-  // Section 2 — Bill identity strip
+  // Section 2 — Bill identity strip (with party dot when available)
   y = drawIdentityStrip(doc, y, m, contentW, bill)
 
-  // Section 3 — Status pill
+  // Section 3 — Status pill (interim/session aware for active bills)
   y = drawStatusPill(doc, y, m, contentW, bill)
 
   // Section 4 — Trajectory score box
   y = drawScoreBox(doc, y, m, contentW, bill)
 
+  // NEW Section — What the bill does (AI summary, biggest content fix from
+  // Thread 32 first-preview lobbyist review)
+  y = drawAISummary(doc, y, m, contentW, bill, ph)
+
   // Section 5 — Top X-Factors strip
   y = drawXFactorStrip(doc, y, m, contentW, scoreFeatures)
 
-  // Section 6+7 — Sponsor + Committee mini-cards
+  // Section 6+7 — Sponsor + Committee mini-cards (party, tier, bipartisan,
+  // chair indicator, hearing date)
   y = drawSponsorAndCommittee(doc, y, m, contentW, bill)
 
-  // Section 8 — Recent floor vote (if any)
-  y = drawRecentVote(doc, y, m, contentW, recentRollCall, partyBuckets)
+  // Section 8 — Floor votes (multi-chamber when available)
+  y = drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, recentRollCall, partyBuckets, ph)
+
+  // NEW Section — Political dynamics one-liner
+  y = drawPoliticalDynamics(doc, y, m, contentW, bill, ph)
 
   // Section 9 — Recent amendments (if any)
   y = drawRecentAmendments(doc, y, m, contentW, recentAmendments, ph)
@@ -670,6 +967,9 @@ export async function generatePublicBriefPDF({
 
   // Section 11 — Fiscal note (if available)
   y = drawFiscalNote(doc, y, m, contentW, fiscalNote, bill, ph)
+
+  // NEW Section — What to watch (active bills during session only)
+  y = drawWhatToWatch(doc, y, m, contentW, bill, ph)
 
   // Section 12 — Footer on every page
   const pageCount = doc.getNumberOfPages()
