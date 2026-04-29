@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Calendar } from 'lucide-react'
 import { createBrowserClient } from '../../lib/supabase'
 
 function fmtDayTime(dateStr, timeStr) {
@@ -93,7 +94,7 @@ export default function MeetingBadge({ billId, meeting: propMeeting, compact = f
       }}
       title={`${meeting.meeting_type || 'Meeting'} — ${cmte} (${meeting.chamber}${meeting.is_joint ? ', Joint' : ''})`}
     >
-      📅 Hearing {label} — {cmteShort}
+      <Calendar size={compact ? 9 : 10} aria-hidden="true" /> Hearing {label} — {cmteShort}
     </span>
   )
 }

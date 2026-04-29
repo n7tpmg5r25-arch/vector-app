@@ -55,6 +55,7 @@ import {
 } from '../../lib/session-config'
 import { deltaToEnglish } from '../../lib/score-to-english'
 import ScoreBadge from './ScoreBadge'
+import VectorLoader from './VectorLoader'
 import { STAGE_SHORT } from '../../lib/stages'
 
 function deltaColor(delta) {
@@ -220,17 +221,7 @@ export default function BillsMovingWidget() {
   }, [supabase, interim])
 
   if (loading) {
-    return (
-      <div style={{
-        padding: 24,
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-        fontFamily: 'var(--font-body)',
-        fontSize: 13,
-      }}>
-        Loading...
-      </div>
-    )
+    return <VectorLoader label={interim ? 'Loading session snapshot' : 'Loading movers'} size="sm" />
   }
 
   return interim ? (

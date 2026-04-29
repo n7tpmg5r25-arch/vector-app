@@ -56,6 +56,7 @@ export default function PublicNav() {
 
         <Link
           href="/login"
+          className="vec-cta-primary"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -68,7 +69,6 @@ export default function PublicNav() {
             border: '1px solid var(--teal)',
             borderRadius: 6,
             textDecoration: 'none',
-            transition: 'background 0.15s, border-color 0.15s',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--teal-bright)'

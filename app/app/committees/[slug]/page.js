@@ -17,6 +17,8 @@ import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate
 import Nav from '../../components/Nav'
 import PublicNav from '../../components/PublicNav'
 import ScoreBadge from '../../components/ScoreBadge'
+import VectorLoader from '../../components/VectorLoader'
+import { Check, Bell } from 'lucide-react'
 
 function fmtTime(t) {
   if (!t) return ''
@@ -226,7 +228,9 @@ export default function CommitteeDetail() {
                     textTransform: 'uppercase',
                   }}
                 >
-                  ✓ Following
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Check size={11} aria-hidden="true" strokeWidth={3} /> Following
+                  </span>
                 </button>
                 <button
                   onClick={handleToggleAlerts}
@@ -244,7 +248,9 @@ export default function CommitteeDetail() {
                     textTransform: 'uppercase',
                   }}
                 >
-                  🔔 Alerts: {follow.alerts_enabled ? 'On' : 'Off'}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Bell size={11} aria-hidden="true" /> Alerts: {follow.alerts_enabled ? 'On' : 'Off'}
+                  </span>
                 </button>
               </>
             )}
@@ -253,7 +259,7 @@ export default function CommitteeDetail() {
       </div>
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading…</div>
+        <VectorLoader label="Loading committee" />
       ) : (
         <>
 
@@ -317,7 +323,7 @@ export default function CommitteeDetail() {
           {/* SECTION 2 — BILLS IN THIS COMMITTEE */}
           <Section title="Bills in Committee" subtitle={`${bills.length} bills · click to open`}>
             {bills.length === 0 ? (
-              <EmptyCard>No bills currently assigned to this committee.</EmptyCard>
+              <EmptyCard>No bills are currently in this committee. Activity will appear once bills get referred or scheduled here.</EmptyCard>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {bills.slice(0, 50).map(b => (
@@ -336,7 +342,9 @@ export default function CommitteeDetail() {
                           {b.chamber === 'House' ? 'HB' : 'SB'} {b.bill_number}
                         </span>
                         {b.committee_passed && (
-                          <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>✓ CMTE PASS</span>
+                          <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS
+                          </span>
                         )}
                         {b.stalled && (
                           <span style={{ fontSize: 9, color: 'var(--danger)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>STALLED</span>

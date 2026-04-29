@@ -13,6 +13,8 @@ import ScoreBadge from '../components/ScoreBadge'
 import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
+import VectorLoader from '../components/VectorLoader'
+import { ArrowUpRight } from 'lucide-react'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
 // readout on the Overview tab. Mirrors the same filter pattern used in
@@ -491,7 +493,7 @@ function MembersContent() {
                       textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
                     }}
                   >
-                    leg.wa.gov ↗
+                    leg.wa.gov <ArrowUpRight size={10} aria-hidden="true" />
                   </a>
                 </div>
               </div>
@@ -853,7 +855,7 @@ function MembersContent() {
               </div>
 
               {billsLoading ? (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading...</div>
+                <VectorLoader label="Loading sponsored bills" size="sm" />
               ) : memberBills.map((bill, idx) => (
                 <Link
                   key={bill.bill_id}

@@ -200,7 +200,7 @@ function LoginPageInner() {
                   borderRadius: 6,
                 }}>{error}</div>
               )}
-              <button type="submit" disabled={loading} style={buttonStyle(loading)}>
+              <button type="submit" disabled={loading} className="vec-cta-primary" style={buttonStyle(loading)}>
                 {loading ? 'Sending\u2026' : 'Send magic link'}
               </button>
             </form>

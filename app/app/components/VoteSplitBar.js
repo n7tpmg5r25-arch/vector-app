@@ -45,6 +45,7 @@
  *                  can share the same data.
  */
 import { useEffect, useMemo, useState } from 'react'
+import { Vote } from 'lucide-react'
 import { createBrowserClient } from '../../lib/supabase'
 import { formatSessionDate } from '../../lib/session-config'
 import {
@@ -241,7 +242,9 @@ export default function VoteSplitBar({ rollCalls, partyBuckets }) {
         background: 'var(--bg-card)', border: '1px solid var(--border)',
         borderRadius: 'var(--radius)', padding: '20px 16px', textAlign: 'center',
       }}>
-        <div style={{ fontSize: 26, marginBottom: 8, opacity: 0.5 }}>🗳️</div>
+        <div style={{ display: 'inline-flex', marginBottom: 8, color: 'var(--text-faint)', opacity: 0.6 }}>
+          <Vote size={26} aria-hidden="true" strokeWidth={1.5} />
+        </div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>
           No floor vote yet
         </div>
