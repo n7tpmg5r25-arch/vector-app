@@ -1,4 +1,5 @@
 import './globals.css'
+import { Analytics } from '@vercel/analytics/next'
 import RegisterSW from './components/RegisterSW'
 import Footer from './components/Footer'
 import SessionBanner from './components/SessionBanner'
@@ -59,6 +60,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             see nothing here so the existing authed Nav.js / portal segment
             chrome is not doubled. See app/app/components/PublicBottomNav.js. */}
         <PublicBottomNav />
+        {/* Vercel Analytics (2026-04-29) — first-party page-view tracking.
+            Privacy-friendly (no cookies, no PII). Free tier on Hobby plan
+            covers 2,500 events/month, ample headroom for pre-launch
+            traffic. Mounted last in <body> per Vercel docs to avoid
+            blocking page hydration. Pulls config from VERCEL_* env vars
+            automatically — no manual setup needed. */}
+        <Analytics />
       </body>
     </html>
   )
