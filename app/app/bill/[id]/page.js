@@ -842,11 +842,16 @@ export default function BillDetailPage() {
           ← Back
         </button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Thread 37: hide on phones <400px wide. Same legUrl
+              still renders in the bill metadata KV cell below, so
+              the link isn't lost — this only declutters the sticky
+              header on iPhone SE / Galaxy S8 / older Android. */}
           <a
             href={legUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
+            className="vec-hide-narrow"
             style={{
               padding: '7px 12px',
               background: 'transparent',

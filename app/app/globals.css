@@ -204,6 +204,21 @@ code, pre, .font-mono, [style*="font-mono"], [style*="--font-mono"] {
   font-feature-settings: 'tnum' 1, 'lnum' 1;
 }
 
+/* ── Thread 37 NARROW-PHONE FALLBACK ───────────────
+   Hide elements on phones narrower than 400px (iPhone SE 375px,
+   Galaxy S8 360px, older Android). Used by the bill-detail sticky
+   header to drop the redundant `leg.wa.gov` button when 5 buttons
+   would otherwise crowd into the right-side group. The same
+   leg.wa.gov link still renders in the bill metadata KV cell, so
+   nothing is lost.
+
+   Per CLAUDE.md "Mobile-only by design" rule: narrow-screen
+   `@media (max-width: 400px)` is permitted — the prohibition is
+   on desktop responsive `@media (min-width: 1024px)`. */
+@media (max-width: 400px) {
+  .vec-hide-narrow { display: none !important; }
+}
+
 /* Mobile-first: this app is intentionally mobile-only. Threads 7 + 8
    experimented with desktop responsive layouts (bottom-tab → top-bar
    nav swap, 2-col home grid, watchlist column-header strip, bill-detail
