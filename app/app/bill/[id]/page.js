@@ -817,10 +817,17 @@ export default function BillDetailPage() {
 
   // Phase 12 Batch 5: plain-English trajectory line for anon + owner alike.
   // Single source of truth is app/lib/score-to-english.js (v4.6 §14 voice).
+  // Thread 41: pass post-biennium-close + next-session so the PASSED_CHAMBER
+  // branch flips from "Carried over — Picks back up next session" (correct
+  // mid-biennium) to "Did not pass this biennium — Must be refiled in
+  // 2027-2028 to advance" (correct post-sine-die). Keeps this line in
+  // agreement with the orange banner above the chart (lines 997-1010).
   const trajectoryEnglish = scoreToEnglish({
     score: bill.final_score,
     stage: bill.stage,
     confidenceLabel: confLabel,
+    postBienniumClose: isPostBienniumClose(),
+    nextSession: getNextBiennium()?.session ?? null,
   })
 
   return (

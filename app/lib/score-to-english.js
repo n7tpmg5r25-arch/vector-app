@@ -30,12 +30,34 @@
  *   3. In-session score bands
  *
  * @param {object} args
- * @param {number|null} args.score            - final_score, 0-100
- * @param {number|null} args.stage            - stage, 1-6
- * @param {string|null} args.confidenceLabel  - 'LAW' | 'PASSED_CHAMBER' | 'DEAD' | HIGH/MODERATE/LOW/VERY LOW
+ * @param {number|null}  args.score              - final_score, 0-100
+ * @param {number|null}  args.stage              - stage, 1-6
+ * @param {string|null}  args.confidenceLabel    - 'LAW' | 'PASSED_CHAMBER' | 'DEAD' | HIGH/MODERATE/LOW/VERY LOW
+ * @param {boolean}      args.postBienniumClose  - Thread 41: when true, the
+ *                                                 PASSED_CHAMBER branch flips
+ *                                                 from intra-biennium "carries
+ *                                                 over" framing to post-close
+ *                                                 "must be refiled" framing.
+ *                                                 Caller passes the result of
+ *                                                 isPostBienniumClose() so the
+ *                                                 helper itself stays pure /
+ *                                                 framework-agnostic. Defaults
+ *                                                 to false so existing callers
+ *                                                 are unaffected.
+ * @param {string|null}  args.nextSession        - Thread 41: the next biennium
+ *                                                 session label (e.g. '2027-2028')
+ *                                                 used in the post-close qualifier.
+ *                                                 Falls back to "the next session"
+ *                                                 when null.
  * @returns {{ headline: string, qualifier: string }}
  */
-export function scoreToEnglish({ score, stage, confidenceLabel } = {}) {
+export function scoreToEnglish({
+  score,
+  stage,
+  confidenceLabel,
+  postBienniumClose = false,
+  nextSession = null,
+} = {}) {
   const cl = (confidenceLabel || '').toUpperCase()
   const s = typeof score === 'number' ? score : null
 
@@ -55,6 +77,17 @@ export function scoreToEnglish({ score, stage, confidenceLabel } = {}) {
   }
 
   if (cl === 'PASSED_CHAMBER') {
+    // Thread 41: post-biennium-close, "carries over" is wrong — the bill is
+    // dead and must be refiled as a new bill in the next biennium. The orange
+    // banner on bill/[id] (lines 997-1010) already gets this right; this
+    // branch keeps the trajectory line below the chart in agreement.
+    if (postBienniumClose) {
+      const refileWhere = nextSession ? `in ${nextSession}` : 'in the next session'
+      return {
+        headline: 'Did not pass this biennium',
+        qualifier: `Must be refiled ${refileWhere} to advance`,
+      }
+    }
     return {
       headline: 'Carried over',
       qualifier: 'Picks back up next session',
