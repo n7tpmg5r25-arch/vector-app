@@ -201,8 +201,15 @@ export default function PublicHome() {
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>
                 How did the {sessionShort} session end?
               </div>
+              {/* Thread 41.5: copy now matches the destination /outcomes
+                  page exact labels (Signed / Passed Chamber / Dead). The
+                  prior "what carried over" framing was misleading post-
+                  biennium-close (nothing actually carries over to the
+                  next biennium) and inconsistent with the destination
+                  page's "Passed Chamber - did not become law this
+                  session" tooltip. */}
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
-                {'Final tally \u2014 what passed, what carried over, what died.'}
+                {'Final tally \u2014 what was signed, what passed one chamber, what died.'}
               </div>
             </div>
             <span aria-hidden="true" style={{ fontSize: 18, color: 'var(--teal)', flexShrink: 0 }}>{'\u2192'}</span>
