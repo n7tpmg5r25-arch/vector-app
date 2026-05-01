@@ -125,7 +125,7 @@ export default function DownloadBriefingButton({ clientId, clientName }) {
       })
     } catch (e) {
       console.error('Briefing download failed', e)
-      setErr('Couldn’t generate the briefing. Try again, or contact Shorepine if it persists.')
+      setErr('Couldn’t generate the briefing. Try again, or get in touch if it persists.')
     } finally {
       setBusy(false)
     }

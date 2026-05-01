@@ -11,10 +11,9 @@ import { useViewer } from '../../lib/viewer-capabilities'
  *   Row 1: byline (top) + "Refreshed nightly" (bottom).
  *   Row 2: utility links (top) + role-branched right slot (bottom):
  *            * public  -> small brass launch pill "Public launch . mid 2027"
- *            * owner   -> "Vector | WA -- a product of Shorepine Government Relations."
- *            * client  -> null (suppressed; client portal pages render their
- *                         own inline Shorepine attribution at
- *                         c/[slug]/page.js + c/[slug]/bill/[id]/page.js)
+ *            * owner   -> null (Brand v1.2 dropped firm attribution; Thread 43)
+ *            * client  -> null (suppressed; client portal pages own their
+ *                         per-page footer)
  *
  * Layer-correctness (Universal Guardrail G6 -- globally mounted):
  *   Footer.js is mounted in app/app/layout.tsx and renders on every route
@@ -53,20 +52,10 @@ export default function Footer() {
           Public launch &middot; mid 2027
         </span>
       )
-    } else if (role === 'owner') {
-      rightSlot = (
-        <span
-          style={{
-            color: '#5a6070',
-            fontSize: 11,
-            letterSpacing: '0.02em',
-          }}
-        >
-          Vector | WA &mdash; a product of Shorepine Government Relations.
-        </span>
-      )
     }
-    // role === 'client' -> rightSlot stays null (intentionally suppressed)
+    // role === 'owner' | 'client' -> rightSlot stays null
+    //   (Brand v1.2 dropped firm attribution; client portal pages render
+    //   their own per-page footer.)
   }
 
   const linkStyle = {

@@ -375,9 +375,9 @@ export default async function ClientPortalPage({ params }) {
                 Your tracked legislation will appear here.
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.55 }}>
-                Shorepine hasn’t assigned any bills to {client.name} yet. As
-                soon as we add the first one, it will show up on this page
-                with the latest score and any notes we’ve published for you.
+                No bills have been assigned to {client.name} yet. As soon as
+                the first one is added, it will show up on this page with the
+                latest score and any notes published for you.
               </div>
             </div>
           ) : (
@@ -588,19 +588,6 @@ export default async function ClientPortalPage({ params }) {
             </div>
           )}
 
-          {/* Firm ownership line */}
-          <p
-            style={{
-              fontFamily: FONT_DISPLAY,
-              fontSize: 13,
-              fontStyle: 'italic',
-              color: SHOREPINE.slate,
-              textAlign: 'center',
-              margin: 0,
-            }}
-          >
-            Vector | WA &mdash; a product of Shorepine Government Relations.
-          </p>
         </div>
       </section>
     </div>
