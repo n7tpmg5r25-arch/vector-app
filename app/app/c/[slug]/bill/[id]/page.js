@@ -699,18 +699,6 @@ export default async function ClientBillBriefPage({ params }) {
             </div>
           )}
 
-          <p
-            style={{
-              fontFamily: FONT_DISPLAY,
-              fontSize: 13,
-              fontStyle: 'italic',
-              color: SHOREPINE.slate,
-              textAlign: 'center',
-              margin: 0,
-            }}
-          >
-            Vector | WA &mdash; a product of Shorepine Government Relations.
-          </p>
         </div>
       </section>
     </div>
