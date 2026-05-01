@@ -65,7 +65,7 @@ export default function NewClientForm() {
       })
       const json = await resp.json().catch(() => ({}))
       if (!resp.ok || !json.ok) {
-        setError(json.error || `Could not create client (${resp.status}).`)
+        setError(json.error || `Could not create team (${resp.status}).`)
       } else {
         setSuccess(`Created "${trimmedName}" at /c/${finalSlug}.`)
         setName('')
@@ -93,7 +93,7 @@ export default function NewClientForm() {
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--text-primary)' }}>
-        New client
+        New team
       </div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
@@ -132,7 +132,7 @@ export default function NewClientForm() {
             letterSpacing: '0.03em',
           }}
         >
-          {busy ? 'Creating\u2026' : 'Create client'}
+          {busy ? 'Creating\u2026' : 'Create team'}
         </button>
       </div>
       <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--text-faint)' }}>

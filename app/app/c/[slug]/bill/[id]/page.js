@@ -687,7 +687,7 @@ export default async function ClientBillBriefPage({ params }) {
                 Admin · QA
               </div>
               <div>
-                Bill <code>{bill.bill_id}</code> · Client slug <code>{client.slug}</code>
+                Bill <code>{bill.bill_id}</code> · Team slug <code>{client.slug}</code>
                 {' · '}
                 <Link
                   href={`/bill/${bill.bill_id}`}

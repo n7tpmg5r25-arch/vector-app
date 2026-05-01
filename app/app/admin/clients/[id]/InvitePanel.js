@@ -115,7 +115,7 @@ export default function InvitePanel({ clientId, clientSlug }) {
       {result && (
         <div style={{ margin: '10px 0 0', color: 'var(--gold-light, #d4b47a)', fontSize: 13 }}>
           {result.already_member
-            ? <>{result.email} was already a member of this client.</>
+            ? <>{result.email} was already a member of this team.</>
             : <>Invite ready for {result.email}.</>}
           {result.magic_link && (
             <details style={{ marginTop: 6, color: 'var(--text-muted)' }} open>

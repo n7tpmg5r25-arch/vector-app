@@ -62,8 +62,8 @@ export default async function AdminClientsPage() {
   if (error) {
     return (
       <div style={{ padding: 32, color: 'var(--text-primary)' }}>
-        <h1>Client admin</h1>
-        <p style={{ color: 'var(--danger)' }}>Error loading clients: {error.message}</p>
+        <h1>Team admin</h1>
+        <p style={{ color: 'var(--danger)' }}>Error loading teams: {error.message}</p>
       </div>
     )
   }
@@ -106,14 +106,14 @@ export default async function AdminClientsPage() {
 
   return (
     <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto', color: 'var(--text-primary)' }}>
-      <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700 }}>Client admin</h1>
+      <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700 }}>Team admin</h1>
       <p style={{ margin: '0 0 24px', color: 'var(--text-muted)', fontSize: 14 }}>
-        Create clients, invite their users, assign bills. Phase 13b.
+        Create teams, invite their users, assign bills. Phase 13b.
       </p>
 
       {/* Counts row */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-        <StatCard label="Clients" value={clients?.length ?? 0} />
+        <StatCard label="Teams" value={clients?.length ?? 0} />
         <StatCard
           label="Active"
           value={(clients || []).filter(c => c.status === 'active').length}
@@ -154,7 +154,7 @@ export default async function AdminClientsPage() {
             {(clients || []).length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No clients yet. Create one above.
+                  No teams yet. Create one above.
                 </td>
               </tr>
             ) : clients.map(c => (
