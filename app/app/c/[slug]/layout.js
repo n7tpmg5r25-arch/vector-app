@@ -1,39 +1,21 @@
 /**
- * /c/[slug] — Thread 3 portal shell layout
+ * /c/[slug] — Team portal segment layout
  *
- * Segment layout for the client portal. Sets the Shorepine firm visual
- * tone (Forest + Parchment + Brass) in contrast with the Vector | WA app
- * UI (Dark Neutral + Brass) that the rest of the authed app uses.
+ * Thread 44 (2026-04-30): Brand v1.2 adopted Vector | WA as the only brand.
+ * The legacy display-font load this layout used to ship was the only thing
+ * that justified its existence — Karla, Playfair Display, and DM Mono are
+ * all loaded globally by app/app/globals.css and serve the team portal
+ * directly.
  *
- * What this layout does:
- *   - Loads Cormorant Garamond via a Google Fonts stylesheet so the shell
- *     can use it for display text (firm-level type per Brand v4.6).
- *     Karla is already loaded globally by app/app/globals.css.
- *   - Nothing else — the page itself owns the card / header / banner.
- *     The root layout (app/app/layout.tsx) still provides <html>, <body>,
- *     SessionBanner and Footer. The firm ownership line in Footer is
- *     on-brand for the client portal.
+ * The layout file is intentionally kept (not deleted) as a thin segment
+ * pass-through. Next.js segment layouts have routing implications, and
+ * keeping this stub avoids any subtle change in how route groups resolve
+ * for /c/[slug] and /c/[slug]/bill/[id]. Future portal-scoped concerns
+ * (preload hints, segment metadata) can land here without re-creating it.
  *
- * What this layout does NOT do:
- *   - Override the root body background. Thread 7 (desktop responsive)
- *     is where the 480px cap in globals.css gets lifted; until then the
- *     portal lives inside the app's mobile-first column and uses a
- *     Parchment card to carry the firm palette.
- *   - Inject a bottom nav. The shell is proof-of-life in Thread 3.
- *     Thread 4 fills in watchlist + bill detail with a portal top-bar.
- *
- * Reference: BRAND_V46_ROLLOUT_PLAN.md §Type, §Firm palette.
+ * Reference: BRAND_COMPLIANCE_PLAN.md § Thread 44, Brand Guide v1.2 §02.
  */
 
-export default function ClientPortalSegmentLayout({ children }) {
-  return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap"
-      />
-      {children}
-    </>
-  )
+export default function TeamPortalSegmentLayout({ children }) {
+  return <>{children}</>
 }

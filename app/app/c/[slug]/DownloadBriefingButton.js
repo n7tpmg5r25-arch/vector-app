@@ -1,17 +1,18 @@
 'use client'
 import { useState } from 'react'
 import { createBrowserClient } from '../../../lib/supabase'
-import { SHOREPINE, FONT_BODY } from '../../../lib/shorepine'
+import { PORTAL, FONT_BODY } from '../../../lib/portal-palette'
 
 /**
- * Client portal — Download briefing PDF
+ * Team portal — Download briefing PDF
  *
- * Thread 4 client-side button. Generates a Shorepine-branded portfolio
- * brief covering every bill assigned to the named client, with shared
- * notes only. Reuses the existing `generateBriefPDF()` from
+ * Client-side button (kept the file/component name for schema + import
+ * stability per Brand v1.2 §08 carve-out). Generates a Vector | WA-branded
+ * portfolio brief covering every bill assigned to the named team, with
+ * shared notes only. Reuses the existing `generateBriefPDF()` from
  * `app/lib/generate-pdf.js` — that generator already filters
  * `billNotes` to `visibility === 'shared'` inside drawBillCard(), so the
- * client view picks up zero private leakage even if the caller passed
+ * team view picks up zero private leakage even if the caller passed
  * a mixed list (which we don't — see the .eq('visibility', 'shared')
  * below for defense in depth).
  *
@@ -143,9 +144,9 @@ export default function DownloadBriefingButton({ clientId, clientName }) {
           fontSize: 12, fontWeight: 500, letterSpacing: '0.04em',
           textTransform: 'uppercase',
           fontFamily: FONT_BODY,
-          color: SHOREPINE.parchment,
+          color: PORTAL.textPrimary,
           background: 'rgba(184, 151, 90, 0.18)',
-          border: `1px solid ${SHOREPINE.brass}`,
+          border: `1px solid ${PORTAL.brass}`,
           borderRadius: 6,
           cursor: busy ? 'wait' : 'pointer',
           opacity: busy ? 0.65 : 1,
@@ -178,7 +179,7 @@ export default function DownloadBriefingButton({ clientId, clientName }) {
           style={{
             marginLeft: 8,
             fontSize: 11,
-            color: SHOREPINE.ember,
+            color: PORTAL.danger,
             fontFamily: FONT_BODY,
           }}
         >
