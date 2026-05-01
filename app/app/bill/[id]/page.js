@@ -12,7 +12,6 @@ import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, isPostBienniumClose, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
 import { goBackOrFallback } from '../../../lib/nav-back'
-import { fetchTotalScoredBills } from '../../../lib/app-stats'
 import VoteHistoryTable from '../../components/VoteHistoryTable'
 import VotingRecordHeader from '../../components/VotingRecordHeader'
 import VoteSplitBar from '../../components/VoteSplitBar'
@@ -646,56 +645,16 @@ export default function BillDetailPage() {
     setBillNotes(prev => prev.filter(n => n.id !== noteId))
   }
 
-  /* ── Thread 12.3: PDF brief export (single-bill) ─────────
-   * Mirrors the watchlist /handleExport flow but wraps the
-   * current bill into the {bill_id, bills, tag} shape that
-   * generateBriefPDF expects. Notes / amendments / fiscal
-   * history are already loaded in component state. */
-  async function exportBriefPdf() {
-    if (!bill || exporting) return
-    setExporting(true)
-    try {
-      const { generateBriefPDF } = await import('../../../lib/generate-pdf')
-      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-      const sessionLabel = getCurrentSession() + (isInterimPeriod() ? ' (Interim)' : '')
-
-      // Live cohort count for the methodology footnote — same fallback
-      // contract as watchlist; PDF generator handles ok===false gracefully.
-      let cohortStats = null
-      try {
-        cohortStats = await fetchTotalScoredBills(supabase)
-      } catch (e) {
-        console.warn('cohort count fetch failed; PDF will use fallback blurb', e)
-      }
-
-      // Only include shared-visibility notes in the export (parity with the
-      // watchlist export — private notes never leave the operator's session).
-      const sharedNotes = (billNotes || []).filter(n => n.visibility === 'shared')
-
-      await generateBriefPDF({
-        tagLabel: tracked?.tag || null,
-        date: today,
-        bills: [{ bill_id: bill.bill_id, bills: bill, tag: tracked?.tag || '', added_at: tracked?.added_at }],
-        scoreDeltas: {},
-        changes: {},
-        session: sessionLabel,
-        billNotes: sharedNotes,
-        amendments: amendments || [],
-        fiscalHistory: fiscalHistory || [],
-        cohortStats,
-      })
-    } catch (err) {
-      console.error('PDF export failed:', err)
-      alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
-    }
-    setExporting(false)
-  }
-
-  /* ── Thread 32: Public Print Brief PDF (single-bill, Vector-branded) ──
-   * Anon visitors don't have a session for the cohort fetch and don't own
-   * notes to attach — this generator skips both. Lazy-loaded mirrors the
-   * firm-brief pattern so the bundle stays small for visitors who never
-   * click the button. Directive D1: zero Shorepine references. */
+  /* ── Bill brief PDF export (single-bill, Vector | WA palette) ─────────
+   * Used by all viewers (anon + registered + team) on this surface.
+   * The multi-bill firm Brief still lives at /watchlist and the team
+   * portal's Download Briefing button — those callers want analyst notes,
+   * tag scoping, and grouped cards, none of which fit the take-it-to-
+   * the-hearing single-bill format here.
+   *
+   * Lazy-loaded so the bundle stays small for visitors who never click
+   * the button. Cohort stats / notes / tags are deliberately not threaded
+   * through — the public brief format doesn't render them. */
   async function exportPublicBriefPdf() {
     if (!bill || exporting) return
     setExporting(true)
@@ -890,49 +849,27 @@ export default function BillDetailPage() {
               {shared ? 'Copied' : 'Share'}
             </span>
           </button>
-          {/* Thread 32 (D7) / Thread 44: PDF brief in the top action row.
-              Owner gets the firm Brief (multi-bill capable, Vector | WA palette).
-              Anon gets the public Print Brief (single-bill, Vector | WA palette,
-              take-it-to-the-hearing). Mutually exclusive — no double buttons. */}
-          {capabilities.canSave ? (
-            <button
-              onClick={exportBriefPdf}
-              disabled={exporting}
-              className="vec-cta-primary"
-              style={{
-                padding: '7px 12px',
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: 20, fontSize: 12, fontWeight: 500,
-                color: 'var(--text-muted)',
-                cursor: exporting ? 'wait' : 'pointer',
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
-                {exporting ? 'Generating' : 'Brief'}
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={exportPublicBriefPdf}
-              disabled={exporting}
-              className="vec-cta-primary"
-              style={{
-                padding: '7px 12px',
-                background: 'transparent',
-                border: '1px solid var(--border)',
-                borderRadius: 20, fontSize: 12, fontWeight: 500,
-                color: 'var(--text-muted)',
-                cursor: exporting ? 'wait' : 'pointer',
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
-                {exporting ? 'Generating' : 'Print Brief'}
-              </span>
-            </button>
-          )}
+          {/* PDF brief — same single-bill take-it-to-the-hearing PDF for every
+              viewer (anon + registered + team). The multi-bill firm Brief lives
+              on /watchlist and the team portal Download Briefing button. */}
+          <button
+            onClick={exportPublicBriefPdf}
+            disabled={exporting}
+            className="vec-cta-primary"
+            style={{
+              padding: '7px 12px',
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              borderRadius: 20, fontSize: 12, fontWeight: 500,
+              color: 'var(--text-muted)',
+              cursor: exporting ? 'wait' : 'pointer',
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
+              {exporting ? 'Generating' : 'Print Brief'}
+            </span>
+          </button>
           {capabilities.canSave && (
             <button
               onClick={toggleWatch}
