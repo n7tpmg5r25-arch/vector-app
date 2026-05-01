@@ -7,7 +7,7 @@
   --bg-card-2:     #1c1f28;
   --bg-surface:    #232632;
 
-  /* Forest Green accent (was Teal/Cyan) */
+  /* Brass — LEGACY name; canonical alias is --brass (Brand Guide v1.2 §02) */
   --teal:          #b8975a;
   --teal-bright:   #d4b47a;
   --teal-mid:      #a0824a;
@@ -16,7 +16,7 @@
   --teal-glow:     0 0 12px rgba(184,151,90,0.35);
   --teal-glow-lg:  0 0 24px rgba(184,151,90,0.25), 0 0 48px rgba(184,151,90,0.1);
 
-  /* Brass accent (was Gold) */
+  /* Brass Light — LEGACY name; canonical alias is --brass-light (Brand Guide v1.2 §02) */
   --gold:          #d4b47a;
   --gold-light:    #e4c899;
   --gold-pale:     rgba(212,180,122,0.12);
@@ -67,6 +67,15 @@
   --party-r-pale:   rgba(239,68,68,0.12);
   --party-d-border: rgba(77,154,255,0.3);
   --party-r-border: rgba(239,68,68,0.3);
+
+  /* ── Brand Guide v1.2 §02 canonical aliases (Thread 46) ─────────────────
+     Add canonical brand-name aliases without removing the legacy names.
+     Existing components keep working; new design work uses these names.
+     A future thread can grep usage and rename in bulk once the legacy
+     name counts go to zero. */
+  --brass:         var(--teal);        /* #b8975a */
+  --brass-light:   var(--gold);        /* #d4b47a */
+  --dark-neutral:  var(--bg);          /* #0e1014 */
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
