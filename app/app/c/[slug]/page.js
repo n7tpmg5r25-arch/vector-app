@@ -256,14 +256,14 @@ export default async function ClientPortalPage({ params }) {
                   marginTop: 4,
                 }}
               >
-                Vector | WA · Client Portal
+                Vector | WA · Team Portal
               </div>
             </div>
             {adminOwnerView && (
               <Link
                 href={`/admin/clients/${client.id}`}
                 role="link"
-                aria-label="Admin preview — back to admin client detail"
+                aria-label="Admin preview — back to admin team detail"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

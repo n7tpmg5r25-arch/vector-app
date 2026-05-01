@@ -224,7 +224,7 @@ export default function AssignBillsPanel({ clientId }) {
                       {r.tag ? <> &middot; tag: {r.tag}</> : null}
                       {otherClient ? (
                         <> &middot; <span style={{ color: 'var(--danger, #d16a6a)' }}>
-                          already assigned to another client
+                          already assigned to another team
                         </span></>
                       ) : null}
                     </div>

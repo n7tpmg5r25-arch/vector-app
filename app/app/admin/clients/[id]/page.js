@@ -119,7 +119,7 @@ export default async function ClientDetailPage({ params }) {
       {/* Breadcrumb */}
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>
         <Link href="/admin/clients" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
-          &larr; Client admin
+          &larr; Team admin
         </Link>
       </p>
 
