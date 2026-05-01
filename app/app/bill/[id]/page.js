@@ -890,9 +890,9 @@ export default function BillDetailPage() {
               {shared ? 'Copied' : 'Share'}
             </span>
           </button>
-          {/* Thread 32 (D7): PDF brief in the top action row.
-              Owner gets the firm Brief (multi-bill capable, Shorepine palette).
-              Anon gets the public Print Brief (single-bill, Vector palette,
+          {/* Thread 32 (D7) / Thread 44: PDF brief in the top action row.
+              Owner gets the firm Brief (multi-bill capable, Vector | WA palette).
+              Anon gets the public Print Brief (single-bill, Vector | WA palette,
               take-it-to-the-hearing). Mutually exclusive — no double buttons. */}
           {capabilities.canSave ? (
             <button

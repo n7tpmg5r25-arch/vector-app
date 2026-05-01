@@ -14,9 +14,9 @@ import {
   isInterimPeriod, getCurrentBiennium, getNextBiennium,
   getSessionCutoffs, formatSessionDate, daysUntil,
 } from './session-config'
-// Thread 32 — shared color/tier/layout helpers. Helpers default to
-// SHOREPINE_PALETTE so this firm-brief generator stays byte-equivalent
-// pre/post extraction (verified against baseline-pre-refactor.pdf).
+// Thread 32 / Thread 44 — shared color/tier/layout helpers. Helpers default
+// to VECTOR_PALETTE (Brand Guide v1.2 §02). Both PDF generators share the
+// same palette as of Thread 44.
 import {
   STAGE_LABELS,
   TIER_HIGH, TIER_MODERATE, TIER_LOW,
@@ -29,18 +29,32 @@ import {
 const MAX_SUMMARY_LINES = 3
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
-// These remain as legacy module-level constants because they are referenced
-// inline throughout this file via spread (e.g. doc.setTextColor(...TEAL)).
-// The same values are also exposed on SHOREPINE_PALETTE in pdf-shared.js for
+// Kept as module-level constants because they are referenced inline
+// throughout this file via spread (e.g. doc.setTextColor(...PRIMARY)).
+// The same values are exposed on VECTOR_PALETTE in pdf-shared.js for
 // helpers that take a palette object — keep both in sync if either changes.
-const FOREST = [26, 74, 46]      // Forest #1a4a2e (brand guide v1.1 §14)
-const TEAL  = [45, 107, 69]      // Forest Mid (Shorepine #2d6b45)
-const GOLD  = [184, 151, 90]     // Brass (Shorepine #b8975a)
-const GRAY  = [74, 80, 96]       // Slate (Shorepine #4a5060)
-const LGRAY = [220, 212, 196]    // Parchment stroke (Shorepine)
-const WHITE = [255, 255, 255]
-const RED   = [196, 71, 48]      // Ember (Shorepine #c44730)
-const MUTED = [138, 128, 112]    // Stone (Shorepine #8a8070)
+//
+// Legacy variable names (FOREST/TEAL/GOLD/GRAY/LGRAY/RED/MUTED) survive as
+// aliases to minimize the diff against the rest of this file's drawing
+// code. Each maps to its Brand v1.2 equivalent below — see the comments.
+const PRIMARY   = [14, 16, 20]     // Dark Neutral #0e1014 — text on white paper
+const ACCENT    = [184, 151, 90]   // Brass        #b8975a — primary accent
+const ACCENT_LT = [212, 180, 122]  // Brass Light  #d4b47a — bright accent (logo arrow tip)
+const STONE     = [138, 128, 112]  // Stone        #8a8070 — tertiary / metadata
+const TMUTED    = [70, 75, 85]     // text-muted analog — secondary text
+const LGRAY     = [200, 195, 185]  // Light divider analog
+const SURFACE   = [248, 246, 242]  // Off-white print surface (card background on paper)
+const WHITE     = [255, 255, 255]
+const RUST      = [196, 71, 48]    // Rust         #c44730 — universal warning
+
+// Legacy aliases — same RGB tuples, old names. Lets the drawing code below
+// stay diff-quiet while still rendering in the v1.2 palette.
+const FOREST = PRIMARY    // was Forest dark green; now Dark Neutral text
+const TEAL   = ACCENT     // was Forest Mid; now Brass accent
+const GOLD   = ACCENT     // unchanged hex (Brass)
+const GRAY   = TMUTED     // was Slate; now text-muted analog
+const RED    = RUST       // unchanged hex (Rust / former Ember)
+const MUTED  = STONE      // unchanged hex (Stone)
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -740,19 +754,19 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   let y = 16
 
   /* ================================================================
-     HEADER (vector mark + text, no raster logo)
+     HEADER (Vector | WA wordmark + tagline, inline vector mark)
+     Brand v1.2 §02 — Brass V with Brass-Light arrow tip; no raster
+     logo so the brief renders even if a logo file is missing.
      ================================================================ */
 
-  // Draw a simple vector "V" + gold triangle — matches the app's inline SVG
-  // icon. No raster PNG so there's nothing to break if a logo file is missing.
   {
     const logoX = m
     const logoY = y - 3
     const logoH = 14
     const s = logoH / 48  // viewBox is 0..48 in height
 
-    // Teal V (two strokes: left = V, right = emphasized)
-    doc.setDrawColor(...TEAL)
+    // Brass V (two strokes: left = V, right = emphasized)
+    doc.setDrawColor(...ACCENT)
     doc.setLineCap('round')
     doc.setLineJoin('round')
     doc.setLineWidth(2.0 * s * 48 / 22)
@@ -761,8 +775,8 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     doc.setLineWidth(1.6 * s * 48 / 22)
     doc.line(logoX + 28 * s, logoY + 44 * s, logoX + 52 * s, logoY + 20 * s)
 
-    // Gold triangle at the arrow tip (52,14)(58,22)(44,22)
-    doc.setFillColor(...GOLD)
+    // Brass-Light triangle at the arrow tip
+    doc.setFillColor(...ACCENT_LT)
     doc.triangle(
       logoX + 52 * s, logoY + 14 * s,
       logoX + 58 * s, logoY + 22 * s,
@@ -772,20 +786,17 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
     const textX = logoX + 62 * s + 3
 
-    doc.setFont('times', 'bold')
-    doc.setFontSize(18)
-    doc.setTextColor(...FOREST)
-    doc.text('SHOREPINE', textX, y + 3)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(...TEAL)
-    doc.text('VECTOR | WA', textX, y + 9)
+    // Wordmark — VECTOR | WA on a single line, in Helvetica bold (jsPDF
+    // can't natively render Playfair Display without a runtime VFS load).
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.setTextColor(...PRIMARY)
+    doc.text('VECTOR | WA', textX, y + 6)
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(...GRAY)
-    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 9, { align: 'right' })
+    doc.setTextColor(...TMUTED)
+    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 6, { align: 'right' })
 
     y += logoH
   }
@@ -989,13 +1000,9 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     // ── Continuation header on pages 2+ ──
     if (p > 1) {
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8)
-      doc.setTextColor(...FOREST)
-      doc.text('SHOREPINE', m, 14)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7)
-      doc.setTextColor(...TEAL)
-      doc.text('VECTOR | WA', m + 32, 14)
+      doc.setFontSize(9)
+      doc.setTextColor(...PRIMARY)
+      doc.text('VECTOR | WA', m, 14)
       // Tag label on continuation pages (if present)
       if (tagLabel) {
         doc.setFont('helvetica', 'normal')
@@ -1042,8 +1049,8 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...GRAY)
-    doc.text('Vector | WA  |  a product of Shorepine Government Relations', m, fy + 5)
-    doc.text('vectorwa.org', pw - m, fy + 5, { align: 'right' })
+    doc.text('Vector | WA — Washington State legislative intelligence', m, fy + 5)
+    doc.text('vectorwa.com', pw - m, fy + 5, { align: 'right' })
 
     if (pageCount > 1) {
       doc.setFontSize(6.5)

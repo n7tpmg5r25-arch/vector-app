@@ -5,7 +5,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import BackChip from '../../../../components/BackChip'
 import { isAdmin } from '../../../../../lib/admin'
-import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/shorepine'
+import { PORTAL, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/portal-palette'
 import { getCurrentSession, formatSessionDate, isPostBienniumClose, getCurrentBiennium, getNextBiennium } from '../../../../../lib/session-config'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../../../lib/wsl-amendment-codes'
 import SignOutButton from '../../SignOutButton'
@@ -54,17 +54,17 @@ function tierLabel(score) {
 }
 
 function tierColor(score) {
-  if (score >= TIER_HIGH) return SHOREPINE.forestMid
-  if (score >= TIER_MODERATE) return SHOREPINE.forest
-  if (score >= TIER_LOW) return SHOREPINE.brass
-  return SHOREPINE.slate
+  if (score >= TIER_HIGH) return PORTAL.brassLight
+  if (score >= TIER_MODERATE) return PORTAL.brass
+  if (score >= TIER_LOW) return PORTAL.brass
+  return PORTAL.textMuted
 }
 
 function accentForBill(bill) {
   const cl = (bill?.confidence_label || '').toUpperCase()
-  if (cl === 'LAW') return SHOREPINE.forestMid
-  if (cl === 'PASSED_CHAMBER') return SHOREPINE.brass
-  if (cl === 'DEAD') return SHOREPINE.slate
+  if (cl === 'LAW') return PORTAL.brassLight
+  if (cl === 'PASSED_CHAMBER') return PORTAL.brass
+  if (cl === 'DEAD') return PORTAL.textMuted
   return tierColor(bill?.final_score || 0)
 }
 
@@ -262,31 +262,32 @@ export default async function ClientBillBriefPage({ params }) {
         minHeight: '100vh',
         padding: '24px 16px 48px',
         fontFamily: FONT_BODY,
-        color: SHOREPINE.ink,
+        color: PORTAL.textPrimary,
       }}
     >
       <section
         style={{
           maxWidth: 720,
           margin: '0 auto',
-          background: SHOREPINE.parchment,
-          border: `1px solid ${SHOREPINE.parchmentDeep}`,
+          background: PORTAL.card,
+          border: `1px solid ${PORTAL.border}`,
           borderRadius: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
           overflow: 'hidden',
         }}
       >
-        {/* ── Forest header (mirrors portal shell) ──────────────────── */}
+        {/* ── Header band (mirrors portal shell, dark v1.2) ─────────── */}
         <header
           style={{
-            background: SHOREPINE.forest,
-            color: SHOREPINE.parchment,
+            background: PORTAL.cardElevated,
+            color: PORTAL.textPrimary,
             padding: '18px 22px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: 12,
             flexWrap: 'wrap',
+            borderBottom: `1px solid ${PORTAL.border}`,
           }}
         >
           <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -307,7 +308,7 @@ export default async function ClientBillBriefPage({ params }) {
                   fontSize: 11,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
-                  color: 'rgba(245, 240, 230, 0.72)',
+                  color: 'rgba(232, 233, 236, 0.72)',
                   marginTop: 4,
                 }}
               >
@@ -324,9 +325,9 @@ export default async function ClientBillBriefPage({ params }) {
                   gap: 6,
                   padding: '4px 12px',
                   borderRadius: 20,
-                  border: `1px solid ${SHOREPINE.brass}`,
+                  border: `1px solid ${PORTAL.brass}`,
                   background: 'rgba(184, 151, 90, 0.22)',
-                  color: SHOREPINE.parchment,
+                  color: PORTAL.textPrimary,
                   fontSize: 11,
                   fontWeight: 600,
                   letterSpacing: '0.08em',
@@ -341,7 +342,7 @@ export default async function ClientBillBriefPage({ params }) {
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: SHOREPINE.brass,
+                    background: PORTAL.brass,
                     boxShadow: '0 0 8px rgba(184, 151, 90, 0.7)',
                   }}
                 />
@@ -356,17 +357,17 @@ export default async function ClientBillBriefPage({ params }) {
         <nav
           aria-label="Breadcrumb"
           style={{
-            background: SHOREPINE.parchmentDeep + '88',
+            background: PORTAL.cardElevated,
             padding: '10px 22px',
-            borderBottom: `1px solid ${SHOREPINE.parchmentDeep}`,
+            borderBottom: `1px solid ${PORTAL.border}`,
             fontSize: 12,
-            color: SHOREPINE.slate,
+            color: PORTAL.textMuted,
           }}
         >
           <BackChip
             label="Back"
             fallbackPath={`/c/${client.slug}`}
-            style={{ color: SHOREPINE.forest, fontWeight: 600 }}
+            style={{ color: PORTAL.brass, fontWeight: 600 }}
           />
         </nav>
 
@@ -379,8 +380,8 @@ export default async function ClientBillBriefPage({ params }) {
               style={{
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minWidth: 78, padding: '10px 12px',
-                background: SHOREPINE.parchmentDeep + '55',
-                border: `1px solid ${SHOREPINE.parchmentDeep}`,
+                background: PORTAL.cardElevated,
+                border: `1px solid ${PORTAL.border}`,
                 borderLeft: `4px solid ${accent}`,
                 borderRadius: 8,
               }}
@@ -396,7 +397,7 @@ export default async function ClientBillBriefPage({ params }) {
               <div
                 style={{
                   fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
-                  color: SHOREPINE.slate, marginTop: 4, fontWeight: 600,
+                  color: PORTAL.textMuted, marginTop: 4, fontWeight: 600,
                 }}
               >
                 {tierLabel(score)}
@@ -406,13 +407,13 @@ export default async function ClientBillBriefPage({ params }) {
               <div
                 style={{
                   display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
-                  fontSize: 12, color: SHOREPINE.slate, marginBottom: 6,
+                  fontSize: 12, color: PORTAL.textMuted, marginBottom: 6,
                 }}
               >
                 <span
                   style={{
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                    fontWeight: 600, color: SHOREPINE.forest, fontSize: 13,
+                    fontWeight: 600, color: PORTAL.brass, fontSize: 13,
                     letterSpacing: '0.02em',
                   }}
                 >
@@ -425,9 +426,9 @@ export default async function ClientBillBriefPage({ params }) {
                     style={{
                       fontSize: 10, fontWeight: 600,
                       textTransform: 'uppercase', letterSpacing: '0.06em',
-                      color: SHOREPINE.brass,
+                      color: PORTAL.brass,
                       background: 'rgba(184, 151, 90, 0.12)',
-                      border: `1px solid ${SHOREPINE.brass}55`,
+                      border: `1px solid ${PORTAL.brass}55`,
                       padding: '1px 8px', borderRadius: 10,
                     }}
                   >
@@ -438,18 +439,18 @@ export default async function ClientBillBriefPage({ params }) {
               <h1
                 style={{
                   fontFamily: FONT_DISPLAY, fontSize: 22, fontWeight: 600,
-                  color: SHOREPINE.ink, lineHeight: 1.25, margin: 0,
+                  color: PORTAL.textPrimary, lineHeight: 1.25, margin: 0,
                 }}
               >
                 {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
               </h1>
               <div
                 style={{
-                  marginTop: 8, fontSize: 13, color: SHOREPINE.slate,
+                  marginTop: 8, fontSize: 13, color: PORTAL.textMuted,
                   display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
                 }}
               >
-                <span style={{ fontWeight: 600, color: SHOREPINE.forest }}>
+                <span style={{ fontWeight: 600, color: PORTAL.brass }}>
                   {formatStageLine(bill)}
                 </span>
                 {bill.has_public_hearing && bill.hearing_date && (
@@ -469,7 +470,7 @@ export default async function ClientBillBriefPage({ params }) {
                   rel="noopener noreferrer"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    color: SHOREPINE.forest, textDecoration: 'none', fontWeight: 600,
+                    color: PORTAL.brass, textDecoration: 'none', fontWeight: 600,
                   }}
                 >
                   leg.wa.gov ↗
@@ -484,14 +485,14 @@ export default async function ClientBillBriefPage({ params }) {
               <div
                 style={{
                   fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase',
-                  color: SHOREPINE.brass, fontWeight: 700, marginBottom: 8,
+                  color: PORTAL.brass, fontWeight: 700, marginBottom: 8,
                 }}
               >
                 {summaryEdited ? 'AI-generated · edited by analyst' : 'AI-generated summary'}
               </div>
               <p
                 style={{
-                  fontSize: 14, lineHeight: 1.6, color: SHOREPINE.ink,
+                  fontSize: 14, lineHeight: 1.6, color: PORTAL.textPrimary,
                   margin: 0,
                 }}
               >
@@ -505,9 +506,9 @@ export default async function ClientBillBriefPage({ params }) {
             <div
               style={{
                 fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: 600,
-                color: SHOREPINE.forest, marginBottom: 10,
+                color: PORTAL.brass, marginBottom: 10,
                 paddingBottom: 6,
-                borderBottom: `1px solid ${SHOREPINE.brass}55`,
+                borderBottom: `1px solid ${PORTAL.brass}55`,
               }}
             >
               Analyst notes
@@ -515,7 +516,7 @@ export default async function ClientBillBriefPage({ params }) {
             {sharedNotes.length === 0 ? (
               <p
                 style={{
-                  fontSize: 13, color: SHOREPINE.slate, fontStyle: 'italic',
+                  fontSize: 13, color: PORTAL.textMuted, fontStyle: 'italic',
                   margin: 0,
                 }}
               >
@@ -528,14 +529,14 @@ export default async function ClientBillBriefPage({ params }) {
                     key={n.id}
                     style={{
                       padding: '12px 14px',
-                      background: SHOREPINE.parchmentDeep + '55',
-                      borderLeft: `3px solid ${SHOREPINE.brass}`,
+                      background: PORTAL.cardElevated,
+                      borderLeft: `3px solid ${PORTAL.brass}`,
                       borderRadius: 6,
                     }}
                   >
                     <div
                       style={{
-                        fontSize: 11, color: SHOREPINE.slate,
+                        fontSize: 11, color: PORTAL.textMuted,
                         marginBottom: 6, fontStyle: 'italic',
                       }}
                     >
@@ -546,7 +547,7 @@ export default async function ClientBillBriefPage({ params }) {
                     </div>
                     <div
                       style={{
-                        fontSize: 14, lineHeight: 1.55, color: SHOREPINE.ink,
+                        fontSize: 14, lineHeight: 1.55, color: PORTAL.textPrimary,
                         whiteSpace: 'pre-wrap',
                       }}
                     >
@@ -564,9 +565,9 @@ export default async function ClientBillBriefPage({ params }) {
               <div
                 style={{
                   fontFamily: FONT_DISPLAY, fontSize: 16, fontWeight: 600,
-                  color: SHOREPINE.forest, marginBottom: 10,
+                  color: PORTAL.brass, marginBottom: 10,
                   paddingBottom: 6,
-                  borderBottom: `1px solid ${SHOREPINE.brass}55`,
+                  borderBottom: `1px solid ${PORTAL.brass}55`,
                 }}
               >
                 Recent activity
@@ -592,9 +593,9 @@ export default async function ClientBillBriefPage({ params }) {
                   return (
                     <li
                       key={`amend-${a.amendment_number}-${a.floor_action_date || 'pending'}`}
-                      style={{ fontSize: 13, color: SHOREPINE.ink, lineHeight: 1.5 }}
+                      style={{ fontSize: 13, color: PORTAL.textPrimary, lineHeight: 1.5 }}
                     >
-                      <span style={{ color: SHOREPINE.brass, fontWeight: 600, marginRight: 6 }}>
+                      <span style={{ color: PORTAL.brass, fontWeight: 600, marginRight: 6 }}>
                         {amLabel}
                       </span>
                       {amFallback && (
@@ -607,8 +608,8 @@ export default async function ClientBillBriefPage({ params }) {
                             marginLeft: 4,
                             marginRight: 6,
                             fontSize: 10,
-                            color: SHOREPINE.slate,
-                            border: `1px solid ${SHOREPINE.brass}55`,
+                            color: PORTAL.textMuted,
+                            border: `1px solid ${PORTAL.brass}55`,
                             borderRadius: '50%',
                             width: 14,
                             height: 14,
@@ -623,7 +624,7 @@ export default async function ClientBillBriefPage({ params }) {
                       )}
                       {noDisposition && 'filed'}
                       {a.floor_action_date && (
-                        <span style={{ color: SHOREPINE.slate }}>
+                        <span style={{ color: PORTAL.textMuted }}>
                           {' '}· {formatSessionDate(a.floor_action_date)}
                         </span>
                       )}
@@ -633,14 +634,14 @@ export default async function ClientBillBriefPage({ params }) {
                 {fiscalHistory.slice(0, 4).map(f => (
                   <li
                     key={`fiscal-${f.detected_date}-${f.new_size}`}
-                    style={{ fontSize: 13, color: SHOREPINE.ink, lineHeight: 1.5 }}
+                    style={{ fontSize: 13, color: PORTAL.textPrimary, lineHeight: 1.5 }}
                   >
-                    <span style={{ color: SHOREPINE.brass, fontWeight: 600, marginRight: 6 }}>
+                    <span style={{ color: PORTAL.brass, fontWeight: 600, marginRight: 6 }}>
                       Fiscal note
                     </span>
                     {f.new_size || 'updated'}
                     {f.detected_date && (
-                      <span style={{ color: SHOREPINE.slate }}>
+                      <span style={{ color: PORTAL.textMuted }}>
                         {' '}· {formatSessionDate(f.detected_date)}
                       </span>
                     )}
@@ -650,11 +651,11 @@ export default async function ClientBillBriefPage({ params }) {
             </div>
           )}
 
-          {/* Latest snapshot age — quiet line so the client knows the score is fresh */}
+          {/* Latest snapshot age — quiet line so the team knows the score is fresh */}
           {latestSnap?.snapshot_date && (
             <p
               style={{
-                fontSize: 11, color: SHOREPINE.slate,
+                fontSize: 11, color: PORTAL.textMuted,
                 fontStyle: 'italic', margin: 0,
               }}
             >
@@ -666,7 +667,7 @@ export default async function ClientBillBriefPage({ params }) {
           <div
             style={{
               height: 1,
-              background: SHOREPINE.brass,
+              background: PORTAL.brass,
               opacity: 0.4,
               margin: '4px 0 0',
             }}
@@ -676,9 +677,9 @@ export default async function ClientBillBriefPage({ params }) {
             <div
               style={{
                 fontSize: 12,
-                color: SHOREPINE.slate,
-                background: SHOREPINE.parchmentDeep,
-                border: `1px dashed ${SHOREPINE.brass}`,
+                color: PORTAL.textMuted,
+                background: PORTAL.cardElevated,
+                border: `1px dashed ${PORTAL.brass}`,
                 borderRadius: 8,
                 padding: '10px 12px',
               }}
@@ -691,7 +692,7 @@ export default async function ClientBillBriefPage({ params }) {
                 {' · '}
                 <Link
                   href={`/bill/${bill.bill_id}`}
-                  style={{ color: SHOREPINE.forest, fontWeight: 600 }}
+                  style={{ color: PORTAL.brass, fontWeight: 600 }}
                 >
                   Owner view
                 </Link>

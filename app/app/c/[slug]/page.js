@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { isAdmin } from '../../../lib/admin'
-import { SHOREPINE, FONT_DISPLAY, FONT_BODY } from '../../../lib/shorepine'
+import { PORTAL, FONT_DISPLAY, FONT_BODY } from '../../../lib/portal-palette'
 import SignOutButton from './SignOutButton'
 import DownloadBriefingButton from './DownloadBriefingButton'
 
@@ -62,10 +62,10 @@ function tierLabel(score) {
 }
 
 function tierColor(score) {
-  if (score >= TIER_HIGH) return SHOREPINE.forestMid
-  if (score >= TIER_MODERATE) return SHOREPINE.forest
-  if (score >= TIER_LOW) return SHOREPINE.brass
-  return SHOREPINE.slate
+  if (score >= TIER_HIGH) return PORTAL.brassLight
+  if (score >= TIER_MODERATE) return PORTAL.brass
+  if (score >= TIER_LOW) return PORTAL.brass
+  return PORTAL.textMuted
 }
 
 function formatStageLine(bill) {
@@ -207,31 +207,32 @@ export default async function ClientPortalPage({ params }) {
         minHeight: '100vh',
         padding: '24px 16px 48px',
         fontFamily: FONT_BODY,
-        color: SHOREPINE.ink,
+        color: PORTAL.textPrimary,
       }}
     >
       <section
         style={{
           maxWidth: 720,
           margin: '0 auto',
-          background: SHOREPINE.parchment,
-          border: `1px solid ${SHOREPINE.parchmentDeep}`,
+          background: PORTAL.card,
+          border: `1px solid ${PORTAL.border}`,
           borderRadius: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
           overflow: 'hidden',
         }}
       >
-        {/* ── Forest header ─────────────────────────────────────────── */}
+        {/* ── Header band (slightly elevated dark) ──────────────────── */}
         <header
           style={{
-            background: SHOREPINE.forest,
-            color: SHOREPINE.parchment,
+            background: PORTAL.cardElevated,
+            color: PORTAL.textPrimary,
             padding: '18px 22px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: 12,
             flexWrap: 'wrap',
+            borderBottom: `1px solid ${PORTAL.border}`,
           }}
         >
           <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -252,7 +253,7 @@ export default async function ClientPortalPage({ params }) {
                   fontSize: 11,
                   letterSpacing: '0.14em',
                   textTransform: 'uppercase',
-                  color: 'rgba(245, 240, 230, 0.72)',
+                  color: 'rgba(232, 233, 236, 0.72)',
                   marginTop: 4,
                 }}
               >
@@ -270,9 +271,9 @@ export default async function ClientPortalPage({ params }) {
                   gap: 6,
                   padding: '4px 12px',
                   borderRadius: 20,
-                  border: `1px solid ${SHOREPINE.brass}`,
+                  border: `1px solid ${PORTAL.brass}`,
                   background: 'rgba(184, 151, 90, 0.22)',
-                  color: SHOREPINE.parchment,
+                  color: PORTAL.textPrimary,
                   fontSize: 11,
                   fontWeight: 600,
                   letterSpacing: '0.08em',
@@ -288,7 +289,7 @@ export default async function ClientPortalPage({ params }) {
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: SHOREPINE.brass,
+                    background: PORTAL.brass,
                     boxShadow: '0 0 8px rgba(184, 151, 90, 0.7)',
                   }}
                 />
@@ -316,16 +317,16 @@ export default async function ClientPortalPage({ params }) {
                 flexWrap: 'wrap',
                 gap: 18,
                 paddingBottom: 16,
-                borderBottom: `1px solid ${SHOREPINE.parchmentDeep}`,
+                borderBottom: `1px solid ${PORTAL.border}`,
                 marginBottom: 18,
               }}
             >
               {[
-                { label: 'Tracked', value: bills.length, tone: 'forest' },
-                { label: 'Active', value: activeCount, tone: 'brass' },
-                { label: 'Signed', value: lawCount, tone: 'forestMid' },
-                { label: 'Carried', value: carryCount, tone: 'brass' },
-                { label: 'Did not advance', value: deadCount, tone: 'slate' },
+                { label: 'Tracked', value: bills.length, tone: 'brass' },
+                { label: 'Active', value: activeCount, tone: 'brassLight' },
+                { label: 'Signed', value: lawCount, tone: 'brass' },
+                { label: 'Carried', value: carryCount, tone: 'brassLight' },
+                { label: 'Did not advance', value: deadCount, tone: 'textMuted' },
               ].map(({ label, value, tone }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span
@@ -333,7 +334,7 @@ export default async function ClientPortalPage({ params }) {
                       fontFamily: FONT_DISPLAY,
                       fontSize: 22,
                       fontWeight: 600,
-                      color: SHOREPINE[tone] || SHOREPINE.forest,
+                      color: PORTAL[tone] || PORTAL.brass,
                       lineHeight: 1,
                     }}
                   >
@@ -344,7 +345,7 @@ export default async function ClientPortalPage({ params }) {
                       fontSize: 10,
                       letterSpacing: '0.1em',
                       textTransform: 'uppercase',
-                      color: SHOREPINE.slate,
+                      color: PORTAL.textMuted,
                     }}
                   >
                     {label}
@@ -360,7 +361,7 @@ export default async function ClientPortalPage({ params }) {
               style={{
                 padding: '36px 12px',
                 textAlign: 'center',
-                color: SHOREPINE.slate,
+                color: PORTAL.textMuted,
               }}
             >
               <div
@@ -368,7 +369,7 @@ export default async function ClientPortalPage({ params }) {
                   fontFamily: FONT_DISPLAY,
                   fontSize: 20,
                   fontWeight: 600,
-                  color: SHOREPINE.forest,
+                  color: PORTAL.brass,
                   marginBottom: 8,
                 }}
               >
@@ -386,9 +387,9 @@ export default async function ClientPortalPage({ params }) {
                 const score = bill?.final_score || 0
                 const cl = (bill?.confidence_label || '').toUpperCase()
                 const accent =
-                  cl === 'LAW' ? SHOREPINE.forestMid
-                    : cl === 'PASSED_CHAMBER' ? SHOREPINE.brass
-                    : cl === 'DEAD' ? SHOREPINE.slate
+                  cl === 'LAW' ? PORTAL.brassLight
+                    : cl === 'PASSED_CHAMBER' ? PORTAL.brass
+                    : cl === 'DEAD' ? PORTAL.textMuted
                     : tierColor(score)
                 const noteN = sharedNoteCount[bill_id] || 0
                 const billLabel = (bill?.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill?.bill_number
@@ -400,8 +401,8 @@ export default async function ClientPortalPage({ params }) {
                       style={{
                         display: 'block',
                         padding: '14px 16px',
-                        background: SHOREPINE.parchmentDeep + '55', // soft tint
-                        border: `1px solid ${SHOREPINE.parchmentDeep}`,
+                        background: PORTAL.cardElevated, // slight elevation on dark
+                        border: `1px solid ${PORTAL.border}`,
                         borderLeft: `4px solid ${accent}`,
                         borderRadius: 8,
                         textDecoration: 'none',
@@ -435,7 +436,7 @@ export default async function ClientPortalPage({ params }) {
                               fontSize: 8,
                               letterSpacing: '0.12em',
                               textTransform: 'uppercase',
-                              color: SHOREPINE.slate,
+                              color: PORTAL.textMuted,
                               marginTop: 4,
                               fontWeight: 600,
                             }}
@@ -458,14 +459,14 @@ export default async function ClientPortalPage({ params }) {
                                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                                 fontSize: 12,
                                 fontWeight: 600,
-                                color: SHOREPINE.forest,
+                                color: PORTAL.brass,
                                 letterSpacing: '0.02em',
                               }}
                             >
                               {billLabel}
                             </span>
                             {bill?.category && (
-                              <span style={{ fontSize: 11, color: SHOREPINE.slate }}>
+                              <span style={{ fontSize: 11, color: PORTAL.textMuted }}>
                                 · {bill.category}
                               </span>
                             )}
@@ -476,9 +477,9 @@ export default async function ClientPortalPage({ params }) {
                                   fontWeight: 600,
                                   textTransform: 'uppercase',
                                   letterSpacing: '0.06em',
-                                  color: SHOREPINE.brass,
+                                  color: PORTAL.brass,
                                   background: 'rgba(184, 151, 90, 0.12)',
-                                  border: `1px solid ${SHOREPINE.brass}55`,
+                                  border: `1px solid ${PORTAL.brass}55`,
                                   padding: '1px 8px',
                                   borderRadius: 10,
                                 }}
@@ -491,7 +492,7 @@ export default async function ClientPortalPage({ params }) {
                             style={{
                               fontSize: 14,
                               fontWeight: 500,
-                              color: SHOREPINE.ink,
+                              color: PORTAL.textPrimary,
                               lineHeight: 1.35,
                               marginBottom: 6,
                               display: '-webkit-box',
@@ -509,12 +510,12 @@ export default async function ClientPortalPage({ params }) {
                               flexWrap: 'wrap',
                               gap: 10,
                               fontSize: 11,
-                              color: SHOREPINE.slate,
+                              color: PORTAL.textMuted,
                             }}
                           >
                             <span>{formatStageLine(bill)}</span>
                             {bill?.has_public_hearing && (
-                              <span style={{ color: SHOREPINE.forestMid, fontWeight: 600 }}>
+                              <span style={{ color: PORTAL.brassLight, fontWeight: 600 }}>
                                 · Hearing scheduled
                               </span>
                             )}
@@ -524,7 +525,7 @@ export default async function ClientPortalPage({ params }) {
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   gap: 4,
-                                  color: SHOREPINE.brass,
+                                  color: PORTAL.brass,
                                   fontWeight: 600,
                                 }}
                               >
@@ -553,7 +554,7 @@ export default async function ClientPortalPage({ params }) {
           <div
             style={{
               height: 1,
-              background: SHOREPINE.brass,
+              background: PORTAL.brass,
               opacity: 0.4,
               margin: '24px 0 16px',
             }}
@@ -564,9 +565,9 @@ export default async function ClientPortalPage({ params }) {
             <div
               style={{
                 fontSize: 12,
-                color: SHOREPINE.slate,
-                background: SHOREPINE.parchmentDeep,
-                border: `1px dashed ${SHOREPINE.brass}`,
+                color: PORTAL.textMuted,
+                background: PORTAL.cardElevated,
+                border: `1px dashed ${PORTAL.brass}`,
                 borderRadius: 8,
                 padding: '10px 12px',
                 marginBottom: 16,
@@ -580,7 +581,7 @@ export default async function ClientPortalPage({ params }) {
                 {' · '}
                 <Link
                   href={`/admin/clients/${client.id}`}
-                  style={{ color: SHOREPINE.forest, fontWeight: 600 }}
+                  style={{ color: PORTAL.brass, fontWeight: 600 }}
                 >
                   Manage in admin
                 </Link>

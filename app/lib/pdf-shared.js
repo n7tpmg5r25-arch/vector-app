@@ -3,83 +3,60 @@
  *
  * Thread 32 — extracted from generate-pdf.js so two PDF generators can share
  * color, tier, and layout logic without forking the engine:
- *   - generate-pdf.js          → firm brief (Shorepine palette + multi-bill watchlist)
- *   - generate-public-pdf.js   → public bill brief (Vector | WA palette, single bill)
+ *   - generate-pdf.js          → firm brief (multi-bill watchlist / team brief)
+ *   - generate-public-pdf.js   → public bill brief (single bill take-it-to-the-hearing)
+ *
+ * Thread 44 (2026-04-30): Brand v1.2 unified both surfaces under a single
+ * Vector | WA palette + Playfair Display / Helvetica type. The previous
+ * firm-side palette is gone; both PDF outputs render in the same v1.2 brand.
  *
  * jsPDF built-in fonts (Helvetica/Times/Courier) only support Windows-1252
  * characters. Do NOT introduce Unicode symbols (box-drawing, Greek, arrows)
  * into PDF text — use ASCII equivalents.
- *
- * Byte-equivalence contract: when called with the default palette
- * (SHOREPINE_PALETTE), every helper exported here MUST return values
- * identical to the legacy inline constants in generate-pdf.js. Any change
- * to the Shorepine palette must be paired with a fresh baseline diff.
  */
 
-// ── Palettes ─────────────────────────────────────────────────────────
-// Each palette is the same shape so helpers can switch via a `palette` arg.
+// ── Palette ──────────────────────────────────────────────────────────
+// Single shared palette as of Thread 44. Values match Brand Guide v1.2 §02.
 // Color values are RGB tuples [r, g, b] for jsPDF set*Color() methods.
 
 /**
- * Internal firm palette — Shorepine Government Relations v4.6.
- * Used by the watchlist Brief PDF and the client-portal briefing.
+ * Vector | WA palette — Brand Guide v1.2 §02. Used by both PDF generators.
  *
- * Values mirror the legacy module-level constants in generate-pdf.js
- * (FOREST/TEAL/GOLD/GRAY/LGRAY/RED/MUTED). Do not change without a
- * fresh byte-equivalence baseline.
- */
-export const SHOREPINE_PALETTE = {
-  primary:              [26, 74, 46],     // Forest        #1a4a2e
-  primaryMid:           [45, 107, 69],    // Forest Mid    #2d6b45 (legacy TEAL)
-  accent:               [184, 151, 90],   // Brass         #b8975a (legacy GOLD)
-  neutral:              [74, 80, 96],     // Slate         #4a5060 (legacy GRAY)
-  neutralLt:            [220, 212, 196],  // Parchment edge (legacy LGRAY)
-  surface:              [245, 240, 230],  // Parchment surface
-  white:                [255, 255, 255],
-  danger:               [196, 71, 48],    // Ember         #c44730 (legacy RED)
-  muted:                [138, 128, 112],  // Stone         #8a8070 (legacy MUTED)
-  // Score-tier specific colors (returned by getScoreColor)
-  tierHigh:             [45, 107, 69],    // Forest Mid (legacy TEAL)
-  tierMod:              [58, 122, 138],   // Deep Teal (legacy inline)
-  tierLow:              [184, 151, 90],   // Brass (legacy GOLD)
-  tierVlow:             [138, 128, 112],  // Stone (legacy MUTED)
-  // Outcome-specific colors (returned by getOutcomeColor)
-  outcomeLaw:           [45, 107, 69],    // Forest Mid (legacy TEAL)
-  outcomePassedChamber: [184, 151, 90],   // Brass (legacy GOLD)
-  outcomeDead:          [138, 128, 112],  // Stone (legacy inline)
-  displayFont:          'times',
-}
-
-/**
- * Public Vector | WA palette — directive D1 (no Shorepine on public surfaces).
- * Dark Neutral, Card, Brass, Brass-Lt only. No Forest. No Cormorant.
+ * Note on print surfaces: PDFs render on white paper. The Vector | WA
+ * web/UI palette is dark-on-dark (Dark Neutral background, Cream text);
+ * for print the same hexes are inverted in role — Dark Neutral is now
+ * the TEXT color, off-white is the SURFACE (card background) color.
  *
  * jsPDF built-in fonts can only render Helvetica/Times/Courier without a
- * runtime VFS font load. Karla is the Vector | WA web typeface but loading it
- * into jsPDF would inflate the bundle and require an async vfs install. The
- * public PDF therefore renders Helvetica everywhere (closest sans-serif
- * substitute available natively) — explicit Karla parity is a non-goal.
+ * runtime VFS font load. Playfair Display + Karla are the Vector | WA
+ * typefaces but loading them into jsPDF would inflate the bundle and
+ * require an async vfs install. The PDFs therefore render Helvetica
+ * everywhere (closest sans-serif available natively).
  */
-export const VECTOR_PUBLIC_PALETTE = {
-  primary:              [14, 16, 20],     // Dark Neutral  #0e1014
-  primaryMid:           [23, 25, 33],     // Card          #171921
-  accent:               [184, 151, 90],   // Brass         #b8975a
+export const VECTOR_PALETTE = {
+  primary:              [14, 16, 20],     // Dark Neutral  #0e1014 — text on white
+  primaryMid:           [23, 25, 33],     // Card          #171921 — secondary text / accent panel
+  accent:               [184, 151, 90],   // Brass         #b8975a — primary accent
   neutral:              [70, 75, 85],     // text-muted analog
   neutralLt:            [200, 195, 185],  // Light divider analog
-  surface:              [248, 246, 242],  // Off-white print surface
+  surface:              [248, 246, 242],  // Off-white print surface (card background on paper)
   white:                [255, 255, 255],
-  danger:               [196, 71, 48],    // Ember (universal warning red)
-  muted:                [138, 128, 112],  // Stone
-  // Tier colors — brass-forward, no green semantics.
+  danger:               [196, 71, 48],    // Rust          #c44730 — universal warning
+  muted:                [138, 128, 112],  // Stone         #8a8070 — tertiary / metadata
+  // Tier colors — brass-forward, brand v1.2.
   tierHigh:             [184, 151, 90],   // Brass — strong
   tierMod:              [212, 180, 122],  // Brass-Lt — moderate
   tierLow:              [138, 128, 112],  // Stone — low
   tierVlow:             [90, 88, 82],     // Dim stone — very low
-  outcomeLaw:           [184, 151, 90],
-  outcomePassedChamber: [212, 180, 122],
-  outcomeDead:          [138, 128, 112],
+  outcomeLaw:           [184, 151, 90],   // Brass
+  outcomePassedChamber: [212, 180, 122],  // Brass-Lt
+  outcomeDead:          [138, 128, 112],  // Stone
   displayFont:          'helvetica',
 }
+
+// Backwards-compat alias for generate-public-pdf.js (no behavioral change).
+// A future thread can collapse this once the import is updated.
+export const VECTOR_PUBLIC_PALETTE = VECTOR_PALETTE
 
 // ── Score-tier thresholds (must match ScoreBadge in the live UI) ─────
 // Kept here so both PDF generators agree with the on-page chip cluster.
@@ -94,10 +71,9 @@ export const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /**
- * Resolve the score color for a tier. Defaults to SHOREPINE_PALETTE so
- * existing call sites in generate-pdf.js stay byte-equivalent.
+ * Resolve the score color for a tier. Defaults to VECTOR_PALETTE.
  */
-export function getScoreColor(score, palette = SHOREPINE_PALETTE) {
+export function getScoreColor(score, palette = VECTOR_PALETTE) {
   if (score >= TIER_HIGH)     return palette.tierHigh
   if (score >= TIER_MODERATE) return palette.tierMod
   if (score >= TIER_LOW)      return palette.tierLow
@@ -116,9 +92,9 @@ export function getScoreTierLabel(score) {
 
 /**
  * Card border / accent color based on bill outcome. Falls back to score color
- * for active bills. Defaults to SHOREPINE_PALETTE for byte-equivalence.
+ * for active bills. Defaults to VECTOR_PALETTE.
  */
-export function getOutcomeColor(bill, palette = SHOREPINE_PALETTE) {
+export function getOutcomeColor(bill, palette = VECTOR_PALETTE) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')             return palette.outcomeLaw
   if (cl === 'PASSED_CHAMBER')  return palette.outcomePassedChamber

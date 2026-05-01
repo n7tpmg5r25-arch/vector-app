@@ -5,8 +5,9 @@
  * Content per PUBLIC_SITE_REVIEW_2026-04-27.md Issue 2 (12 sections, missing
  * gracefully omitted).
  *
- * Vector | WA palette only — directive D1: zero Shorepine references on this
- * surface. Brass / Dark Neutral / Card / Stone. No Forest, no Cormorant.
+ * Vector | WA palette per Brand Guide v1.2 §02 — Brass / Dark Neutral / Card /
+ * Stone over an off-white print surface. Helvetica throughout (jsPDF can't
+ * render Playfair Display without a runtime VFS load).
  *
  * Consumer side: lazy-loaded via `await import('.../generate-public-pdf')`
  * from /bill/[id]/page.js — parity with the firm brief's lazy-load pattern.
