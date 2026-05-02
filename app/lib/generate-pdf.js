@@ -11,7 +11,7 @@
 
 import jsPDF from 'jspdf'
 import {
-  isInterimPeriod, getCurrentBiennium, getNextBiennium,
+  isInterimPeriod, isPostBienniumClose, getCurrentBiennium, getNextBiennium,
   getSessionCutoffs, formatSessionDate, daysUntil,
 } from './session-config'
 // Thread 32 / Thread 44 — shared color/tier/layout helpers. Helpers default
@@ -68,7 +68,10 @@ function getBillTitle(bill) {
   return title
 }
 
-/** Plain-English stage description. */
+/** Plain-English stage description.
+ *  Post-biennium-close PASSED_CHAMBER reframing matches Thread 41's
+ *  in-app scoreToEnglish branch: bills that passed one chamber don't
+ *  "carry over" across a biennium boundary -- they die unless refiled. */
 function getStagePlainText(bill) {
   const s = bill.stage || 1
   const chamber = bill.chamber || 'House'
@@ -77,7 +80,15 @@ function getStagePlainText(bill) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')  return 'Signed into law'
   if (cl === 'DEAD') return 'Did not advance — session ended'
-  if (cl === 'PASSED_CHAMBER') return 'Passed ' + chamber + ' — carries to next session'
+  if (cl === 'PASSED_CHAMBER') {
+    if (isPostBienniumClose()) {
+      const next = getNextBiennium()?.session
+      return next
+        ? 'Passed ' + chamber + ' — must be refiled in ' + next
+        : 'Passed ' + chamber + ' — must be refiled next biennium'
+    }
+    return 'Passed ' + chamber + ' — carries to next session'
+  }
 
   if (s >= 6) return 'Signed into law'
   if (s >= 4) return 'Passed ' + chamber + ' floor'
