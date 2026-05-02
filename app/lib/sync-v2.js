@@ -697,8 +697,14 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
   const allDates = statusChanges
     .map(s => new Date(s.ActionDate || s.StatusDate || ''))
     .filter(d => !isNaN(d));
-  const lastDate = allDates.length ? new Date(Math.max(...allDates)) : new Date();
-  const daysSince = Math.floor((new Date() - lastDate) / 86400000);
+  // Phase 6 / Thread 57 fix (2026-05-02): when the WSL API returns no parseable
+  // status changes for a bill (typical for archived 2021-22 / 2023-24 bills),
+  // fall back to NULL — never `new Date()`. The previous `: new Date()` fallback
+  // re-stamped 23 bills with the current sync time on every nightly run, which
+  // poisoned `/search` "Most Recent Action" sort and the PDF Brief "Last action"
+  // line. NULL is the honest value; the data simply doesn't exist in our pipeline.
+  const lastDate = allDates.length ? new Date(Math.max(...allDates)) : null;
+  const daysSince = lastDate ? Math.floor((new Date() - lastDate) / 86400000) : null;
 
   // Stalled detection — catches both committee-stage AND Rules-queue bills
   // Rules bills HAVE passed committee (committeePassed=true, stage=3) but can
@@ -781,7 +787,7 @@ function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, st
     days_to_cutoff: getDaysToCutoff(stage),
     avg_floor_margin: avgFloorMargin,
     hearing_date: hearingDate,
-    last_action_date: lastDate.toISOString(),
+    last_action_date: lastDate ? lastDate.toISOString() : null,
     last_action: lastAction,  // Phase 5A: now populated
     governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
   };
