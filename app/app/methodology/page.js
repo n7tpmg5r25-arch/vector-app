@@ -212,10 +212,16 @@ export default function MethodologyPage() {
       {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
       {isAnonPublic && <PublicNav />}
 
-      {/* HEADER */}
+      {/* Locked HEADER (Phase 5 polish 2026-05-01).
+          Sticky only when !isAnonPublic -- PublicNav already pins for
+          anon viewers and stacking two sticky-top-0 siblings conflicts.
+          The 52px top padding clears the fixed-position HamburgerButton. */}
       <div style={{
+        position: !isAnonPublic ? 'sticky' : 'static',
+        top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
