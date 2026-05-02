@@ -81,7 +81,6 @@ C:\Users\Col\vector-app\              ← repo root (deployed from here)
 │   │   ├── supabase.js                ← Supabase client init (browser + server)
 │   │   ├── useSession.js              ← React hook for session selector
 │   │   ├── csv-export.js              ← CSV export utility
-│   │   ├── ics-export.js              ← ICS calendar export utility
 │   │   └── backfill-hearings.js       ← one-time hearing backfill script
 │   │
 │   └── app/                           ← Next.js App Router pages
