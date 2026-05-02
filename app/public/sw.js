@@ -1,6 +1,6 @@
 // Vector | WA Service Worker — Free legislative intelligence for Washington State (lightweight offline shell cache)
-// v3 (2026-04-28) — bumped to invalidate old manifest.json + PNG icon caches after PWA app-icon swap to vector-wa-app-icon.svg.
-const CACHE_NAME = 'vector-wa-v3';
+// v4 (2026-05-02) — bumped to invalidate stale Phase-4 caches (Threads 42-48 shipped after v3, including Footer Shorepine attribution removal).
+const CACHE_NAME = 'vector-wa-v4';
 
 // Pages and assets to cache for offline shell
 const SHELL_ASSETS = [
