@@ -56,9 +56,19 @@ export default function AboutPage() {
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {isAnonPublic && <PublicNav />}
 
+      {/* Locked HEADER (Phase 5 polish 2026-05-01).
+          Sticky only when !isAnonPublic -- for anon viewers PublicNav
+          is already sticky at top:0 zIndex:50 above this; making both
+          sticky at top:0 would stack-conflict (the later sibling would
+          obscure PublicNav). For authed viewers there's no top bar,
+          so HEADER becomes the sticky brand chrome itself. The 52px
+          top padding clears the fixed-position HamburgerButton. */}
       <div style={{
+        position: !isAnonPublic ? 'sticky' : 'static',
+        top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
         padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
