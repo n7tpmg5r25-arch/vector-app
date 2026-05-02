@@ -342,15 +342,15 @@ export default function MethodologyPage() {
                   }}>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Bills</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.bills.toLocaleString()}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.bills.toLocaleString()}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Chamber</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{c.chamber.toFixed(1)}%</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)', textAlign: 'right' }}>{c.chamber.toFixed(1)}%</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law</div>
-                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.law.toFixed(1)}%</div>
+                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.law.toFixed(1)}%</div>
                     </div>
                   </div>
                 </div>
@@ -411,11 +411,11 @@ export default function MethodologyPage() {
                   }}>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law Rate</div>
-                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.rate}</div>
+                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.rate}</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>95% CI</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.ci}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.ci}</div>
                     </div>
                   </div>
                 </div>
