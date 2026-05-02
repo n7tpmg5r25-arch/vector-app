@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
 import { isAdmin } from '../../../lib/admin'
 
@@ -47,6 +48,31 @@ async function resolveLandingPath(supabase, user) {
   return '/'
 }
 
+/**
+ * Thread 54 (Phase 5) — map known Supabase auth/PKCE error patterns to
+ * friendly, actionable copy. Raw library strings ("PKCE code verifier
+ * not found in storage...") are technically accurate but break user
+ * trust on first sign-in and don't tell anyone what to do next. Per
+ * Brand Guide v1.2 §05 (voice — plain English, actionable). Patterns
+ * checked in priority order; everything else falls through to a default
+ * catch-all that points users back at /login. The single `expired`
+ * substring covers `otp_expired`, `link_expired`, and our own thrown
+ * "The link may have expired." string from the no-session branch.
+ */
+function errorToCopy(err) {
+  const raw = (err?.message || '').toLowerCase()
+  if (raw.includes('code verifier')) {
+    return 'Your sign-in link expired or was opened in a different browser. Request a new one.'
+  }
+  if (raw.includes('expired')) {
+    return 'This sign-in link has expired. Magic links are valid for 1 hour.'
+  }
+  if (raw.includes('invalid')) {
+    return 'This sign-in link is no longer valid. Request a new one.'
+  }
+  return 'Sign-in failed. Please request a new link from /login.'
+}
+
 export default function AuthCallbackPage() {
   const router = useRouter()
   const [status, setStatus] = useState('Signing you in...')
@@ -82,8 +108,12 @@ export default function AuthCallbackPage() {
       } catch (err) {
         console.error('[auth/callback]', err)
         setIsError(true)
-        setStatus(err?.message || 'Sign-in failed. Please request a new link.')
-        setTimeout(() => router.replace('/login'), 2500)
+        // Thread 54: never surface raw Supabase strings; map to friendly
+        // copy via errorToCopy(). Auto-redirect extended to 4500ms so
+        // users have time to read the message and choose to click the
+        // "Sign in again" CTA before the redirect fires.
+        setStatus(errorToCopy(err))
+        setTimeout(() => router.replace('/login'), 4500)
       }
     }
 
@@ -104,18 +134,31 @@ export default function AuthCallbackPage() {
         pointerEvents: 'none',
       }}/>
 
-      <svg width="56" height="48" viewBox="0 0 56 48" fill="none" style={{ marginBottom: 24, filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.3))' }}>
-        <path d="M4 4 L28 44 L52 4" stroke="var(--gold)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        <path d="M28 44 L52 20" stroke="var(--gold-light)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-        <polygon points="52,14 58,22 44,22" fill="var(--gold-light)"/>
-      </svg>
+      {/* Thread 54: canonical primary lockup per Brand Guide v1.2 §02.
+          Replaces a hand-rolled inline V-mark that pre-dated the v1.2
+          logo asset set. Mirrors the precedent set on /login (lines
+          122-134) so the auth flow uses one logo treatment end-to-end. */}
+      <img
+        src="/logos/vector-wa-primary.svg"
+        alt="Vector | WA"
+        width={200}
+        style={{
+          height: 'auto',
+          maxWidth: '80%',
+          marginBottom: 24,
+          filter: 'drop-shadow(0 0 18px rgba(184,151,90,0.25))',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      />
 
       <div style={{
         fontFamily: 'var(--font-display)',
         fontSize: 18, fontWeight: 600,
-        color: isError ? 'var(--danger)' : 'var(--gold)',
+        color: isError ? 'var(--danger)' : 'var(--brass-light)',
         textAlign: 'center', maxWidth: 320,
         textShadow: isError ? 'none' : '0 0 16px rgba(184,151,90,0.2)',
+        position: 'relative', zIndex: 1,
       }}>
         {status}
       </div>
@@ -124,9 +167,34 @@ export default function AuthCallbackPage() {
         <div style={{
           marginTop: 16, fontSize: 12, color: 'var(--text-faint)',
           letterSpacing: '0.12em', textTransform: 'uppercase',
+          position: 'relative', zIndex: 1,
         }}>
           One moment
         </div>
+      )}
+
+      {isError && (
+        <Link
+          href="/login"
+          className="vec-cta-primary"
+          style={{
+            display: 'inline-block',
+            marginTop: 24,
+            padding: '12px 28px',
+            background: 'var(--brass)',
+            color: 'var(--bg)',
+            textDecoration: 'none',
+            border: 'none',
+            borderRadius: 'var(--radius)',
+            fontSize: 14,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            fontFamily: 'var(--font-body)',
+            position: 'relative', zIndex: 1,
+          }}
+        >
+          Sign in again
+        </Link>
       )}
     </div>
   )

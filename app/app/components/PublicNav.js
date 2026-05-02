@@ -13,6 +13,7 @@
  * component shared across public routes -- not globally mounted.
  */
 import Link from 'next/link'
+import HamburgerButton from './HamburgerButton'
 
 export default function PublicNav() {
   return (
@@ -26,29 +27,38 @@ export default function PublicNav() {
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid var(--border)',
-        padding: '12px 20px',
+        padding: '8px 12px 8px 4px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         fontFamily: 'var(--font-body)',
+        gap: 8,
       }}
     >
-      <Link
-        href="/"
-        aria-label="Vector | WA -- home"
-        style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
-      >
-        <img
-          src="/logos/vector-wa-primary.svg"
-          alt="Vector | WA"
-          style={{
-            height: 36,
-            width: 'auto',
-            display: 'block',
-            filter: 'drop-shadow(0 0 12px rgba(184,151,90,0.18))',
-          }}
-        />
-      </Link>
+      {/* Thread 55 (2026-05-01) -- hamburger trigger inline at the very
+          left of the public top bar. Sits flush with the wordmark so the
+          public top-bar feels intentionally densified rather than
+          floating. The drawer itself is mounted globally in
+          app/app/layout.tsx. */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <HamburgerButton />
+        <Link
+          href="/"
+          aria-label="Vector | WA -- home"
+          style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}
+        >
+          <img
+            src="/logos/vector-wa-primary.svg"
+            alt="Vector | WA"
+            style={{
+              height: 36,
+              width: 'auto',
+              display: 'block',
+              filter: 'drop-shadow(0 0 12px rgba(184,151,90,0.18))',
+            }}
+          />
+        </Link>
+      </div>
 
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 }}>
         <NavLink href="/how-it-works">How it works</NavLink>

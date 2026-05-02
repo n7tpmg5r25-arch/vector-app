@@ -1,6 +1,7 @@
 'use client'
 import { usePathname, useRouter } from 'next/navigation'
 import { isInterimPeriod } from '../../lib/session-config'
+import HamburgerButton from './HamburgerButton'
 
 const NAV = [
   {
@@ -92,7 +93,32 @@ export default function Nav() {
   const router = useRouter()
 
   return (
-    <nav style={{
+    <>
+      {/* Thread 55 (2026-05-01) -- top-left hamburger trigger for the
+          global SideDrawer. Rendered as a fixed-position element anchored
+          to the top-left of the 480px mobile column so the bottom-tab Nav
+          retains its existing chrome. The drawer itself is mounted in
+          app/app/layout.tsx as a sibling to Footer.
+
+          Top-left placement mirrors LinkedIn / Gmail / Notion convention.
+          The button stays out of the way of in-page sticky headers (e.g.
+          PublicNav top bar on shared public/owner pages) by sitting above
+          page content but below the drawer overlay (zIndex 90 -- drawer
+          uses 998/999). */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 8,
+          left: 'calc(50% - 240px + 6px)',
+          width: 40,
+          zIndex: 90,
+          pointerEvents: 'auto',
+        }}
+      >
+        <HamburgerButton />
+      </div>
+
+      <nav style={{
       position: 'fixed', bottom: 0, left: '50%',
       transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
@@ -135,5 +161,6 @@ export default function Nav() {
         )
       })}
     </nav>
+    </>
   )
 }
