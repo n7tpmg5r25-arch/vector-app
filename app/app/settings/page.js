@@ -380,18 +380,16 @@ export default function SettingsPage() {
             borderRadius: 'var(--radius)', padding: '16px',
             fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <svg width="24" height="20" viewBox="0 0 56 48" fill="none">
-                <path d="M4 4 L28 44 L52 4" stroke="var(--teal)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-                <path d="M28 44 L52 20" stroke="var(--teal-dim)" strokeWidth="4" strokeLinecap="round" fill="none"/>
-                <polygon points="52,14 58,22 44,22" fill="var(--gold)"/>
-              </svg>
-              <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--teal)' }}>
-                  VECTOR <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>| WA</span>
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>Legislative Trajectories</div>
-              </div>
+            <div style={{ marginBottom: 12 }}>
+              <img
+                src="/logos/vector-wa-primary.svg"
+                alt="Vector | WA"
+                width={150}
+                style={{
+                  height: 'auto',
+                  filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.2))',
+                }}
+              />
             </div>
             Trajectory scoring engine calibrated against <CohortCitation />. Signals include committee activity, sponsor tier, momentum, historical pass rates, and X Factor multipliers.
           </div>
