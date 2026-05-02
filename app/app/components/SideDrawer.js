@@ -18,7 +18,7 @@
  *   - Client  → above + Team portal link to /c/[slug] resolved via a
  *               cheap client_users → clients(slug) join.
  *
- * Footer parity (Thread 56.1, 2026-05-01):
+ * Footer parity (Thread 58, 2026-05-01):
  *   The Footer link rail used to render Disclaimers / About / Methodology /
  *   How it works on every route across all three layers. With the registered
  *   drawer now carrying these links, Footer.js was gated to render Row 2 for
@@ -53,6 +53,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
+import { Settings as SettingsIcon } from 'lucide-react'
 import { createBrowserClient } from '../../lib/supabase'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { isAdmin } from '../../lib/admin'
@@ -412,7 +413,10 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
   const email = user?.email || '—'
 
   return (
-    <nav aria-label="Account menu" style={{ display: 'flex', flexDirection: 'column' }}>
+    <nav
+      aria-label="Account menu"
+      style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
+    >
       {/* Profile chip */}
       <div style={{ padding: '12px 20px 16px' }}>
         <div
@@ -471,15 +475,13 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
         Watchlist
       </DrawerLink>
 
-      <DrawerLink href="/settings" onClose={() => {}}>Settings</DrawerLink>
-
       {showAdmin && (
         <DrawerLink href="/admin/clients" onClose={() => {}}>Admin</DrawerLink>
       )}
 
       <SectionDivider />
 
-      {/* Reference section — parity with public drawer (Thread 56.1).
+      {/* Reference section — parity with public drawer (Thread 58).
           Links removed from Footer.js Row 2 for owner+client; drawer is
           now the canonical menu surface for registered/team viewers. */}
       <DrawerLink href="/disclaimers" onClose={() => {}}>Disclaimers</DrawerLink>
@@ -487,11 +489,26 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
       <DrawerLink href="/methodology" onClose={() => {}}>Methodology</DrawerLink>
       <DrawerLink href="/how-it-works" onClose={() => {}}>How it works</DrawerLink>
 
+      {/* Spacer pushes the Settings + Sign Out block to the drawer footer
+          (LinkedIn-style; Thread 58.5 / 2026-05-01). */}
+      <div style={{ flex: 1, minHeight: 12 }} aria-hidden="true" />
+
       <SectionDivider />
+
+      {/* Settings — gear-icon row pinned to the drawer footer. Visually
+          subdued vs the upper nav so it reads as utility, not a primary
+          surface (LinkedIn pattern). */}
+      <DrawerLink
+        href="/settings"
+        onClose={() => {}}
+        leftSlot={<SettingsIcon size={14} aria-hidden="true" />}
+      >
+        Settings
+      </DrawerLink>
 
       {/* Sign out — Rust functional color, destructive treatment per
           Brand Guide v1.2 §02 functional palette + Thread 35 cta pattern. */}
-      <div style={{ padding: '8px 20px 0' }}>
+      <div style={{ padding: '8px 20px 16px' }}>
         <button
           type="button"
           onClick={onSignOut}
@@ -523,7 +540,7 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
 /* ────────────────────────────────────────────────────────────────────
    Shared row primitives.
    ──────────────────────────────────────────────────────────────────── */
-function DrawerLink({ href, children, onClose, rightSlot }) {
+function DrawerLink({ href, children, onClose, rightSlot, leftSlot }) {
   return (
     <Link
       href={href}
@@ -549,7 +566,10 @@ function DrawerLink({ href, children, onClose, rightSlot }) {
         e.currentTarget.style.color = 'var(--text-primary, #e8e9ec)'
       }}
     >
-      <span>{children}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {leftSlot}
+        <span>{children}</span>
+      </span>
       {rightSlot}
     </Link>
   )
