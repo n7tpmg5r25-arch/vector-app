@@ -24,6 +24,7 @@ import jsPDF from 'jspdf'
 import {
   formatSessionDate,
   isInterimPeriod,
+  isPostBienniumClose,
   getCurrentBiennium,
   getNextBiennium,
   getSessionCutoffs,
@@ -189,7 +190,11 @@ function getBillTitle(bill) {
   return title
 }
 
-/** Plain-English current-stage line. Mirrors the firm brief's logic. */
+/** Plain-English current-stage line. Mirrors the firm brief's logic.
+ *  Post-biennium-close PASSED_CHAMBER reframing matches Thread 41's
+ *  in-app scoreToEnglish branch: bills that passed one chamber don't
+ *  "carry over" across a biennium boundary -- they die unless refiled
+ *  in the next biennium. */
 function getStagePlainText(bill) {
   const s = bill.stage || 1
   const chamber = bill.chamber || 'House'
@@ -198,7 +203,15 @@ function getStagePlainText(bill) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')  return 'Signed into law'
   if (cl === 'DEAD') return 'Did not advance — session ended'
-  if (cl === 'PASSED_CHAMBER') return 'Passed ' + chamber + ' — carries to next session'
+  if (cl === 'PASSED_CHAMBER') {
+    if (isPostBienniumClose()) {
+      const next = getNextBiennium()?.session
+      return next
+        ? 'Passed ' + chamber + ' — must be refiled in ' + next
+        : 'Passed ' + chamber + ' — must be refiled next biennium'
+    }
+    return 'Passed ' + chamber + ' — carries to next session'
+  }
 
   if (s >= 6) return 'Signed into law'
   if (s >= 4) return 'Passed ' + chamber + ' floor'
@@ -219,12 +232,22 @@ function getRecentActionDate(bill) {
   } catch (e) { return '' }
 }
 
-/** One-sentence plain-English read of the score for the trajectory box. */
+/** One-sentence plain-English read of the score for the trajectory box.
+ *  Post-biennium-close PASSED_CHAMBER mirrors the in-app scoreToEnglish
+ *  copy verbatim (Thread 41 helper, app/lib/score-to-english.js): the
+ *  bill is dead and must be refiled as a new bill in the next biennium. */
 function getScoreOneLiner(bill, score) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW') return 'Signed into law — outcome final.'
   if (cl === 'DEAD') return 'Did not advance — session ended without passage.'
-  if (cl === 'PASSED_CHAMBER') return 'Passed its first chamber — carries into the next session.'
+  if (cl === 'PASSED_CHAMBER') {
+    if (isPostBienniumClose()) {
+      const next = getNextBiennium()?.session
+      const where = next ? 'in ' + next : 'next biennium'
+      return 'Did not pass this biennium — must be refiled ' + where + ' to advance.'
+    }
+    return 'Passed its first chamber — carries into the next session.'
+  }
 
   if (score >= TIER_HIGH)     return 'Strong forward movement — historically, bills in this band become law ~84% of the time.'
   if (score >= TIER_MODERATE) return 'Moderate momentum — a viable path to passage with active committee work.'
