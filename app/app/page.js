@@ -357,7 +357,7 @@ export default function HomePage() {
             {/* Brand-posture chip.
                 • Owner viewers render nothing here — the SideDrawer's Admin
                   link covers admin entry, so the home brass-pill duplication
-                  was removed (Thread 56.1, 2026-05-01; mirrors PR #78's
+                  was removed (Thread 58, 2026-05-01; mirrors PR #78's
                   Settings-gear removal).
                 • Public + client viewers see the original "Free & Nonpartisan"
                   brand chip. That line is the app's public posture and should

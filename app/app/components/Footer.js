@@ -1,6 +1,8 @@
 "use client"
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { createBrowserClient } from '../../lib/supabase'
 import { useViewer } from '../../lib/viewer-capabilities'
 
 /**
@@ -8,7 +10,7 @@ import { useViewer } from '../../lib/viewer-capabilities'
  *
  * Two-row layout (mobile-only, 480px column):
  *
- *   Row 1: byline (top) + "Refreshed nightly" (bottom).
+ *   Row 1: byline (top) + freshness signal (bottom).
  *   Row 2: utility links (top) + role-branched right slot (bottom):
  *            * public  -> small brass launch pill "Public launch . mid 2027"
  *            * owner   -> null (Brand v1.2 dropped firm attribution; Thread 43)
@@ -26,16 +28,100 @@ import { useViewer } from '../../lib/viewer-capabilities'
  * existed in the top-nav (PublicNav for anon, Nav for owner) but had no
  * footer entry point -- a trust signal added per Thread 33 spec.
  *
- * Thread 56.1 update (2026-05-01) -- Row 2 now renders for role==='public'
+ * Thread 58 update (2026-05-01) -- Row 2 now renders for role==='public'
  * only. Owner + client viewers get a leaner footer (Row 1: byline + freshness
  * only) and reach the four reference pages (Disclaimers / About /
  * Methodology / How it works) via the SideDrawer's Reference section. Anon
  * viewers keep the link rail for ambient discovery + SEO link-juice into
  * the public-allowlist routes ahead of the mid-2027 launch.
+ *
+ * Thread 58.6 (2026-05-01) -- "Refreshed nightly" replaced with a real sync
+ * timestamp pulled from sync_log.MAX(ran_at) WHERE bills_updated > 0
+ * (skips daily-snapshot safety-net rows that don't actually pull fresh
+ * data). Format Pacific-zone relative + absolute. Stale-aware: when last
+ * sync >25h ago, copy + color shift to Rust (#c44730) signaling a missed
+ * nightly run. Lobbyists planning around 8am hearings need this to be
+ * real and decision-grade per Brand Guide §05.
  */
+
+// Time thresholds (ms) for the sync-timestamp staleness ladder.
+const FRESH_MS    = 25 * 60 * 60 * 1000  // <=25h: green/normal
+const STALE_MS    = 49 * 60 * 60 * 1000  // 25-49h: amber-warn (still in normal copy)
+// >49h: Rust + "Last sync N hours ago" copy (a missed nightly is the alarm)
+
+// Time-zone-aware formatter for the Pacific timestamp.
+function formatSyncTimestamp(ranAtIso) {
+  if (!ranAtIso) return null
+  const ranAt = new Date(ranAtIso)
+  if (isNaN(ranAt.getTime())) return null
+
+  const now = new Date()
+  const ageMs = now.getTime() - ranAt.getTime()
+  const ageHours = Math.floor(ageMs / (60 * 60 * 1000))
+
+  // Time-of-day in Pacific (handles PST/PDT automatically).
+  const time = ranAt.toLocaleTimeString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  })
+
+  // Day delta in Pacific calendar terms.
+  const ranAtPacific = new Date(ranAt.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+  const nowPacific = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }))
+  const dayDelta = Math.floor(
+    (nowPacific.setHours(0, 0, 0, 0) - new Date(ranAtPacific).setHours(0, 0, 0, 0)) / (24 * 60 * 60 * 1000)
+  )
+
+  let copy
+  let stale = ageMs > FRESH_MS
+
+  if (ageMs > STALE_MS) {
+    // >49h: missed nightly. Hours-only readout, signaled in Rust.
+    copy = `Last sync · ${ageHours} hours ago`
+  } else if (dayDelta === 0) {
+    copy = `Refreshed today · ${time}`
+  } else if (dayDelta === 1) {
+    copy = `Refreshed yesterday · ${time}`
+  } else {
+    const dateLabel = ranAt.toLocaleDateString('en-US', {
+      timeZone: 'America/Los_Angeles',
+      month: 'short',
+      day: 'numeric',
+    })
+    copy = `Refreshed ${dateLabel} · ${time}`
+  }
+
+  return { copy, stale }
+}
+
 export default function Footer() {
   const { capabilities, loading } = useViewer()
   const role = capabilities?.role
+  const [freshness, setFreshness] = useState(null)
+
+  // Pull the real sync timestamp on mount. One-shot, no polling — users who
+  // want a fresher read can refresh the page (matches our nightly cadence).
+  useEffect(() => {
+    let mounted = true
+    const supabase = createBrowserClient()
+    supabase
+      .from('sync_log')
+      .select('ran_at')
+      .gt('bills_updated', 0)
+      .order('ran_at', { ascending: false })
+      .limit(1)
+      .then(({ data, error }) => {
+        if (!mounted) return
+        if (error || !data || data.length === 0) {
+          setFreshness(null)
+          return
+        }
+        setFreshness(formatSyncTimestamp(data[0].ran_at))
+      })
+    return () => { mounted = false }
+  }, [])
 
   // Row 2 right slot -- viewer-branched per G6 (Thread 19.1 pattern).
   let rightSlot = null
@@ -106,17 +192,18 @@ export default function Footer() {
           </span>
           <span
             style={{
-              color: '#5a6070',
+              color: freshness?.stale ? '#c44730' : '#5a6070',
               fontSize: 11,
               letterSpacing: '0.02em',
+              fontFamily: 'var(--font-mono, "DM Mono", monospace)',
             }}
           >
-            Refreshed nightly
+            {freshness?.copy || 'Refreshed nightly'}
           </span>
         </div>
 
         {/* Row 2 -- utility links + role-branched right slot.
-            Thread 56.1: anon-only. Owner + client viewers reach the four
+            Thread 58: anon-only. Owner + client viewers reach the four
             reference pages via the SideDrawer's Reference section. */}
         {role === 'public' && (
           <div
