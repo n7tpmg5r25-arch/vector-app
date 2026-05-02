@@ -239,10 +239,65 @@ export default function HomePage() {
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
 
-      {/* ── HEADER ────────────────────────────────────────── */}
+      {/* ── STICKY BRAND BAR (2026-05-01 home polish) ─────────
+          Matches the sticky-header pattern that every other authed
+          page already uses (watchlist, methodology, etc.) -- keeps the
+          brand chrome anchored at the top of the viewport while the
+          dashboard content scrolls underneath. Locked content is
+          deliberately compact: logo lockup + Karla tagline +
+          (interim-gated) refresh button. Session picker, status chips,
+          transition messages, and advocacy outlook stay in document
+          flow inside the original HEADER gradient panel below.
+
+          52px top padding clears the fixed-position HamburgerButton
+          (Nav.js, top: env+8, height: 40, zIndex: 90 -- this bar
+          renders at zIndex 50 so the hamburger overlays it cleanly).
+          Logo height shrunk 72 -> 56 to keep the locked bar tight on
+          a phone (~140px lock vs ~200px otherwise). */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: 'rgba(14,16,20,0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
+        padding: '52px 20px 14px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <img
+              src="/logos/vector-wa-primary.svg"
+              alt="Vector | WA"
+              style={{ height: 56, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.22))' }}
+            />
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6, fontFamily: 'var(--font-body)' }}>
+              Legislative Trajectories
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Phase 7V: hide refresh during interim -- scores are frozen */}
+            {!isInterimPeriod() && (
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Refresh bill scores"
+                title={refreshing ? 'Refreshing…' : 'Refresh bill scores'}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── HEADER (gradient panel; scrolls under sticky bar) ── */}
       <div style={{
         background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
-        padding: '52px 20px 20px',
+        padding: '20px 20px 20px',
         position: 'relative', overflow: 'hidden',
       }}>
         {/* Radial glow */}
@@ -253,45 +308,6 @@ export default function HomePage() {
         }}/>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          {/* Logo row — brand v4.6: canonical primary SVG (wordmark baked in), Karla tagline */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div>
-              <img
-                src="/logos/vector-wa-primary.svg"
-                alt="Vector | WA"
-                style={{ height: 72, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 20px rgba(184,151,90,0.25))' }}
-              />
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6, fontFamily: 'var(--font-body)' }}>
-                Legislative Trajectories
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* Phase 7V: hide refresh during interim — scores are frozen */}
-              {!isInterimPeriod() && (
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  aria-label="Refresh bill scores"
-                  title={refreshing ? 'Refreshing…' : 'Refresh bill scores'}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
-                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                  </svg>
-                </button>
-              )}
-              {/* Settings gear lived here pre-Thread 55. Removed 2026-05-01
-                  once the side drawer landed -- Settings is now one tap from
-                  the hamburger on every screen, and a duplicate path on the
-                  home hero trains the wrong mental model (the drawer is the
-                  canonical account-stuff surface). Refresh stays because
-                  it's a real action with no drawer equivalent. */}
-            </div>
-          </div>
-
           {/* Status chips + session picker */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* 6D.1: Session picker dropdown */}
