@@ -347,15 +347,15 @@ export default function MethodologyPage() {
                     fontFamily: 'var(--font-mono)',
                   }}>
                     <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Bills</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Bills</div>
                       <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.bills.toLocaleString()}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Chamber</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Chamber</div>
                       <div style={{ fontSize: 13, color: 'var(--text-primary)', textAlign: 'right' }}>{c.chamber.toFixed(1)}%</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law</div>
                       <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.law.toFixed(1)}%</div>
                     </div>
                   </div>
@@ -416,11 +416,11 @@ export default function MethodologyPage() {
                     fontFamily: 'var(--font-mono)',
                   }}>
                     <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law Rate</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law Rate</div>
                       <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.rate}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>95% CI</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>95% CI</div>
                       <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.ci}</div>
                     </div>
                   </div>
