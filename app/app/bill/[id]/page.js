@@ -123,7 +123,7 @@ const XF_TOOLTIPS = {
   'Cutoff warning':      'Approaching a legislative cutoff deadline \u2014 time pressure is building.',
 }
 
-/* ── Latest Floor Vote Strip (Thread 18.4) ───────────────────
+/* ── Latest Floor Vote Strip (Thread 18.4 + Thread 51) ───────
  * Inline tappable strip rendered between status banners and the
  * sparkline hero on bill detail. Quick-glance partisan readout for
  * any bill with a Final Passage roll call. Tapping opens the Votes
@@ -131,8 +131,17 @@ const XF_TOOLTIPS = {
  *
  * Reads partyBucketsByRcId from the parent page (single batch fetch
  * shared with VoteSplitBar + VoteHistoryTable). Display-only (G5).
+ *
+ * Thread 51 (2026-05-01): the eyebrow + date framing branches on
+ * bill.confidence_label so a signed-into-law bill no longer reads
+ * "Latest" (which implies the vote happened today). Mirrors the
+ * Thread 18.2 banner vocabulary that already lives just above:
+ *   • LAW                                  → "Final vote · {chamber}" + "Voted {date}"
+ *   • DEAD, OR
+ *     PASSED_CHAMBER + isPostBienniumClose → "Last roll call · {chamber}" + "Voted {date}"
+ *   • Anything else (live in-session)      → "Latest · {chamber}" + bare {date}
  */
-function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes }) {
+function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes, bill }) {
   const fp = (rollCalls || []).filter(rc => isFinalPassage(rc.motion || ''))
   if (fp.length === 0) return null
   const latest = fp[0]
@@ -144,6 +153,14 @@ function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes }) {
   const passed = (latest.result || '').toLowerCase() === 'passed'
   const dateLbl = formatSessionDate(latest.vote_date)
   const chamberAccent = latest.chamber === 'House' ? '#4d9aff' : '#ffa84d'
+
+  // Thread 51: branch eyebrow + date framing on bill final status.
+  const cl = (bill?.confidence_label || '').toUpperCase()
+  const isLaw = cl === 'LAW'
+  const isLastRollCall = cl === 'DEAD' || (cl === 'PASSED_CHAMBER' && isPostBienniumClose())
+  const eyebrow = isLaw ? 'Final vote' : isLastRollCall ? 'Last roll call' : 'Latest'
+  const dateText = (isLaw || isLastRollCall) ? `Voted ${dateLbl}` : dateLbl
+  const ariaLead = isLaw ? 'Final vote' : isLastRollCall ? 'Last roll call' : 'Latest floor vote'
 
   return (
     <button
@@ -158,7 +175,7 @@ function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes }) {
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,151,90,0.35)' }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
-      aria-label={`Latest floor vote: ${latest.chamber}, ${dateLbl}, ${latest.yeas} yea ${latest.nays} nay, ${passed ? 'passed' : 'failed'}. Tap to view full breakdown.`}
+      aria-label={`${ariaLead}: ${latest.chamber}, ${dateText}, ${latest.yeas} yea ${latest.nays} nay, ${passed ? 'passed' : 'failed'}. Tap to view full breakdown.`}
     >
       <span style={{
         fontSize: 9, padding: '2px 7px', borderRadius: 6, flexShrink: 0,
@@ -167,10 +184,10 @@ function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes }) {
         border: `1px solid ${latest.chamber === 'House' ? 'rgba(77,154,255,0.25)' : 'rgba(255,168,77,0.25)'}`,
         fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase',
       }}>
-        Latest · {latest.chamber}
+        {eyebrow} · {latest.chamber}
       </span>
       <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)' }}>
-        {dateLbl}
+        {dateText}
       </span>
       <span style={{
         fontSize: 11, fontFamily: 'var(--font-mono)',
@@ -977,6 +994,7 @@ export default function BillDetailPage() {
         <LatestFloorVoteStrip
           rollCalls={rollCalls}
           partyBuckets={partyBucketsByRcId}
+          bill={bill}
           onOpenVotes={() => {
             setTab('votes')
             // Let React render the tab change before we scroll.
