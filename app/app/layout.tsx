@@ -4,6 +4,7 @@ import RegisterSW from './components/RegisterSW'
 import Footer from './components/Footer'
 import SessionBanner from './components/SessionBanner'
 import PublicBottomNav from './components/PublicBottomNav'
+import SideDrawer from './components/SideDrawer'
 
 export const metadata = {
   metadataBase: new URL('https://vector-app-liard.vercel.app'),
@@ -60,6 +61,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             see nothing here so the existing authed Nav.js / portal segment
             chrome is not doubled. See app/app/components/PublicBottomNav.js. */}
         <PublicBottomNav />
+        {/* Thread 55 (2026-05-01) — globally-mounted slide-out drawer.
+            Triggered by HamburgerButton in Nav.js (owner/client) and
+            PublicNav.js (public). Self-gates on viewer role per G6:
+            renders Public / Owner / Client bodies branched by
+            useViewer().capabilities.role. Closed by default; opens on
+            `vec-drawer-open` window event; closes on Escape, outside
+            click, route change, or `vec-drawer-close` event.
+            See app/app/components/SideDrawer.js. */}
+        <SideDrawer />
         {/* Vercel Analytics (2026-04-29) — first-party page-view tracking.
             Privacy-friendly (no cookies, no PII). Free tier on Hobby plan
             covers 2,500 events/month, ample headroom for pre-launch
