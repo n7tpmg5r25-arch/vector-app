@@ -256,7 +256,12 @@ export default function HomePage() {
           a phone (~140px lock vs ~200px otherwise). */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(14,16,20,0.95)',
+        // Layered background: brass radial glow (top, ~10% peak opacity)
+        // over the dark frosted base (95% opaque, lets backdrop-blur still
+        // soften scrolling content beneath). Glow centered upper-right --
+        // mirrors the original HEADER hue Colin remembered. Below this
+        // bar HEADER goes solid (no gradient, no glow) per his ask.
+        background: 'radial-gradient(ellipse at 70% 20%, rgba(184,151,90,0.10) 0%, transparent 60%), rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
@@ -294,19 +299,17 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── HEADER (gradient panel; scrolls under sticky bar) ── */}
+      {/* ── HEADER (solid panel; scrolls under sticky bar) ──
+          The brass radial glow that used to live here moved up onto
+          the sticky bar (where the logo is) per Colin's ask -- below
+          the lock the panel reads as a clean solid surface. Inner
+          relative-positioned wrapper kept so existing zIndex layering
+          on chips/picker/transitions stays intact. */}
       <div style={{
-        background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
+        background: 'var(--bg)',
         padding: '20px 20px 20px',
         position: 'relative', overflow: 'hidden',
       }}>
-        {/* Radial glow */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'radial-gradient(ellipse at 70% 20%, rgba(184,151,90,0.08) 0%, transparent 60%)',
-          pointerEvents: 'none',
-        }}/>
-
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* Status chips + session picker */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
