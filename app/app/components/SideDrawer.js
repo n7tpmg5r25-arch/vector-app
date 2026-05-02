@@ -11,10 +11,19 @@
  *               Methodology / How it works).
  *   - Owner   → profile chip (email + role badge) + Watchlist (with count
  *               badge) + Settings + Admin (only when isAdmin(user)) +
+ *               Reference links (Disclaimers / About / Methodology /
+ *               How it works) mirroring the public drawer for parity +
  *               Sign Out (Rust functional palette per Brand Guide v1.2
  *               §02; destructive treatment).
  *   - Client  → above + Team portal link to /c/[slug] resolved via a
  *               cheap client_users → clients(slug) join.
+ *
+ * Footer parity (Thread 56.1, 2026-05-01):
+ *   The Footer link rail used to render Disclaimers / About / Methodology /
+ *   How it works on every route across all three layers. With the registered
+ *   drawer now carrying these links, Footer.js was gated to render Row 2 for
+ *   role === 'public' only — owner/client surfaces get a leaner footer
+ *   (legal + byline + freshness) and reach reference pages via the drawer.
  *
  * Biennium-aware subtitle (session-config.js):
  *   - Interim period → "Pre-filing opens in {N} days"
@@ -465,8 +474,18 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
       <DrawerLink href="/settings" onClose={() => {}}>Settings</DrawerLink>
 
       {showAdmin && (
-        <DrawerLink href="/admin" onClose={() => {}}>Admin</DrawerLink>
+        <DrawerLink href="/admin/clients" onClose={() => {}}>Admin</DrawerLink>
       )}
+
+      <SectionDivider />
+
+      {/* Reference section — parity with public drawer (Thread 56.1).
+          Links removed from Footer.js Row 2 for owner+client; drawer is
+          now the canonical menu surface for registered/team viewers. */}
+      <DrawerLink href="/disclaimers" onClose={() => {}}>Disclaimers</DrawerLink>
+      <DrawerLink href="/about" onClose={() => {}}>About</DrawerLink>
+      <DrawerLink href="/methodology" onClose={() => {}}>Methodology</DrawerLink>
+      <DrawerLink href="/how-it-works" onClose={() => {}}>How it works</DrawerLink>
 
       <SectionDivider />
 

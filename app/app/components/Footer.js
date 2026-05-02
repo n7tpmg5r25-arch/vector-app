@@ -25,6 +25,13 @@ import { useViewer } from '../../lib/viewer-capabilities'
  * Row 2 adds Methodology + How it works to the link rail. Both already
  * existed in the top-nav (PublicNav for anon, Nav for owner) but had no
  * footer entry point -- a trust signal added per Thread 33 spec.
+ *
+ * Thread 56.1 update (2026-05-01) -- Row 2 now renders for role==='public'
+ * only. Owner + client viewers get a leaner footer (Row 1: byline + freshness
+ * only) and reach the four reference pages (Disclaimers / About /
+ * Methodology / How it works) via the SideDrawer's Reference section. Anon
+ * viewers keep the link rail for ambient discovery + SEO link-juice into
+ * the public-allowlist routes ahead of the mid-2027 launch.
  */
 export default function Footer() {
   const { capabilities, loading } = useViewer()
@@ -108,36 +115,40 @@ export default function Footer() {
           </span>
         </div>
 
-        {/* Row 2 -- utility links + role-branched right slot */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 10,
-            paddingTop: 10,
-            borderTop: '1px solid #1e2028',
-          }}
-        >
-          <span>
-            <Link href="/disclaimers" style={linkStyle}>
-              Disclaimers
-            </Link>
-            {' · '}
-            <Link href="/about" style={linkStyle}>
-              About
-            </Link>
-            {' · '}
-            <Link href="/methodology" style={linkStyle}>
-              Methodology
-            </Link>
-            {' · '}
-            <Link href="/how-it-works" style={linkStyle}>
-              How it works
-            </Link>
-          </span>
-          {rightSlot && <span>{rightSlot}</span>}
-        </div>
+        {/* Row 2 -- utility links + role-branched right slot.
+            Thread 56.1: anon-only. Owner + client viewers reach the four
+            reference pages via the SideDrawer's Reference section. */}
+        {role === 'public' && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 10,
+              paddingTop: 10,
+              borderTop: '1px solid #1e2028',
+            }}
+          >
+            <span>
+              <Link href="/disclaimers" style={linkStyle}>
+                Disclaimers
+              </Link>
+              {' · '}
+              <Link href="/about" style={linkStyle}>
+                About
+              </Link>
+              {' · '}
+              <Link href="/methodology" style={linkStyle}>
+                Methodology
+              </Link>
+              {' · '}
+              <Link href="/how-it-works" style={linkStyle}>
+                How it works
+              </Link>
+            </span>
+            {rightSlot && <span>{rightSlot}</span>}
+          </div>
+        )}
       </div>
     </footer>
   )
