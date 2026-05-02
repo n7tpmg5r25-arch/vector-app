@@ -104,12 +104,21 @@ export default function Nav() {
           The button stays out of the way of in-page sticky headers (e.g.
           PublicNav top bar on shared public/owner pages) by sitting above
           page content but below the drawer overlay (zIndex 90 -- drawer
-          uses 998/999). */}
+          uses 998/999).
+
+          Hotfix 2026-05-01: clamp `left` with max() so it never goes
+          negative on viewports narrower than the 480px column (iPhone
+          screens are 375-430px wide; the raw calc(50% - 240px + 6px)
+          resolves to -19 to -47px on iPhone, anchoring the button half
+          off-screen to the left). max(6px, ...) keeps the button inside
+          the column on every viewport. `top` adds env(safe-area-inset-top)
+          so the button sits below the iOS status bar / notch when the
+          app is installed as a PWA. */}
       <div
         style={{
           position: 'fixed',
-          top: 8,
-          left: 'calc(50% - 240px + 6px)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+          left: 'max(6px, calc(50% - 240px + 6px))',
           width: 40,
           zIndex: 90,
           pointerEvents: 'auto',
