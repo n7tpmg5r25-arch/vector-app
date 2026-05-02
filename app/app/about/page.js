@@ -43,7 +43,7 @@ const EYEBROW = {
   fontWeight: 600,
 }
 
-const HIGHLIGHT = { color: 'var(--teal)', fontWeight: 600 }
+const HIGHLIGHT = { color: 'var(--teal)', fontWeight: 600, marginRight: 4 }
 
 export default function AboutPage() {
   // Mirrors the how-it-works shell -- viewerLoading destructured + isAnonPublic
