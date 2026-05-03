@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server'
 //                            '/hearings'
 //   Thread 9:                '/how-it-works'
 //   Thread 24:               '/about'
+//   Phase 6 Thread 60:       '/changelog'
 // '/disclaimers' is matched by isAlwaysPublic below (no flag dependency).
 function isPublicLayerRoute(pathname) {
   if (pathname === '/') return true
@@ -28,6 +29,7 @@ function isPublicLayerRoute(pathname) {
   if (pathname === '/hearings') return true
   if (pathname === '/how-it-works') return true
   if (pathname === '/about') return true
+  if (pathname === '/changelog') return true
   return false
 }
 
