@@ -22,6 +22,7 @@
 //        scoreBill() freeze and matches /methodology and CohortCitation.
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
+import InstallPrompt from '../components/InstallPrompt'
 import { useViewer } from '../../lib/viewer-capabilities'
 
 const CARD = {
@@ -320,6 +321,14 @@ export default function HowItWorksPage() {
               it opens like a native app &mdash; no browser bar, faster cold start, and bills
               you&apos;ve already opened stay accessible offline.
             </p>
+            {/* Thread 61 — actionable install affordance.
+                Renders one of: brass install button (Chrome/Edge/Samsung Internet),
+                iOS share-sheet hint (Safari/iOS Chrome), already-installed Sage pill
+                (display-mode:standalone), or browser-menu fallback (Firefox desktop).
+                Per-platform prose below remains as the documentation fallback. */}
+            <div style={{ marginBottom: 14 }}>
+              <InstallPrompt />
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
