@@ -77,19 +77,24 @@ function formatSyncTimestamp(ranAtIso) {
   let copy
   let stale = ageMs > FRESH_MS
 
+  // Always compute the absolute date label (e.g. "May 3"). Thread 64
+  // (2026-05-03): Colin asked that "today" + "yesterday" not look stale
+  // by themselves -- pinning the actual date alongside the relative
+  // word lets a viewer see at-a-glance what day "today" actually is.
+  const dateLabel = ranAt.toLocaleDateString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    month: 'short',
+    day: 'numeric',
+  })
+
   if (ageMs > STALE_MS) {
     // >49h: missed nightly. Hours-only readout, signaled in Rust.
     copy = `Last sync · ${ageHours} hours ago`
   } else if (dayDelta === 0) {
-    copy = `Refreshed today · ${time}`
+    copy = `Refreshed today (${dateLabel}) · ${time}`
   } else if (dayDelta === 1) {
-    copy = `Refreshed yesterday · ${time}`
+    copy = `Refreshed yesterday (${dateLabel}) · ${time}`
   } else {
-    const dateLabel = ranAt.toLocaleDateString('en-US', {
-      timeZone: 'America/Los_Angeles',
-      month: 'short',
-      day: 'numeric',
-    })
     copy = `Refreshed ${dateLabel} · ${time}`
   }
 

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdmin } from '../../../lib/admin'
 import NewClientForm from './NewClientForm'
+import TopHamburger from '../../components/TopHamburger'
 
 /**
  * /admin/clients — Phase 13b, Thread 2 PR (a)
@@ -105,8 +106,36 @@ export default async function AdminClientsPage() {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto', color: 'var(--text-primary)' }}>
-      <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700 }}>Team admin</h1>
+    <div style={{ paddingBottom: 100, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+      <TopHamburger />
+
+      {/* Sticky page-header bar (Thread 64, 2026-05-03). Mirrors the
+          PR #81 about/methodology/how-it-works pattern. The 52px top
+          padding clears the fixed-position HamburgerButton. */}
+      <div style={{
+        position: 'sticky',
+        top: 0, zIndex: 50,
+        background: 'rgba(14,16,20,0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
+        padding: '52px 20px 20px',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 24, fontWeight: 700,
+          color: 'var(--teal)',
+          textShadow: '0 0 16px rgba(184,151,90,0.2)',
+        }}>Team admin</div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10, color: 'var(--text-faint)',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          marginTop: 4, fontWeight: 600,
+        }}>Admin</div>
+      </div>
+
+      <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
       <p style={{ margin: '0 0 24px', color: 'var(--text-muted)', fontSize: 14 }}>
         Create teams, invite their users, assign bills. Phase 13b.
       </p>
@@ -186,6 +215,7 @@ export default async function AdminClientsPage() {
         Portal shell at <code>/c/[slug]</code> ships in Thread 3. For now, this
         page manages the data model; the tenant-facing UI lands next.
       </p>
+      </div>
     </div>
   )
 }

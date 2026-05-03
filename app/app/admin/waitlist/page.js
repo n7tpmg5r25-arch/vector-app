@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { isAdmin } from '../../../lib/admin'
+import TopHamburger from '../../components/TopHamburger'
 
 /**
  * /admin/waitlist — Brand P2b
@@ -100,8 +101,34 @@ export default async function AdminWaitlistPage({ searchParams }) {
   })
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto', color: 'var(--text-primary)' }}>
-      <h1 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 700 }}>Waitlist admin</h1>
+    <div style={{ paddingBottom: 100, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+      <TopHamburger />
+
+      {/* Sticky page-header bar (Thread 64, 2026-05-03). */}
+      <div style={{
+        position: 'sticky',
+        top: 0, zIndex: 50,
+        background: 'rgba(14,16,20,0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
+        padding: '52px 20px 20px',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 24, fontWeight: 700,
+          color: 'var(--teal)',
+          textShadow: '0 0 16px rgba(184,151,90,0.2)',
+        }}>Waitlist admin</div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10, color: 'var(--text-faint)',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          marginTop: 4, fontWeight: 600,
+        }}>Admin</div>
+      </div>
+
+      <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
       <p style={{ margin: '0 0 24px', color: 'var(--text-muted)', fontSize: 14 }}>
         Pre-launch interest list. Public signup opens August 2027.
       </p>
@@ -167,6 +194,7 @@ export default async function AdminWaitlistPage({ searchParams }) {
           Showing first 500 rows. Filter or export CSV for full set.
         </p>
       )}
+      </div>
     </div>
   )
 }
