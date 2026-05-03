@@ -1,5 +1,6 @@
 'use client'
 import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 
@@ -8,6 +9,14 @@ import { createBrowserClient } from '../../lib/supabase'
  *
  * Minimal sign-in gate. Magic link, shouldCreateUser: false — strangers
  * can't self-signup. Anyone not on the access list sees a brief error.
+ *
+ * Anon exit ramp (Thread 65, 2026-05-03):
+ *   Methodology + About brass-outline CTAs render below the sign-in card
+ *   so visitors who aren't on the access list have a path to read what
+ *   Vector | WA is and how scoring works before bouncing. Both routes
+ *   are anon-allowlisted in proxy.js (isPublicLayerRoute). The pair sits
+ *   OUTSIDE the card branch on purpose — they persist across the
+ *   pre-send and post-send ("Check your email") states.
  */
 
 export default function LoginPage() {
@@ -206,6 +215,78 @@ function LoginPageInner() {
             </form>
           </>
         )}
+      </div>
+
+      {/* Anon exit ramp (Thread 65) — Methodology + About brass-outline
+          CTAs. Persist across pre-send and post-send card states. */}
+      <div style={{
+        marginTop: 24,
+        width: '100%',
+        maxWidth: 380,
+        position: 'relative',
+        zIndex: 1,
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+          fontSize: 10,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--text-faint)',
+          textAlign: 'center',
+          marginBottom: 10,
+        }}>
+          Learn more
+        </div>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 10,
+        }}>
+          <Link
+            href="/methodology"
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px 12px',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.40)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--brass-light, var(--gold))',
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+              textDecoration: 'none',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+          >
+            Methodology
+          </Link>
+          <Link
+            href="/about"
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '10px 12px',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.40)',
+              borderRadius: 'var(--radius)',
+              color: 'var(--brass-light, var(--gold))',
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+              fontWeight: 500,
+              letterSpacing: '0.02em',
+              textDecoration: 'none',
+              transition: 'background 0.2s, border-color 0.2s',
+            }}
+          >
+            About
+          </Link>
+        </div>
       </div>
 
       <div style={{
