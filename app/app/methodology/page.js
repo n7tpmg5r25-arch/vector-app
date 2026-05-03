@@ -1,10 +1,20 @@
 'use client'
-// Phase 7V.1 — Methodology page is now a client component so it can pull the
-// calibration table live from Supabase every page load. No more manual refresh
-// at the end of each biennium: the page queries the most recently completed
-// session, buckets bills by final_score, and computes chamber/law pass rates
-// on the fly. CALIBRATION_FALLBACK below is shown immediately while the query
-// runs, and stays on screen if the query fails or returns too little data.
+// Phase 7V.1 + Thread 67 (2026-05-03) — Methodology page is a client component
+// so it can pull the calibration table live from Supabase every page load.
+// No more manual refresh at the end of each biennium: the page queries the
+// most recently completed session, buckets bills by final_score, and computes
+// chamber/law pass rates on the fly.
+//
+// Thread 67 swapped the load behavior:
+//   - Initial state is `null` (loading), not the combined-3B fallback.
+//   - On query error or unusually small result set, state goes to `[]` and
+//     the per-biennium card renders an empty-state pointing the reader at
+//     the Combined-3B engine-truth card below.
+//   - The page never silently substitutes combined-3B numbers under a
+//     single-biennium header.
+// The CALIBRATION_FALLBACK / FALLBACK_SESSION / FALLBACK_N constants below
+// are kept as historical reference for the Phase 7D.3 cohort definition;
+// they are no longer used as initial state.
 import { useEffect, useState } from 'react'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
@@ -75,9 +85,14 @@ const XF_NEG = [
   { l: 'High amendment count (>3)', d: '−5%' },
 ]
 
-// Fallback calibration — shown immediately on page load while the live query
-// runs, and shown permanently if the query fails. Phase 7D.3: bills-only
-// across 3 bienniums (N=8,062 bills, 2,155 signed into law).
+// Phase 7D.3 cohort definition — historical reference only as of Thread 67
+// (2026-05-03). These constants used to initialize the live calibration
+// state; they were doing more harm than good because they hold combined-3B
+// numbers and would render under a single-biennium header on query failure.
+// Kept here as in-code documentation of the Phase 7D.3 cohort:
+//   8,062 bills (bills-only, excludes 755 resolutions/memorials)
+//   across 2021-22 + 2023-24 + 2025-26
+//   2,155 became law (HIGH 2,134 + MODERATE 21 + LOW/VLOW 0)
 // The two VERY LOW rows (30-44 and 0-29) are merged here because both had a
 // 0% pass rate — splitting them just added a confusing duplicate row.
 const CALIBRATION_FALLBACK = [
@@ -100,12 +115,16 @@ const COMBINED_3B = [
   { bucket:  '0–44', label: 'VERY LOW', rate: '0.0%',  ci: '0.0 – 0.1%'   },
 ]
 
-// Color per confidence tier, matching the bill detail page
+// Thread 67 (2026-05-03) — TIER_COLOR canonicalized to ScoreBadge.js (line 12-15)
+// + /how-it-works Section 2 tier legend. Brand Guide v1.2 §02 functional palette.
+// Reader who learned the color story on /how-it-works sees the same paint here;
+// reader who reads /methodology first sees the same paint on every bill card via
+// ScoreBadge. Single source of truth across all three surfaces.
 const TIER_COLOR = {
-  'HIGH':     '#b8975a',  // teal
-  'MODERATE': '#ffc94a',  // gold
-  'LOW':      '#ff9f43',  // amber
-  'VERY LOW': '#8a96ad',  // muted
+  'HIGH':     '#7aab6e',  // Sage — strong/passed (matches ScoreBadge ≥75)
+  'MODERATE': '#3a7a8a',  // Deep Teal — active (matches ScoreBadge ≥60)
+  'LOW':      '#c47a30',  // Amber — watch/pending (matches ScoreBadge ≥45)
+  'VERY LOW': '#8a8070',  // Stone — inactive (matches ScoreBadge <45)
 }
 
 export default function MethodologyPage() {
@@ -115,11 +134,18 @@ export default function MethodologyPage() {
   const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
-  // 7V.1: live calibration — queries Supabase on mount, falls back to the
-  // hardcoded 2025-26 numbers if the query fails or returns too few bills.
-  const [calibration, setCalibration]     = useState(CALIBRATION_FALLBACK)
-  const [sourceSession, setSourceSession] = useState(FALLBACK_SESSION)
-  const [totalN, setTotalN]                = useState(FALLBACK_N)
+  // 7V.1 / Thread 67 (2026-05-03): live calibration state machine.
+  //   null      → query in-flight; render skeleton
+  //   []        → query failed or returned < 100 bills; render empty-state
+  //                pointing the reader at the Combined-3B card below
+  //   non-empty → render rows
+  // CALIBRATION_FALLBACK / FALLBACK_SESSION / FALLBACK_N are no longer used as
+  // initial state because they hold combined-3B numbers, which would silently
+  // render under a single-biennium header on query failure (Thread 67 finding
+  // §7 — honesty insurance).
+  const [calibration, setCalibration]     = useState(null)
+  const [sourceSession, setSourceSession] = useState(null)
+  const [totalN, setTotalN]                = useState(null)
 
   // 2026-04-22 (DATA_FRESHNESS #12): cross-biennium cohort size is now
   // queried live. Fallback values match the original engine calibration
@@ -157,7 +183,13 @@ export default function MethodologyPage() {
       .eq('session', calSession)
       .not('final_score', 'is', null)
       .then(({ data, error }) => {
-        if (error || !data || data.length < 100) return // keep fallback
+        if (error || !data || data.length < 100) {
+          // Thread 67: don't pretend with stale combined-3B numbers under a
+          // single-biennium header. Render an empty-state instead.
+          setCalibration([])
+          setSourceSession(calSession)
+          return
+        }
         const buckets = {
           HIGH:       { bucket: '75–99', label: 'HIGH',     bills: 0, law: 0, chamber: 0 },
           MODERATE:   { bucket: '60–74', label: 'MODERATE', bills: 0, law: 0, chamber: 0 },
@@ -195,11 +227,29 @@ export default function MethodologyPage() {
       })
   }, [])
 
-  // Convenience values for the prose below the table.
-  const high    = calibration.find(c => c.label === 'HIGH')     || { bills: 0, law: 0 }
-  const veryLow = calibration.find(c => c.label === 'VERY LOW') || { bills: 0 }
-  const highLawCount = Math.round((high.bills * high.law) / 100)
-  const sessionShort = sourceSession.split('-').map((y, i) => i === 1 ? y.slice(2) : y).join('-')
+  // Thread 67 (2026-05-03): live derived values dropped — "Why this matters"
+  // prose now reads from the G5-frozen combined-cohort constants instead of
+  // single-biennium live data, which had been creating a 78.4%/189 vs 84.0%
+  // contradiction across adjacent sections.
+  //
+  // Combined-cohort constants used by the prose below (Phase 7D.3 cohort,
+  // 8,062 bills × 3 biennia):
+  //   COMBINED_COHORT_TOTAL  = 8,062 (matches CALIBRATION_LAW_FALLBACK math)
+  //   COMBINED_HIGH_BILLS    = 2,541
+  //   COMBINED_HIGH_LAW_RATE = 84.0%
+  //   COMBINED_HIGH_LAW_N    = 2,134 (= round(2541 × 0.84); reconciles with
+  //                                    CALIBRATION_LAW_FALLBACK = 2,155 minus
+  //                                    the 21 from MODERATE bucket)
+  //   COMBINED_VLOW_BILLS    = 3,571
+  //   COMBINED_VLOW_LAW_RATE = 0.0%
+  //
+  // sessionShort still needed for the per-biennium card header. Guarded for
+  // null because sourceSession is null until the live query resolves.
+  const sessionShort = sourceSession
+    ? sourceSession.split('-').map((y, i) => i === 1 ? y.slice(2) : y).join('-')
+    : '…'
+  const calibrationLoading = calibration === null
+  const calibrationEmpty   = Array.isArray(calibration) && calibration.length === 0
 
   // DATA_FRESHNESS #12: rendered citations pull from live cohort state.
   const cohortTotalStr  = cohortTotal.toLocaleString()
@@ -297,93 +347,145 @@ export default function MethodologyPage() {
             their position in the page flow shifted. G5 cohort literal preserved
             verbatim. */}
 
-        {/* SECTION — CALIBRATION (the proof point) */}
+        {/* SECTION — CALIBRATION (the proof point)
+            Thread 67 (2026-05-03): explicit scope marker on the header so
+            the reader knows this card shows ONE biennium before reading
+            numbers. The Combined-3B card below carries the engine truth. */}
         <div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
-            Calibration — {sessionShort} Session Outcomes
+            Calibration: Most Recent Biennium ({sessionShort})
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              The chart below is the whole point. It shows, for all {totalN.toLocaleString()} bills in the {sessionShort} biennium,
-              what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
-              model is any good, higher buckets should pass at meaningfully higher rates — and they do,
-              with clean monotonic separation.
+              {totalN ? (
+                <>The card below shows, for all {totalN.toLocaleString()} bills in the {sessionShort} biennium,
+                what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
+                model is any good, higher buckets should pass at meaningfully higher rates — and they do,
+                with clean monotonic separation.</>
+              ) : (
+                <>The card below will show, for every bill in the {sessionShort} biennium,
+                what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
+                model is any good, higher buckets should pass at meaningfully higher rates — and they do,
+                with clean monotonic separation.</>
+              )}
             </div>
-            {/* Thread 26 — card-per-bucket vertical layout replaces the
-                horizontal-scrolling table. One card per HIGH/MOD/LOW/VERY-LOW
-                row so the whole thing fits inside a 480px column without an
-                inner scroll bar. Uses pure flex/grid — no media queries (the
-                site is mobile-only by directive, so a single layout is the
-                right tool). */}
-            <div>
-              {calibration.map((c) => (
-                <div key={c.bucket} style={{
-                  padding: '14px 16px',
-                  borderTop: '1px solid var(--border)',
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'baseline',
-                    marginBottom: 10,
+            {/* Thread 67 (2026-05-03): three render branches — loading
+                skeleton / live cards / empty-state. Empty-state appears
+                only on query failure or unusually small result sets and
+                points the reader at the Combined-3B engine truth below
+                rather than substituting fake numbers under this header. */}
+            {calibrationLoading && (
+              <div style={{
+                padding: '24px 16px',
+                fontSize: 12,
+                color: 'var(--text-faint)',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                borderTop: '1px solid var(--border)',
+              }}>
+                Loading live calibration…
+              </div>
+            )}
+            {calibrationEmpty && (
+              <div style={{
+                padding: '16px',
+                fontSize: 13,
+                color: 'var(--text-muted)',
+                lineHeight: 1.55,
+                borderTop: '1px solid var(--border)',
+              }}>
+                Live single-biennium calibration is temporarily unavailable. The
+                combined three-biennium engine calibration immediately below remains
+                valid &mdash; it&apos;s what every score on this site actually resolves
+                to. Refresh the page to retry the live query.
+              </div>
+            )}
+            {!calibrationLoading && !calibrationEmpty && (
+              <div>
+                {calibration.map((c) => (
+                  <div key={c.bucket} style={{
+                    padding: '14px 16px',
+                    borderTop: '1px solid var(--border)',
                   }}>
-                    <span style={{
-                      fontSize: 14,
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'baseline',
+                      marginBottom: 10,
+                    }}>
+                      <span style={{
+                        fontSize: 14,
+                        fontFamily: 'var(--font-mono)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                      }}>{c.bucket}</span>
+                      <span style={{
+                        fontSize: 12,
+                        color: TIER_COLOR[c.label],
+                        fontWeight: 700,
+                        letterSpacing: '0.06em',
+                      }}>{c.label}</span>
+                    </div>
+                    {/* Thread 67 (2026-05-03): 3-col alignment now reads
+                        left-to-right as a story — sample → moved → became
+                        law. Each cell anchors to a distinct edge instead
+                        of all three right-aligning into a floating cluster. */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gap: 12,
                       fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-primary)',
-                      fontWeight: 600,
-                    }}>{c.bucket}</span>
-                    <span style={{
-                      fontSize: 12,
-                      color: TIER_COLOR[c.label],
-                      fontWeight: 700,
-                      letterSpacing: '0.06em',
-                    }}>{c.label}</span>
-                  </div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: 12,
-                    fontFamily: 'var(--font-mono)',
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Bills</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.bills.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Chamber</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-primary)', textAlign: 'right' }}>{c.chamber.toFixed(1)}%</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law</div>
-                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.law.toFixed(1)}%</div>
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'left' }}>Bills</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'left' }}>{c.bills.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'center' }}>Chamber</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-primary)', textAlign: 'center' }}>{c.chamber.toFixed(1)}%</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law</div>
+                        <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.law.toFixed(1)}%</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Source: Vector | WA database, full {sourceSession} biennium outcomes. N={totalN.toLocaleString()}.
-              "Chamber" = passed at least one chamber. "Law" = signed by the governor.
-              Recalculated live on every page load.
-            </div>
+                ))}
+              </div>
+            )}
+            {!calibrationLoading && !calibrationEmpty && totalN && (
+              <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+                Source: Vector | WA database, full {sourceSession} biennium outcomes. N={totalN.toLocaleString()}.
+                &ldquo;Chamber&rdquo; = passed at least one chamber. &ldquo;Law&rdquo; = signed by the governor.
+                Recalculated live on every page load.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* SECTION — COMBINED 3-BIENNIUM CALIBRATION (the engine truth) */}
+        {/* SECTION — COMBINED 3-BIENNIUM CALIBRATION (the engine truth)
+            Thread 67 (2026-05-03): explicit scope marker on header so the
+            two calibration cards are unambiguously distinguished. Card body
+            also gains a statistician-grade in-sample disclosure footnote
+            ("How honest is this?") at the bottom. */}
         <div>
           <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10, fontWeight: 600 }}>
-            Combined 3-Biennium Calibration
+            Calibration: All Three Biennia &mdash; Engine Truth
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              The table above shows one biennium in detail. The scoring engine itself is calibrated
+              The card above shows one biennium in detail. The scoring engine itself is calibrated
               against all {cohortCountStr} biennia combined &mdash; {cohortTotalStr} bills spanning {cohortBienniaStr}.
               These are the exact pass probabilities <em>every score on this site</em> resolves to,
               with 95% Wilson confidence intervals showing the range of plausible truth given the
               sample size in each bucket.
             </div>
-            {/* Thread 26 — same card layout as the per-biennium table above. */}
+            {/* Thread 67 (2026-05-03): flex space-between with anchored
+                opposites. Law Rate / value left-aligned to the card's left
+                edge; 95% CI / range right-aligned to the right edge. Two
+                clear visual anchors instead of one floating cluster. */}
             <div>
               {COMBINED_3B.map((c) => (
                 <div key={c.bucket} style={{
@@ -410,29 +512,43 @@ export default function MethodologyPage() {
                     }}>{c.label}</span>
                   </div>
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1.5fr',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
                     gap: 12,
                     fontFamily: 'var(--font-mono)',
                   }}>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law Rate</div>
-                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.rate}</div>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law Rate</div>
+                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.rate}</div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>95% CI</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>{c.ci}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>95% CI</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.ci}</div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)', lineHeight: 1.55 }}>
               Source: Vector | WA combined biennia (bills only), N={cohortTotalStr}. CIs computed via Wilson score interval.
-              These exact values are wired into the scoring engine's pass_probability ladder &mdash;
-              when a bill shows "84% chance of becoming law", this is the row it came from.
-              {/* Thread 26: Recalculated stamp hoisted to the TL;DR card at the
-                  top of the page — see audit-finalized scope §2. */}
+              These exact values are wired into the scoring engine&apos;s pass_probability ladder &mdash;
+              when a bill shows &ldquo;84% chance of becoming law,&rdquo; this is the row it came from.
+            </div>
+            {/* Thread 67 (2026-05-03): statistician-grade in-sample disclosure.
+                Without this, the page reads as marketing — the cohort the
+                engine is calibrated against IS the cohort whose rates the
+                page reports. Disclosing the rolling-validation cadence and
+                expected regression to the mean elevates the page from
+                "what we built" to "how honest are these numbers." */}
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)', lineHeight: 1.55 }}>
+              <strong style={{ color: 'var(--text-muted)' }}>How honest is this?</strong>{' '}
+              The rates above describe how bills in each bucket performed within the calibration
+              cohort itself &mdash; they&apos;re a measure of fit, not strict out-of-sample prediction.
+              The cohort grows by one biennium every two years, so each new session functions as a
+              rolling validation check against fresh data. The 95% Wilson intervals bound the
+              within-cohort rate; predictive accuracy on a future biennium is expected to fall
+              within roughly the same band, with normal regression toward the mean.
             </div>
           </div>
         </div>
@@ -480,8 +596,14 @@ export default function MethodologyPage() {
               )
             })}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
-            A stage advancement bonus (0–25) also stacks on top, rewarding bills that have cleared cutoffs.
+          {/* Thread 67 (2026-05-03): weight-math clarified. The five signals
+              sum to 80% (20+16+16+16+12); the stage-advancement bonus is the
+              remaining 20% (25 of 125 max possible points). 80 + 20 = 100. */}
+          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic', lineHeight: 1.55 }}>
+            A stage-advancement bonus (0&ndash;25 points) stacks on top, rewarding bills that have
+            cleared cutoffs. The bonus is the remaining 20% of weight: five signals sum to 80% of
+            the 125-point ceiling, the stage bonus contributes the other 20% &mdash; together they
+            cover the full possible score.
           </div>
         </div>
 
@@ -525,15 +647,53 @@ export default function MethodologyPage() {
             Why this matters
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
-            Most public legislative trackers (LegiScan, OpenStates, the WA Legislature site) tell you
-            where a bill is. Vector | WA tells you where a bill is <em>going</em>. The {veryLow.bills.toLocaleString()} bills in
-            the 0–44 (VERY LOW) bucket had a 0% pass rate. The {high.bills.toLocaleString()} bills in the 75+ bucket had a {high.law.toFixed(1)}% pass rate —
-            <span style={{ color: 'var(--teal)', fontWeight: 600 }}> {highLawCount} of them became law</span>.
-            That separation is the whole point of the signal.
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-              Scores refresh nightly. The calibration table above recomputes itself from live
-              Supabase data every time you open this page, so as soon as the next biennium's
-              outcomes are final the numbers above update automatically — no manual refresh needed.
+            {/* Thread 67 (2026-05-03): prose now uses combined-cohort numbers
+                so it reconciles with the engine-truth card directly above.
+                Single-biennium 78.4% / 189 figures previously here were
+                mathematically correct but contextually contradictory next to
+                the 84.0% combined number in the table. Hardcoded constants
+                are documented at the top of this component. */}
+            Most public legislative trackers (LegiScan, OpenStates, the WA Legislature site) tell
+            you where a bill <em>is</em>. Vector | WA tells you where a bill is <em>going</em>.
+            Across the engine&apos;s three-biennium calibration cohort (8,062 bills), the
+            3,571 bills in the 0&ndash;44 (VERY LOW) bucket had a <strong>0.0% pass rate</strong>.
+            The 2,541 bills in the 75+ bucket had an{' '}
+            <span style={{ color: TIER_COLOR.HIGH, fontWeight: 600 }}>84.0% pass rate</span> &mdash;{' '}
+            <span style={{ color: TIER_COLOR.HIGH, fontWeight: 600 }}>2,134 of them became law</span>.
+            That 84-point separation between the top and bottom buckets is the whole point of
+            the signal.
+
+            {/* Thread 67 — practitioner callout #1: how to read the score in
+                day-to-day Olympia work. Brand v1.2 §05 voice: probability not
+                prediction; quantified before qualitative. */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Reading the score in practice.</strong>{' '}
+              A HIGH bill (75+) sits in the 84.0% historical pass bucket &mdash; bills at this tier
+              warrant calendar holds, witness coordination, and amendment review. A VERY LOW bill
+              (0&ndash;44) sits at 0.0% historical pass &mdash; deprioritize unless one of the
+              X-Factors above flips the read. The signal-tier label (HIGH / MODERATE / LOW / VERY
+              LOW) is the same answer the score gives, just easier to scan: same meaning, faster eye.
+            </div>
+
+            {/* Thread 67 — practitioner callout #2: when to trust the X-Factor
+                list against the score. This is the bit that separates a
+                lobbyist tool from a research dashboard. */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>What flips a bucket mid-session.</strong>{' '}
+              A LOW score paired with <em>Pulled from Rules</em> or <em>Companion bill filed</em> deserves
+              a second look &mdash; the X-Factor multiplier can pull the bill into a different tier
+              within one news cycle. A HIGH score paired with <em>Held in Rules</em> or <em>Cutoff
+              pressure</em> rarely survives &mdash; the score may not have caught up to the procedural
+              reality yet. Trust the X-Factor list when it disagrees with the bucket; that&apos;s
+              what it&apos;s there for.
+            </div>
+
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              Scores refresh nightly. The most-recent-biennium calibration card above recomputes
+              itself from live Supabase data every time you open this page, so as soon as the next
+              biennium&apos;s outcomes are final the per-biennium numbers update automatically &mdash;
+              no manual refresh needed. The engine-truth card stays G5-frozen until the post-2027
+              recalibration thread opens new history into the cohort.
             </div>
             {/* Thread 31 (2026-04-27): cumulative roll-call coverage note. The
                 bill scoring engine has data back to 2021-2022, but member-level
@@ -541,7 +701,7 @@ export default function MethodologyPage() {
                 biennium. As successive bienniums close, the cumulative member
                 voting profile grows — per-session breakdowns remain available
                 via the session selector on /members. */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
               Member voting records cover 2025-2026 onward. Each successive biennium adds to the cumulative record;
               per-session breakdowns remain available via the session selector on the members page.
             </div>
@@ -556,13 +716,17 @@ export default function MethodologyPage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65 }}>
             When the legislature adjourns sine die, every bill gets a final classification based on how far
             it advanced:
+            {/* Thread 67 (2026-05-03): outcome label colors now mirror
+                ScoreBadge.js:41 (LAW = Sage, carry-over = var(--gold)). Reader
+                who saw the LAW pill on a real bill card sees the same color
+                here. */}
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div><span style={{ color: 'var(--teal)', fontWeight: 600 }}>Signed into Law</span> — reached the
-                governor's desk and was signed (stage 6). Pass probability stays at 100%.</div>
-              <div><span style={{ color: '#ffc94a', fontWeight: 600 }}>Passed Chamber</span> — cleared at least
-                one chamber (stage 4–5) but didn't become law before the biennium ended. Pass probability
+              <div><span style={{ color: '#7aab6e', fontWeight: 600 }}>Signed into Law</span> &mdash; reached the
+                governor&apos;s desk and was signed (stage 6). Pass probability stays at 100%.</div>
+              <div><span style={{ color: 'var(--gold)', fontWeight: 600 }}>Passed Chamber</span> &mdash; cleared at least
+                one chamber (stage 4&ndash;5) but didn&apos;t become law before the biennium ended. Pass probability
                 goes to 0% because the legislative window closed.</div>
-              <div><span style={{ color: 'var(--text-faint)', fontWeight: 600 }}>Dead</span> — didn't make it out
+              <div><span style={{ color: 'var(--text-faint)', fontWeight: 600 }}>Dead</span> &mdash; didn&apos;t make it out
                 of its chamber of origin. Pass probability goes to 0%.</div>
             </div>
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
@@ -586,35 +750,49 @@ export default function MethodologyPage() {
               marker — "Signal was MODERATE" means the bill's trajectory placed it in the MODERATE range
               before the session ended.
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{
-                width: '100%',
-                fontSize: 12,
-                borderCollapse: 'collapse',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-faint)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Tier</th>
-                    <th style={{ textAlign: 'left',  padding: '10px 8px',  fontWeight: 600 }}>Score Range</th>
-                    <th style={{ textAlign: 'left',  padding: '10px 16px', fontWeight: 600 }}>Meaning</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { tier: 'HIGH',      range: '75–99', meaning: 'Strong legislative momentum — committee passed, floor action likely', color: '#b8975a' },
-                    { tier: 'MODERATE',  range: '60–74', meaning: 'Active movement — hearings held, some advancement', color: '#ffc94a' },
-                    { tier: 'LOW',       range: '45–59', meaning: 'Limited progress — introduced but stalling', color: '#ff9f43' },
-                    { tier: 'VERY LOW',  range: '0–44',  meaning: 'Minimal activity — unlikely to advance', color: '#8a96ad' },
-                  ].map((t, i) => (
-                    <tr key={t.tier} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                      <td style={{ padding: '12px 16px', color: t.color, fontWeight: 600 }}>{t.tier}</td>
-                      <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>{t.range}</td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: 12 }}>{t.meaning}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Thread 67 (2026-05-03): converted from <table> + overflowX:auto
+                to card-per-tier vertical layout. Same pattern Thread 26
+                applied to the calibration tables — mobile-only column doesn't
+                need horizontal scroll. Tier color tokens canonicalized to
+                ScoreBadge palette via TIER_COLOR. */}
+            <div>
+              {[
+                { tier: 'HIGH',      range: '75–99', meaning: 'Strong legislative momentum — committee passed, floor action likely' },
+                { tier: 'MODERATE',  range: '60–74', meaning: 'Active movement — hearings held, some advancement' },
+                { tier: 'LOW',       range: '45–59', meaning: 'Limited progress — introduced but stalling' },
+                { tier: 'VERY LOW',  range: '0–44',  meaning: 'Minimal activity — unlikely to advance' },
+              ].map((t) => (
+                <div key={t.tier} style={{
+                  padding: '14px 16px',
+                  borderTop: '1px solid var(--border)',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    marginBottom: 8,
+                  }}>
+                    <span style={{
+                      fontSize: 13,
+                      color: TIER_COLOR[t.tier],
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                    }}>{t.tier}</span>
+                    <span style={{
+                      fontSize: 12,
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--text-muted)',
+                    }}>{t.range}</span>
+                  </div>
+                  <div style={{
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.55,
+                  }}>
+                    {t.meaning}
+                  </div>
+                </div>
+              ))}
             </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
               Signal tier is distinct from outcome label. After session ends, a bill might be labeled "Dead"
