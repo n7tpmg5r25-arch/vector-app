@@ -327,20 +327,36 @@ function DrawerHeader({ subtitle, onClose }) {
         >
           {subtitle}
         </span>
-        {/* Version pill — Phase 6 Thread 59 (2026-05-02). Static span
-            for now; Thread 60 swaps this for a Link to /changelog. DM
-            Mono caption per Brand Guide v1.2 §02 metadata voice. */}
-        <span
+        {/* Version pill — Phase 6 Thread 59 (2026-05-02) seeded the static
+            span; Thread 60 (2026-05-02) wrapped it in a Link to /changelog
+            so the pill becomes a transparency entry point. DM Mono caption
+            per Brand Guide v1.2 §02 metadata voice. The Link inherits the
+            mono caption styling; the inner <span> keeps the same visual
+            treatment from Thread 59 so this swap is visually byte-equivalent
+            outside the new hover/underline states. The drawer's pathname
+            effect already auto-closes on route change, so no extra
+            close-on-click is strictly required, but onClose is wired
+            anyway for snappy perceived dismiss. */}
+        <Link
+          href="/changelog"
+          onClick={onClose}
           style={{
-            fontFamily: 'var(--font-mono, "DM Mono", monospace)',
-            fontSize: 9,
-            letterSpacing: '0.10em',
-            textTransform: 'uppercase',
-            color: 'var(--text-faint, #6c7078)',
+            textDecoration: 'none',
+            display: 'inline-block',
           }}
         >
-          {getVersionLabel()}
-        </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+              fontSize: 9,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase',
+              color: 'var(--text-faint, #6c7078)',
+            }}
+          >
+            {getVersionLabel()}
+          </span>
+        </Link>
       </div>
       <button
         type="button"
