@@ -63,6 +63,7 @@ import {
   getNextBiennium,
   daysUntil,
 } from '../../lib/session-config'
+import { getVersionLabel } from '../../lib/version'
 
 const DRAWER_WIDTH = 300
 const SLIDE_MS = 220
@@ -325,6 +326,20 @@ function DrawerHeader({ subtitle, onClose }) {
           }}
         >
           {subtitle}
+        </span>
+        {/* Version pill — Phase 6 Thread 59 (2026-05-02). Static span
+            for now; Thread 60 swaps this for a Link to /changelog. DM
+            Mono caption per Brand Guide v1.2 §02 metadata voice. */}
+        <span
+          style={{
+            fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+            fontSize: 9,
+            letterSpacing: '0.10em',
+            textTransform: 'uppercase',
+            color: 'var(--text-faint, #6c7078)',
+          }}
+        >
+          {getVersionLabel()}
         </span>
       </div>
       <button
