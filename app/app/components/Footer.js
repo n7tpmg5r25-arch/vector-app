@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
 import { useViewer } from '../../lib/viewer-capabilities'
 
@@ -34,6 +35,12 @@ import { useViewer } from '../../lib/viewer-capabilities'
  * Methodology / How it works) via the SideDrawer's Reference section. Anon
  * viewers keep the link rail for ambient discovery + SEO link-juice into
  * the public-allowlist routes ahead of the mid-2027 launch.
+ *
+ * Thread 65 follow-up (2026-05-03) -- Row 2 also suppressed on /login.
+ * The login page now carries its own LEARN MORE CTA pair (Methodology +
+ * About) directly under the sign-in card, so the footer link rail below
+ * it would be redundant chrome. /login keeps Row 1 (byline + freshness)
+ * for the same reason every other surface does.
  *
  * Thread 58.6 (2026-05-01) -- "Refreshed nightly" replaced with a real sync
  * timestamp pulled from sync_log.MAX(ran_at) WHERE bills_updated > 0
@@ -104,6 +111,8 @@ function formatSyncTimestamp(ranAtIso) {
 export default function Footer() {
   const { capabilities, loading } = useViewer()
   const role = capabilities?.role
+  const pathname = usePathname()
+  const isLoginPage = pathname === '/login'
   const [freshness, setFreshness] = useState(null)
 
   // Pull the real sync timestamp on mount. One-shot, no polling — users who
@@ -209,8 +218,11 @@ export default function Footer() {
 
         {/* Row 2 -- utility links + role-branched right slot.
             Thread 58: anon-only. Owner + client viewers reach the four
-            reference pages via the SideDrawer's Reference section. */}
-        {role === 'public' && (
+            reference pages via the SideDrawer's Reference section.
+            Thread 65 follow-up (2026-05-03): also suppressed on /login --
+            the LoginPage now ships its own LEARN MORE CTA pair, so the
+            Row 2 link rail would be redundant chrome below it. */}
+        {role === 'public' && !isLoginPage && (
           <div
             style={{
               display: 'flex',

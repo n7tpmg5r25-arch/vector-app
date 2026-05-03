@@ -2,20 +2,23 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
 // Phase 12 public layer: when NEXT_PUBLIC_ENABLE_PUBLIC_LAYER is 'true',
-// anon visitors are admitted to the routes in this allowlist instead of
-// being redirected to /login. With the flag false (production default)
+// anon visitors are admitted to the data routes in this allowlist instead
+// of being redirected to /login. With the flag false (production default)
 // this list is never consulted -- behavior is byte-identical to
-// pre-Batch-4.
+// pre-Batch-4 for the data surfaces.
 //
 // Each batch expanded the list:
 //   Batch 4:                 '/'
 //   Batch 5:                 '/bill/[id]' (prefix: '/bill/')
 //   Batch 6:                 '/search', '/committees', '/committees/[slug]',
-//                            '/members', '/methodology', '/outcomes',
-//                            '/hearings'
-//   Thread 9:                '/how-it-works'
-//   Thread 24:               '/about'
-//   Phase 6 Thread 60:       '/changelog'
+//                            '/members', '/outcomes', '/hearings'
+//   Phase 6 Thread 65:       '/methodology', '/how-it-works', '/about',
+//                            '/changelog' MOVED OUT of this list into
+//                            isAlwaysPublic below -- info/marketing pages
+//                            don't expose bill data and should be reachable
+//                            from /login regardless of the public-layer
+//                            flag. Without this, the Thread 65 LEARN MORE
+//                            CTAs bounced back to /login in production.
 // '/disclaimers' is matched by isAlwaysPublic below (no flag dependency).
 function isPublicLayerRoute(pathname) {
   if (pathname === '/') return true
@@ -24,20 +27,26 @@ function isPublicLayerRoute(pathname) {
   if (pathname === '/committees') return true
   if (pathname.startsWith('/committees/')) return true
   if (pathname === '/members') return true
-  if (pathname === '/methodology') return true
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
-  if (pathname === '/how-it-works') return true
-  if (pathname === '/about') return true
-  if (pathname === '/changelog') return true
   return false
 }
 
+// Always-public routes: reachable for anon visitors regardless of the
+// Phase-12 public-layer flag. These are auth surfaces (/login,
+// /auth/callback) and info/marketing pages that don't expose bill data
+// (/disclaimers, /methodology, /about, /how-it-works, /changelog).
+// Everything in this set links cleanly from /login's LEARN MORE block
+// (Thread 65) and the Footer Row 2 link rail.
 function isAlwaysPublic(pathname) {
   return (
     pathname === '/login' ||
     pathname === '/auth/callback' ||
-    pathname === '/disclaimers'
+    pathname === '/disclaimers' ||
+    pathname === '/methodology' ||
+    pathname === '/about' ||
+    pathname === '/how-it-works' ||
+    pathname === '/changelog'
   )
 }
 
