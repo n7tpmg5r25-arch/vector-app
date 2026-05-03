@@ -6,6 +6,7 @@ import { redirect, notFound } from 'next/navigation'
 import { isAdmin } from '../../../../lib/admin'
 import InvitePanel from './InvitePanel'
 import AssignBillsPanel from './AssignBillsPanel'
+import TopHamburger from '../../../components/TopHamburger'
 
 /**
  * /admin/clients/[id] — Thread 2 PR (a) shell + PR (b) action panels
@@ -115,7 +116,37 @@ export default async function ClientDetailPage({ params }) {
   }
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: 1100, margin: '0 auto', color: 'var(--text-primary)' }}>
+    <div style={{ paddingBottom: 100, color: 'var(--text-primary)', fontFamily: 'var(--font-body)' }}>
+      <TopHamburger />
+
+      {/* Sticky page-header bar (Thread 64, 2026-05-03). */}
+      <div style={{
+        position: 'sticky',
+        top: 0, zIndex: 50,
+        background: 'rgba(14,16,20,0.95)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border)',
+        padding: '52px 20px 20px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 24, fontWeight: 700,
+            color: 'var(--teal)',
+            textShadow: '0 0 16px rgba(184,151,90,0.2)',
+          }}>{client.name}</div>
+          <span style={statusPillStyle(client.status)}>{client.status}</span>
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10, color: 'var(--text-faint)',
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          marginTop: 4, fontWeight: 600,
+        }}>Admin &middot; Team detail</div>
+      </div>
+
+      <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
       {/* Breadcrumb */}
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>
         <Link href="/admin/clients" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>
@@ -123,11 +154,6 @@ export default async function ClientDetailPage({ params }) {
         </Link>
       </p>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap', marginBottom: 6 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{client.name}</h1>
-        <span style={statusPillStyle(client.status)}>{client.status}</span>
-      </div>
       <p style={{ margin: '0 0 24px', color: 'var(--text-muted)', fontSize: 13 }}>
         Portal URL: <code>/c/{client.slug}</code> &middot; Created {fmtDate(client.created_at)}
       </p>
@@ -238,6 +264,7 @@ export default async function ClientDetailPage({ params }) {
           <AssignBillsPanel clientId={client.id} />
         </div>
       </section>
+      </div>
     </div>
   )
 }
