@@ -361,12 +361,12 @@ export default function MethodologyPage() {
                 <>The card below shows, for all {totalN.toLocaleString()} bills in the {sessionShort} biennium,
                 what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
                 model is any good, higher buckets should pass at meaningfully higher rates — and they do,
-                with clean monotonic separation.</>
+                with each higher bucket passing at a higher rate.</>
               ) : (
                 <>The card below will show, for every bill in the {sessionShort} biennium,
                 what fraction of bills in each score bucket <em>actually</em> became law. If the scoring
                 model is any good, higher buckets should pass at meaningfully higher rates — and they do,
-                with clean monotonic separation.</>
+                with each higher bucket passing at a higher rate.</>
               )}
             </div>
             {/* Thread 67 (2026-05-03): three render branches — loading
@@ -428,28 +428,28 @@ export default function MethodologyPage() {
                         letterSpacing: '0.06em',
                       }}>{c.label}</span>
                     </div>
-                    {/* Thread 67 (2026-05-03): 3-col alignment now reads
-                        left-to-right as a story — sample → moved → became
-                        law. Each cell anchors to a distinct edge instead
-                        of all three right-aligning into a floating cluster. */}
+                    {/* Thread 67.1 (2026-05-03): inline single-line layout
+                        with dot separators replaces the 3-col grid. Reads as
+                        a sentence — sample, moved, became law — and removes
+                        the staggered-anchor problem flagged in Thread 52.1
+                        and Thread 67 reviews. Law % bolded + tier-colored as
+                        the headline number; chamber % muted as supporting. */}
                     <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr 1fr',
-                      gap: 12,
-                      fontFamily: 'var(--font-mono)',
+                      fontSize: 13,
+                      lineHeight: 1.55,
+                      fontFamily: 'var(--font-body)',
+                      color: 'var(--text-muted)',
                     }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'left' }}>Bills</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'left' }}>{c.bills.toLocaleString()}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'center' }}>Chamber</div>
-                        <div style={{ fontSize: 13, color: 'var(--text-primary)', textAlign: 'center' }}>{c.chamber.toFixed(1)}%</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, textAlign: 'right' }}>Law</div>
-                        <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700, textAlign: 'right' }}>{c.law.toFixed(1)}%</div>
-                      </div>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                        {c.bills.toLocaleString()}
+                      </span> bills{' '}
+                      <span style={{ color: 'var(--brass)', margin: '0 4px' }}>·</span>{' '}
+                      <span style={{ fontFamily: 'var(--font-mono)' }}>{c.chamber.toFixed(1)}%</span> reached chamber{' '}
+                      <span style={{ color: 'var(--brass)', margin: '0 4px' }}>·</span>{' '}
+                      <span style={{ fontFamily: 'var(--font-mono)', color: TIER_COLOR[c.label], fontWeight: 700 }}>
+                        {c.law.toFixed(1)}%
+                      </span>{' '}
+                      <span style={{ color: TIER_COLOR[c.label], fontWeight: 600 }}>became law</span>
                     </div>
                   </div>
                 ))}
@@ -482,10 +482,9 @@ export default function MethodologyPage() {
               with 95% Wilson confidence intervals showing the range of plausible truth given the
               sample size in each bucket.
             </div>
-            {/* Thread 67 (2026-05-03): flex space-between with anchored
-                opposites. Law Rate / value left-aligned to the card's left
-                edge; 95% CI / range right-aligned to the right edge. Two
-                clear visual anchors instead of one floating cluster. */}
+            {/* Thread 67.1 (2026-05-03): inline single-line layout matching
+                the per-biennium card. Headline rate (bolded + tier-colored)
+                followed by 95% CI in muted mono, dot-separated. */}
             <div>
               {COMBINED_3B.map((c) => (
                 <div key={c.bucket} style={{
@@ -496,7 +495,7 @@ export default function MethodologyPage() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'baseline',
-                    marginBottom: 10,
+                    marginBottom: 8,
                   }}>
                     <span style={{
                       fontSize: 14,
@@ -512,20 +511,18 @@ export default function MethodologyPage() {
                     }}>{c.label}</span>
                   </div>
                   <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    fontFamily: 'var(--font-mono)',
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                    fontFamily: 'var(--font-body)',
+                    color: 'var(--text-muted)',
                   }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Law Rate</div>
-                      <div style={{ fontSize: 13, color: TIER_COLOR[c.label], fontWeight: 700 }}>{c.rate}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>95% CI</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.ci}</div>
-                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: TIER_COLOR[c.label], fontWeight: 700 }}>
+                      {c.rate}
+                    </span>{' '}
+                    <span style={{ color: TIER_COLOR[c.label], fontWeight: 600 }}>became law</span>{' '}
+                    <span style={{ color: 'var(--brass)', margin: '0 4px' }}>·</span>{' '}
+                    95% CI{' '}
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>{c.ci}</span>
                   </div>
                 </div>
               ))}
@@ -534,21 +531,32 @@ export default function MethodologyPage() {
               Source: Vector | WA combined biennia (bills only), N={cohortTotalStr}. CIs computed via Wilson score interval.
               These exact values are wired into the scoring engine&apos;s pass_probability ladder &mdash;
               when a bill shows &ldquo;84% chance of becoming law,&rdquo; this is the row it came from.
+              {/* Thread 67.1 (2026-05-03): Wilson-zero-bucket explainer for
+                  the 0.0% rows. */}
+              {' '}For buckets with zero observed law outcomes, the Wilson upper bound (&le;0.5%)
+              tells you the historical record is consistent with a true rate effectively at zero,
+              given the sample size in that bucket.
             </div>
-            {/* Thread 67 (2026-05-03): statistician-grade in-sample disclosure.
-                Without this, the page reads as marketing — the cohort the
-                engine is calibrated against IS the cohort whose rates the
-                page reports. Disclosing the rolling-validation cadence and
-                expected regression to the mean elevates the page from
-                "what we built" to "how honest are these numbers." */}
+            {/* Thread 67 + 67.1 (2026-05-03): sharpened in-sample disclosure
+                + real-time-procedural-state framing. Without these two pieces,
+                a statistician reads the page as marketing and a lobbyist reads
+                the score as a prediction for their specific bill. Both
+                misreads need to be headed off explicitly. */}
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)', lineHeight: 1.55 }}>
               <strong style={{ color: 'var(--text-muted)' }}>How honest is this?</strong>{' '}
-              The rates above describe how bills in each bucket performed within the calibration
-              cohort itself &mdash; they&apos;re a measure of fit, not strict out-of-sample prediction.
-              The cohort grows by one biennium every two years, so each new session functions as a
-              rolling validation check against fresh data. The 95% Wilson intervals bound the
-              within-cohort rate; predictive accuracy on a future biennium is expected to fall
-              within roughly the same band, with normal regression toward the mean.
+              These are <em>historical pass rates</em> of bills that previously scored in each
+              bucket. They are <strong>not a probabilistic forecast for any specific bill currently
+              in flight</strong> &mdash; a bill scoring 80 today is not predicted to pass at 80%
+              probability; it sits in a bucket where, historically, 84% of its peers passed once
+              the session was over. The score is a real-time reflection of procedural state, not a
+              static forecast: a bill scoring 85 today reflects that it has <em>already cleared</em>
+              the procedural milestones associated with bills that historically passed at 84%; if
+              circumstances change, the score updates the next sync.
+              {' '}The cohort the rates above are computed from is the same cohort the engine is
+              calibrated against, so these numbers measure fit. Each new completed biennium adds
+              fresh data, functioning as a rolling out-of-sample check; predictive accuracy on a
+              future biennium is expected to fall within roughly the same band, with normal
+              regression toward the mean.
             </div>
           </div>
         </div>
@@ -596,14 +604,18 @@ export default function MethodologyPage() {
               )
             })}
           </div>
-          {/* Thread 67 (2026-05-03): weight-math clarified. The five signals
-              sum to 80% (20+16+16+16+12); the stage-advancement bonus is the
-              remaining 20% (25 of 125 max possible points). 80 + 20 = 100. */}
+          {/* Thread 67 + 67.1 (2026-05-03): weight math + normalization
+              disclosure. The 0-125 raw range maps to 0-99 display via a
+              fixed monotonic transform inside scoreBill(); without
+              disclosing that, "84%" is mathematically untethered from the
+              80%-of-125 number. */}
           <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic', lineHeight: 1.55 }}>
             A stage-advancement bonus (0&ndash;25 points) stacks on top, rewarding bills that have
             cleared cutoffs. The bonus is the remaining 20% of weight: five signals sum to 80% of
             the 125-point ceiling, the stage bonus contributes the other 20% &mdash; together they
-            cover the full possible score.
+            cover the full possible score. Raw signal totals (0&ndash;125) are then mapped to the
+            displayed 0&ndash;99 score via a fixed monotonic transform; bucket boundaries
+            (75 / 60 / 45) are placed in display space, not raw space.
           </div>
         </div>
 
@@ -613,10 +625,41 @@ export default function MethodologyPage() {
             X Factors
           </div>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+            {/* Thread 67.1 (2026-05-03): X-Factor mechanism made explicit.
+                "+15%" is +0.15 added to the multiplier (within the 0.5x-1.5x
+                clamp), NOT +15 points to the score. Worked example added so
+                the math is reproducible. */}
             <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, marginBottom: 12 }}>
-              X Factors multiply the base score by between 0.50× and 1.50× based on procedural signals
-              that aren't captured by the five base signals. These are the things a seasoned legislative analyst
-              watches — not just what happened, but what's <em>about</em> to happen.
+              X Factors capture procedural signals that aren&apos;t in the five base signals &mdash;
+              the things a seasoned legislative analyst watches. They combine into a single
+              multiplier applied to the base score:{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                multiplier = clamp(1 + &Sigma;(positives) &minus; &Sigma;(negatives), 0.5&times;, 1.5&times;)
+              </span>.{' '}
+              Each percentage in the table below is a delta added to (or subtracted from) that
+              multiplier &mdash; so &ldquo;Pulled from Rules +15%&rdquo; means +0.15 to the multiplier,
+              not +15 points to the score.
+            </div>
+            {/* Worked example so the formula isn't theoretical. */}
+            <div style={{
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              lineHeight: 1.55,
+              padding: '10px 12px',
+              marginBottom: 12,
+              borderRadius: 'var(--radius)',
+              background: 'rgba(184,151,90,0.06)',
+              border: '1px solid rgba(184,151,90,0.18)',
+            }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Worked example.</strong>{' '}
+              A bill with base score 70 that has been Pulled from Rules (+15%) and earned a
+              Strong floor margin (+8%) gets multiplier ={' '}
+              <span style={{ fontFamily: 'var(--font-mono)' }}>1 + 0.15 + 0.08 = 1.23</span>.{' '}
+              Final displayed score = round(70 &times; 1.23) ={' '}
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontWeight: 600 }}>86</span>.
+              The same bill, if Held in Rules (&minus;20%) and stalled (&minus;10%), gets
+              multiplier = 0.70, score = 49 &mdash; one Held-in-Rules event drops it from HIGH
+              to LOW within a single sync.
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
@@ -655,13 +698,30 @@ export default function MethodologyPage() {
                 are documented at the top of this component. */}
             Most public legislative trackers (LegiScan, OpenStates, the WA Legislature site) tell
             you where a bill <em>is</em>. Vector | WA tells you where a bill is <em>going</em>.
-            Across the engine&apos;s three-biennium calibration cohort (8,062 bills), the
-            3,571 bills in the 0&ndash;44 (VERY LOW) bucket had a <strong>0.0% pass rate</strong>.
-            The 2,541 bills in the 75+ bucket had an{' '}
-            <span style={{ color: TIER_COLOR.HIGH, fontWeight: 600 }}>84.0% pass rate</span> &mdash;{' '}
-            <span style={{ color: TIER_COLOR.HIGH, fontWeight: 600 }}>2,134 of them became law</span>.
-            That 84-point separation between the top and bottom buckets is the whole point of
-            the signal.
+            Across the engine&apos;s three-biennium calibration cohort of 8,062 bills, exactly
+            <strong> 2,155 became law</strong>. Where they came from is the whole point of
+            the signal:
+            {/* Thread 67.1 (2026-05-03): denominator clarity + 99% framing.
+                The killer stat is that 99% of all law outcomes came from the
+                HIGH bucket — that's what tells a lobbyist what to prioritize. */}
+            <div style={{ marginTop: 10, marginBottom: 6, fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.7, color: 'var(--text-muted)' }}>
+              <span style={{ color: TIER_COLOR.HIGH, fontWeight: 700 }}>HIGH (75+):</span>{' '}
+              2,541 bills &rarr; <span style={{ color: TIER_COLOR.HIGH, fontWeight: 700 }}>2,134 became law</span> (84.0%)<br/>
+              <span style={{ color: TIER_COLOR.MODERATE, fontWeight: 700 }}>MODERATE (60&ndash;74):</span>{' '}
+              1,140 bills &rarr; 21 became law (1.8%)<br/>
+              <span style={{ color: TIER_COLOR.LOW, fontWeight: 700 }}>LOW (45&ndash;59):</span>{' '}
+              810 bills &rarr; 0 became law (0.0%)<br/>
+              <span style={{ color: TIER_COLOR['VERY LOW'], fontWeight: 700 }}>VERY LOW (0&ndash;44):</span>{' '}
+              3,571 bills &rarr; 0 became law (0.0%)
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <span style={{ color: TIER_COLOR.HIGH, fontWeight: 600 }}>2,134 of those 2,541 HIGH bills became law</span> &mdash;
+              {' '}<strong>99% of every successful bill</strong> across the entire 8,062-bill
+              cohort came from the HIGH bucket. Of the 810 LOW bills, zero became law: these are
+              the bills that started moving but stalled before clearing a chamber. Of the 3,571
+              VERY LOW bills, zero became law: introduced but never seriously advanced. That
+              separation between buckets is what the score is for.
+            </div>
 
             {/* Thread 67 — practitioner callout #1: how to read the score in
                 day-to-day Olympia work. Brand v1.2 §05 voice: probability not
@@ -692,8 +752,8 @@ export default function MethodologyPage() {
               Scores refresh nightly. The most-recent-biennium calibration card above recomputes
               itself from live Supabase data every time you open this page, so as soon as the next
               biennium&apos;s outcomes are final the per-biennium numbers update automatically &mdash;
-              no manual refresh needed. The engine-truth card stays G5-frozen until the post-2027
-              recalibration thread opens new history into the cohort.
+              no manual refresh needed. The engine-truth card stays locked until the post-2027
+              recalibration opens new biennia into the cohort.
             </div>
             {/* Thread 31 (2026-04-27): cumulative roll-call coverage note. The
                 bill scoring engine has data back to 2021-2022, but member-level
@@ -794,9 +854,24 @@ export default function MethodologyPage() {
                 </div>
               ))}
             </div>
+            {/* Thread 67.1 (2026-05-03): tier-label-vs-outcome clarifier.
+                Headline insight that explains why MODERATE bills pass at
+                only 1.8% — the label describes how far the bill has moved,
+                not how likely it is to pass. Without this, a non-expert
+                reads MODERATE as "50/50" and trusts the wrong thing. */}
+            <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', lineHeight: 1.55 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Important:</strong>{' '}
+              Tier labels describe <em>trajectory momentum</em> &mdash; how far a bill has moved
+              through the procedural pipeline. They <strong>do not</strong> describe pass
+              probability. The HIGH-bucket pass rate (84%) and the MODERATE-bucket pass rate
+              (1.8%) are the historical outcomes of bills that achieved each level of momentum,
+              not what the labels themselves predict. A &ldquo;MODERATE&rdquo; bill has moderate
+              procedural momentum; the historical record then shows that level of momentum rarely
+              converts to law.
+            </div>
             <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-              Signal tier is distinct from outcome label. After session ends, a bill might be labeled "Dead"
-              (outcome) but still show "Signal was MODERATE" (tier) — meaning it had real momentum before
+              Signal tier is also distinct from outcome label. After session ends, a bill might be labeled &ldquo;Dead&rdquo;
+              (outcome) but still show &ldquo;Signal was MODERATE&rdquo; (tier) &mdash; meaning it had real momentum before
               the clock ran out.
             </div>
           </div>
@@ -810,9 +885,26 @@ export default function MethodologyPage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55 }}>
               Beyond the trajectory score, Vector computes four political dynamics signals that answer
-              a different question: not "how far has this bill moved?" but "who is moving it, and how
-              much friction does it face?" These are derived from data Vector already collects — no AI
-              sentiment analysis, no external APIs beyond the WA Legislature's own data.
+              a different question: not &ldquo;how far has this bill moved?&rdquo; but &ldquo;who is moving it, and how
+              much friction does it face?&rdquo; These are derived from data Vector already collects &mdash; no AI
+              sentiment analysis, no external APIs beyond the WA Legislature&apos;s own data.
+              {/* Thread 67.1 (2026-05-03): why-separate explainer. The
+                  trajectory score and the political signals are
+                  intentionally independent — folding political features in
+                  would require a full re-calibration, scheduled for the
+                  post-2027 thread. Until then, lobbyists get two
+                  independent reads. */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                <strong style={{ color: 'var(--text-primary)' }}>Why these are separate from the trajectory score.</strong>{' '}
+                Bipartisan Index, Cross-Aisle Count, Chair Alignment, and Sponsor Track Record
+                are computed independently and not folded into the trajectory score by design. The
+                trajectory score is calibrated against an 8,062-bill cohort using only procedural
+                inputs; adding political features would require re-running the calibration against a
+                fresh cohort with re-tuned weights, scheduled for the post-2027 recalibration cycle.
+                Keeping them separate also lets a lobbyist read &ldquo;where is this bill?&rdquo;
+                (trajectory) and &ldquo;who is moving it?&rdquo; (politics) as two independent signals
+                &mdash; a useful split when the answers disagree.
+              </div>
             </div>
             {[
               {
