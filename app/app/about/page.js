@@ -152,6 +152,85 @@ export default function AboutPage() {
           </div>
         </div>
 
+        {/* SECTION 4 — WHAT IT LOOKS LIKE (Thread 68, 2026-05-03)
+            Six iPhone screenshots Colin captured demonstrating the app in
+            real use. Brass-glow border on each per Thread 63 spec for
+            product captures; mobile-only column sizing. Captions in Karla
+            body voice. Renders only when the underlying PNGs are present
+            — Next.js will 404 individual images if missing without
+            breaking the rest of the page. */}
+        <div>
+          <div style={EYEBROW}>4 &middot; What it looks like</div>
+          <div style={CARD}>
+            <p style={{ marginTop: 0, marginBottom: 14 }}>
+              Six screenshots of the app in actual use &mdash; same surfaces a
+              lobbyist, journalist, or staffer would land on day one.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {[
+                {
+                  src: '/about/01-bill-detail.png',
+                  caption: 'Bill detail with the score sparkline, the latest floor vote, and an AI-generated plain-English summary. The score is calibrated against past outcomes — this one passed.',
+                  alt: 'Vector | WA bill detail page for HB 2340 showing a score of 99 and a Senate floor vote of 46-2.',
+                },
+                {
+                  src: '/about/02-search.png',
+                  caption: 'Browse and filter every bill in flight. Score, outcome, stage, and category chips narrow the list; LAW / PASS / DEAD badges show where each bill ended up.',
+                  alt: 'Vector | WA search page showing a list of signed bills with score badges and outcome labels.',
+                },
+                {
+                  src: '/about/03-members-heatmap.png',
+                  caption: 'Every legislator ranked by legislative success. Heatmap and list views, both chambers, both parties.',
+                  alt: 'Vector | WA members heatmap showing top House and Senate legislators ranked by laws sponsored.',
+                },
+                {
+                  src: '/about/04-member-detail.png',
+                  caption: 'Drill into any legislator: bills sponsored, committee pass rate, cross-party voting signal, and where their bills tend to end up.',
+                  alt: 'Vector | WA member detail page for Joe Fitzgibbon showing 18 bills, 5 committee passes, 3 laws, and a 40 average score.',
+                },
+                {
+                  src: '/about/05-committees.png',
+                  caption: 'Every committee meeting in the next two weeks, House and Senate, joint committees included.',
+                  alt: 'Vector | WA committees calendar showing a Joint Committee on Employment Relations meeting on May 8.',
+                },
+                {
+                  src: '/about/06-print-brief.png',
+                  caption: 'One-tap PDF brief for any bill — score, key provisions, top X-factors, sponsor, committee, and the full vote tally on a single page.',
+                  alt: 'Vector | WA Print Brief PDF preview for HB 2340 showing a clean print-ready bill summary.',
+                },
+              ].map((img, i) => (
+                <figure key={img.src} style={{ margin: 0 }}>
+                  <img
+                    src={img.src}
+                    alt={img.alt}
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      maxWidth: 480,
+                      height: 'auto',
+                      border: '1px solid rgba(184,151,90,0.25)',
+                      borderRadius: 'var(--radius)',
+                      margin: '0 auto',
+                    }}
+                  />
+                  <figcaption style={{
+                    fontSize: 12,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.55,
+                    marginTop: 8,
+                    fontStyle: 'italic',
+                    textAlign: 'center',
+                  }}>
+                    {img.caption}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
