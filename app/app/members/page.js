@@ -74,88 +74,140 @@ function MembersContent() {
   const [query, setQuery]             = useState('')
   const [selectedSession, setSelectedSession] = useState(DEFAULT_SESSION)
   const [viewMode, setViewMode]             = useState('list') // 'list' | 'heatmap'
+  // Thread 69 (2026-05-04): true when the selected biennium has enough roll-call
+  // data to derive "currently seated" reliably — drives the "active legislators"
+  // label vs. the historical "legislators served" label for past biennia.
+  const [hasActiveSignal, setHasActiveSignal] = useState(false)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       const isAll = selectedSession === 'all'
 
-      // Fetch bills — if "All Sessions", fetch from all bienniums
-      let allData = []
+      // Thread 69 (2026-05-04): server-side aggregation via v_member_stats_by_session.
+      // Replaces the previous client-side reduce over raw bills, which was hitting
+      // PostgREST's 1000-row default cap and silently truncating to ~1000 of 3,411
+      // bills in 2025-2026 — causing the {N} legislators counter to oscillate
+      // 146/147/148 across reloads (different physical-row slice each time).
+      //
+      // The view returns one row per (session, prime_sponsor) with all the stats
+      // we used to compute in JS, plus a `currently_seated` flag derived from
+      // roll-call recency (member voted in any of the last 30 days of the most
+      // recent session in the biennium = currently seated). For 2025-2026 that
+      // produces 98 House + 49 Senate = 147 exactly. Bill Ramos (replaced by Hunt)
+      // and Tana Senn (replaced by Zahn) — both prime-sponsored bills before
+      // resigning — drop out automatically.
+      //
+      // Past biennia (2021-22, 2023-24) have no roll-call data synced yet
+      // (VOTE_DATA_FIRST_SESSION='2025-2026'), so biennium_has_vote_data is false
+      // for them — we fall back to showing the full historical sponsor roster
+      // for those sessions, with the count labeled "served" instead of "active".
+      const baseSelect = 'session, name, party, chamber, member_id, district, bill_count, committee_passes, hearing_count, laws_passed, avg_score, top_score, is_chair, tier, committees, pass_rate, currently_seated, biennium_has_vote_data'
+
+      let rows = []
       if (isAll) {
-        for (const s of SESSIONS) {
-          const { data } = await supabase
-            .from('bills')
-            .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name, outcome_passed_law, session')
-            .eq('session', s)
-            .not('prime_sponsor', 'is', null)
-          if (data) allData = allData.concat(data)
-        }
+        const { data } = await supabase
+          .from('v_member_stats_by_session')
+          .select(baseSelect)
+          .in('session', SESSIONS)
+        rows = data || []
       } else {
         const { data } = await supabase
-          .from('bills')
-          .select('prime_sponsor, prime_party, chamber, is_committee_chair, sponsor_tier, final_score, committee_passed, has_public_hearing, committee_name, outcome_passed_law, session')
+          .from('v_member_stats_by_session')
+          .select(baseSelect)
           .eq('session', selectedSession)
-          .not('prime_sponsor', 'is', null)
-        if (data) allData = data
+        rows = data || []
       }
 
-      if (!allData.length) { setMembers([]); setLoading(false); return }
+      if (!rows.length) { setMembers([]); setLoading(false); return }
 
-      const map = {}
-      for (const bill of allData) {
-        const name = bill.prime_sponsor
-        if (!name) continue
-        if (!map[name]) {
-          map[name] = {
-            name, party: bill.prime_party || '?', chamber: bill.chamber || '?',
-            is_chair: bill.is_committee_chair || false, tier: bill.sponsor_tier || 3,
-            bill_count: 0, committee_passes: 0, hearing_count: 0, laws_passed: 0,
-            scores: [], top_score: 0,
+      // Single-session: filter to currently_seated when the biennium has reliable
+      // roll-call data; otherwise show all sponsors who served. "All Sessions" is
+      // a career view by design, so no active-filter is applied — we want
+      // historical legislators visible there.
+      let filteredRows = rows
+      const hasVoteData = !isAll && rows.some(r => r.biennium_has_vote_data)
+      if (hasVoteData) filteredRows = rows.filter(r => r.currently_seated)
+      setHasActiveSignal(hasVoteData)
+
+      // Single-session shape: one row per legislator, with a synthetic single-key
+      // bySession map so downstream detail views keep working.
+      // All-Sessions shape: group by name across biennia, sum stats, build a real
+      // bySession breakdown with per-biennium fields.
+      let list
+      if (!isAll) {
+        list = filteredRows.map(r => ({
+          name: r.name,
+          party: r.party || '?',
+          chamber: r.chamber || '?',
+          is_chair: !!r.is_chair,
+          tier: r.tier ?? 3,
+          bill_count: r.bill_count || 0,
+          committee_passes: r.committee_passes || 0,
+          hearing_count: r.hearing_count || 0,
+          laws_passed: r.laws_passed || 0,
+          top_score: r.top_score || 0,
+          avg_score: r.avg_score || 0,
+          pass_rate: r.pass_rate || 0,
+          committees: r.committees || [],
+          bySession: {
+            [r.session]: {
+              bill_count: r.bill_count || 0,
+              committee_passes: r.committee_passes || 0,
+              laws_passed: r.laws_passed || 0,
+              avg_score: r.avg_score || 0,
+              pass_rate: r.pass_rate || 0,
+            },
+          },
+        })).sort((a, b) => b.bill_count - a.bill_count)
+      } else {
+        const byName = {}
+        for (const r of filteredRows) {
+          const m = byName[r.name] = byName[r.name] || {
+            name: r.name,
+            party: r.party || '?',
+            chamber: r.chamber || '?',
+            is_chair: false,
+            tier: 3,
+            bill_count: 0,
+            committee_passes: 0,
+            hearing_count: 0,
+            laws_passed: 0,
+            top_score: 0,
+            avg_score_weighted_sum: 0,  // for weighted recompute across biennia
             committees: new Set(),
-            // Per-biennium breakdown for "All Sessions" view
             bySession: {},
           }
+          m.bill_count       += r.bill_count       || 0
+          m.committee_passes += r.committee_passes || 0
+          m.hearing_count    += r.hearing_count    || 0
+          m.laws_passed      += r.laws_passed      || 0
+          m.top_score         = Math.max(m.top_score, r.top_score || 0)
+          if (r.is_chair) m.is_chair = true
+          if (r.tier && r.tier < m.tier) m.tier = r.tier
+          if (r.party && r.party !== '?') m.party = r.party
+          if (r.chamber && r.chamber !== '?') m.chamber = r.chamber
+          ;(r.committees || []).forEach(c => m.committees.add(c))
+          // Weighted avg across biennia: sum(avg_i * bills_i) / sum(bills_i)
+          m.avg_score_weighted_sum += (r.avg_score || 0) * (r.bill_count || 0)
+          m.bySession[r.session] = {
+            bill_count: r.bill_count || 0,
+            committee_passes: r.committee_passes || 0,
+            laws_passed: r.laws_passed || 0,
+            avg_score: r.avg_score || 0,
+            pass_rate: r.pass_rate || 0,
+          }
         }
-        const m = map[name]
-        m.bill_count++
-        m.scores.push(bill.final_score || 0)
-        if (bill.committee_passed) m.committee_passes++
-        if (bill.has_public_hearing) m.hearing_count++
-        if (bill.outcome_passed_law) m.laws_passed++
-        if ((bill.final_score || 0) > m.top_score) m.top_score = bill.final_score || 0
-        if (bill.prime_party) m.party = bill.prime_party
-        if (bill.chamber) m.chamber = bill.chamber
-        if (bill.committee_name) m.committees.add(bill.committee_name)
-
-        // Track per-session stats
-        const sess = bill.session || selectedSession
-        if (!m.bySession[sess]) {
-          m.bySession[sess] = { bill_count: 0, committee_passes: 0, laws_passed: 0, scores: [] }
-        }
-        m.bySession[sess].bill_count++
-        m.bySession[sess].scores.push(bill.final_score || 0)
-        if (bill.committee_passed) m.bySession[sess].committee_passes++
-        if (bill.outcome_passed_law) m.bySession[sess].laws_passed++
+        list = Object.values(byName).map(m => ({
+          ...m,
+          committees: [...m.committees],
+          avg_score: m.bill_count > 0 ? Math.round(m.avg_score_weighted_sum / m.bill_count) : 0,
+          pass_rate: m.bill_count > 0 ? Math.round((m.committee_passes / m.bill_count) * 100) : 0,
+        })).map(m => {
+          const { avg_score_weighted_sum: _, ...rest } = m
+          return rest
+        }).sort((a, b) => b.bill_count - a.bill_count)
       }
-
-      const list = Object.values(map).map(m => ({
-        ...m,
-        committees: [...m.committees],
-        avg_score: m.scores.length > 0
-          ? Math.round(m.scores.reduce((a, b) => a + b, 0) / m.scores.length) : 0,
-        pass_rate: m.bill_count > 0
-          ? Math.round((m.committee_passes / m.bill_count) * 100) : 0,
-        bySession: Object.fromEntries(
-          Object.entries(m.bySession).map(([s, d]) => [s, {
-            ...d,
-            avg_score: d.scores.length > 0
-              ? Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length) : 0,
-            pass_rate: d.bill_count > 0
-              ? Math.round((d.committee_passes / d.bill_count) * 100) : 0,
-          }])
-        ),
-      })).sort((a, b) => b.bill_count - a.bill_count)
 
       setMembers(list)
       setLoading(false)
@@ -938,7 +990,12 @@ function MembersContent() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            {filtered.length} legislators · {selectedSession === 'all' ? 'Career View' : selectedSession}
+            {/* Thread 69 (2026-05-04): label adapts to whether we have a reliable
+                "currently seated" signal for the selected biennium. With vote
+                data: "147 active legislators" (2025-2026, the canonical
+                49 districts × 3 seats). Without: "{N} legislators" (the full
+                historical sponsor roster, including any mid-biennium replacements). */}
+            {filtered.length} {hasActiveSignal ? 'active legislators' : 'legislators'} · {selectedSession === 'all' ? 'Career View' : selectedSession}
           </div>
           <div style={{ display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
             {[

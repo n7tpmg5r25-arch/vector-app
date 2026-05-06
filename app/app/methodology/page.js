@@ -178,52 +178,56 @@ export default function MethodologyPage() {
       calSession = `${prev}-${prev + 1}`
     }
 
-    sb.from('bills')
-      .select('final_score, confidence_label')
+    // Thread 69 (2026-05-04): server-side aggregation via v_calibration_buckets_by_session.
+    // The previous client-side reduce over raw bills was hitting PostgREST's
+    // 1000-row default cap and silently truncating cohort N to 1000 even when
+    // the biennium had 3,000+ scored bills (3,411 in 2025-26, 3,086 in 2023-24).
+    // The view returns 4 pre-bucketed rows per session (HIGH / MODERATE / LOW /
+    // VERY LOW), each with bills, chamber_count, and law_count already
+    // aggregated server-side — no truncation, ~10KB on the wire vs ~600KB before.
+    const BUCKET_DISPLAY = {
+      HIGH:       '75–99',
+      MODERATE:   '60–74',
+      LOW:        '45–59',
+      'VERY LOW': '0–44',
+    }
+    sb.from('v_calibration_buckets_by_session')
+      .select('label, bills, chamber_count, law_count')
       .eq('session', calSession)
-      .not('final_score', 'is', null)
       .then(({ data, error }) => {
-        if (error || !data || data.length < 100) {
+        if (error || !data || data.length === 0) {
           // Thread 67: don't pretend with stale combined-3B numbers under a
           // single-biennium header. Render an empty-state instead.
           setCalibration([])
           setSourceSession(calSession)
           return
         }
-        const buckets = {
-          HIGH:       { bucket: '75–99', label: 'HIGH',     bills: 0, law: 0, chamber: 0 },
-          MODERATE:   { bucket: '60–74', label: 'MODERATE', bills: 0, law: 0, chamber: 0 },
-          LOW:        { bucket: '45–59', label: 'LOW',      bills: 0, law: 0, chamber: 0 },
-          'VERY LOW': { bucket:  '0–44', label: 'VERY LOW', bills: 0, law: 0, chamber: 0 },
+        const byLabel = {}
+        let totalBills = 0
+        for (const row of data) {
+          byLabel[row.label] = row
+          totalBills += row.bills || 0
         }
-        for (const b of data) {
-          const s = b.final_score || 0
-          let key
-          if (s >= 75)      key = 'HIGH'
-          else if (s >= 60) key = 'MODERATE'
-          else if (s >= 45) key = 'LOW'
-          else              key = 'VERY LOW'
-          buckets[key].bills++
-          if (b.confidence_label === 'LAW') {
-            buckets[key].law++
-            buckets[key].chamber++
-          } else if (b.confidence_label === 'PASSED_CHAMBER') {
-            buckets[key].chamber++
-          }
+        if (totalBills < 100) {
+          // Same low-N guard as before: a 3-bill biennium shouldn't masquerade
+          // as live calibration.
+          setCalibration([])
+          setSourceSession(calSession)
+          return
         }
         const rows = ['HIGH', 'MODERATE', 'LOW', 'VERY LOW'].map(k => {
-          const v = buckets[k]
+          const v = byLabel[k] || { bills: 0, chamber_count: 0, law_count: 0 }
           return {
-            bucket: v.bucket,
-            label: v.label,
-            bills: v.bills,
-            chamber: v.bills > 0 ? (v.chamber / v.bills) * 100 : 0,
-            law:     v.bills > 0 ? (v.law     / v.bills) * 100 : 0,
+            bucket: BUCKET_DISPLAY[k],
+            label: k,
+            bills: v.bills || 0,
+            chamber: v.bills > 0 ? (v.chamber_count / v.bills) * 100 : 0,
+            law:     v.bills > 0 ? (v.law_count     / v.bills) * 100 : 0,
           }
         })
         setCalibration(rows)
         setSourceSession(calSession)
-        setTotalN(data.length)
+        setTotalN(totalBills)
       })
   }, [])
 
