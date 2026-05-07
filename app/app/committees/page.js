@@ -90,6 +90,10 @@ export default function CommitteesPage() {
   const [sortBy, setSortBy] = useState('bills')
   const [expanded, setExpanded] = useState(null)
   const [expandedBills, setExpandedBills] = useState([])
+  // Thread 70 — expand-on-click bills are now lazy-fetched (one bounded
+  // query per expansion, top 20 by score) instead of held in state from
+  // the bulk load. expandedLoading drives the inline loader.
+  const [expandedLoading, setExpandedLoading] = useState(false)
   const [committeeLoading, setCommitteeLoading] = useState(true)
 
   // Load committees (for slug lookups)
@@ -131,81 +135,84 @@ export default function CommitteesPage() {
     setCommitteeLoading(true)
     setCommittees([])
     setRulesQueue([])
+    // Reset any stale expansion when the source data is about to refresh.
+    setExpanded(null); setExpandedBills([]); setExpandedLoading(false)
     async function load() {
-      // DATA_FRESHNESS #17: rules-committee names now come from committees.is_rules
-      // (single source of truth). Legacy substring fallback kept in case the query
-      // fails or returns empty — preserves pre-refactor display behavior as a
-      // defense-in-depth net, never the primary path during normal operation.
-      const [billsRes, rulesRes] = await Promise.all([
-        supabase
-          .from('bills')
-          .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, committee_passed, has_public_hearing, stalled, prime_sponsor, prime_party, bipartisan')
-          .eq('session', SESSION)
-          .not('committee_name', 'is', null)
-          .not('committee_name', 'eq', '')
-          .order('final_score', { ascending: false })
-          .range(0, 2999),
-        supabase
-          .from('committees')
-          .select('name')
-          .eq('is_rules', true),
-      ])
+      // Thread 70 — server-side aggregation via v_committee_stats_by_session.
+      // Replaces a client-side reduce loop over .range(0, 2999) bills that
+      // was silently truncated by PostgREST's 1000-row cap (2025-2026:
+      // 3,133 bills → 1,000 returned; ~68% loss). Compounded because the
+      // ORDER BY final_score DESC made the surviving slice top-1000-scoring
+      // bills, hiding low-score committees from the page entirely.
+      // The view pre-aggregates per (session, name, chamber) and returns
+      // ~65 rows; expand-on-click bills are lazy-fetched in handleExpand.
+      const { data, error } = await supabase
+        .from('v_committee_stats_by_session')
+        .select('name, chamber, bill_count, committee_passes, hearing_count, high_score_count, stalled_count, avg_score, top_score, pass_rate, is_rules, slug')
+        .eq('session', SESSION)
 
-      const data = billsRes.data
-      if (!data) { setCommitteeLoading(false); return }
+      if (error || !data) { setCommitteeLoading(false); return }
 
-      const rulesNameSet = new Set(
-        (rulesRes.data || []).map(c => (c.name || '').toLowerCase())
-      )
-      const FALLBACK_RULES_SUBSTRINGS = ['rules 2 review', 'rules committee for second reading', 'rules']
-      // Thread 15.3 — procedural-shelf override.
-      // `Rules 2 Review` is a procedural shelf, not a policy committee. Every
-      // bill technically "passes" through it on the way somewhere else, so
-      // its by-committee row was rendering 100% pass rate over 580 bills and
-      // dragging the by-committee story. The DB committees.is_rules flag is
-      // the canonical source, but Rules 2 Review isn't reliably flagged
-      // (DB-verified) — so we always treat it as a rules-queue entry
-      // regardless of the flag. New procedural shelves can be added here.
+      // Thread 15.3 procedural-shelf override, preserved as defense-in-depth.
+      // `Rules 2 Review` IS currently flagged is_rules=true in the committees
+      // table (verified Thread 70), so the override is a no-op today — but
+      // it ensures /committees stays correct if a future sync ever resets
+      // the flag. Add new procedural shelves to this set as needed.
       const PROCEDURAL_SHELF_NAMES = new Set(['rules 2 review'])
-      const isRules = (name) => {
-        const n = (name || '').toLowerCase()
-        if (PROCEDURAL_SHELF_NAMES.has(n)) return true
-        if (rulesNameSet.size > 0) return rulesNameSet.has(n)
-        return FALLBACK_RULES_SUBSTRINGS.some(r => n.includes(r))
+      const isRulesRow = (row) =>
+        row.is_rules || PROCEDURAL_SHELF_NAMES.has((row.name || '').toLowerCase())
+
+      const policy = [], rules = []
+      for (const row of data) {
+        const item = {
+          key: row.name + '|' + row.chamber,
+          name: row.name,
+          chamber: row.chamber,
+          billCount: row.bill_count,
+          avgScore: row.avg_score,
+          passRate: row.pass_rate,
+          passed: row.committee_passes,
+          hearings: row.hearing_count,
+          highScore: row.high_score_count,
+          stalled: row.stalled_count,
+          isRulesQueue: isRulesRow(row),
+        }
+        if (item.isRulesQueue) rules.push(item)
+        else policy.push(item)
       }
 
-      const map = {}, rulesMap = {}
-      data.forEach(b => {
-        const target = isRules(b.committee_name) ? rulesMap : map
-        const key = b.committee_name + '|' + b.chamber
-        if (!target[key]) {
-          target[key] = {
-            key, name: b.committee_name, chamber: b.chamber,
-            bills: [], totalScore: 0, passed: 0, hearings: 0, highScore: 0, stalled: 0,
-            isRulesQueue: isRules(b.committee_name),
-          }
-        }
-        target[key].bills.push(b)
-        target[key].totalScore += (b.final_score || 0)
-        if (b.committee_passed) target[key].passed++
-        if (b.has_public_hearing) target[key].hearings++
-        if ((b.final_score || 0) >= 50) target[key].highScore++
-        if (b.stalled) target[key].stalled++
-      })
-
-      const toList = m => Object.values(m).map(c => ({
-        ...c,
-        billCount: c.bills.length,
-        avgScore: Math.round(c.totalScore / c.bills.length),
-        passRate: Math.round((c.passed / c.bills.length) * 100),
-      }))
-
-      setCommittees(toList(map))
-      setRulesQueue(toList(rulesMap))
+      setCommittees(policy)
+      setRulesQueue(rules)
       setCommitteeLoading(false)
     }
     load()
   }, [view, SESSION])
+
+  // Thread 70 — lazy-fetch the top 20 bills for the expanded committee.
+  // Lifted out of ByCommitteeView so it can use supabase + SESSION from the
+  // parent scope. Toggling off (clicking the open committee again) clears
+  // state without a network call. Toggling between committees fires one
+  // bounded query (~20 rows) per expansion.
+  async function handleExpand(name, chamber) {
+    const key = name + '|' + chamber
+    if (expanded === key) {
+      setExpanded(null); setExpandedBills([]); setExpandedLoading(false)
+      return
+    }
+    setExpanded(key)
+    setExpandedBills([])
+    setExpandedLoading(true)
+    const { data } = await supabase
+      .from('bills')
+      .select('bill_id, bill_number, title, final_score, stage, chamber')
+      .eq('session', SESSION)
+      .eq('committee_name', name)
+      .eq('chamber', chamber)
+      .order('final_score', { ascending: false })
+      .limit(20)
+    setExpandedBills(data || [])
+    setExpandedLoading(false)
+  }
 
   // Filter meetings by chamber
   const filteredMeetings = useMemo(() => {
@@ -374,7 +381,9 @@ export default function CommitteesPage() {
         </div>
       )}
 
-      {/* BY COMMITTEE VIEW (legacy aggregation, preserved) */}
+      {/* BY COMMITTEE VIEW — Thread 70 rewrites this to consume the
+          v_committee_stats_by_session view. handleExpand is a parent-scope
+          callback so it can hit supabase + SESSION for the lazy bill fetch. */}
       {view === 'by-committee' && (
         <ByCommitteeView
           committees={committees}
@@ -382,8 +391,10 @@ export default function CommitteesPage() {
           loading={committeeLoading}
           chamberFilter={chamberFilter}
           sortBy={sortBy} setSortBy={setSortBy}
-          expanded={expanded} setExpanded={setExpanded}
-          expandedBills={expandedBills} setExpandedBills={setExpandedBills}
+          expanded={expanded}
+          expandedBills={expandedBills}
+          expandedLoading={expandedLoading}
+          handleExpand={handleExpand}
           slugs={committeeSlugs}
           router={router}
         />
@@ -485,7 +496,7 @@ function MeetingCard({ m, highlight, onClick }) {
 
 // ── By-Committee legacy view (extracted into a subcomponent) ─────────────────
 
-function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortBy, setSortBy, expanded, setExpanded, expandedBills, setExpandedBills, slugs, router }) {
+function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortBy, setSortBy, expanded, expandedBills, expandedLoading, handleExpand, slugs, router }) {
   const filtered = chamberFilter === 'All' || chamberFilter === 'Joint'
     ? committees
     : committees.filter(c => c.chamber === chamberFilter)
@@ -500,20 +511,13 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
     })
   }, [filtered, sortBy])
 
-  const allCommittees = [...committees, ...rulesQueue]
   const filteredRules = chamberFilter === 'All' || chamberFilter === 'Joint'
     ? rulesQueue
     : rulesQueue.filter(c => c.chamber === chamberFilter)
 
-  function handleExpand(key) {
-    if (expanded === key) {
-      setExpanded(null); setExpandedBills([])
-    } else {
-      setExpanded(key)
-      const c = allCommittees.find(x => x.key === key)
-      setExpandedBills(c ? c.bills.slice(0, 20) : [])
-    }
-  }
+  // Thread 70 — handleExpand is now a parent-scope callback (see CommitteesPage)
+  // so it can lazy-fetch the top 20 bills via supabase + SESSION. Local
+  // allCommittees lookup is no longer needed (the parent uses name + chamber).
 
   function openDetail(e, cmte) {
     e.stopPropagation()
@@ -587,7 +591,7 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
           const barWidth = Math.min(cmte.passRate, 100)
           return (
             <div key={cmte.key}>
-              <div onClick={() => handleExpand(cmte.key)} style={{
+              <div onClick={() => handleExpand(cmte.name, cmte.chamber)} style={{
                 background: 'var(--bg-card)',
                 border: '1px solid ' + (isExpanded ? 'rgba(184,151,90,0.3)' : 'var(--border)'),
                 borderRadius: isExpanded ? 'var(--radius) var(--radius) 0 0' : 'var(--radius)',
@@ -630,7 +634,24 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
                   borderRadius: '0 0 var(--radius) var(--radius)', padding: '8px 10px',
                   display: 'flex', flexDirection: 'column', gap: 4,
                 }}>
-                  {expandedBills.map(bill => (
+                  {/* Thread 70 — bills are lazy-fetched on expand (top 20 by score). */}
+                  {expandedLoading && (
+                    <div style={{
+                      padding: '12px 10px', fontSize: 11, color: 'var(--text-faint)',
+                      fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    }}>
+                      Loading bills…
+                    </div>
+                  )}
+                  {!expandedLoading && expandedBills.length === 0 && (
+                    <div style={{
+                      padding: '12px 10px', fontSize: 11, color: 'var(--text-faint)',
+                      fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    }}>
+                      No bills returned for this committee.
+                    </div>
+                  )}
+                  {!expandedLoading && expandedBills.map(bill => (
                     <Link key={bill.bill_id} href={'/bill/' + bill.bill_id} prefetch={false} style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
                       borderRadius: 6, cursor: 'pointer', transition: 'background 0.15s',
@@ -689,7 +710,7 @@ function ByCommitteeView({ committees, rulesQueue, loading, chamberFilter, sortB
               : `Passed their policy committee, queued in Rules for a floor vote. Being in the queue doesn't guarantee one — many die here when the session clock runs out.`}
           </div>
           {filteredRules.map(cmte => (
-            <div key={cmte.key} onClick={() => handleExpand(cmte.key)} style={{
+            <div key={cmte.key} onClick={() => handleExpand(cmte.name, cmte.chamber)} style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
               padding: '14px', cursor: 'pointer', marginBottom: 6,
             }}>
