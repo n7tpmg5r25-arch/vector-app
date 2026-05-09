@@ -242,6 +242,10 @@ export default function Footer() {
                 About
               </Link>
               {' · '}
+              <Link href="/roadmap" style={linkStyle}>
+                Roadmap
+              </Link>
+              {' · '}
               <Link href="/methodology" style={linkStyle}>
                 Methodology
               </Link>

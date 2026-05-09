@@ -289,6 +289,41 @@ function LoginPageInner() {
         </div>
       </div>
 
+      {/* Thread 72 — Roadmap CTA. Single centered link below the
+          Methodology + About pair. Brass-outline treatment matches
+          the existing pair; narrower to avoid cluttering the 380px
+          card at small viewport widths. */}
+      <div style={{
+        marginTop: 10,
+        width: '100%',
+        maxWidth: 380,
+        position: 'relative',
+        zIndex: 1,
+        textAlign: 'center',
+      }}>
+        <Link
+          href="/roadmap"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 20px',
+            background: 'rgba(184,151,90,0.06)',
+            border: '1px solid rgba(184,151,90,0.40)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--brass-light, var(--gold))',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
+            fontWeight: 500,
+            letterSpacing: '0.02em',
+            textDecoration: 'none',
+            transition: 'background 0.2s, border-color 0.2s',
+          }}
+        >
+          View roadmap &rarr;
+        </Link>
+      </div>
+
       <div style={{
         marginTop: 20, fontSize: 11,
         color: 'var(--text-faint)', textAlign: 'center',

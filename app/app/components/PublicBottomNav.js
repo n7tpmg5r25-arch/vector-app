@@ -62,6 +62,7 @@ function isPublicSurface(pathname) {
   if (pathname === '/hearings') return true
   if (pathname === '/install') return true
   if (pathname === '/about') return true
+  if (pathname === '/roadmap') return true
   if (pathname === '/disclaimers') return true
   return false
 }
