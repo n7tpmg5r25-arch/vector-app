@@ -117,28 +117,6 @@ export const ROADMAP = [
 
   // ─── COMING ─────────────────────────────────────────────────────────
   {
-    id: 'ses-migration',
-    title: 'Email infrastructure migration (Resend → Amazon SES)',
-    status: 'coming',
-    date: 'Q3 2026',
-    description:
-      'Transition to Amazon SES for improved deliverability headroom ahead ' +
-      'of the public launch at scale.',
-    category: 'infrastructure',
-    source: 'PUBLIC_RELEASE_DECISION_MEMO.md + PUBLIC_RELEASE_PUNCHLIST.md',
-  },
-  {
-    id: 'open-source',
-    title: 'Code transparency: repository open-sourced (BUSL-1.1 → Apache 2.0)',
-    status: 'coming',
-    date: 'Dec 2026',
-    description:
-      'Repository license moves to Apache 2.0. The full scoring model and ' +
-      'sync pipeline become visible to anyone who wants to verify the methodology.',
-    category: 'public-release',
-    source: 'PUBLIC_RELEASE_DECISION_MEMO.md',
-  },
-  {
     id: 'session-autoswap',
     title: 'Interim → session auto-swap verification',
     status: 'coming',
