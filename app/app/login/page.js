@@ -160,8 +160,8 @@ function LoginPageInner() {
       minHeight: '100vh', background: 'var(--bg)',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      padding: '24px',
-      position: 'relative', overflow: 'hidden',
+      padding: '40px 24px 48px',
+      position: 'relative', overflowX: 'hidden',
     }}>
       {/* Background glow */}
       <div style={{
