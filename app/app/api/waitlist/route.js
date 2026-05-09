@@ -83,18 +83,31 @@ export async function POST(request) {
     // ── Generate confirmation token ──────────────────────
     const confirmationToken = crypto.randomBytes(32).toString('hex')
 
+    // ── Beta acknowledgment timestamp (Option B) ─────────
+    // When source is 'closed_beta', the client sends beta_ack_at as a signal
+    // that the user checked all four acknowledgment boxes before submitting.
+    // We accept the client timestamp but only store it as a boolean signal —
+    // the real authoritative timestamp is set server-side here.
+    const rawBetaAck = body.beta_ack_at
+    const betaAckAt = (source === 'closed_beta' && rawBetaAck)
+      ? new Date().toISOString()
+      : null
+
     // ── Insert (anon key + RLS INSERT policy) ───────────
     // If email already exists, unique constraint blocks the insert. We still
     // return generic success to avoid leaking membership.
+    const insertPayload = {
+      email,
+      source,
+      confirmation_token: confirmationToken,
+      ip_hash: ipHash,
+      user_agent: userAgent,
+    }
+    if (betaAckAt) insertPayload.beta_ack_at = betaAckAt
+
     const { error: insertError } = await supabase
       .from('waitlist')
-      .insert({
-        email,
-        source,
-        confirmation_token: confirmationToken,
-        ip_hash: ipHash,
-        user_agent: userAgent,
-      })
+      .insert(insertPayload)
 
     if (insertError) {
       // 23505 = unique_violation (email already on list)
@@ -118,7 +131,7 @@ export async function POST(request) {
         'Content-Type': 'application/json',
         'x-function-secret': functionSecret,
       },
-      body: JSON.stringify({ email, confirmation_token: confirmationToken }),
+      body: JSON.stringify({ email, confirmation_token: confirmationToken, source }),
     })
 
     if (!emailResp.ok) {

@@ -47,21 +47,26 @@ export default async function AdminWaitlistPage({ searchParams }) {
   )
 
   const sp = (await searchParams) ?? {}
-  const filter = sp.filter === 'confirmed' ? 'confirmed' : sp.filter === 'pending' ? 'pending' : 'all'
+  const filter = sp.filter === 'confirmed' ? 'confirmed'
+    : sp.filter === 'pending' ? 'pending'
+    : sp.filter === 'closed_beta' ? 'closed_beta'
+    : 'all'
 
   let query = admin
     .from('waitlist')
-    .select('id, email, source, created_at, confirmed_at, converted_at, unsubscribed_at')
+    .select('id, email, source, created_at, confirmed_at, converted_at, unsubscribed_at, beta_ack_at')
     .order('created_at', { ascending: false })
     .limit(500)
 
   if (filter === 'confirmed') query = query.not('confirmed_at', 'is', null)
   else if (filter === 'pending') query = query.is('confirmed_at', null)
+  else if (filter === 'closed_beta') query = query.eq('source', 'closed_beta')
 
   const { data: rows, error } = await query
 
   const { count: totalAll } = await admin.from('waitlist').select('id', { count: 'exact', head: true })
   const { count: totalConfirmed } = await admin.from('waitlist').select('id', { count: 'exact', head: true }).not('confirmed_at', 'is', null)
+  const { count: totalBeta } = await admin.from('waitlist').select('id', { count: 'exact', head: true }).eq('source', 'closed_beta')
   const totalPending = (totalAll ?? 0) - (totalConfirmed ?? 0)
 
   if (error) {
@@ -79,11 +84,12 @@ export default async function AdminWaitlistPage({ searchParams }) {
   }) : '\u2014'
 
   // ── CSV export link (builds on the fly) ─────────────
-  const csvHeader = 'email,source,created_at,confirmed_at,converted_at\n'
+  const csvHeader = 'email,source,created_at,beta_ack_at,confirmed_at,converted_at\n'
   const csvBody = (rows || []).map(r => [
     r.email,
     r.source || '',
     r.created_at || '',
+    r.beta_ack_at || '',
     r.confirmed_at || '',
     r.converted_at || '',
   ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -138,13 +144,15 @@ export default async function AdminWaitlistPage({ searchParams }) {
         <StatCard label="Total" value={totalAll ?? 0} />
         <StatCard label="Confirmed" value={totalConfirmed ?? 0} tone="brass" />
         <StatCard label="Pending" value={totalPending ?? 0} tone="muted" />
+        <StatCard label="Closed Beta" value={totalBeta ?? 0} tone="brass" />
       </div>
 
       {/* Filter tabs + CSV */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <a href="/app/admin/waitlist?filter=all" style={tabStyle(filter === 'all')}>All</a>
-        <a href="/app/admin/waitlist?filter=confirmed" style={tabStyle(filter === 'confirmed')}>Confirmed</a>
-        <a href="/app/admin/waitlist?filter=pending" style={tabStyle(filter === 'pending')}>Pending</a>
+        <a href="/admin/waitlist?filter=all" style={tabStyle(filter === 'all')}>All</a>
+        <a href="/admin/waitlist?filter=closed_beta" style={tabStyle(filter === 'closed_beta')}>Closed Beta</a>
+        <a href="/admin/waitlist?filter=confirmed" style={tabStyle(filter === 'confirmed')}>Confirmed</a>
+        <a href="/admin/waitlist?filter=pending" style={tabStyle(filter === 'pending')}>Pending</a>
         <div style={{ flex: 1 }} />
         <a href={csvDataUrl} download={`waitlist-${new Date().toISOString().slice(0, 10)}.csv`} style={tabStyle(false)}>
           Download CSV
@@ -159,6 +167,7 @@ export default async function AdminWaitlistPage({ searchParams }) {
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Email</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Source</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Joined</th>
+              <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Acked</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Confirmed</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Converted</th>
             </tr>
@@ -166,15 +175,33 @@ export default async function AdminWaitlistPage({ searchParams }) {
           <tbody>
             {(rows || []).length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                   No entries.
                 </td>
               </tr>
             ) : rows.map(r => (
               <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                 <td style={{ padding: '10px 12px', fontFamily: 'monospace' }}>{r.email}</td>
-                <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{r.source || '\u2014'}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  {r.source === 'closed_beta' ? (
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 10,
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                      color: 'var(--teal)', background: 'rgba(184,151,90,0.1)',
+                      padding: '2px 6px', borderRadius: 4,
+                    }}>Beta</span>
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }}>{r.source || '\u2014'}</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{fmtDate(r.created_at)}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  {r.beta_ack_at ? (
+                    <span style={{ color: 'var(--gold-light, #d4b07a)' }}>&check;</span>
+                  ) : (
+                    <span style={{ color: 'var(--text-faint)' }}>&mdash;</span>
+                  )}
+                </td>
                 <td style={{ padding: '10px 12px' }}>
                   {r.confirmed_at ? (
                     <span style={{ color: 'var(--gold-light, #d4b07a)' }}>{fmtDate(r.confirmed_at)}</span>

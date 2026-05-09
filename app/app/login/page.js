@@ -37,13 +37,56 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Banner from auth callback redirect
+  // Beta signup state
+  const [betaEmail, setBetaEmail] = useState('')
+  const [betaSent, setBetaSent] = useState(false)
+  const [betaLoading, setBetaLoading] = useState(false)
+  const [betaError, setBetaError] = useState('')
+  const [acks, setAcks] = useState({ a: false, b: false, c: false, d: false })
+  const allAcked = acks.a && acks.b && acks.c && acks.d
+
+  // Banner from auth callback redirect or waitlist confirmation
   const [banner, setBanner] = useState(null)
   useEffect(() => {
-    if (searchParams.get('error') === 'auth_callback_error') {
+    const err = searchParams.get('error')
+    const wl  = searchParams.get('waitlist')
+    if (err === 'auth_callback_error') {
       setBanner({ kind: 'warn', text: 'Sign-in link expired or invalid. Request a new magic link below.' })
+    } else if (wl === ‘confirmed’) {
+      setBanner({ kind: ‘ok’, text: "Email confirmed — you’re on the beta list. We’ll be in touch around December 2026." })
+    } else if (wl === ‘already_confirmed’) {
+      setBanner({ kind: ‘ok’, text: "You’re already confirmed on the beta list. Watch for your invite in December 2026." })
+    } else if (wl === 'invalid' || wl === 'error') {
+      setBanner({ kind: 'warn', text: 'That confirmation link is invalid or expired. Try signing up again below.' })
     }
   }, [searchParams])
+
+  async function handleBetaSignup(e) {
+    e.preventDefault()
+    if (!allAcked) return
+    setBetaLoading(true)
+    setBetaError('')
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: betaEmail,
+          source: 'closed_beta',
+          beta_ack_at: new Date().toISOString(),
+        }),
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setBetaSent(true)
+      } else {
+        setBetaError(json.error || 'Something went wrong. Try again.')
+      }
+    } catch {
+      setBetaError('Network error. Check your connection and try again.')
+    }
+    setBetaLoading(false)
+  }
 
   async function handleSignIn(e) {
     e.preventDefault()
@@ -322,6 +365,180 @@ function LoginPageInner() {
         >
           View roadmap &rarr;
         </Link>
+      </div>
+
+      {/* ── Closed Beta Signup (Thread 73) ───────────────────────────────
+          Sits below the sign-in card + info CTAs. Separate concern from
+          sign-in — different state machine, different endpoint, different
+          confirmation flow. All four acknowledgment boxes must be checked
+          before the button activates. */}
+      <div style={{
+        marginTop: 28,
+        width: '100%',
+        maxWidth: 380,
+        position: 'relative',
+        zIndex: 1,
+      }}>
+        {/* Divider */}
+        <div style={{
+          borderTop: '1px solid var(--border)',
+          marginBottom: 24,
+        }} />
+
+        {betaSent ? (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10, letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: 'var(--teal)',
+              marginBottom: 10,
+            }}>Request received</div>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 17, fontWeight: 600,
+              color: 'var(--text-primary)',
+              marginBottom: 8,
+            }}>Check your inbox</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+              We sent a confirmation link to <strong style={{ color: 'var(--text-primary)' }}>{betaEmail}</strong>.
+              Click it to lock in your spot.{' '}
+              <Link href="/roadmap" style={{ color: 'var(--teal)', textDecoration: 'none' }}>
+                See the roadmap &rarr;
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderLeft: '3px solid var(--teal)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '24px',
+          }}>
+            {/* Eyebrow */}
+            <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10, letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'var(--teal)',
+              marginBottom: 8,
+            }}>Closed Beta &middot; December 2026</div>
+
+            {/* Headline */}
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 18, fontWeight: 600,
+              color: 'var(--text-primary)',
+              marginBottom: 6,
+            }}>Join the beta</div>
+
+            {/* Subhead */}
+            <div style={{
+              fontSize: 13, color: 'var(--text-muted)',
+              lineHeight: 1.55, marginBottom: 20,
+            }}>
+              Help shape Vector&nbsp;|&nbsp;WA before public launch.
+              Bug-finders only — we'll send your invite around December&nbsp;2026.
+            </div>
+
+            <form onSubmit={handleBetaSignup}>
+              {/* Email */}
+              <input
+                type="email"
+                value={betaEmail}
+                onChange={e => setBetaEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                autoComplete="email"
+                style={{
+                  width: '100%', padding: '11px 13px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', fontSize: 14,
+                  color: 'var(--text-primary)', marginBottom: 16,
+                  outline: 'none', boxSizing: 'border-box',
+                }}
+                onFocus={e => e.target.style.borderColor = 'rgba(184,151,90,0.5)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+
+              {/* Acknowledgments */}
+              <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  { key: 'a', text: 'I understand this is pre-release software — bugs, missing features, and unexpected behavior are expected.' },
+                  { key: 'b', text: 'I agree to report issues I encounter. A feedback channel will be included in my invite.' },
+                  { key: 'c', text: 'I understand beta access may be adjusted or revoked at any time — this is a working collaboration, not a right of use.' },
+                  { key: 'd', text: 'My email will only be used to send my beta invite. It won\'t be shared, sold, or used for any other purpose.' },
+                ].map(({ key, text }) => (
+                  <label key={key} style={{
+                    display: 'flex', gap: 10, alignItems: 'flex-start',
+                    cursor: 'pointer',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={acks[key]}
+                      onChange={e => setAcks(prev => ({ ...prev, [key]: e.target.checked }))}
+                      style={{
+                        marginTop: 2, flexShrink: 0,
+                        width: 15, height: 15,
+                        accentColor: 'var(--teal)',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                      {text}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {betaError && (
+                <div style={{
+                  fontSize: 12, color: 'var(--danger)',
+                  marginBottom: 10, padding: '8px 12px',
+                  background: 'var(--danger-pale)',
+                  borderRadius: 6,
+                }}>{betaError}</div>
+              )}
+
+              {/* Honeypot — hidden from humans, catches bots */}
+              <input type="text" name="hp" style={{ display: 'none' }} tabIndex={-1} autoComplete="off" />
+
+              <button
+                type="submit"
+                disabled={!allAcked || !betaEmail || betaLoading}
+                className="vec-cta-primary"
+                style={{
+                  width: '100%', padding: '12px',
+                  background: (allAcked && betaEmail && !betaLoading)
+                    ? 'var(--teal)' : 'var(--teal-dim)',
+                  color: 'var(--bg)',
+                  border: 'none',
+                  borderRadius: 'var(--radius)', fontSize: 14,
+                  fontWeight: 600, letterSpacing: '0.04em',
+                  cursor: (allAcked && betaEmail && !betaLoading) ? 'pointer' : 'default',
+                  transition: 'background 0.2s',
+                }}
+              >
+                {betaLoading ? 'Submitting…' : 'Request beta access'}
+              </button>
+            </form>
+
+            <div style={{
+              marginTop: 12, fontSize: 11,
+              color: 'var(--text-faint)', lineHeight: 1.5,
+              textAlign: 'center',
+            }}>
+              Emails are not shared. Public launch is Aug&nbsp;2027 — no signup required for that.
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{
