@@ -1,7 +1,7 @@
 'use client'
 // Thread 24 -- /about Public About Page (2026-04-26)
 // Short About surface explaining the project + free-launch timeline.
-// Mirrors the /how-it-works shell pattern (PublicNav for anon when the
+// Mirrors the /install shell pattern (PublicNav for anon when the
 // public-layer flag is on, owner Nav for authed viewers).
 //
 // Per directive D1 (CLAUDE.md, 2026-04-26): the public-facing site must NOT
@@ -46,7 +46,7 @@ const EYEBROW = {
 const HIGHLIGHT = { color: 'var(--teal)', fontWeight: 600, marginRight: 4 }
 
 export default function AboutPage() {
-  // Mirrors the how-it-works shell -- viewerLoading destructured + isAnonPublic
+  // Mirrors the install-page shell -- viewerLoading destructured + isAnonPublic
   // gated on !viewerLoading so authed users don't flash PublicNav during
   // auth resolve (Thread 15.2 pattern).
   const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
@@ -143,11 +143,7 @@ export default function AboutPage() {
               <a href="/methodology" style={{ color: 'var(--teal)', textDecoration: 'underline' }}>
                 methodology page
               </a>
-              {' '}refresh each session, and the{' '}
-              <a href="/how-it-works" style={{ color: 'var(--teal)', textDecoration: 'underline' }}>
-                how-it-works
-              </a>
-              {' '}explainer covers the score in plain English.
+              {' '}refresh each session.
             </p>
           </div>
         </div>

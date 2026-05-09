@@ -246,8 +246,8 @@ export default function Footer() {
                 Methodology
               </Link>
               {' · '}
-              <Link href="/how-it-works" style={linkStyle}>
-                How it works
+              <Link href="/install" style={linkStyle}>
+                Install
               </Link>
             </span>
             {rightSlot && <span>{rightSlot}</span>}

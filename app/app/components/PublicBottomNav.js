@@ -60,7 +60,7 @@ function isPublicSurface(pathname) {
   if (pathname === '/methodology') return true
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
-  if (pathname === '/how-it-works') return true
+  if (pathname === '/install') return true
   if (pathname === '/about') return true
   if (pathname === '/disclaimers') return true
   return false

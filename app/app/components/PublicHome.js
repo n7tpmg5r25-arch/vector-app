@@ -126,8 +126,13 @@ export default function PublicHome() {
             for advocates, staff, journalists, and anyone who wants to read the building.
           </p>
 
+          {/* Thread 71 (2026-05-07) \u2014 hero CTA repointed from /how-it-works
+              to /about. After the /install rename, /how-it-works no longer
+              exists as a destination, and /install is a retention CTA, not
+              the right top-of-funnel pitch for a curious visitor. /about
+              is the natural "learn what this is" landing for the hero. */}
           <Link
-            href="/how-it-works"
+            href="/about"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -142,7 +147,7 @@ export default function PublicHome() {
               paddingBottom: 1,
             }}
           >
-            How Vector works <span aria-hidden="true">{'\u2192'}</span>
+            About Vector | WA <span aria-hidden="true">{'\u2192'}</span>
           </Link>
         </div>
       </header>

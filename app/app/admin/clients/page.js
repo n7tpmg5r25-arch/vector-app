@@ -110,7 +110,7 @@ export default async function AdminClientsPage() {
       <TopHamburger />
 
       {/* Sticky page-header bar (Thread 64, 2026-05-03). Mirrors the
-          PR #81 about/methodology/how-it-works pattern. The 52px top
+          PR #81 about/methodology/install pattern. The 52px top
           padding clears the fixed-position HamburgerButton. */}
       <div style={{
         position: 'sticky',

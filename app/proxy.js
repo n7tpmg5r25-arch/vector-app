@@ -35,9 +35,13 @@ function isPublicLayerRoute(pathname) {
 // Always-public routes: reachable for anon visitors regardless of the
 // Phase-12 public-layer flag. These are auth surfaces (/login,
 // /auth/callback) and info/marketing pages that don't expose bill data
-// (/disclaimers, /methodology, /about, /how-it-works, /changelog).
+// (/disclaimers, /methodology, /about, /install, /changelog).
 // Everything in this set links cleanly from /login's LEARN MORE block
 // (Thread 65) and the Footer Row 2 link rail.
+//
+// Thread 71 (2026-05-07): /how-it-works renamed to /install. The 308
+// redirect lives in next.config.ts so the old path resolves before
+// hitting this allowlist.
 function isAlwaysPublic(pathname) {
   return (
     pathname === '/login' ||
@@ -45,7 +49,7 @@ function isAlwaysPublic(pathname) {
     pathname === '/disclaimers' ||
     pathname === '/methodology' ||
     pathname === '/about' ||
-    pathname === '/how-it-works' ||
+    pathname === '/install' ||
     pathname === '/changelog'
   )
 }

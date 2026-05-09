@@ -3,7 +3,7 @@
  * Disclaimers — Phase 5 polish (2026-05-01).
  *
  * Converted to a 'use client' component to bring the page in line with
- * the about / methodology / how-it-works shell pattern: PublicNav for
+ * the about / methodology / install shell pattern: PublicNav for
  * anon visitors when the public-layer flag is on, owner Nav for authed
  * viewers, and a viewer-aware sticky HEADER (locked when !isAnonPublic
  * so the brand chrome stays anchored as users scroll the long body).
