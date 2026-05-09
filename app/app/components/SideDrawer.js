@@ -427,6 +427,7 @@ function PublicBody({ onClose }) {
 
       <DrawerLink href="/disclaimers" onClose={onClose}>Disclaimers</DrawerLink>
       <DrawerLink href="/about" onClose={onClose}>About</DrawerLink>
+      <DrawerLink href="/roadmap" onClose={onClose}>Roadmap</DrawerLink>
       <DrawerLink href="/methodology" onClose={onClose}>Methodology</DrawerLink>
       <DrawerLink href="/install" onClose={onClose}>Install</DrawerLink>
     </nav>
@@ -517,6 +518,7 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
           now the canonical menu surface for registered/team viewers. */}
       <DrawerLink href="/disclaimers" onClose={() => {}}>Disclaimers</DrawerLink>
       <DrawerLink href="/about" onClose={() => {}}>About</DrawerLink>
+      <DrawerLink href="/roadmap" onClose={() => {}}>Roadmap</DrawerLink>
       <DrawerLink href="/methodology" onClose={() => {}}>Methodology</DrawerLink>
       <DrawerLink href="/install" onClose={() => {}}>Install</DrawerLink>
 
