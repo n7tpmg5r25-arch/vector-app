@@ -2,7 +2,7 @@
  * Disclaimers route metadata (Phase 5 polish, 2026-05-01).
  *
  * Created when disclaimers/page.js converted to a 'use client' component
- * to match the about / methodology / how-it-works shell pattern (sticky
+ * to match the about / methodology / install shell pattern (sticky
  * locked HEADER for authed viewers, conditional PublicNav for anon).
  * 'use client' files cannot export `metadata`, so the SEO export lives
  * here in the segment layout instead. Same effective output -- Next.js

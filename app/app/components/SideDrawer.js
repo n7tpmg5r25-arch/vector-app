@@ -428,7 +428,7 @@ function PublicBody({ onClose }) {
       <DrawerLink href="/disclaimers" onClose={onClose}>Disclaimers</DrawerLink>
       <DrawerLink href="/about" onClose={onClose}>About</DrawerLink>
       <DrawerLink href="/methodology" onClose={onClose}>Methodology</DrawerLink>
-      <DrawerLink href="/how-it-works" onClose={onClose}>How it works</DrawerLink>
+      <DrawerLink href="/install" onClose={onClose}>Install</DrawerLink>
     </nav>
   )
 }
@@ -518,7 +518,7 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
       <DrawerLink href="/disclaimers" onClose={() => {}}>Disclaimers</DrawerLink>
       <DrawerLink href="/about" onClose={() => {}}>About</DrawerLink>
       <DrawerLink href="/methodology" onClose={() => {}}>Methodology</DrawerLink>
-      <DrawerLink href="/how-it-works" onClose={() => {}}>How it works</DrawerLink>
+      <DrawerLink href="/install" onClose={() => {}}>Install</DrawerLink>
 
       {/* Spacer pushes the Settings + Sign Out block to the drawer footer
           (LinkedIn-style; Thread 58.5 / 2026-05-01). */}

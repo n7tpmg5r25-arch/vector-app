@@ -61,7 +61,7 @@ export default function PublicNav() {
       </div>
 
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14 }}>
-        <NavLink href="/how-it-works">How it works</NavLink>
+        <NavLink href="/install">Install</NavLink>
         <NavLink href="/about">About</NavLink>
 
         <Link

@@ -140,7 +140,7 @@ export default function SettingsPage() {
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {/* Sticky page-header bar (Thread 64, 2026-05-03). Mirrors PR #81
-          public-page pattern from about/methodology/how-it-works. The 52px
+          public-page pattern from about/methodology/install. The 52px
           top padding clears the fixed-position HamburgerButton (Nav.js
           renders it at top:8 + safe-area inset). zIndex 50 sits below the
           hamburger (zIndex 90) so the floating button stays accessible

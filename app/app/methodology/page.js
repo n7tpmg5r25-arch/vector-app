@@ -115,11 +115,12 @@ const COMBINED_3B = [
   { bucket:  '0–44', label: 'VERY LOW', rate: '0.0%',  ci: '0.0 – 0.1%'   },
 ]
 
-// Thread 67 (2026-05-03) — TIER_COLOR canonicalized to ScoreBadge.js (line 12-15)
-// + /how-it-works Section 2 tier legend. Brand Guide v1.2 §02 functional palette.
-// Reader who learned the color story on /how-it-works sees the same paint here;
-// reader who reads /methodology first sees the same paint on every bill card via
-// ScoreBadge. Single source of truth across all three surfaces.
+// Thread 67 (2026-05-03) — TIER_COLOR canonicalized to ScoreBadge.js (line 12-15).
+// Brand Guide v1.2 §02 functional palette. Single source of truth: every bill
+// card paints the same colors via ScoreBadge, and this page reuses them so the
+// calibration table reads as the same color story.
+// (Thread 71 / 2026-05-07: previously also matched the /how-it-works Section 2
+// tier legend, which was removed when /how-it-works was reduced to /install.)
 const TIER_COLOR = {
   'HIGH':     '#7aab6e',  // Sage — strong/passed (matches ScoreBadge ≥75)
   'MODERATE': '#3a7a8a',  // Deep Teal — active (matches ScoreBadge ≥60)

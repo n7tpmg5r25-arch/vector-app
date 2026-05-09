@@ -1,8 +1,9 @@
 'use client'
 // Thread 61 — PWA install prompt (2026-05-03).
 //
-// Renders one of four mutually-exclusive states inside Section 4 of
-// /how-it-works:
+// Renders one of four mutually-exclusive states inside the install card
+// on /install (Thread 71 / 2026-05-07 — renamed from /how-it-works
+// Section 4):
 //
 //   1. ALREADY-INSTALLED → muted Sage pill ("Already installed ✓").
 //      Detected via display-mode:standalone media query OR the legacy
@@ -37,10 +38,10 @@
 // from Phase 5 Thread 35). Sage success semantic per §02 functional
 // palette. iOS share SVG inline so we don't add an asset dependency.
 //
-// Three-layer impact: anon-public surface (/how-it-works is in
-// proxy.js isPublicLayerRoute allowlist). Owner + client viewers also
-// land on this page through the drawer's Reference section (Thread
-// 58.3).
+// Three-layer impact: anon-public surface (/install is in proxy.js
+// isAlwaysPublic allowlist). Owner + client viewers also land on this
+// page through the drawer's Reference section (Thread 58.3, route
+// updated by Thread 71).
 
 import { useEffect, useState } from 'react'
 
