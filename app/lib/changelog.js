@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.1',
+    date: '2026-05-11',
+    phase: 'alpha',
+    highlights: [
+      'Admin "Grant access" button on the waitlist page — closed-beta applicants can now be invited directly without leaving the app (Thread 78).',
+    ],
+  },
+  {
     version: '1.0',
     date: '2026-05-01',
     phase: 'alpha',

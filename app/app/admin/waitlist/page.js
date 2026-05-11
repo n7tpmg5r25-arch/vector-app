@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { isAdmin } from '../../../lib/admin'
 import TopHamburger from '../../components/TopHamburger'
+import GrantAccessButton from '../../components/GrantAccessButton'
 
 /**
  * /admin/waitlist — Brand P2b
@@ -170,12 +171,13 @@ export default async function AdminWaitlistPage({ searchParams }) {
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Acked</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Confirmed</th>
               <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Converted</th>
+              <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>Action</th>
             </tr>
           </thead>
           <tbody>
             {(rows || []).length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                   No entries.
                 </td>
               </tr>
@@ -210,6 +212,15 @@ export default async function AdminWaitlistPage({ searchParams }) {
                   )}
                 </td>
                 <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{fmtDate(r.converted_at)}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  {r.source === 'closed_beta' ? (
+                    <GrantAccessButton
+                      waitlistId={r.id}
+                      email={r.email}
+                      alreadyInvited={!!r.converted_at}
+                    />
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>
