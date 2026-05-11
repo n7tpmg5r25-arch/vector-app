@@ -35,6 +35,7 @@ const CARD = {
 }
 
 const EYEBROW = {
+  fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--text-faint)',
   letterSpacing: '0.12em',
@@ -80,7 +81,7 @@ export default function AboutPage() {
           textShadow: '0 0 16px rgba(184,151,90,0.2)',
         }}>About Vector | WA</div>
         <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
-          What this site is, who it&apos;s for, and when it launches.
+          What this is, how it works, and why it&apos;s free.
         </div>
       </div>
 
@@ -90,17 +91,16 @@ export default function AboutPage() {
           <div style={EYEBROW}>1 &middot; What Vector | WA is</div>
           <div style={CARD}>
             <p style={{ marginTop: 0 }}>
-              Vector | WA is a Washington State legislative intelligence tool. It watches every
-              bill introduced in the WA Legislature, scores its trajectory from{' '}
-              <span style={HIGHLIGHT}>0 to 99</span>, and refreshes nightly. The score blends five
-              procedural signals &mdash; committee placement, sponsor profile, momentum, historical
-              category pass rates, and fiscal note size &mdash; calibrated against thousands of
-              past bills with known outcomes.
+              Vector | WA tracks every bill in the Washington State Legislature, scores its
+              trajectory from <span style={HIGHLIGHT}>0 to 99</span>, and refreshes nightly.
+              The score blends five signals &mdash; committee placement, sponsor profile,
+              momentum, historical pass rates, and fiscal note size &mdash; calibrated against
+              thousands of past bills with known outcomes.
             </p>
             <p style={{ marginBottom: 0 }}>
-              The site is built for anyone who works with Washington State legislation: legislative
-              staff, advocates, registered lobbyists, journalists, researchers, students, and the
-              general public. The only job is to make the public record easier to read.
+              Built for anyone who works with Washington State legislation: staff, advocates,
+              lobbyists, journalists, researchers, and the public. One job: make the public
+              record readable.
             </p>
           </div>
         </div>
@@ -109,46 +109,18 @@ export default function AboutPage() {
           <div style={EYEBROW}>2 &middot; Why it&apos;s free</div>
           <div style={CARD}>
             <p style={{ marginTop: 0 }}>
-              Most legislative trackers cost money. Vector | WA is free because the underlying
-              data &mdash; bill text, sponsor rosters, committee actions, votes, fiscal notes
-              &mdash; is already public. The Washington State Legislature publishes it; this site
-              just makes it scannable.
+              The underlying data &mdash; bill text, sponsors, committee actions, votes,
+              fiscal notes &mdash; is already public. The Legislature publishes it.
+              This site just makes it scannable.
             </p>
             <p style={{ marginBottom: 0 }}>
-              There are no ads, no upsells, and no tracking pixels selling your reading habits to a
-              third party. The site runs on a small budget and is designed to stay that way. If
-              the score is useful to you, the best thanks is to{' '}
-              <a href="/disclaimers" style={{ color: 'var(--teal)', textDecoration: 'underline' }}>
-                read the disclaimers
-              </a>
-              {' '}and report any errors via the corrections email there.
+              No ads. No upsells. No tracking pixels. The site runs on a small budget
+              and is designed to stay that way.
             </p>
           </div>
         </div>
 
-        <div>
-          <div style={EYEBROW}>3 &middot; Launch timeline</div>
-          <div style={CARD}>
-            <p style={{ marginTop: 0 }}>
-              The public site is targeting a <span style={HIGHLIGHT}>mid 2027</span> launch &mdash;
-              in time for the 2027 legislative session. Until then, you&apos;re looking at a
-              working preview: every bill is here, every committee is here, every legislator is
-              here, and the trajectory engine is calibrated and live. Some surfaces are still
-              being polished, and a few features (saved watchlists, alert emails, PDF export)
-              require a sign-in that isn&apos;t open to the public yet.
-            </p>
-            <p style={{ marginBottom: 0 }}>
-              You can browse anonymously today. Bookmark the site and check back &mdash; the
-              calibration tables on the{' '}
-              <a href="/methodology" style={{ color: 'var(--teal)', textDecoration: 'underline' }}>
-                methodology page
-              </a>
-              {' '}refresh each session.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION 4 — WHAT IT LOOKS LIKE (Thread 68, 2026-05-03)
+        {/* SECTION 3 — WHAT IT LOOKS LIKE (Thread 68, 2026-05-03; renumbered from §4 — Thread 78)
             Six iPhone screenshots Colin captured demonstrating the app in
             real use. Brass-glow border on each per Thread 63 spec for
             product captures; mobile-only column sizing. Captions in Karla
@@ -156,7 +128,7 @@ export default function AboutPage() {
             — Next.js will 404 individual images if missing without
             breaking the rest of the page. */}
         <div>
-          <div style={EYEBROW}>4 &middot; What it looks like</div>
+          <div style={EYEBROW}>3 &middot; What it looks like</div>
           <div style={CARD}>
             <p style={{ marginTop: 0, marginBottom: 14 }}>
               Six screenshots of the app in actual use &mdash; same surfaces a
