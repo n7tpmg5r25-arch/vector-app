@@ -93,13 +93,13 @@ function LoginPageInner() {
     setBetaLoading(false)
   }
 
-  // Thread 76: verify the 6-digit OTP the user types in the app.
+  // Thread 76: verify the 8-digit OTP the user types in the app.
   // Stays entirely in the current browser context (PWA or Safari) —
   // no link click, no browser handoff. window.location.replace forces
   // a full reload so the new Supabase session cookie is picked up.
   async function handleVerifyOtp(e) {
     e.preventDefault()
-    if (otp.length !== 6) return
+    if (otp.length !== 8) return
     setVerifying(true)
     setVerifyError('')
     const { error } = await supabase.auth.verifyOtp({
@@ -242,7 +242,7 @@ function LoginPageInner() {
       <div style={cardStyle}>
         {sent ? (
           /* Thread 76: OTP code entry — keeps auth in the current browser
-             context (PWA or Safari). User types the 6-digit code from
+             context (PWA or Safari). User types the 8-digit code from
              their email instead of tapping a link that would jump to Safari. */
           <div>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
@@ -252,7 +252,7 @@ function LoginPageInner() {
                 color: 'var(--teal)', marginBottom: 6,
               }}>Check your email</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                We sent a 6-digit code to{' '}
+                We sent an 8-digit code to{' '}
                 <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>
               </div>
             </div>
@@ -262,19 +262,19 @@ function LoginPageInner() {
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                maxLength={6}
+                maxLength={8}
                 autoFocus
                 value={otp}
                 onChange={e => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 8)
                   setOtp(val)
                   setVerifyError('')
-                  // Auto-submit on 6th digit
-                  if (val.length === 6) {
+                  // Auto-submit on 8th digit
+                  if (val.length === 8) {
                     handleVerifyOtp({ preventDefault: () => {}, target: { value: val } })
                   }
                 }}
-                placeholder="000000"
+                placeholder="00000000"
                 style={{
                   width: '100%', padding: '16px 14px',
                   background: 'var(--bg)', border: '1px solid var(--border)',
@@ -299,9 +299,9 @@ function LoginPageInner() {
 
               <button
                 type="submit"
-                disabled={otp.length !== 6 || verifying}
+                disabled={otp.length !== 8 || verifying}
                 className="vec-cta-primary"
-                style={buttonStyle(otp.length !== 6 || verifying)}
+                style={buttonStyle(otp.length !== 8 || verifying)}
               >
                 {verifying ? 'Verifying…' : 'Sign in'}
               </button>
