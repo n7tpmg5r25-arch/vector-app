@@ -52,10 +52,10 @@ function LoginPageInner() {
     const wl  = searchParams.get('waitlist')
     if (err === 'auth_callback_error') {
       setBanner({ kind: 'warn', text: 'Sign-in link expired or invalid. Request a new magic link below.' })
-    } else if (wl === ‘confirmed’) {
-      setBanner({ kind: ‘ok’, text: "Email confirmed — you’re on the beta list. We’ll be in touch around December 2026." })
-    } else if (wl === ‘already_confirmed’) {
-      setBanner({ kind: ‘ok’, text: "You’re already confirmed on the beta list. Watch for your invite in December 2026." })
+    } else if (wl === 'confirmed') {
+      setBanner({ kind: 'ok', text: "Email confirmed — you’re on the beta list. We’ll be in touch around December 2026." })
+    } else if (wl === 'already_confirmed') {
+      setBanner({ kind: 'ok', text: "You’re already confirmed on the beta list. Watch for your invite in December 2026." })
     } else if (wl === 'invalid' || wl === 'error') {
       setBanner({ kind: 'warn', text: 'That confirmation link is invalid or expired. Try signing up again below.' })
     }
@@ -103,7 +103,7 @@ function LoginPageInner() {
       if (error.message?.toLowerCase().includes('signups not allowed') ||
           error.message?.toLowerCase().includes('signup is disabled') ||
           error.message?.toLowerCase().includes('user not found')) {
-        setError('This email isn\u2019t on the access list.')
+        setError("This email isn’t on the access list.")
       } else {
         setError(error.message)
       }
@@ -253,7 +253,7 @@ function LoginPageInner() {
                 }}>{error}</div>
               )}
               <button type="submit" disabled={loading} className="vec-cta-primary" style={buttonStyle(loading)}>
-                {loading ? 'Sending\u2026' : 'Send magic link'}
+                {loading ? 'Sending…' : 'Send magic link'}
               </button>
             </form>
           </>
@@ -445,7 +445,7 @@ function LoginPageInner() {
               lineHeight: 1.55, marginBottom: 20,
             }}>
               Help shape Vector&nbsp;|&nbsp;WA before public launch.
-              Bug-finders only — we'll send your invite around December&nbsp;2026.
+              Bug-finders only &mdash; we&rsquo;ll send your invite around December&nbsp;2026.
             </div>
 
             <form onSubmit={handleBetaSignup}>
@@ -535,7 +535,7 @@ function LoginPageInner() {
               color: 'var(--text-faint)', lineHeight: 1.5,
               textAlign: 'center',
             }}>
-              Emails are not shared. Public launch is Aug&nbsp;2027 — no signup required for that.
+              Emails are not shared. Public launch is Aug&nbsp;2027 &mdash; no signup required for that.
             </div>
           </div>
         )}
