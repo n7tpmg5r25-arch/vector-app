@@ -37,6 +37,11 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // OTP code state (Thread 76 — replaces magic-link-click flow on iOS PWA)
+  const [otp, setOtp] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+
   // Beta signup state
   const [betaEmail, setBetaEmail] = useState('')
   const [betaSent, setBetaSent] = useState(false)
@@ -86,6 +91,28 @@ function LoginPageInner() {
       setBetaError('Network error. Check your connection and try again.')
     }
     setBetaLoading(false)
+  }
+
+  // Thread 76: verify the 6-digit OTP the user types in the app.
+  // Stays entirely in the current browser context (PWA or Safari) —
+  // no link click, no browser handoff. window.location.replace forces
+  // a full reload so the new Supabase session cookie is picked up.
+  async function handleVerifyOtp(e) {
+    e.preventDefault()
+    if (otp.length !== 6) return
+    setVerifying(true)
+    setVerifyError('')
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email',
+    })
+    if (error) {
+      setVerifyError('Invalid or expired code. Request a new one below.')
+      setVerifying(false)
+    } else {
+      window.location.replace('/')
+    }
   }
 
   async function handleSignIn(e) {
@@ -214,15 +241,82 @@ function LoginPageInner() {
       {/* SIGN-IN CARD */}
       <div style={cardStyle}>
         {sent ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>&#x2709;&#xFE0F;</div>
-            <div style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 18, fontWeight: 600,
-              color: 'var(--teal)', marginBottom: 8,
-            }}>Check your email</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              We sent a magic link to <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>. Click it to sign in.
+          /* Thread 76: OTP code entry — keeps auth in the current browser
+             context (PWA or Safari). User types the 6-digit code from
+             their email instead of tapping a link that would jump to Safari. */
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 18, fontWeight: 600,
+                color: 'var(--teal)', marginBottom: 6,
+              }}>Check your email</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                We sent a 6-digit code to{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleVerifyOtp}>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                autoFocus
+                value={otp}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                  setOtp(val)
+                  setVerifyError('')
+                  // Auto-submit on 6th digit
+                  if (val.length === 6) {
+                    handleVerifyOtp({ preventDefault: () => {}, target: { value: val } })
+                  }
+                }}
+                placeholder="000000"
+                style={{
+                  width: '100%', padding: '16px 14px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)', fontSize: 28,
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--teal)', textAlign: 'center',
+                  letterSpacing: '0.3em', marginBottom: 12,
+                  outline: 'none', transition: 'border-color 0.2s',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={e => e.target.style.borderColor = 'rgba(184,151,90,0.5)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+
+              {verifyError && (
+                <div style={{
+                  fontSize: 12, color: 'var(--danger)',
+                  marginBottom: 10, padding: '8px 12px',
+                  background: 'var(--danger-pale)', borderRadius: 6,
+                }}>{verifyError}</div>
+              )}
+
+              <button
+                type="submit"
+                disabled={otp.length !== 6 || verifying}
+                className="vec-cta-primary"
+                style={buttonStyle(otp.length !== 6 || verifying)}
+              >
+                {verifying ? 'Verifying…' : 'Sign in'}
+              </button>
+            </form>
+
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <button
+                onClick={() => { setSent(false); setOtp(''); setVerifyError('') }}
+                style={{
+                  background: 'none', border: 'none', fontSize: 12,
+                  color: 'var(--text-faint)', cursor: 'pointer', padding: 0,
+                }}
+              >
+                Didn't get a code? Send again
+              </button>
             </div>
           </div>
         ) : (
