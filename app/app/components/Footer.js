@@ -206,9 +206,10 @@ export default function Footer() {
           </span>
           <span
             style={{
-              color: freshness?.stale ? '#c44730' : '#5a6070',
+              color: freshness?.stale ? '#c44730' : 'var(--text-faint)',
               fontSize: 11,
               letterSpacing: '0.02em',
+              fontStyle: 'normal',
               fontFamily: 'var(--font-mono, "DM Mono", monospace)',
             }}
           >
