@@ -236,6 +236,16 @@ export default function HomePage() {
     if (!user) return <PublicHome />
   }
 
+  // Thread 75: show a centered loader during the initial data fetch so
+  // the dashboard never flashes empty watchlist / zero stat-strip values
+  // while queries are in flight. All hooks have already been called above
+  // so this early return is safe (no Rules-of-Hooks violation).
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '80px 20px' }}>
+      <VectorLoader label="Loading intelligence…" />
+    </div>
+  )
+
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
 

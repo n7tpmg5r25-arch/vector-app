@@ -884,7 +884,7 @@ function MembersContent() {
                 showScopeStamp
               />
               {votesLoading ? (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading voting record...</div>
+                <VectorLoader label="Loading record…" size="sm" />
               ) : (
                 <VoteHistoryTable
                   mode="by-member"
