@@ -51,7 +51,9 @@ function isAlwaysPublic(pathname) {
     pathname === '/about' ||
     pathname === '/install' ||
     pathname === '/changelog' ||
-    pathname === '/roadmap'
+    pathname === '/roadmap' ||
+    pathname === '/api/waitlist' ||
+    pathname === '/api/waitlist/confirm'
   )
 }
 
