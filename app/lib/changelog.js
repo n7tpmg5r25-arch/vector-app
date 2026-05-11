@@ -34,6 +34,7 @@ export const CHANGELOG = [
     phase: 'alpha',
     highlights: [
       'Admin "Grant access" button on the waitlist page — closed-beta applicants can now be invited directly without leaving the app (Thread 78).',
+      'Historical legislator accuracy — the 2021-22 session picker on /members now correctly splits the roster into House and Senate, with party affiliation restored for returning legislators (Thread 79).',
     ],
   },
   {
