@@ -40,6 +40,49 @@ export const CHANGELOG = [
   },
   {
     version: '1.0',
+    date: '2026-05-10',
+    phase: 'alpha',
+    highlights: [
+      'OTP login replaces magic-link flow — fixes iOS PWA authentication where Safari\'s WKWebView cookie split was silently breaking sign-in for installed-app users (Thread 76).',
+      'Closed beta waitlist form on /login — applicants acknowledge 4 beta-stage expectations before submitting; admin UI gains a Closed Beta tab with acked/un-acked sorting (Thread 73).',
+      '/roadmap page launched with 8 shipped milestones and 6 upcoming features; linked from footer, side drawer, and the login page (Thread 72).',
+      'Loading spinners added to the members list and home page during initial data fetch — both were flashing an empty shell before data arrived (Thread 75).',
+      'Footer freshness label color and font style corrected to match the Brand Guide v1.2 muted-text spec (Thread 77).',
+    ],
+  },
+  {
+    version: '1.0',
+    date: '2026-05-07',
+    phase: 'alpha',
+    highlights: [
+      'Members and committees page counts now accurate for all session years — server-side SQL views replace client-side reduce loops that were silently truncating at 1,000 rows; 2025-26 shows 147 legislators and all 65 committees (Threads 69–70).',
+      'Methodology calibration corrected to 84% accuracy across 2,134 bills — the previous page displayed a contradictory 78.4% / 189-bill figure; denominator, tier color coding, and statistical disclosure language all updated (Thread 67).',
+      '/how-it-works renamed to /install with a 308 permanent redirect from the old path; hero CTA repointed to /about as the acquisition surface (Thread 71).',
+      'Post-close trajectory copy for bills that passed chamber but did not become law now reads correctly during the interim period instead of repeating active-session language (Thread 41 follow-up).',
+    ],
+  },
+  {
+    version: '1.0',
+    date: '2026-05-03',
+    phase: 'alpha',
+    highlights: [
+      'Platform-aware PWA install prompt on /install — Android and desktop Chrome get a native install button, iOS users get share-sheet instructions, and already-installed state shows a confirmation pill (Thread 61).',
+      'Login page gains Methodology and About links below the sign-in card so anonymous visitors can explore the platform before committing to sign up (Thread 65).',
+      'Anonymous routes for /methodology, /about, /install, and /changelog fixed — they were incorrectly gated behind the public-layer flag and silently bouncing visitors back to /login (Thread 65 follow-up).',
+    ],
+  },
+  {
+    version: '1.0',
+    date: '2026-05-02',
+    phase: 'alpha',
+    highlights: [
+      'Last-action-date sync bug corrected — 23 archived bills were being stamped with the current sync timestamp instead of NULL when no action history was available from the API; those bills no longer float to the top of Most Recent Action sort (Thread 57).',
+      'Side drawer polish — Admin link fixed (was 404ing), reference links for Disclaimers, About, and Methodology added for signed-in users, Settings gear moved to drawer footer in a dedicated bottom block (Thread 58).',
+      '/changelog page launched and accessible to all visitors; version label added to the drawer header in DM Mono caption; version + phase helpers added to app/lib/version.js for future phase-gate use (Threads 59–60).',
+    ],
+  },
+  {
+    version: '1.0',
     date: '2026-05-01',
     phase: 'alpha',
     highlights: [
