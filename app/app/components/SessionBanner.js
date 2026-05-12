@@ -31,36 +31,60 @@ export default function SessionBanner() {
   if (!mounted || session === current) return null
 
   return (
+    // Normal-flow block — no sticky/fixed positioning. Renders above all
+    // {children} in the root layout so it's always the first thing visible
+    // when landing on a page with a historical session selected.
+    // Sticky was removed: pages have their own sticky headers at top:0 which
+    // would slide over the banner as the user scrolled, and stacking-context
+    // quirks from ancestor transforms made zIndex unreliable.
     <div style={{
       width: '100%',
-      background: 'rgba(184,151,90,0.08)',
-      borderBottom: '1px solid rgba(184,151,90,0.25)',
-      padding: '7px 16px',
-      fontSize: 12,
-      color: 'var(--gold)',
-      fontFamily: 'var(--font-body)',
-      textAlign: 'center',
-      lineHeight: 1.4,
-      position: 'sticky',
-      top: 0,
-      zIndex: 200,
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
+      background: 'rgba(184,151,90,0.14)',
+      borderLeft: '3px solid rgba(184,151,90,0.70)',
+      borderBottom: '1px solid rgba(184,151,90,0.28)',
+      padding: '9px 16px 9px 14px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      flexWrap: 'wrap',
     }}>
-      Viewing {session} session (historical).{' '}
+      <span style={{
+        fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+        fontSize: 11,
+        letterSpacing: '0.07em',
+        textTransform: 'uppercase',
+        color: 'var(--gold, #d4b47a)',
+        lineHeight: 1.4,
+      }}>
+        Viewing {session} — historical data
+      </span>
       <span
+        role="button"
+        tabIndex={0}
         onClick={() => {
           setSession(current)
           if (typeof window !== 'undefined') window.location.reload()
         }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setSession(current)
+            if (typeof window !== 'undefined') window.location.reload()
+          }
+        }}
         style={{
+          fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+          fontSize: 11,
+          letterSpacing: '0.07em',
+          textTransform: 'uppercase',
+          color: 'var(--gold, #d4b47a)',
           textDecoration: 'underline',
           cursor: 'pointer',
           fontWeight: 600,
-          marginLeft: 4,
+          whiteSpace: 'nowrap',
         }}
       >
-        Switch to current session
+        Back to current
       </span>
     </div>
   )
