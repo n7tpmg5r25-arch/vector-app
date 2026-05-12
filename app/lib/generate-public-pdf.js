@@ -160,9 +160,8 @@ function getSessionContextLine() {
     parts.push('Outcomes final')
     if (next.start) {
       const startLbl = formatSessionDate(next.start)
-      const days = daysUntil(next.start)
       if (startLbl && startLbl !== 'session dates TBD') {
-        parts.push('Next session ' + startLbl + (days > 0 ? ' (' + days + ' days)' : ''))
+        parts.push('Next session ' + startLbl)
       }
     }
     return parts.join('  ·  ')

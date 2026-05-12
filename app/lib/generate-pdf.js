@@ -252,9 +252,7 @@ function drawSessionContextBar(doc, y, pw, m, contentW) {
     const endFormatted = formatSessionDate(biennium.end)
     const parts = ['Session ended ' + endFormatted]
     if (next.prefilingOpens) {
-      const pfDays = daysUntil(next.prefilingOpens)
-      parts.push('Pre-filing opens ' + formatSessionDate(next.prefilingOpens) +
-        (pfDays > 0 ? ' (' + pfDays + ' days)' : ''))
+      parts.push('Pre-filing opens ' + formatSessionDate(next.prefilingOpens))
     }
     parts.push('Next session: ' + formatSessionDate(next.start))
     contextText = parts.join('  |  ')
@@ -334,10 +332,7 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
     // Add forward-looking line
     const next = getNextBiennium()
     if (next.prefilingOpens) {
-      const pfDays = daysUntil(next.prefilingOpens)
-      if (pfDays > 0) {
-        narrative += ' Pre-filing for the ' + next.session + ' session opens in ' + pfDays + ' days.'
-      }
+      narrative += ' Pre-filing for the ' + next.session + ' session opens ' + formatSessionDate(next.prefilingOpens) + '.'
     }
 
   } else {
@@ -674,14 +669,13 @@ function drawWhatToWatch(doc, y, pw, m, contentW, ph, bills) {
     if (next.prefilingOpens) {
       const pfDays = daysUntil(next.prefilingOpens)
       if (pfDays > 0) {
-        items.push('Pre-filing opens: ' + formatSessionDate(next.prefilingOpens) + ' (' + pfDays + ' days)')
+        items.push('Pre-filing opens: ' + formatSessionDate(next.prefilingOpens))
       } else {
         items.push('Pre-filing is now open for the ' + next.session + ' session')
       }
     }
-    const nextDays = daysUntil(next.start)
-    if (nextDays > 0) {
-      items.push('Next session begins: ' + formatSessionDate(next.start) + ' (' + nextDays + ' days)')
+    if (daysUntil(next.start) > 0) {
+      items.push('Next session begins: ' + formatSessionDate(next.start))
     }
 
     const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
