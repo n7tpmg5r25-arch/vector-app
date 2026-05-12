@@ -10,7 +10,6 @@ import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
-import DropdownMenu from './components/DropdownMenu'
 import VectorLoader from './components/VectorLoader'
 import { Check } from 'lucide-react'
 
@@ -166,7 +165,10 @@ export default function HomePage() {
     setLoading(false)
   }
 
-  // 6D.1: Discover which sessions have data for the dropdown
+  // 6D.1: Discover which sessions have DB data.
+  // availableSessions is still used by the pre-filing banner (line ~413) to
+  // decide whether 2027-2028 pre-filed bills exist yet. The session picker
+  // was moved to SideDrawer (Thread 84) so this no longer drives a dropdown.
   async function loadSessions() {
     // Thread 7 (G1): drive the candidate list off session-config.js's
     // getAllSessions() instead of a hand-maintained literal array. Adds
@@ -323,36 +325,17 @@ export default function HomePage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           {/* Status chips + session picker */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* 6D.1: Session picker dropdown */}
-            {availableSessions.length > 1 ? (
-              <DropdownMenu
-                value={SESSION}
-                onChange={v => setSession(v)}
-                options={availableSessions.map(s => ({ value: s, label: s }))}
-                ariaLabel="Session selector"
-                triggerStyle={{
-                  background: 'rgba(184,151,90,0.08)',
-                  border: '1px solid rgba(184,151,90,0.25)',
-                  borderRadius: 20,
-                  padding: '4px 26px 4px 12px',
-                  fontSize: 11,
-                  color: 'var(--teal)',
-                  fontFamily: 'var(--font-mono)',
-                  minHeight: 26,
-                }}
-              />
-            ) : (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                background: 'rgba(184,151,90,0.08)',
-                border: '1px solid rgba(184,151,90,0.25)',
-                borderRadius: 20, padding: '4px 12px',
-                fontSize: 11, color: 'var(--teal)',
-                fontFamily: 'var(--font-mono)',
-              }}>
-                {SESSION}
-              </div>
-            )}
+            {/* Session context pill — read-only here; session is set via the SideDrawer picker (Thread 84). */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(184,151,90,0.08)',
+              border: '1px solid rgba(184,151,90,0.25)',
+              borderRadius: 20, padding: '4px 12px',
+              fontSize: 11, color: 'var(--teal)',
+              fontFamily: 'var(--font-mono)',
+            }}>
+              {SESSION}
+            </div>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               background: 'rgba(184,151,90,0.1)',
