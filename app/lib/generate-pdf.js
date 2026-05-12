@@ -26,8 +26,8 @@ import {
   checkPageBreak,
 } from './pdf-shared'
 
-// ── Summary truncation limit (max lines in PDF card) ────────
-const MAX_SUMMARY_LINES = 3
+// ── Summary truncation limit (max lines per bill card) ──────
+const MAX_SUMMARY_LINES = 6
 
 // ── Brand colors (RGB arrays) ────────────────────────────────
 // Kept as module-level constants because they are referenced inline
@@ -389,267 +389,503 @@ function drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills) {
 
 
 /**
- * 6M.2 — Bill Detail Card
- * Renders one bill card with colored left border, title, summary, score, stage, delta, tag.
- * Returns new y position.
+ * Option B — Portfolio Overview Table (page 1).
+ * One compact row per bill: Bill # | Title | Score | Stage | Trend | Upcoming.
+ * Grouped by outcome when multiple outcome types exist in the watchlist.
  */
-function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes, amendments = [], fiscalHistory = []) {
+function drawPortfolioTable(doc, bills, scoreDeltas, changes, y, m, contentW, ph) {
+  y = checkPageBreak(doc, y, 14, ph)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...TEAL)
+  doc.text('PORTFOLIO OVERVIEW', m, y)
+  y += 6
+
+  // Column widths — must sum to contentW (170mm)
+  const colBill     = 18
+  const colTitle    = 66
+  const colScore    = 14
+  const colStage    = 34
+  const colTrend    = 14
+  const colUpcoming = contentW - colBill - colTitle - colScore - colStage - colTrend  // 24
+
+  // Header row
+  doc.setFillColor(...SURFACE)
+  doc.setDrawColor(...LGRAY)
+  doc.setLineWidth(0.15)
+  doc.rect(m, y - 1, contentW, 6, 'FD')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...GRAY)
+  let hx = m + 1.5
+  const hy = y + 3.2
+  ;[
+    ['BILL #', colBill], ['TITLE', colTitle], ['SCORE', colScore],
+    ['STAGE', colStage], ['TREND', colTrend], ['UPCOMING', colUpcoming],
+  ].forEach(([label, w]) => { doc.text(label, hx, hy); hx += w })
+  y += 7
+
+  if (bills.length === 0) {
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(8)
+    doc.setTextColor(...GRAY)
+    doc.text('No bills tracked.', m + 2, y + 4)
+    return y + 10
+  }
+
+  const groups = groupBills(bills)
+  const showGroupLabels = groups.length > 1
+  const rowH = 7.5
+
+  groups.forEach(group => {
+    // Group label row (only when multiple outcome types)
+    if (showGroupLabels) {
+      y = checkPageBreak(doc, y, rowH + 3, ph)
+      doc.setFillColor(240, 240, 238)
+      doc.setDrawColor(...LGRAY)
+      doc.setLineWidth(0.1)
+      doc.rect(m, y - 0.5, contentW, 5.5, 'FD')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6.5)
+      doc.setTextColor(...group.color)
+      doc.text(group.label.toUpperCase() + '  (' + group.bills.length + ')', m + 2.5, y + 3.2)
+      y += 6.5
+    }
+
+    group.bills.forEach((tracked, i) => {
+      y = checkPageBreak(doc, y, rowH + 1, ph)
+      const bill = tracked.bills || {}
+      const billId = tracked.bill_id
+      const score = bill.final_score || 0
+      const scoreColor = getScoreColor(score)
+      const billLbl = (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number
+      const title = getBillTitle(bill)
+      const stageTxt = getStagePlainText(bill)
+      const delta = scoreDeltas[billId] || 0
+      const cl = (bill.confidence_label || '').toUpperCase()
+      const isTerminal = cl === 'LAW' || cl === 'DEAD' || cl === 'PASSED_CHAMBER'
+
+      // Alternating row background
+      doc.setFillColor(...(i % 2 === 0 ? SURFACE : WHITE))
+      doc.setDrawColor(...LGRAY)
+      doc.setLineWidth(0.1)
+      doc.rect(m, y - 0.5, contentW, rowH, 'FD')
+
+      // Outcome-color strip on left edge
+      doc.setFillColor(...getOutcomeColor(bill))
+      doc.rect(m, y - 0.5, 1.5, rowH, 'F')
+
+      const rowTextY = y + rowH / 2 + 1.2
+      let rx = m + 3
+
+      // Bill #
+      doc.setFont('courier', 'bold')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...FOREST)
+      doc.text(billLbl, rx, rowTextY)
+      rx += colBill
+
+      // Title (truncated to fit column)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+      doc.setTextColor(30, 35, 45)
+      let titleFit = title
+      while (doc.getTextWidth(titleFit) > colTitle - 3 && titleFit.length > 10) {
+        titleFit = titleFit.slice(0, -1)
+      }
+      if (titleFit !== title) titleFit = titleFit.slice(0, -1) + '...'
+      doc.text(titleFit, rx, rowTextY)
+      rx += colTitle
+
+      // Score (colored number)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(...scoreColor)
+      doc.text(String(score), rx, rowTextY)
+      rx += colScore
+
+      // Stage (truncated)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      doc.setTextColor(...GRAY)
+      let stageFit = stageTxt
+      while (doc.getTextWidth(stageFit) > colStage - 2 && stageFit.length > 8) {
+        stageFit = stageFit.slice(0, -1)
+      }
+      if (stageFit !== stageTxt) stageFit = stageFit.slice(0, -1) + '...'
+      doc.text(stageFit, rx, rowTextY)
+      rx += colStage
+
+      // Trend (delta with +/-  or "final" for terminal bills)
+      if (!isTerminal) {
+        const trendColor = delta > 0 ? TEAL : delta < 0 ? RED : GRAY
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(7.5)
+        doc.setTextColor(...trendColor)
+        doc.text(delta !== 0 ? (delta > 0 ? '+' : '') + delta : '--', rx, rowTextY)
+      } else {
+        doc.setFont('helvetica', 'italic')
+        doc.setFontSize(6.5)
+        doc.setTextColor(...MUTED)
+        doc.text('final', rx, rowTextY)
+      }
+      rx += colTrend
+
+      // Upcoming: hearing within 21 days, or cutoff days ≤21
+      if (!isTerminal && !isInterimPeriod()) {
+        let upcomingTxt = ''
+        if (bill.hearing_date) {
+          try {
+            const hDays = daysUntil(bill.hearing_date)
+            if (hDays > 0 && hDays <= 21) {
+              const hLbl = new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              upcomingTxt = 'Hear ' + hLbl
+            }
+          } catch (e) {}
+        } else if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0 && bill.days_to_cutoff <= 21) {
+          upcomingTxt = 'Cutoff ' + bill.days_to_cutoff + 'd'
+        }
+        if (upcomingTxt) {
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6.5)
+          doc.setTextColor(...RUST)
+          doc.text(upcomingTxt, rx, rowTextY)
+        }
+      }
+
+      y += rowH
+    })
+    y += 2
+  })
+
+  return y + 4
+}
+
+
+/**
+ * Option B — Expanded Half-Page Bill Intelligence Card (pages 2+).
+ * Score box, status pill, AI summary (up to 6 lines), sponsor/committee,
+ * companion, analyst notes, what-to-watch flag, and trend line per bill.
+ * Approximately 2 cards per A4 page. Adapted from generate-public-pdf.js.
+ */
+function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes, amendments = [], fiscalHistory = []) {
   const bill = tracked.bills || {}
   const billId = tracked.bill_id
   const score = bill.final_score || 0
-  const tierLabel = bill.confidence_label || getScoreTierLabel(score)
+  const scoreColor = getScoreColor(score)
   const borderColor = getOutcomeColor(bill)
+  const billLbl = (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number
   const title = getBillTitle(bill)
-  // Clean summary: prefer custom_summary (operator-edited) over ai_summary
-  const rawSummary = (bill.custom_summary || bill.ai_summary || '').trim()
-  const summary = rawSummary
-    .split('\n')
-    .filter(line => !line.trim().startsWith('#'))   // remove markdown headers
-    .join(' ')
-    .replace(/\s{2,}/g, ' ')                        // collapse extra whitespace
-    .trim()
-  const tag = tracked.tag || ''
-  const billLabel = (bill.chamber === 'House' ? 'HB' : 'SB') + ' ' + bill.bill_number
   const stageLine = getStagePlainText(bill)
-  const deltaText = getDeltaNarrative(billId, bill, scoreDeltas, changes)
   const delta = scoreDeltas[billId] || 0
-  // Phase 7W.3: companion status line (null if no companion)
-  const companionLine = getCompanionLine(bill)
+  const cl = (bill.confidence_label || '').toUpperCase()
+  const isTerminal = cl === 'LAW' || cl === 'DEAD' || cl === 'PASSED_CHAMBER'
+  const tag = tracked.tag || ''
+  const tierLabel = bill.confidence_label || getScoreTierLabel(score)
 
-  // Phase 7S: shared analyst notes for this bill (Brand P2c: 'client' -> 'shared')
-  const sharedNotes = (billNotes || []).filter(n => n.bill_id === tracked.bill_id && n.visibility === 'shared')
-
-  // Pre-calculate wrapped text heights
-  const cardContentW = contentW - 10  // 5mm left border area + 5mm right padding
-  const titleLines = doc.splitTextToSize(title, cardContentW)
-  const allSummaryLines = summary ? doc.splitTextToSize(summary, cardContentW) : []
-  // Truncate long summaries to keep cards compact
+  // Pre-compute summary — strip markdown headers and bold markers
+  const rawSummary = (bill.custom_summary || bill.ai_summary || '').trim()
+  const cleanSummary = rawSummary
+    .split('\n')
+    .filter(line => !line.trim().startsWith('#'))
+    .join(' ')
+    .replace(/\*\*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  const cardContentW = contentW - 10
+  const allSummaryLines = cleanSummary ? doc.splitTextToSize(cleanSummary, cardContentW) : []
   const summaryTruncated = allSummaryLines.length > MAX_SUMMARY_LINES
   const summaryLines = summaryTruncated ? allSummaryLines.slice(0, MAX_SUMMARY_LINES) : allSummaryLines
 
-  // Card height calculation
-  const lineH = 3.5
-  const titleH = titleLines.length * 4
-  const summaryInterimCaveat = (summaryLines.length > 0 && isInterimPeriod()) ? 3 : 0
-  const truncIndicatorH = summaryTruncated ? 2.5 : 0
-  const aiLabelH = summaryLines.length > 0 ? 2.5 : 0  // §14/§17 AI-generated label
-  const summaryH = summaryLines.length > 0 ? (summaryLines.length * lineH) + 2 + summaryInterimCaveat + truncIndicatorH + aiLabelH : 0
-  const companionH = companionLine ? 3.5 : 0  // Phase 7W.3
-
-  // Phase 7S: pre-wrap analyst note lines
-  const analystNoteWrapped = sharedNotes.map(n => {
+  // Analyst notes (shared-visibility only)
+  const sharedNotes = (billNotes || []).filter(n => n.bill_id === billId && n.visibility === 'shared')
+  const noteWrapped = sharedNotes.map(n => {
     const dateLine = new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     const bodyLines = doc.splitTextToSize(n.body, cardContentW - 4)
     return { dateLine, bodyLines }
   })
-  // Height: 4 (label + rule) + per note (3 date + bodyLines * 3.2 + 2 gap)
-  const analystNotesH = sharedNotes.length > 0
-    ? 5 + analystNoteWrapped.reduce((h, n) => h + 3 + (n.bodyLines.length * 3.2) + 2, 0)
+
+  // Companion line
+  const companionLine = getCompanionLine(bill)
+
+  // What to Watch items (active bills during session only)
+  const watchItems = []
+  if (!isTerminal && !isInterimPeriod()) {
+    if (bill.hearing_date) {
+      try {
+        const h = new Date(bill.hearing_date)
+        const days = Math.ceil((h - new Date()) / 86400000)
+        const lbl = h.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        if (days > 0 && days <= 21) watchItems.push('Hearing: ' + lbl + (days <= 14 ? ' (' + days + ' days)' : ''))
+      } catch (e) {}
+    }
+    if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0 && bill.days_to_cutoff <= 21) {
+      watchItems.push('Cutoff in ' + bill.days_to_cutoff + ' day' + (bill.days_to_cutoff !== 1 ? 's' : ''))
+    }
+  }
+
+  // Delta/trend narrative
+  const deltaText = getDeltaNarrative(billId, bill, scoreDeltas, changes)
+
+  // Score one-liner interpretation (adapted from generate-public-pdf.js)
+  const oneLiner = (() => {
+    if (cl === 'LAW') return 'Signed into law -- outcome final.'
+    if (cl === 'DEAD') return 'Did not advance -- session ended without passage.'
+    if (cl === 'PASSED_CHAMBER') {
+      if (isPostBienniumClose()) return 'Did not pass this biennium -- must be refiled to advance.'
+      return 'Passed its first chamber -- carries into the next session.'
+    }
+    if (score >= TIER_HIGH)     return 'Strong forward movement -- ~84% of bills in this band become law.'
+    if (score >= TIER_MODERATE) return 'Moderate momentum -- viable path to passage with active committee work.'
+    if (score >= TIER_LOW)      return 'Limited movement -- needs a sponsor push or hearing to gain ground.'
+    return 'Very limited momentum -- most bills in this band do not advance this session.'
+  })()
+
+  // ── Height pre-calculation ──────────────────────────────────────
+  const lineH = 3.8
+  const titleH = Math.min(doc.splitTextToSize(title, cardContentW).length, 2) * 4.5
+  const summaryH = summaryLines.length > 0
+    ? 3 + summaryLines.length * lineH + (summaryTruncated ? 2.5 : 0) + (isInterimPeriod() ? 3 : 0)
     : 0
+  const notesH = sharedNotes.length > 0
+    ? 7 + noteWrapped.reduce((h, n) => h + 3 + n.bodyLines.length * 3.2 + 2, 0)
+    : 0
+  const watchH = watchItems.length > 0 ? 5 + watchItems.length * 4.5 : 0
 
-  // Phase 10.5: Recent Activity line — compact summary of amendments + fiscal changes
-  const billAmendments = amendments.filter(a => a.bill_id === tracked.bill_id)
-  const billFiscal = fiscalHistory.filter(f => f.bill_id === tracked.bill_id)
-  let activityParts = []
-  if (billAmendments.length > 0) {
-    const adopted = billAmendments.filter(a => a.adopted).length
-    activityParts.push(billAmendments.length + ' amendment' + (billAmendments.length !== 1 ? 's' : '') +
-      (adopted > 0 ? ' (' + adopted + ' adopted)' : ''))
-  }
-  if (billFiscal.length > 0) {
-    const latest = billFiscal.sort((a, b) => (b.detected_date || '').localeCompare(a.detected_date || ''))[0]
-    activityParts.push('Fiscal note ' + (latest.new_size || 'updated') +
-      (latest.detected_date ? ' ' + latest.detected_date : ''))
-  }
-  const activityLine = activityParts.join(' | ')
-  const activityH = activityLine ? 3.5 : 0
+  const cardH = 4             // top padding
+    + 5                       // bill # line
+    + titleH                  // title (1-2 lines)
+    + 2                       // pre-score gap
+    + 18                      // score box
+    + 13                      // status pill + gap
+    + summaryH                // summary section
+    + ((bill.prime_sponsor || bill.committee_name) ? 6 : 0)
+    + (companionLine ? 5 : 0)
+    + notesH
+    + watchH
+    + (deltaText ? 5 : 0)
+    + 4                       // bottom padding
 
-  const cardH = 5 +         // top padding
-                5 +         // bill number + score line
-                titleH +    // title lines
-                summaryH +  // AI summary (if present)
-                companionH + // Phase 7W.3 companion line (if present)
-                analystNotesH + // Phase 7S analyst notes (if present)
-                activityH + // Phase 10.5 recent activity (if present)
-                4 +         // stage + delta line
-                (tag ? 4 : 0) +  // tag line (if present)
-                3           // bottom padding
+  // Page break — allow mid-card break only if card is very tall
+  y = checkPageBreak(doc, y, Math.min(cardH, ph - 60), ph)
 
-  // Page break check
-  y = checkPageBreak(doc, y, cardH + 2, ph)
-
-  // Card background
+  // ── Card shell ─────────────────────────────────────────────────
   doc.setFillColor(...SURFACE)
   doc.setDrawColor(...LGRAY)
-  doc.setLineWidth(0.15)
-  doc.roundedRect(m, y, contentW, cardH, 2, 2, 'FD')
+  doc.setLineWidth(0.2)
+  doc.roundedRect(m, y, contentW, cardH, 2.5, 2.5, 'FD')
 
-  // Left color border (2mm wide strip, inset to stay inside rounded corners)
+  // Outcome-color left strip
   doc.setFillColor(...borderColor)
-  doc.rect(m + 0.3, y + 2, 2, cardH - 4, 'F')
+  doc.rect(m + 0.3, y + 2.5, 2.5, cardH - 5, 'F')
 
-  const cx = m + 6  // content start x (after border + padding)
-  let cy = y + 5    // content start y (top padding)
+  const cx = m + 6
+  let cy = y + 4
 
-  // ── Line 1: Bill number + Score badge + Tier ──
+  // ── Bill # + tag ─────────────────────────────────────────────────
   doc.setFont('courier', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(10)
   doc.setTextColor(...FOREST)
-  doc.text(billLabel, cx, cy)
-
-  // Score indicator (right side)
-  const scoreStr = String(score)
-  const tierStr = tierLabel.toUpperCase()
-  const scoreX = m + contentW - 6
-  const scoreColor = getScoreColor(score)
-
-  // Score circle
-  doc.setFillColor(...scoreColor)
-  const circleX = scoreX - doc.getTextWidth(scoreStr + '  ' + tierStr) - 4
-  doc.circle(circleX, cy - 1.2, 1.5, 'F')
-
-  // Score number
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...scoreColor)
-  doc.text(scoreStr, circleX + 3, cy)
-
-  // Tier label
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(...GRAY)
-  const scoreNumW = doc.getTextWidth(scoreStr)
-  doc.text(tierStr, circleX + 3 + scoreNumW + 2, cy)
-
+  doc.text(billLbl, cx, cy)
+  if (tag) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...TEAL)
+    doc.text(tag.toUpperCase(), m + contentW - 5, cy, { align: 'right' })
+  }
   cy += 5
 
-  // ── Title (may wrap to 2 lines) ──
+  // ── Title (max 2 lines) ──────────────────────────────────────────
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8)
-  doc.setTextColor(30, 35, 45)
-  titleLines.forEach(line => {
+  doc.setFontSize(9)
+  doc.setTextColor(25, 30, 40)
+  doc.splitTextToSize(title, cardContentW).slice(0, 2).forEach(line => {
     doc.text(line, cx, cy)
-    cy += 4
+    cy += 4.5
   })
+  cy += 2
 
-  // ── AI Summary (smaller, gray, with AI label + caveat during interim) ──
+  // ── Score Box (full-width, 18mm tall) ───────────────────────────
+  const sbH = 18
+  doc.setFillColor(250, 249, 247)
+  doc.setDrawColor(...LGRAY)
+  doc.setLineWidth(0.15)
+  doc.roundedRect(cx - 2, cy, contentW - 8, sbH, 1.5, 1.5, 'FD')
+
+  // Left: large score number + /100 + tier label
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  doc.setTextColor(...scoreColor)
+  const scoreNumStr = String(score)
+  const scoreNumW = doc.getTextWidth(scoreNumStr)
+  doc.text(scoreNumStr, cx + 2, cy + 13)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...GRAY)
+  doc.text('/100', cx + 2 + scoreNumW + 1, cy + 13)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...scoreColor)
+  doc.text(String(tierLabel).toUpperCase(), cx + 2, cy + 17)
+
+  // Right: label + one-liner interpretation
+  const olX = cx + 30
+  const olW = contentW - 8 - 30 - 4
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...GRAY)
+  doc.text('TRAJECTORY SCORE', olX, cy + 5)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...FOREST)
+  doc.splitTextToSize(oneLiner, olW).slice(0, 2).forEach((line, i) => {
+    doc.text(line, olX, cy + 10 + i * 4)
+  })
+  cy += sbH + 3
+
+  // ── Status Pill ──────────────────────────────────────────────────
+  const pillW = contentW - 8
+  doc.setFillColor(250, 249, 247)
+  doc.setDrawColor(...LGRAY)
+  doc.setLineWidth(0.2)
+  doc.roundedRect(cx - 2, cy, pillW, 9, 1.5, 1.5, 'FD')
+  doc.setFillColor(...borderColor)
+  doc.rect(cx - 2, cy, 2.5, 9, 'F')
+
+  let statusTxt = stageLine
+  if (!isTerminal && !isInterimPeriod()) {
+    if (bill.hearing_date) {
+      try {
+        const h = new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        statusTxt += '  ·  Hearing ' + h
+      } catch (e) {}
+    } else if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0) {
+      statusTxt += '  ·  ' + bill.days_to_cutoff + ' days to cutoff'
+    }
+  } else if (isTerminal && bill.last_action_date) {
+    try {
+      const d = formatSessionDate(bill.last_action_date)
+      if (d && d !== 'session dates TBD') statusTxt += '  ·  ' + d
+    } catch (e) {}
+  }
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...FOREST)
+  doc.text(statusTxt, cx + 3, cy + 5.8)
+  cy += 13
+
+  // ── AI Summary (up to 6 lines) ───────────────────────────────────
   if (summaryLines.length > 0) {
-    cy += 1
-    // Brand §14/§17: always label AI-generated content
-    const aiLabel = bill.custom_summary ? 'AI-generated · edited' : 'AI-generated summary'
+    const aiLabel = bill.custom_summary ? 'AI-GENERATED + EDITED' : 'AI-GENERATED SUMMARY'
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6)
+    doc.setFontSize(6.5)
     doc.setTextColor(...TEAL)
-    doc.text(aiLabel.toUpperCase(), cx, cy)
+    doc.text(aiLabel, cx, cy)
     cy += 2.5
-    const interim = isInterimPeriod()
-    if (interim) {
+    if (isInterimPeriod()) {
       doc.setFont('helvetica', 'bolditalic')
-      doc.setFontSize(6.5)
+      doc.setFontSize(6)
       doc.setTextColor(140, 145, 155)
-      doc.text('Summary as of session:', cx, cy)
+      doc.text('Summary as of session end:', cx, cy)
       cy += 3
     }
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(90, 95, 105)
+    doc.setFontSize(7.5)
+    doc.setTextColor(70, 75, 85)
     summaryLines.forEach(line => {
+      cy = checkPageBreak(doc, cy, lineH + 1, ph)
       doc.text(line, cx, cy)
       cy += lineH
     })
     if (summaryTruncated) {
       doc.setFontSize(6)
       doc.setTextColor(150, 155, 165)
-      doc.text('[...]', cx, cy)
+      doc.text('[summary continues -- see vectorwa.com]', cx, cy)
       cy += 2.5
     }
     cy += 1
   }
 
-  // ── Phase 7W.3: Companion line ──
+  // ── Sponsor + Committee (compact one-liner) ──────────────────────
+  if (bill.prime_sponsor || bill.committee_name) {
+    const sponsorParts = []
+    if (bill.prime_sponsor) {
+      const party = (bill.prime_party || '').charAt(0).toUpperCase()
+      sponsorParts.push((bill.chamber === 'House' ? 'Rep.' : 'Sen.') + ' ' + bill.prime_sponsor + (party ? ' (' + party + ')' : ''))
+    }
+    if (bill.committee_name) sponsorParts.push(bill.committee_name)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...GRAY)
+    doc.text(sponsorParts.join('  ·  '), cx, cy)
+    cy += 6
+  }
+
+  // ── Companion line ───────────────────────────────────────────────
   if (companionLine) {
-    // Tone-color the divergence case (forked) so the page reader notices it
     const forked = bill.companion_state === 'forked'
     doc.setFont('helvetica', forked ? 'bold' : 'italic')
     doc.setFontSize(6.5)
-    if (forked) {
-      doc.setTextColor(170, 80, 60)  // muted red
-    } else {
-      doc.setTextColor(110, 115, 125)
-    }
+    doc.setTextColor(...(forked ? RED : GRAY))
     doc.text(companionLine, cx, cy)
-    cy += 3.5
+    cy += 5
   }
 
-  // ── Phase 7S: Analyst Note blocks (client-visible only) ──
+  // ── Analyst Notes ────────────────────────────────────────────────
   if (sharedNotes.length > 0) {
     cy += 1
-    // Brass rule line
     doc.setDrawColor(...TEAL)
-    doc.setLineWidth(0.3)
+    doc.setLineWidth(0.25)
     doc.line(cx, cy, cx + 30, cy)
-    cy += 3
-    // "Analyst Note" label in Brass
+    cy += 2.5
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(6.5)
     doc.setTextColor(...GOLD)
-    doc.text('Analyst Note', cx, cy)
-    cy += 1
-
-    analystNoteWrapped.forEach(({ dateLine, bodyLines }) => {
-      cy += 2
-      // Date stamp (small, muted)
+    doc.text('ANALYST NOTE', cx, cy)
+    cy += 2.5
+    noteWrapped.forEach(({ dateLine, bodyLines }) => {
+      cy = checkPageBreak(doc, cy, 8, ph)
       doc.setFont('helvetica', 'italic')
       doc.setFontSize(6)
       doc.setTextColor(...MUTED)
       doc.text(dateLine, cx + 2, cy)
       cy += 3
-      // Note body — Dark Neutral on off-white surface
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
       doc.setTextColor(...FOREST)
-      bodyLines.forEach(line => {
-        doc.text(line, cx + 2, cy)
-        cy += 3.2
-      })
+      bodyLines.forEach(line => { doc.text(line, cx + 2, cy); cy += 3.2 })
+      cy += 2
     })
   }
 
-  // ── Phase 10.5: Recent Activity line ──
-  if (activityLine) {
-    doc.setFont('helvetica', 'italic')
+  // ── What to Watch ────────────────────────────────────────────────
+  if (watchItems.length > 0) {
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(6.5)
-    doc.setTextColor(...GOLD)
-    doc.text(activityLine, cx, cy)
-    cy += 3.5
+    doc.setTextColor(...RUST)
+    doc.text('WATCH:', cx, cy)
+    cy += 4
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...FOREST)
+    watchItems.forEach(item => {
+      doc.text('> ' + item, cx + 2, cy)
+      cy += 4.5
+    })
   }
 
-  // ── Stage + Delta ──
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(70, 75, 85)
-  doc.text(stageLine, cx, cy)
-
-  // Delta (right-aligned, only shown for active bills — terminal bills already covered by stageLine)
+  // ── Trend / Movement line ────────────────────────────────────────
   if (deltaText) {
     const deltaColor = delta > 0 ? TEAL : delta < 0 ? RED : GRAY
-    doc.setFont('helvetica', 'bold')
+    doc.setFont('helvetica', delta !== 0 ? 'bold' : 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...deltaColor)
-    doc.text(deltaText, m + contentW - 6, cy, { align: 'right' })
-  }
-  cy += 4
-
-  // ── Tag (if present) ──
-  if (tag) {
-    doc.setFont('helvetica', 'italic')
-    doc.setFontSize(6.5)
-    doc.setTextColor(...GOLD)
-    doc.text('Tagged: ' + tag, cx, cy)
-    cy += 3.5
+    doc.text('Movement: ' + deltaText, cx, cy)
+    cy += 5
   }
 
-  return y + cardH + 3  // 3mm gap between cards
+  return y + cardH + 4  // 4mm gap between cards
 }
 
 
@@ -866,87 +1102,13 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   y = drawExecutiveSummary(doc, y, pw, m, contentW, ph, bills)
 
   /* ================================================================
-     6M.5 — PORTFOLIO SUMMARY STATS (dynamic layout, truncation-safe)
+     PORTFOLIO OVERVIEW TABLE (page 1)
      ================================================================ */
 
-  y = checkPageBreak(doc, y, 24, ph)
-
-  const isCurrentlyInterim = isInterimPeriod()
-
-  doc.setFillColor(...SURFACE)
-  doc.setDrawColor(...LGRAY)
-  doc.setLineWidth(0.2)
-  doc.roundedRect(m, y, contentW, 18, 2, 2, 'FD')
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(...FOREST)
-  doc.text(isCurrentlyInterim ? 'SESSION RESULTS' : 'PORTFOLIO SUMMARY', m + 4, y + 5.5)
-
-  let stats
-  if (isCurrentlyInterim) {
-    // Outcome-oriented stats for interim (matches executive summary language)
-    const lawCount   = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'LAW').length
-    const carryCount = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'PASSED_CHAMBER').length
-    const deadCount  = bills.filter(b => (b.bills?.confidence_label || '').toUpperCase() === 'DEAD').length
-    stats = [
-      { label: 'Bills Tracked', value: String(bills.length) },
-      { label: 'Signed into Law', value: String(lawCount) },
-      { label: 'Passed Chamber', value: String(carryCount) },
-      { label: 'Did Not Advance', value: String(deadCount) },
-    ]
-  } else {
-    // Client-friendly stats for active session
-    const onTrack   = bills.filter(b => (b.bills?.final_score || 0) >= TIER_MODERATE).length
-    const momentum  = bills.filter(b => {
-      const d = scoreDeltas[b.bill_id] || 0
-      return d >= 5 && (b.bills?.final_score || 0) >= TIER_LOW
-    }).length
-    const atRisk    = bills.filter(b => {
-      const s = b.bills?.final_score || 0
-      return s > 0 && s < TIER_LOW && !(b.bills?.confidence_label || '').match(/DEAD|LAW/i)
-    }).length
-    stats = [
-      { label: 'Bills Tracked', value: String(bills.length) },
-      { label: 'On Track (60+)', value: String(onTrack) },
-      { label: 'Gaining Momentum', value: String(momentum) },
-      { label: 'At Risk of Stalling', value: String(atRisk) },
-    ]
-  }
-
-  // Dynamic stat layout: measure text widths to prevent truncation
-  const statY = y + 14
-  doc.setFontSize(11)  // for measuring value widths
-  const statWidths = stats.map(stat => {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    const vw = doc.getTextWidth(stat.value)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    const lw = doc.getTextWidth(stat.label)
-    return vw + 2 + lw + 6  // value + gap + label + padding
-  })
-  const totalStatW = statWidths.reduce((a, b) => a + b, 0)
-  const scale = totalStatW > (contentW - 8) ? (contentW - 8) / totalStatW : 1
-
-  let statX = m + 4
-  stats.forEach((stat, i) => {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(...FOREST)
-    doc.text(stat.value, statX, statY)
-    const valueWidth = doc.getTextWidth(stat.value)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(...GRAY)
-    doc.text(stat.label, statX + valueWidth + 2, statY)
-    statX += statWidths[i] * scale
-  })
-
-  y += 24
+  y = drawPortfolioTable(doc, bills, scoreDeltas, changes, y, m, contentW, ph)
 
   /* ================================================================
-     6M.2 — BILL DETAIL CARDS (grouped by outcome)
+     BILL INTELLIGENCE CARDS (expanded half-page per bill, pages 2+)
      ================================================================ */
 
   y = checkPageBreak(doc, y, 12, ph)
@@ -954,11 +1116,10 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(...FOREST)
-  doc.text('TRACKED LEGISLATION', m, y)
-  y += 5
+  doc.text('BILL INTELLIGENCE', m, y)
+  y += 6
 
   if (bills.length === 0) {
-    // 0-bill guard
     y = checkPageBreak(doc, y, 12, ph)
     doc.setFont('helvetica', 'italic')
     doc.setFontSize(8.5)
@@ -967,16 +1128,16 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
     y += 8
   } else {
     const groups = groupBills(bills)
-    const showGroupHeaders = groups.length > 1  // only show headers if there are multiple outcome types
+    const showGroupHeaders = groups.length > 1
 
     groups.forEach(group => {
       if (showGroupHeaders) {
         y = drawGroupHeader(doc, group, y, m, contentW, ph)
       }
       group.bills.forEach(tracked => {
-        y = drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes || [], amendments, fiscalHistory)
+        y = drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes || [], amendments, fiscalHistory)
       })
-      y += 2  // extra gap between groups
+      y += 2
     })
   }
 
