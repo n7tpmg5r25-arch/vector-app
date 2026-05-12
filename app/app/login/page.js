@@ -197,7 +197,7 @@ function LoginPageInner() {
         pointerEvents: 'none',
       }}/>
 
-      {/* Logo — Shorepine GR v4.6 primary lockup */}
+      {/* Vector | WA primary logo lockup */}
       <div style={{ marginBottom: 32, textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <img
           src="/logos/vector-wa-primary.svg"

@@ -62,7 +62,9 @@ import {
   getCurrentSession,
   getNextBiennium,
   daysUntil,
+  getAllSessions,
 } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import { getVersionLabel } from '../../lib/version'
 
 const DRAWER_WIDTH = 300
@@ -443,6 +445,9 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
   const showAdmin = isAdmin(user)
   const roleLabel = role === 'client' ? 'TEAM' : 'REGISTERED'
   const email = user?.email || '—'
+  const [session, setSession] = useSession()
+  const sessions = getAllSessions()
+  const showPicker = sessions.length > 1
 
   return (
     <nav
@@ -512,6 +517,55 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
       )}
 
       <SectionDivider />
+
+      {/* Session picker — only renders when more than one session exists
+          (getAllSessions() grows automatically: 2027-2028 is added on
+          Dec 1 2026 when prefilingOpens triggers; historical sessions
+          are always present). useSession() persists the choice to
+          localStorage so every page that calls useSession() picks it up.
+          Thread 83: global session context. */}
+      {showPicker && (
+        <div style={{ padding: '10px 20px 14px' }}>
+          <div style={{
+            fontSize: 9,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--text-faint, #6c7078)',
+            fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+            fontWeight: 600,
+            marginBottom: 8,
+          }}>
+            Session
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {sessions.map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSession(s)}
+                style={{
+                  padding: '7px 12px',
+                  background: session === s ? 'rgba(184,151,90,0.12)' : 'transparent',
+                  border: `1px solid ${session === s ? 'rgba(184,151,90,0.50)' : 'var(--border, #2a2d38)'}`,
+                  borderRadius: 6,
+                  color: session === s ? 'var(--brass-light, var(--gold))' : 'var(--text-muted, #6c7078)',
+                  fontSize: 12,
+                  fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+                  letterSpacing: '0.04em',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+                  fontWeight: session === s ? 600 : 400,
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showPicker && <SectionDivider />}
 
       {/* Reference section — parity with public drawer (Thread 58).
           Links removed from Footer.js Row 2 for owner+client; drawer is
