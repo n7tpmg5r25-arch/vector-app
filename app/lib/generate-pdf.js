@@ -21,6 +21,7 @@ import {
   STAGE_LABELS,
   TIER_HIGH, TIER_MODERATE, TIER_LOW,
   loadImageAsBase64,
+  loadSvgWithFillSwap,
   getScoreColor, getScoreTierLabel, getOutcomeColor,
   checkPageBreak,
 } from './pdf-shared'
@@ -771,43 +772,42 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
      ================================================================ */
 
   {
-    const logoX = m
-    const logoY = y - 3
-    const logoH = 14
-    const s = logoH / 48  // viewBox is 0..48 in height
+    // Official primary SVG logo — same rasterization technique as the
+    // single-bill public brief (generate-public-pdf.js). Repaint the
+    // wordmark fill from parchment (#ebeae4) to Dark Neutral (#0e1014)
+    // so it reads on the white PDF page. Gold arc stays untouched.
+    const logoH = 22
+    const logoW = logoH * (895 / 500)  // SVG natural aspect ratio ~1.79
 
-    // Brass V (two strokes: left = V, right = emphasized)
-    doc.setDrawColor(...ACCENT)
-    doc.setLineCap('round')
-    doc.setLineJoin('round')
-    doc.setLineWidth(2.0 * s * 48 / 22)
-    doc.line(logoX + 4 * s,  logoY + 4 * s,  logoX + 28 * s, logoY + 44 * s)
-    doc.line(logoX + 28 * s, logoY + 44 * s, logoX + 52 * s, logoY + 4 * s)
-    doc.setLineWidth(1.6 * s * 48 / 22)
-    doc.line(logoX + 28 * s, logoY + 44 * s, logoX + 52 * s, logoY + 20 * s)
+    let logoDrawn = false
+    try {
+      const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
+        '#ebeae4': '#0e1014',
+      })
+      if (dataUrl) {
+        doc.addImage(dataUrl, 'PNG', m, y - 1, logoW, logoH)
+        logoDrawn = true
+      }
+    } catch (e) { /* fall through to text fallback */ }
 
-    // Brass-Light triangle at the arrow tip
-    doc.setFillColor(...ACCENT_LT)
-    doc.triangle(
-      logoX + 52 * s, logoY + 14 * s,
-      logoX + 58 * s, logoY + 22 * s,
-      logoX + 44 * s, logoY + 22 * s,
-      'F'
-    )
+    if (!logoDrawn) {
+      // Text fallback when SVG cannot load (offline, dev, etc.)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(16)
+      doc.setTextColor(...PRIMARY)
+      doc.text('VECTOR | WA', m, y + 12)
+    }
 
-    const textX = logoX + 62 * s + 3
-
-    // Wordmark — VECTOR | WA on a single line, in Helvetica bold (jsPDF
-    // can't natively render Playfair Display without a runtime VFS load).
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    doc.setTextColor(...PRIMARY)
-    doc.text('VECTOR | WA', textX, y + 6)
-
+    // Right side: report label + date (matches single-bill brief right column)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...TMUTED)
     doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 6, { align: 'right' })
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...MUTED)
+    doc.text(date, pw - m, y + 11, { align: 'right' })
 
     y += logoH
   }
