@@ -6,10 +6,17 @@ import SessionBanner from './components/SessionBanner'
 import PublicBottomNav from './components/PublicBottomNav'
 import SideDrawer from './components/SideDrawer'
 
+// Thread 82 (2026-05-12): metadataBase was pointing at the Vercel preview
+// URL (vector-app-liard.vercel.app), which broke all og:url values in
+// production. Fixed to canonical domain. Template added so per-page titles
+// render as "Page — Vector | WA" without repeating the suffix in each file.
 export const metadata = {
-  metadataBase: new URL('https://vector-app-liard.vercel.app'),
-  title: 'Vector | WA',
-  description: 'Washington State legislative intelligence',
+  metadataBase: new URL('https://vectorwa.com'),
+  title: {
+    default: 'Vector | WA',
+    template: '%s — Vector | WA',
+  },
+  description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -18,16 +25,18 @@ export const metadata = {
   },
   openGraph: {
     title: 'Vector | WA',
-    description: 'Washington State legislative intelligence',
+    description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
     siteName: 'Vector | WA',
+    url: 'https://vectorwa.com',
     type: 'website',
+    locale: 'en_US',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA — Free legislative intelligence for Washington State' }],
   },
   twitter: {
     card: 'summary_large_image',
     images: ['/og-image.png'],
     title: 'Vector | WA',
-    description: 'Washington State legislative intelligence',
+    description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
   },
 }
 
@@ -70,6 +79,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             click, route change, or `vec-drawer-close` event.
             See app/app/components/SideDrawer.js. */}
         <SideDrawer />
+        {/* Thread 82 (2026-05-12) — Organization JSON-LD structured data.
+            Tells Google who runs this site and links the canonical URL,
+            social profiles, and sameAs entries. Renders server-side in
+            the root layout so it appears on every page without JS. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              name: 'Vector | WA',
+              url: 'https://vectorwa.com',
+              description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
+              areaServed: {
+                '@type': 'AdministrativeArea',
+                name: 'Washington State',
+              },
+            }),
+          }}
+        />
         {/* Vercel Analytics (2026-04-29) — first-party page-view tracking.
             Privacy-friendly (no cookies, no PII). Free tier on Hobby plan
             covers 2,500 events/month, ample headroom for pre-launch

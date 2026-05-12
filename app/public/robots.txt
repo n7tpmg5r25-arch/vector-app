@@ -1,0 +1,24 @@
+# robots.txt — Vector | WA
+# Thread 82 (2026-05-12)
+#
+# Default: allow all crawlers on public surfaces.
+# Private surfaces (admin panel, API endpoints, auth routes, team portal)
+# are explicitly disallowed so crawl budget stays focused on content pages.
+
+User-agent: *
+Allow: /
+
+# Owner-only admin panel
+Disallow: /admin/
+
+# JSON API endpoints — not pages
+Disallow: /api/
+
+# Auth redirect utility routes
+Disallow: /auth/
+
+# Team portal — RLS-fenced, never public
+Disallow: /c/
+
+# Sitemap location
+Sitemap: https://vectorwa.com/sitemap.xml

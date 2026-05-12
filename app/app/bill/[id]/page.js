@@ -806,8 +806,35 @@ export default function BillDetailPage() {
     nextSession: getNextBiennium()?.session ?? null,
   })
 
+  // Thread 82 (2026-05-12): Legislation JSON-LD structured data.
+  // Injected client-side once bill data is loaded. Googlebot executes JS,
+  // so this surfaces in Search. When the bill page becomes server-rendered
+  // (future), move this to generateMetadata(). Uses schema.org/Legislation
+  // which maps well to state-level bills.
+  const billJsonLd = bill ? {
+    '@context': 'https://schema.org',
+    '@type': 'Legislation',
+    name: `${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}: ${bill.title || ''}`,
+    description: bill.custom_summary || bill.title || `Washington State bill ${bill.bill_number}`,
+    legislationType: 'Bill',
+    jurisdiction: {
+      '@type': 'AdministrativeArea',
+      name: 'Washington State',
+    },
+    url: `https://vectorwa.com/bill/${billId}`,
+    ...(legUrl ? { sameAs: legUrl } : {}),
+  } : null
+
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+
+      {/* Thread 82: Legislation structured data for Google Search */}
+      {billJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(billJsonLd) }}
+        />
+      )}
 
       {/* ── PUBLIC NAV (anon + public-layer flag only) ──── */}
       {isAnonPublic && <PublicNav />}

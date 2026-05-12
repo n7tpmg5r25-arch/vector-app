@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '1.2',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Search visibility — added sitemap, robots.txt, and structured data (Organization + Legislation schema) so Google can discover and index Vector | WA before the August 2027 public launch (Thread 82).',
+      'All sharing links now resolve to vectorwa.com — fixed a metadata configuration bug that caused Open Graph URLs to point at an internal Vercel preview domain instead of the canonical site (Thread 82).',
+      'Per-page titles now follow the "Page — Vector | WA" format for cleaner browser tabs and search result snippets (Thread 82).',
+    ],
+  },
+  {
     version: '1.1',
     date: '2026-05-11',
     phase: 'alpha',
