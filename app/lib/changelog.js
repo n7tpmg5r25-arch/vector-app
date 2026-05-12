@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '1.3',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Consistent loading screens — every data page now shows the brass arrow loader instead of plain "Loading..." text, bringing members, search, and other surfaces in line with the watchlist (Thread 84).',
+      'Global session picker — the session / biennium selector moved from individual pages into the side drawer, so one tap switches the whole app to 2025-26 or any historical biennium at once (Thread 84).',
+      'Historical data banner — an amber strip appears automatically whenever you are viewing a past biennium, with a one-tap shortcut back to the current session (Thread 84).',
+      'Career View on /members — a dedicated toggle aggregates all biennia at once for legislator-level career analysis, separate from the global biennium context (Thread 84).',
+    ],
+  },
+  {
     version: '1.2',
     date: '2026-05-12',
     phase: 'alpha',

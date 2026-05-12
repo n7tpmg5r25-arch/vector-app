@@ -25,7 +25,7 @@ function H2({ children }) {
       letterSpacing: '0.14em',
       textTransform: 'uppercase',
       fontWeight: 600,
-      color: '#b8975a',
+      color: 'var(--teal)',       // Brass #b8975a via CSS var
       marginTop: 32,
       marginBottom: 10,
     }}>
@@ -39,7 +39,7 @@ function P({ children }) {
     <p style={{
       fontSize: 14,
       lineHeight: 1.7,
-      color: '#d8dce3',
+      color: 'var(--text-primary)', // Cream #e8e9ec via CSS var
       marginBottom: 12,
     }}>
       {children}
@@ -72,7 +72,7 @@ export default function DisclaimersPage() {
           fontSize: 10,
           letterSpacing: '0.16em',
           textTransform: 'uppercase',
-          color: '#7a8090',
+          color: 'var(--text-faint)', // #6c7078 via CSS var (was hardcoded #7a8090)
           marginBottom: 6,
           fontFamily: 'var(--font-body)',
         }}>

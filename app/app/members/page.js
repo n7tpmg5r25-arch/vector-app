@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, getAllSessions, bienniumShortLabel } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
@@ -31,7 +32,6 @@ const PROCEDURAL_SHELF_NAMES = new Set([
 // every page at each biennium rollover. getAllSessions() returns newest-first
 // and auto-includes the next biennium once prefiling opens (Dec 1, 2026).
 const SESSIONS = getAllSessions()
-const DEFAULT_SESSION = typeof window !== 'undefined' ? getCurrentSession() : SESSIONS[0]
 
 // Thread 12.2: useSearchParams() requires a Suspense boundary in Next 16,
 // so the inner component reads the URL and the default export wraps it in
@@ -72,7 +72,10 @@ function MembersContent() {
   const [chamber, setChamber]         = useState('All')
   const [party, setParty]             = useState('All')
   const [query, setQuery]             = useState('')
-  const [selectedSession, setSelectedSession] = useState(DEFAULT_SESSION)
+  // Thread 83: global session from drawer; showAllSessions is members-specific
+  // career-view toggle (aggregates all biennia, never stored globally).
+  const [selectedSession, setSession] = useSession()
+  const [showAllSessions, setShowAllSessions] = useState(false)
   const [viewMode, setViewMode]             = useState('list') // 'list' | 'heatmap'
   // Thread 69 (2026-05-04): true when the selected biennium has enough roll-call
   // data to derive "currently seated" reliably — drives the "active legislators"
@@ -82,7 +85,7 @@ function MembersContent() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const isAll = selectedSession === 'all'
+      const isAll = showAllSessions
 
       // Thread 69 (2026-05-04): server-side aggregation via v_member_stats_by_session.
       // Replaces the previous client-side reduce over raw bills, which was hitting
@@ -213,11 +216,11 @@ function MembersContent() {
       setLoading(false)
     }
     load()
-  }, [selectedSession])
+  }, [selectedSession, showAllSessions])
 
   const loadMemberBills = useCallback(async (name) => {
     setBillsLoading(true)
-    const isAll = selectedSession === 'all'
+    const isAll = showAllSessions
     if (isAll) {
       let allData = []
       for (const s of SESSIONS) {
@@ -295,7 +298,7 @@ function MembersContent() {
       //           filtered to selectedSession via embedded bills!inner join.
       //           Bill metadata comes back in the same response — no second
       //           round-trip. ──
-      const isAll = selectedSession === 'all'
+      const isAll = showAllSessions
       let rollsQ = supabase
         .from('roll_calls')
         .select('id, bill_id, chamber, vote_date, motion, yeas, nays, absent, excused, result, bills!inner(bill_id, bill_number, title, chamber, session, outcome_passed_law)')
@@ -591,8 +594,8 @@ function MembersContent() {
           {activeTab === 'overview' && (() => {
             // ── Thread 22 derived intelligence (computed every render — cheap;
             //    bills/votes already in memory, no extra queries). G5: pure.
-            const sessionLabel = selectedSession === 'all' ? 'All Sessions' : selectedSession
-            const bienShort = selectedSession === 'all' ? null : (bienniumShortLabel(selectedSession) || selectedSession)
+            const sessionLabel = showAllSessions ? 'All Sessions' : selectedSession
+            const bienShort = showAllSessions ? null : (bienniumShortLabel(selectedSession) || selectedSession)
 
             // Cross-pollination: HIGH-tier bills (final_score >= 75) the member
             // is sponsoring + grouped category counts. Primary lobbyist signal.
@@ -681,7 +684,7 @@ function MembersContent() {
                 </div>
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
-                {selectedSession === 'all' && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
+                {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
                       Per-Session Breakdown
@@ -879,7 +882,7 @@ function MembersContent() {
             <div>
               <VotingRecordHeader
                 mode="by-member"
-                scopeLabel={selectedSession === 'all' ? 'All Sessions' : selectedSession}
+                scopeLabel={showAllSessions ? 'All Sessions' : selectedSession}
                 count={memberVotes.length}
                 showScopeStamp
               />
@@ -903,7 +906,7 @@ function MembersContent() {
           {activeTab === 'bills' && (
             <>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-                Sponsored Bills · {selectedSession === 'all' ? 'All Sessions' : selectedSession}
+                Sponsored Bills · {showAllSessions ? 'All Sessions' : selectedSession}
               </div>
 
               {billsLoading ? (
@@ -929,7 +932,7 @@ function MembersContent() {
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 2 }}>
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                       <span style={{ marginLeft: 8, color: 'var(--text-faint)' }}>{STAGE_LABELS[bill.stage] || 'Intro'}</span>
-                      {selectedSession === 'all' && bill.session && (
+                      {showAllSessions && bill.session && (
                         <span style={{ marginLeft: 8, fontSize: 9, color: 'var(--teal)', opacity: 0.7 }}>{bill.session}</span>
                       )}
                     </div>
@@ -968,25 +971,26 @@ function MembersContent() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
             Members
           </div>
-          <DropdownMenu
-            value={selectedSession}
-            onChange={v => { setSelectedSession(v); setSelected(null); setMemberBills([]) }}
-            options={[
-              ...SESSIONS.map(s => ({ value: s, label: s })),
-              { value: 'all', label: 'All Sessions' },
-            ]}
-            ariaLabel="Session selector"
-            triggerStyle={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
+          {/* Thread 83: session picker moved to SideDrawer (global).
+              Career View toggle is members-specific — aggregates all biennia. */}
+          <button
+            type="button"
+            onClick={() => { setShowAllSessions(s => !s); setSelected(null); setMemberBills([]) }}
+            style={{
+              background: showAllSessions ? 'rgba(184,151,90,0.12)' : 'transparent',
+              border: `1px solid ${showAllSessions ? 'rgba(184,151,90,0.50)' : 'var(--border)'}`,
               borderRadius: 8,
-              padding: '5px 28px 5px 10px',
+              padding: '5px 10px',
               fontSize: 11,
-              color: 'var(--teal)',
+              color: showAllSessions ? 'var(--brass-light, var(--gold))' : 'var(--text-faint)',
               fontFamily: 'var(--font-mono)',
-              minHeight: 28,
+              cursor: 'pointer',
+              letterSpacing: '0.04em',
+              transition: 'all 0.12s',
             }}
-          />
+          >
+            Career
+          </button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -995,7 +999,7 @@ function MembersContent() {
                 data: "147 active legislators" (2025-2026, the canonical
                 49 districts × 3 seats). Without: "{N} legislators" (the full
                 historical sponsor roster, including any mid-biennium replacements). */}
-            {filtered.length} {hasActiveSignal ? 'active legislators' : 'legislators'} · {selectedSession === 'all' ? 'Career View' : selectedSession}
+            {filtered.length} {hasActiveSignal ? 'active legislators' : 'legislators'} · {showAllSessions ? 'Career View' : (selectedSession || getCurrentSession())}
           </div>
           <div style={{ display: 'flex', gap: 2, background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', padding: 2 }}>
             {[
@@ -1056,7 +1060,7 @@ function MembersContent() {
       {viewMode === 'heatmap' && (
         <div style={{ padding: '12px 16px' }} onClick={() => setPopover(null)}>
           {loading ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>
+            <VectorLoader label="Loading members" />
           ) : (() => {
             const withEff = filtered.map(m => ({ ...m, effectiveness: computeEffectiveness(m) }))
               .sort((a, b) => b.effectiveness - a.effectiveness)
@@ -1333,7 +1337,7 @@ function MembersContent() {
       {/* ── LIST VIEW ──────────────────────────────── */}
       {viewMode === 'list' && <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {loading ? (
-          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>
+          <VectorLoader label="Loading members" />
         ) : filtered.map((member, idx) => {
           const scoreColor = member.avg_score >= 50 ? 'var(--teal)' : member.avg_score >= 35 ? 'var(--gold)' : 'var(--text-muted)'
           return (
@@ -1401,7 +1405,7 @@ function MembersContent() {
 // that calls useSearchParams(). Mirrors the SearchPage pattern.
 export default function MembersPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading members...</div>}>
+    <Suspense fallback={<VectorLoader label="Loading members" />}>
       <MembersContent />
     </Suspense>
   )
