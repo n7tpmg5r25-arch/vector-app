@@ -103,6 +103,46 @@ export function getOutcomeColor(bill, palette = VECTOR_PALETTE) {
 }
 
 /**
+ * Fetch an SVG, apply hex-color swaps in the source text, then rasterize to
+ * a base64 PNG via canvas. Shared by both PDF generators so the Vector | WA
+ * primary logo renders consistently across the watchlist brief and the public
+ * single-bill brief.
+ *
+ * Primary use: repaint the logo wordmark from parchment (#ebeae4, designed
+ * for dark backgrounds) to Dark Neutral (#0e1014) so it reads on the white
+ * PDF page. Gold arc + separator (#b8975a) stay untouched.
+ * Returns null on any failure — callers render a text fallback.
+ */
+export async function loadSvgWithFillSwap(url, swaps) {
+  try {
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    let svg = await resp.text()
+    Object.keys(swaps).forEach(from => {
+      const re = new RegExp(from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+      svg = svg.replace(re, swaps[from])
+    })
+    const dataUrl = 'data:image/svg+xml;base64,' +
+      btoa(unescape(encodeURIComponent(svg)))
+    return await new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width  = img.naturalWidth  || 895
+        canvas.height = img.naturalHeight || 500
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0)
+        resolve(canvas.toDataURL('image/png'))
+      }
+      img.onerror = () => resolve(null)
+      img.src = dataUrl
+    })
+  } catch (e) {
+    return null
+  }
+}
+
+/**
  * Load an image (logo, etc.) from a URL as a base64 data URL. Returns null
  * on failure so callers can render a vector fallback. Palette-agnostic.
  */
