@@ -533,34 +533,55 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
             color: 'var(--text-faint, #6c7078)',
             fontFamily: 'var(--font-mono, "DM Mono", monospace)',
             fontWeight: 600,
-            marginBottom: 8,
+            marginBottom: 6,
           }}>
             Session
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {sessions.map(s => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSession(s)}
-                style={{
-                  padding: '7px 12px',
-                  background: session === s ? 'rgba(184,151,90,0.12)' : 'transparent',
-                  border: `1px solid ${session === s ? 'rgba(184,151,90,0.50)' : 'var(--border, #2a2d38)'}`,
-                  borderRadius: 6,
-                  color: session === s ? 'var(--brass-light, var(--gold))' : 'var(--text-muted, #6c7078)',
-                  fontSize: 12,
-                  fontFamily: 'var(--font-mono, "DM Mono", monospace)',
-                  letterSpacing: '0.04em',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'background 0.12s, color 0.12s, border-color 0.12s',
-                  fontWeight: session === s ? 600 : 400,
-                }}
-              >
-                {s}
-              </button>
-            ))}
+          {/* Native select — compact single-row control (vs. stacked buttons).
+              Styled with a custom brass chevron arrow; appearance:none drops
+              the OS default arrow on all browsers. Options auto-expand when
+              getAllSessions() adds 2027-2028 on Dec 1 2026. */}
+          <div style={{ position: 'relative' }}>
+            <select
+              value={session}
+              onChange={e => setSession(e.target.value)}
+              aria-label="Select session"
+              style={{
+                width: '100%',
+                background: 'var(--bg, #0e1014)',
+                border: '1px solid rgba(184,151,90,0.40)',
+                borderRadius: 6,
+                padding: '7px 32px 7px 10px',
+                fontSize: 12,
+                color: 'var(--brass-light, var(--gold))',
+                fontFamily: 'var(--font-mono, "DM Mono", monospace)',
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                outline: 'none',
+              }}
+            >
+              {sessions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {/* Brass chevron — replaces OS default arrow */}
+            <svg
+              width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="var(--brass-light, var(--gold))" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                right: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                pointerEvents: 'none',
+              }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </div>
         </div>
       )}
