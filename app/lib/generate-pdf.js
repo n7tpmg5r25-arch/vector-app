@@ -274,7 +274,7 @@ function drawSessionContextBar(doc, y, pw, m, contentW) {
   }
 
   // Draw bar
-  doc.setFillColor(245, 240, 230)
+  doc.setFillColor(...SURFACE)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.15)
   doc.roundedRect(m, y, contentW, 9, 1.5, 1.5, 'FD')
@@ -483,8 +483,8 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   y = checkPageBreak(doc, y, cardH + 2, ph)
 
   // Card background
-  doc.setFillColor(250, 246, 238)
-  doc.setDrawColor(220, 212, 196)
+  doc.setFillColor(...SURFACE)
+  doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.15)
   doc.roundedRect(m, y, contentW, cardH, 2, 2, 'FD')
 
@@ -588,7 +588,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
   // ── Phase 7S: Analyst Note blocks (client-visible only) ──
   if (sharedNotes.length > 0) {
     cy += 1
-    // Forest rule line
+    // Brass rule line
     doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.3)
     doc.line(cx, cy, cx + 30, cy)
@@ -608,7 +608,7 @@ function drawBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, bi
       doc.setTextColor(...MUTED)
       doc.text(dateLine, cx + 2, cy)
       cy += 3
-      // Note body in Forest on Parchment
+      // Note body — Dark Neutral on off-white surface
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7)
       doc.setTextColor(...FOREST)
@@ -824,7 +824,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
   if (tagLabel) {
     // 6M.8 — Prominent scope label with teal accent bar
-    doc.setFillColor(245, 240, 230)
+    doc.setFillColor(...SURFACE)
     doc.setDrawColor(...TEAL)
     doc.setLineWidth(0.3)
     doc.roundedRect(m, y - 3, contentW, 14, 1.5, 1.5, 'FD')
@@ -879,7 +879,7 @@ export async function generateBriefPDF({ tagLabel, date, bills, scoreDeltas, cha
 
   const isCurrentlyInterim = isInterimPeriod()
 
-  doc.setFillColor(245, 240, 230)
+  doc.setFillColor(...SURFACE)
   doc.setDrawColor(...LGRAY)
   doc.setLineWidth(0.2)
   doc.roundedRect(m, y, contentW, 18, 2, 2, 'FD')
