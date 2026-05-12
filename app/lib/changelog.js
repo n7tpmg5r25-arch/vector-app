@@ -35,7 +35,7 @@ export const CHANGELOG = [
     highlights: [
       'Admin "Grant access" button on the waitlist page — closed-beta applicants can now be invited directly without leaving the app (Thread 78).',
       'Historical legislator accuracy — the 2021-22 session picker on /members now correctly splits the roster into House and Senate, with party affiliation restored for returning legislators (Thread 79).',
-      'PDF briefs (watchlist multi-bill and Print Brief) finalized to Brand Guide v1.2 — remaining legacy parchment-warm surface colors replaced with the canonical off-white SURFACE token, and stale Shorepine-era comments cleaned up (Thread 80).',
+      'PDF briefs (watchlist multi-bill and Print Brief) finalized to Brand Guide v1.2 — real Vector | WA logo replaces the hand-drawn placeholder in the watchlist brief; legacy parchment-warm surface colors standardized; wrong days-until-next-session counts removed from both briefs (Thread 80).',
     ],
   },
   {
