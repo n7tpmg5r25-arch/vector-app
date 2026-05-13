@@ -507,6 +507,13 @@ function SearchContent() {
                   )}
                 </div>
               </div>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
+                color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
+                minWidth: 36, textAlign: 'right', flexShrink: 0,
+              }}>
+                {bill.final_score != null ? bill.final_score : '—'}
+              </div>
               <button
                 type="button"
                 onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
