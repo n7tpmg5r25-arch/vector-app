@@ -53,9 +53,13 @@ function LoginPageInner() {
   // Banner from auth callback redirect or waitlist confirmation
   const [banner, setBanner] = useState(null)
   useEffect(() => {
-    const err = searchParams.get('error')
-    const wl  = searchParams.get('waitlist')
-    if (err === 'auth_callback_error') {
+    const err  = searchParams.get('error')
+    const wl   = searchParams.get('waitlist')
+    const from = searchParams.get('from')
+    // Thread 88: contextual redirect messages from protected routes.
+    if (from === 'watchlist') {
+      setBanner({ kind: 'ok', text: 'Sign in to access your watchlist.' })
+    } else if (err === 'auth_callback_error') {
       setBanner({ kind: 'warn', text: 'Sign-in link expired or invalid. Request a new magic link below.' })
     } else if (wl === 'confirmed') {
       setBanner({ kind: 'ok', text: "Email confirmed — you’re on the beta list. We’ll be in touch around December 2026." })

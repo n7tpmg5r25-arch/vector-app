@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.7',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Anonymous users redirected to sign-in from /watchlist now see a clear explanation — "Sign in to access your watchlist" — instead of arriving at a blank login screen with no context (Thread 88).',
+    ],
+  },
+  {
     version: '1.6',
     date: '2026-05-12',
     phase: 'alpha',
