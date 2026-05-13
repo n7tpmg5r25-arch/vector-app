@@ -86,7 +86,13 @@ export async function proxy(req) {
     !isAlwaysPublic(pathname) &&
     !(publicLayerOn && isPublicLayerRoute(pathname))
   ) {
-    return NextResponse.redirect(new URL('/login', req.url))
+    // Pass the originating route as a ?from= param so /login can show
+    // a contextual message explaining why the user landed there.
+    // Thread 88: /watchlist is the first route with this treatment.
+    const loginDest = pathname === '/watchlist'
+      ? '/login?from=watchlist'
+      : '/login'
+    return NextResponse.redirect(new URL(loginDest, req.url))
   }
 
   if (session && isLoginPage) {
