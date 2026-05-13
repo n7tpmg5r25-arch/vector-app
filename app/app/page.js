@@ -610,6 +610,13 @@ export default function HomePage() {
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>{STAGE_SHORT[bill.stage] || 'Intro'}</span>
                   </div>
                 </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
+                  color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
+                  minWidth: 36, textAlign: 'right', flexShrink: 0,
+                }}>
+                  {bill.final_score != null ? bill.final_score : '—'}
+                </div>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -780,6 +787,13 @@ export default function HomePage() {
                       <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Pass</span>
                     )}
                   </div>
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
+                  color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
+                  minWidth: 36, textAlign: 'right', flexShrink: 0, alignSelf: 'center',
+                }}>
+                  {bill.final_score != null ? bill.final_score : '—'}
                 </div>
                 <button
                   type="button"

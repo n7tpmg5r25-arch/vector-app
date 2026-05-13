@@ -652,6 +652,13 @@ export default function WatchlistPage() {
                   }}>{notes}</div>
                 )}
               </div>
+              <div style={{
+                fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
+                color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
+                minWidth: 36, textAlign: 'right', flexShrink: 0, alignSelf: 'center',
+              }}>
+                {bill.final_score != null ? bill.final_score : '—'}
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <div style={{ display: 'inline-flex', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>
                   <Bookmark size={14} aria-hidden="true" fill="currentColor" />
