@@ -29,6 +29,22 @@
 
 export const CHANGELOG = [
   {
+    version: '2.0',
+    date: '2026-05-13',
+    phase: 'alpha',
+    highlights: [
+      'All intelligence pages — Browse Bills, Bill Detail, Committees, Members, Hearings, and home — are now open to anyone without signing in. Bookmarked bill links, shared searches, and direct committee pages load immediately for every visitor (Thread 98).',
+    ],
+  },
+  {
+    version: '1.9',
+    date: '2026-05-13',
+    phase: 'alpha',
+    highlights: [
+      'The 0–99 trajectory score now appears as a right-aligned brass number on every bill card row across Watchlist, Browse Bills, and the home page Top Trajectory and Watchlist preview sections — making the core intelligence signal visible at a glance without opening a bill detail page (Thread 90).',
+    ],
+  },
+  {
     version: '1.8',
     date: '2026-05-12',
     phase: 'alpha',
