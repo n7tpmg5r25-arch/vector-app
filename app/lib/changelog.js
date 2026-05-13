@@ -29,6 +29,22 @@
 
 export const CHANGELOG = [
   {
+    version: '1.5',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Switching the session in the drawer now updates Members, Committees, Hearings, and Search instantly — no hard reload needed (Thread 86).',
+    ],
+  },
+  {
+    version: '1.4',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      '10 pages now show accurate browser tab titles — Search, Members, Committees, Hearings, Roadmap, Changelog, Install, Sign In, Watchlist, and Settings all display "Page — Vector | WA" instead of the bare site name (Thread 85).',
+    ],
+  },
+  {
     version: '1.3',
     date: '2026-05-12',
     phase: 'alpha',
