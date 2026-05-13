@@ -44,7 +44,7 @@ const NAV = [
   // client hydrated to "Cmtes" during interim), which read as a per-page flicker.
   {
     get path() { return isInterimPeriod() ? '/committees' : '/hearings' },
-    get label() { return isInterimPeriod() ? 'Cmtes' : 'Hearings' },
+    get label() { return isInterimPeriod() ? 'Committees' : 'Hearings' },
     icon: (active) => {
       const interim = isInterimPeriod()
       return interim ? (

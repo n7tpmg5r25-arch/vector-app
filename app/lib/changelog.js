@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '1.8',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Bottom navigation label corrected — "Committees" now displays in full during the interim period between sessions, replacing the abbreviated "Cmtes" that appeared since launch (Thread 89).',
+    ],
+  },
+  {
     version: '1.7',
     date: '2026-05-12',
     phase: 'alpha',
