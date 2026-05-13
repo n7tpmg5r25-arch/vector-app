@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '1.6',
+    date: '2026-05-12',
+    phase: 'alpha',
+    highlights: [
+      'Home page bill count now shows the session year — "Bills (2025-26)" instead of the generic "Bills Scored," so it is clear the number is session-specific and not the full cross-biennium archive (Thread 87).',
+      'Category score averages on the home page now read "avg score 59" instead of the raw "avg 59," connecting the number to the 0–99 scoring system (Thread 87).',
+      'Side drawer role chip updated from "REGISTERED" to "EARLY ACCESS" for signed-in users during the closed beta period (Thread 87).',
+      'Roadmap timeline complete — the "~3,400 bills tracked" milestone now shows its date (Jan 2026) instead of "live," so every item on the timeline has a consistent date chip (Thread 87).',
+    ],
+  },
+  {
     version: '1.5',
     date: '2026-05-12',
     phase: 'alpha',

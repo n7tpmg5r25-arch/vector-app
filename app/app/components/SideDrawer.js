@@ -443,7 +443,7 @@ function PublicBody({ onClose }) {
    ──────────────────────────────────────────────────────────────────── */
 function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
   const showAdmin = isAdmin(user)
-  const roleLabel = role === 'client' ? 'TEAM' : 'REGISTERED'
+  const roleLabel = role === 'client' ? 'TEAM' : 'EARLY ACCESS'
   const email = user?.email || '—'
   const [session, setSession] = useSession()
   const sessions = getAllSessions()
