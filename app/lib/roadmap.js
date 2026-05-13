@@ -107,7 +107,7 @@ export const ROADMAP = [
     id: 'bill-coverage',
     title: '~3,400 bills tracked across 3 biennia',
     status: 'shipped',
-    date: 'live',
+    date: 'Jan 2026',
     description:
       'All bills from the 2021-22, 2023-24, and 2025-26 Washington State ' +
       'legislative sessions — searchable and scored.',

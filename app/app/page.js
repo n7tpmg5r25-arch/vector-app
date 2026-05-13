@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
-import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, getAllSessions } from '../lib/session-config'
+import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, getAllSessions, bienniumShortLabel } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
@@ -827,7 +827,7 @@ export default function HomePage() {
                           {cat.total_bills} bills
                         </span>
                         <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: barColor, fontWeight: 600, textShadow: avg >= 50 ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>
-                          avg {avg}
+                          avg score {avg}
                         </span>
                       </div>
                     </div>
@@ -858,7 +858,7 @@ export default function HomePage() {
           justifyContent: 'space-around',
         }}>
           {[
-            { label: 'Bills Scored', value: totalBills.toLocaleString(), color: 'var(--teal)' },
+            { label: `Bills (${bienniumShortLabel(SESSION)})`, value: totalBills.toLocaleString(), color: 'var(--teal)' },
             { label: 'Tracked', value: watchlist.length.toLocaleString(), color: 'var(--gold)' },
             isInterimPeriod()
               ? { label: 'Signed into Law', value: outcomeCounts.law.toLocaleString(), color: 'var(--teal-bright)' }
