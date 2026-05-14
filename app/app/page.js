@@ -9,9 +9,9 @@ import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
-import PublicHome from './components/PublicHome'
+import BillsMovingWidget from './components/BillsMovingWidget'
 import VectorLoader from './components/VectorLoader'
-import { Check } from 'lucide-react'
+import { Check, Search, Building2, Users } from 'lucide-react'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -43,7 +43,7 @@ function momentumLabel(bills) {
 export default function HomePage() {
   const router = useRouter()
   const supabase = createBrowserClient()
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   // 6D.1: Session from useSession hook (localStorage-backed, user-switchable)
   // NOTE: every hook below this point MUST be called on every render to
@@ -196,14 +196,13 @@ export default function HomePage() {
 
   // Phase 12 Batch 3: wait for useViewer() to resolve before loading, so the
   // tracked_bills query sees the real user on first paint instead of racing.
-  // 2026-04-23: skip loadData for anon-with-flag-on — those visitors render
-  // <PublicHome /> via the gate below and never use this data. Keeps the
-  // effect cheap for the public-layer path.
+  // Thread 99: skip loadData for anon users — they render the AnonHome branch
+  // below and never use watchlist / tracked_bills data.
   useEffect(() => {
     if (viewerLoading) return
-    if (publicLayerEnabled && !user) return
+    if (!capabilities.isAuthed) return
     loadData()
-  }, [SESSION, user?.id, viewerLoading, publicLayerEnabled])
+  }, [SESSION, user?.id, viewerLoading])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
   const avgScore = watchedScores.length > 0
@@ -226,16 +225,96 @@ export default function HomePage() {
 
   const sessionYear = SESSION.split('-')[0]
 
-  // ── PUBLIC-LAYER GATE ───────────────────────────────────────────────
-  // Phase 12 Batch 4. When NEXT_PUBLIC_ENABLE_PUBLIC_LAYER is 'true' and
-  // no user is in session, render PublicHome instead of the owner shell.
-  // All hooks above this point run on every render regardless of branch,
-  // which preserves the Rules of Hooks when the flag toggles between on
-  // and off across redeploys. proxy.js is still the upstream gate in
-  // prod — with the flag off, anon visitors never reach this component.
-  if (publicLayerEnabled) {
-    if (viewerLoading) return null
-    if (!user) return <PublicHome />
+  // ── ANON HOME ──────────────────────────────────────────────────────
+  // Thread 99: once proxy.js (Thread 98) opened public routes, anon users
+  // can reach "/" directly. All hooks above have already run (Rules of Hooks
+  // satisfied). Render a lean anon home — hero, live bill activity, browse
+  // tiles, sign-in CTA — instead of the authenticated dashboard.
+  if (!viewerLoading && !capabilities.isAuthed) {
+    return (
+      <div style={{ fontFamily: 'var(--font-body)', minHeight: '100vh' }}>
+
+        {/* ── HERO ─────────────────────────────────────────────── */}
+        <div style={{ padding: '48px 20px 24px', textAlign: 'center' }}>
+          <img
+            src="/logos/vector-wa-primary.svg"
+            alt="Vector | WA"
+            style={{
+              width: 150, height: 'auto', display: 'block', margin: '0 auto 18px',
+              filter: 'drop-shadow(0 0 20px rgba(184,151,90,0.28))',
+            }}
+          />
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 22, fontWeight: 600,
+            color: 'var(--text-primary)',
+            marginBottom: 8, lineHeight: 1.35,
+          }}>
+            Legislative intelligence for Washington State.
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: 320, margin: '0 auto' }}>
+            Trajectory scores for every bill in Olympia — free and nonpartisan.
+          </div>
+        </div>
+
+        {/* ── BILLS MOVING WIDGET ──────────────────────────────── */}
+        <BillsMovingWidget />
+
+        {/* ── BROWSE ENTRY TILES ───────────────────────────────── */}
+        <div style={{ padding: '24px 16px 0' }}>
+          <div style={{
+            fontSize: 10, color: 'var(--text-faint)',
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            marginBottom: 10,
+          }}>
+            Or just browse
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { href: '/search',      icon: <Search size={18} />,    label: 'Search bills' },
+              { href: '/committees',  icon: <Building2 size={18} />, label: 'Committees' },
+              { href: '/members',     icon: <Users size={18} />,     label: 'Members' },
+            ].map(({ href, icon, label }) => (
+              <Link
+                key={href}
+                href={href}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '14px 16px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  textDecoration: 'none',
+                  color: 'var(--text-primary)',
+                  fontSize: 14, fontWeight: 500,
+                }}
+              >
+                <span style={{ color: 'var(--teal)', flexShrink: 0 }}>{icon}</span>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── SIGN IN CTA ──────────────────────────────────────── */}
+        <div style={{ padding: '0 16px 100px', marginTop: 24 }}>
+          <button
+            onClick={() => router.push('/login')}
+            style={{
+              width: '100%', padding: '13px',
+              background: 'var(--brass)', color: 'var(--bg)',
+              fontWeight: 600, fontSize: 14,
+              borderRadius: 'var(--radius)',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            Sign in to access your watchlist
+          </button>
+        </div>
+
+        <Nav />
+      </div>
+    )
   }
 
   // Thread 75: show a centered loader during the initial data fetch so

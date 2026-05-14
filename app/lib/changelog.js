@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '2.1',
+    date: '2026-05-13',
+    phase: 'alpha',
+    highlights: [
+      'The home page now shows a proper experience for visitors who aren't signed in: the Vector | WA logo and tagline, the live Bills Moving feed, browse tiles for Search, Committees, and Members, and a sign-in button — no more empty watchlist shell for public visitors (Thread 99).',
+    ],
+  },
+  {
     version: '2.0',
     date: '2026-05-13',
     phase: 'alpha',
