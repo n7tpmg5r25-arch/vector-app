@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '2.3',
+    date: '2026-05-13',
+    phase: 'alpha',
+    highlights: [
+      'On bill detail pages, the trajectory score result (e.g. "99") is now visually dominant at 32px brass — the formula prefix ("BASE 56 × 1.29 =") renders smaller as supporting context. The momentum multiplier now shows an ⓘ chip with the tooltip "Momentum factor — how fast this bill moved relative to its stage." (Thread 91).',
+    ],
+  },
+  {
     version: '2.2',
     date: '2026-05-13',
     phase: 'alpha',
