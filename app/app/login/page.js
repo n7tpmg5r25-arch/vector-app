@@ -470,12 +470,14 @@ function LoginPageInner() {
           sign-in — different state machine, different endpoint, different
           confirmation flow. All four acknowledgment boxes must be checked
           before the button activates. */}
+      {/* Thread 101: beta form hidden — intake paused. Re-enable by removing display:'none'. */}
       <div style={{
         marginTop: 28,
         width: '100%',
         maxWidth: 380,
         position: 'relative',
         zIndex: 1,
+        display: 'none',
       }}>
         {/* Divider */}
         <div style={{
