@@ -8,11 +8,7 @@
 // grain dates; only Aug 1 2027 carries a specific day because it is
 // publicly committed).
 //
-// Shell mirrors /install (Thread 71 pattern):
-//   PublicNav for anon visitors when public-layer flag is on,
-//   owner Nav for authenticated users.
-//   Sticky HEADER (PR #81 pattern) — sticky only when !isAnonPublic so
-//   it doesn't stack with PublicNav's own fixed positioning.
+// Nav.js serves all viewers (anon + authed). Sticky HEADER (PR #81 pattern).
 //
 // All milestone data derives from app/lib/roadmap.js — no inline date
 // literals on this page.
@@ -28,11 +24,10 @@
 // Guardrails:
 //   G1 — No hardcoded session labels, biennium literals.
 //   G5 — No scoreBill / extractFeatures touches.
-//   G6 — Page-scoped; PublicNav top-bar is shared, not globally mounted.
+//   G6 — Page-scoped; Nav.js serves all viewers.
 
 import Link from 'next/link'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { SHIPPED, COMING } from '../../lib/roadmap'
 
@@ -195,11 +190,7 @@ function TimelineSection({ label, items }) {
 
 // ─── Page ────────────────────────────────────────────────────────────
 export default function RoadmapPage() {
-  // Mirrors the /install + /about + /methodology shell pattern:
-  // viewerLoading destructured + isAnonPublic gated on !viewerLoading so
-  // authed users don't flash PublicNav during the auth-resolve window.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   const INLINE_LINK = {
     color: 'var(--teal)',
@@ -209,20 +200,15 @@ export default function RoadmapPage() {
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {isAnonPublic && <PublicNav />}
-
-      {/* Sticky HEADER (PR #81 pattern). Sticky only when !isAnonPublic —
-          PublicNav already pins for anon visitors; stacking two
-          sticky-top-0 siblings conflicts. The 52px top padding clears the
-          fixed HamburgerButton. */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display, "Playfair Display", serif)',
@@ -290,7 +276,7 @@ export default function RoadmapPage() {
 
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

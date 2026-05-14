@@ -15,7 +15,6 @@ import { useSession } from '../../../lib/useSession'
 import { useViewer } from '../../../lib/viewer-capabilities'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
 import Nav from '../../components/Nav'
-import PublicNav from '../../components/PublicNav'
 import ScoreBadge from '../../components/ScoreBadge'
 import VectorLoader from '../../components/VectorLoader'
 import { Check, Bell } from 'lucide-react'
@@ -36,10 +35,7 @@ export default function CommitteeDetail() {
   const slug = params?.slug
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  // Thread 15.2: gate isAnonPublic on !viewerLoading so authed users no longer
-  // flash PublicNav (and lose the bottom Nav) during the auth resolve window.
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [committee, setCommittee] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -155,30 +151,27 @@ export default function CommitteeDetail() {
   if (notFound) {
     return (
       <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
-        {isAnonPublic && <PublicNav />}
-        <div style={{ padding: 60, textAlign: 'center' }}>
+          <div style={{ padding: 60, textAlign: 'center' }}>
           <div style={{ fontSize: 16, color: 'var(--text-muted)', marginBottom: 12 }}>Committee not found.</div>
           <button onClick={() => router.push('/committees')} style={{
             padding: '8px 16px', fontSize: 12, background: 'var(--teal)', color: 'var(--bg)',
             border: 'none', borderRadius: 8, cursor: 'pointer',
           }}>Back to Committees</button>
         </div>
-        {!viewerLoading && !isAnonPublic && <Nav />}
+        {!viewerLoading && <Nav />}
       </div>
     )
   }
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-      {isAnonPublic && <PublicNav />}
       {/* HEADER */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
+        padding: '52px 16px 14px',
+        position: 'sticky', top: 0, zIndex: 40,
       }}>
         <button onClick={() => router.push('/committees')} style={{
           background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: 11,
@@ -451,7 +444,7 @@ export default function CommitteeDetail() {
         </>
       )}
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

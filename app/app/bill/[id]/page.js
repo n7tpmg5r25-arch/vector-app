@@ -7,7 +7,6 @@ import { useViewer } from '../../../lib/viewer-capabilities'
 import ScoreBadge from '../../components/ScoreBadge'
 import MeetingBadge from '../../components/MeetingBadge'
 import Nav from '../../components/Nav'
-import PublicNav from '../../components/PublicNav'
 import CohortCitation from '../../components/CohortCitation'
 import { scoreToEnglish } from '../../../lib/score-to-english'
 import { isInterimPeriod, isPostBienniumClose, getCurrentBiennium, getNextBiennium, formatSessionDate, getCurrentSession, bienniumShortLabel } from '../../../lib/session-config'
@@ -394,10 +393,7 @@ export default function BillDetailPage() {
   const params = useParams()
   const billId = params.id
   const supabase = createBrowserClient()
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  // Thread 15.2: gate isAnonPublic on !viewerLoading so authed users no longer
-  // flash PublicNav (and lose the bottom Nav) during the auth resolve window.
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [bill, setBill]         = useState(null)
   const [snapshots, setSnapshots] = useState([])
@@ -718,10 +714,8 @@ export default function BillDetailPage() {
     /* Batch 1.5 E: error-state parity with the Hearings interim empty state —
        icon + headline + explanatory copy + CTA + Nav, instead of stranding the
        user on a blank viewport.
-       Batch 5: anon visitors get PublicNav at top + no owner Nav. */
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)', background: 'var(--bg)', minHeight: '100vh' }}>
-      {isAnonPublic && <PublicNav />}
-      <div style={{ padding: isAnonPublic ? '24px 16px 24px' : '80px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: '80px 16px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{
           padding: '40px 20px', textAlign: 'center',
           background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -749,7 +743,7 @@ export default function BillDetailPage() {
           >Back to search</button>
         </div>
       </div>
-      {!viewerLoading && !isAnonPublic && <Nav/>}
+      {!viewerLoading && <Nav/>}
     </div>
   )
 
@@ -836,17 +830,14 @@ export default function BillDetailPage() {
         />
       )}
 
-      {/* ── PUBLIC NAV (anon + public-layer flag only) ──── */}
-      {isAnonPublic && <PublicNav />}
-
       {/* ── STICKY HEADER ──────────────────────────────── */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: isAnonPublic ? '12px 16px 12px' : '52px 16px 12px',
+        padding: '52px 16px 12px',
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 50,
+        position: 'sticky', top: 0, zIndex: 50,
       }}>
         <button onClick={() => goBackOrFallback(router, '/')} style={{ background: 'none', border: 'none', fontSize: 14, color: 'var(--teal)', fontWeight: 500, cursor: 'pointer' }}>
           ← Back
@@ -2568,7 +2559,7 @@ export default function BillDetailPage() {
           </div>
         )}
       </div>
-      {!viewerLoading && !isAnonPublic && <Nav/>}
+      {!viewerLoading && <Nav/>}
     </div>
   )
 }

@@ -1,8 +1,7 @@
 'use client'
 // Thread 24 -- /about Public About Page (2026-04-26)
 // Short About surface explaining the project + free-launch timeline.
-// Mirrors the /install shell pattern (PublicNav for anon when the
-// public-layer flag is on, owner Nav for authed viewers).
+// Nav.js serves all viewers (anon + authed) — no PublicNav branch needed.
 //
 // Per directive D1 (CLAUDE.md, 2026-04-26): the public-facing site must NOT
 // mention Shorepine Government Relations in any visible copy. This page is
@@ -18,10 +17,8 @@
 //   G1 -- No hardcoded session labels or biennium literals. The launch
 //         framing ("mid 2027") is a target date, not a session-bound string.
 //   G5 -- No scoreBill / extractFeatures touches; no cohort literal touches.
-//   G6 -- Page-scoped surface; PublicNav top-bar shared across public routes
-//         is unchanged structurally.
+//   G6 -- Page-scoped surface; Nav.js serves all viewers.
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import { useViewer } from '../../lib/viewer-capabilities'
 
 const CARD = {
@@ -47,31 +44,19 @@ const EYEBROW = {
 const HIGHLIGHT = { color: 'var(--teal)', fontWeight: 600, marginRight: 4 }
 
 export default function AboutPage() {
-  // Mirrors the install-page shell -- viewerLoading destructured + isAnonPublic
-  // gated on !viewerLoading so authed users don't flash PublicNav during
-  // auth resolve (Thread 15.2 pattern).
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {isAnonPublic && <PublicNav />}
-
-      {/* Locked HEADER (Phase 5 polish 2026-05-01).
-          Sticky only when !isAnonPublic -- for anon viewers PublicNav
-          is already sticky at top:0 zIndex:50 above this; making both
-          sticky at top:0 would stack-conflict (the later sibling would
-          obscure PublicNav). For authed viewers there's no top bar,
-          so HEADER becomes the sticky brand chrome itself. The 52px
-          top padding clears the fixed-position HamburgerButton. */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display)',
@@ -233,7 +218,7 @@ export default function AboutPage() {
 
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

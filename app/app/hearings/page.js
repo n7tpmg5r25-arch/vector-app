@@ -7,7 +7,6 @@ import { isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VectorLoader from '../components/VectorLoader'
 import { Bookmark, Calendar, Check } from 'lucide-react'
@@ -16,14 +15,7 @@ export default function HearingsPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
-  // Batch 6 adds `publicLayerEnabled` + `isAnonPublic` for the PublicNav swap
-  // + Subscribe gating.
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  // Thread 15.2: gate isAnonPublic on !viewerLoading to stop the brief flash
-  // of PublicNav (and bottom-Nav suppression) for authed viewers during the
-  // useViewer() loading window.
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { user, capabilities, loading: viewerLoading } = useViewer()
 
   const [hearings, setHearings]     = useState([])
   const [billHearings, setBillHearings] = useState([])
@@ -90,14 +82,12 @@ export default function HearingsPage() {
 
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-      {isAnonPublic && <PublicNav />}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
+        padding: '52px 16px 14px',
+        position: 'sticky', top: 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
@@ -351,7 +341,7 @@ export default function HearingsPage() {
           </div>
         )}
       </div>
-      {!viewerLoading && !isAnonPublic && <Nav/>}
+      {!viewerLoading && <Nav/>}
     </div>
   )
 }

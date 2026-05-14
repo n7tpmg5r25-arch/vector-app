@@ -21,7 +21,6 @@ import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VectorLoader from '../components/VectorLoader'
 
@@ -70,11 +69,7 @@ export default function CommitteesPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
-  // so authed users no longer flash PublicNav during the auth-resolve window.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   const [view, setView] = useState('calendar') // 'calendar' | 'by-committee'
   const [chamberFilter, setChamberFilter] = useState('All')
@@ -241,16 +236,13 @@ export default function CommitteesPage() {
 
   return (
     <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — anon visitors get PublicNav at top + no owner Nav below. */}
-      {isAnonPublic && <PublicNav />}
-
       {/* HEADER */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
+        padding: '52px 16px 14px',
+        position: 'sticky', top: 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{
@@ -400,7 +392,7 @@ export default function CommitteesPage() {
         />
       )}
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

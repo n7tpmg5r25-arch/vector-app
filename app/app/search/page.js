@@ -8,7 +8,6 @@ import { useViewer } from '../../lib/viewer-capabilities'
 import { isInterimPeriod } from '../../lib/session-config'
 import { useDebouncedValue } from '../../lib/use-debounced-value'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import CohortCitation from '../components/CohortCitation'
 import DropdownMenu from '../components/DropdownMenu'
@@ -59,16 +58,7 @@ function SearchContent() {
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
-  // Batch 6 adds `publicLayerEnabled` + `isAnonPublic` so the page can swap
-  // the bottom Nav for a sticky PublicNav when an anon visitor lands here
-  // with the flag on.
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  // Thread 15.2: gate isAnonPublic on !viewerLoading. Without the gate, the
-  // brief async window before useViewer() resolves leaves user=null for
-  // everyone (authed or not), which made the page flash PublicNav and hide
-  // the bottom Nav for authed users until auth resolved.
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { user, capabilities, loading: viewerLoading } = useViewer()
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -201,15 +191,13 @@ function SearchContent() {
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-      {isAnonPublic && <PublicNav />}
       {/* Header */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 12px' : '52px 16px 12px',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
+        padding: '52px 16px 12px',
+        position: 'sticky', top: 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{
@@ -557,7 +545,7 @@ function SearchContent() {
         )}
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav/>}
+      {!viewerLoading && <Nav/>}
     </div>
   )
 }
