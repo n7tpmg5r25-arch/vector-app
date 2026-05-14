@@ -1,6 +1,6 @@
 // Vector | WA Service Worker — Free legislative intelligence for Washington State (lightweight offline shell cache)
-// v4 (2026-05-02) — bumped to invalidate stale Phase-4 caches (Threads 42-48 shipped after v3, including Footer Shorepine attribution removal).
-const CACHE_NAME = 'vector-wa-v4';
+// v5 (2026-05-12) — bumped to invalidate stale Phase-5/6 caches (Threads 57-84c shipped after v4, including SEO, session picker, loading screens).
+const CACHE_NAME = 'vector-wa-v5';
 
 // Pages and assets to cache for offline shell
 const SHELL_ASSETS = [

@@ -28,11 +28,8 @@
 //   G1 -- No hardcoded session labels or biennium literals. Entry dates are
 //         absolute ISO yyyy-mm-dd; the version helper handles phase rollover.
 //   G5 -- No scoreBill / extractFeatures touches.
-//   G6 -- Page-scoped surface; PublicNav top-bar shared across public routes
-//         is unchanged structurally. SideDrawer (globally mounted) carries
-//         the version pill that points here.
+//   G6 -- Page-scoped surface; Nav.js serves all viewers.
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { CHANGELOG } from '../../lib/changelog'
 
@@ -131,28 +128,19 @@ function formatDate(iso) {
 }
 
 export default function ChangelogPage() {
-  // Mirror /about: viewerLoading destructured + isAnonPublic gated on
-  // !viewerLoading so authed users don't flash PublicNav during auth resolve
-  // (Thread 15.2 pattern, reused throughout the public-layer surfaces).
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {isAnonPublic && <PublicNav />}
-
-      {/* Locked HEADER -- mirrors the /about pattern (PR #81).
-          Sticky only when !isAnonPublic; for anon viewers PublicNav is
-          already sticky at top:0 above this. The 52px top padding clears
-          the fixed-position HamburgerButton for authed viewers. */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display)',
@@ -237,7 +225,7 @@ export default function ChangelogPage() {
 
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

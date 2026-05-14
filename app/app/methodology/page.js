@@ -17,7 +17,6 @@
 // they are no longer used as initial state.
 import { useEffect, useState } from 'react'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import CohortCitation from '../components/CohortCitation'
 import { createBrowserClient } from '../../lib/supabase'
 import { getCurrentSession, isInterimPeriod } from '../../lib/session-config'
@@ -129,11 +128,7 @@ const TIER_COLOR = {
 }
 
 export default function MethodologyPage() {
-  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
-  // so authed users no longer flash PublicNav during auth resolve.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   // 7V.1 / Thread 67 (2026-05-03): live calibration state machine.
   //   null      → query in-flight; render skeleton
@@ -264,21 +259,15 @@ export default function MethodologyPage() {
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-      {isAnonPublic && <PublicNav />}
-
-      {/* Locked HEADER (Phase 5 polish 2026-05-01).
-          Sticky only when !isAnonPublic -- PublicNav already pins for
-          anon viewers and stacking two sticky-top-0 siblings conflicts.
-          The 52px top padding clears the fixed-position HamburgerButton. */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display)',
@@ -965,7 +954,7 @@ export default function MethodologyPage() {
 
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

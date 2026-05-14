@@ -9,7 +9,6 @@ import { getCurrentSession, getAllSessions, bienniumShortLabel } from '../../lib
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
@@ -40,11 +39,7 @@ function MembersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
-  // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
-  // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
-  // so authed users no longer flash PublicNav during auth resolve.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
   // Thread 12.2: deep-link from a bill page lands here with
   // ?selectedName=<full name>. We pre-fill the search input and, once the
   // members list loads, auto-select on exact case-insensitive match.
@@ -490,11 +485,9 @@ function MembersContent() {
     const tier = tierLabel(selectedMember.tier)
     return (
       <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
-        {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-        {isAnonPublic && <PublicNav />}
         <div style={{
           background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
-          padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+          padding: '52px 20px 20px',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
@@ -950,7 +943,7 @@ function MembersContent() {
             </>
           )}
         </div>
-        {!viewerLoading && !isAnonPublic && <Nav/>}
+        {!viewerLoading && <Nav/>}
       </div>
     )
   }
@@ -958,14 +951,12 @@ function MembersContent() {
   // ── MEMBERS LIST VIEW ────────────────────────────────
   return (
     <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
-      {isAnonPublic && <PublicNav />}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
-        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
+        padding: '52px 16px 14px',
+        position: 'sticky', top: 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
@@ -1396,7 +1387,7 @@ function MembersContent() {
           )
         })}
       </div>}
-      {!viewerLoading && !isAnonPublic && <Nav/>}
+      {!viewerLoading && <Nav/>}
     </div>
   )
 }

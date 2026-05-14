@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '2.2',
+    date: '2026-05-13',
+    phase: 'alpha',
+    highlights: [
+      'Nav is now unified: all 13 public pages — About, Browse Bills, Bill Detail, Committees, Committee Detail, Hearings, Members, Methodology, Outcomes, Roadmap, Changelog, Install, and Disclaimers — use the same bottom Nav with the correct "Committees" label and hamburger drawer, for both signed-in and signed-out visitors (Thread 100).',
+    ],
+  },
+  {
     version: '2.1',
     date: '2026-05-13',
     phase: 'alpha',

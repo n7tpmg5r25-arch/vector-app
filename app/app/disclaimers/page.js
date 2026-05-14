@@ -2,11 +2,8 @@
 /**
  * Disclaimers — Phase 5 polish (2026-05-01).
  *
- * Converted to a 'use client' component to bring the page in line with
- * the about / methodology / install shell pattern: PublicNav for
- * anon visitors when the public-layer flag is on, owner Nav for authed
- * viewers, and a viewer-aware sticky HEADER (locked when !isAnonPublic
- * so the brand chrome stays anchored as users scroll the long body).
+ * Converted to a 'use client' component. Nav.js serves all viewers.
+ * Sticky HEADER stays anchored as users scroll the long body.
  *
  * Metadata moved to disclaimers/layout.js since 'use client' modules
  * can't export `metadata`. SEO behavior is unchanged.
@@ -14,7 +11,6 @@
  * Mobile-only by design (Vector | WA mobile column directive).
  */
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import CohortCitation from '../components/CohortCitation'
 import { useViewer } from '../../lib/viewer-capabilities'
 
@@ -48,25 +44,19 @@ function P({ children }) {
 }
 
 export default function DisclaimersPage() {
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-karla, Karla, sans-serif)' }}>
-      {isAnonPublic && <PublicNav />}
-
-      {/* Locked HEADER (Phase 5 polish 2026-05-01).
-          Sticky only when !isAnonPublic -- PublicNav already pins for
-          anon viewers and stacking two sticky-top-0 siblings conflicts.
-          The 52px top padding clears the fixed-position HamburgerButton. */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontSize: 10,
@@ -139,7 +129,7 @@ export default function DisclaimersPage() {
         </P>
       </main>
 
-      {!isAnonPublic && !viewerLoading && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }

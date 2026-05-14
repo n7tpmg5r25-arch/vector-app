@@ -18,9 +18,7 @@
 // Mobile-only by design (480-px column). Vector | WA palette via CSS vars
 // only — no Shorepine firm Forest/Parchment.
 //
-// Anon-aware shell mirrors /about (Thread 24 pattern) — PublicNav for anon
-// visitors when the public-layer flag is on, owner Nav otherwise. Sticky
-// HEADER pattern from PR #81.
+// Nav.js serves all viewers (anon + authed). Sticky HEADER pattern from PR #81.
 //
 // Three Truths anchoring (Brand v1.2):
 //   #1 Human relationships > software → quiet, modest framing. No
@@ -32,11 +30,9 @@
 // Guardrails honored:
 //   G1 — No hardcoded session labels, cutoff dates, or biennium literals.
 //   G5 — No scoreBill / extractFeatures / cohort literal touches.
-//   G6 — Page-scoped surface; PublicNav top-bar is shared but not globally
-//        mounted. Layer discipline preserved.
+//   G6 — Page-scoped surface; Nav.js serves all viewers.
 import Link from 'next/link'
 import Nav from '../components/Nav'
-import PublicNav from '../components/PublicNav'
 import InstallPrompt from '../components/InstallPrompt'
 import { useViewer } from '../../lib/viewer-capabilities'
 
@@ -68,28 +64,19 @@ const INLINE_LINK = {
 }
 
 export default function InstallPage() {
-  // Mirrors the /about + /methodology shell (Thread 15.2 pattern):
-  // viewerLoading destructured + isAnonPublic gated on !viewerLoading so
-  // authed users don't flash PublicNav during the auth-resolve window.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+  const { loading: viewerLoading } = useViewer()
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {isAnonPublic && <PublicNav />}
-
-      {/* Locked HEADER (PR #81 pattern). Sticky only when !isAnonPublic --
-          PublicNav already pins for anon viewers and stacking two
-          sticky-top-0 siblings conflicts. The 52px top padding clears the
-          fixed-position HamburgerButton (Nav.js + drawer). */}
+      {/* Sticky HEADER — 52px top padding clears the HamburgerButton. */}
       <div style={{
-        position: !isAnonPublic ? 'sticky' : 'static',
+        position: 'sticky',
         top: 0, zIndex: 50,
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+        padding: '52px 20px 20px',
       }}>
         <div style={{
           fontFamily: 'var(--font-display)',
@@ -202,7 +189,7 @@ export default function InstallPage() {
 
       </div>
 
-      {!viewerLoading && !isAnonPublic && <Nav />}
+      {!viewerLoading && <Nav />}
     </div>
   )
 }
