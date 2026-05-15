@@ -921,12 +921,12 @@ export default function BillDetailPage() {
               className="vec-cta-primary"
               style={{
                 padding: '7px 16px',
-                background: tracked ? 'var(--gold-pale)' : 'var(--teal-pale)',
-                border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'rgba(184,151,90,0.3)'}`,
+                background: tracked ? 'var(--gold-pale)' : 'var(--teal)',
+                border: `1px solid ${tracked ? 'rgba(184,151,90,0.3)' : 'var(--teal)'}`,
                 borderRadius: 20, fontSize: 12, fontWeight: 600,
-                color: tracked ? 'var(--gold)' : 'var(--teal)',
+                color: tracked ? 'var(--gold)' : 'var(--bg)',
                 cursor: 'pointer',
-                boxShadow: tracked ? 'var(--gold-glow)' : '0 0 24px rgba(184,151,90,0.12)',
+                boxShadow: tracked ? 'var(--gold-glow)' : '0 0 28px rgba(184,151,90,0.30)',
               }}
             >
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
