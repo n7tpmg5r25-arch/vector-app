@@ -1662,18 +1662,30 @@ export default function BillDetailPage() {
                   </svg>
                 </button>
               </div>
+              {/* Thread 91: formula prefix 13px muted, result 32px brass dominant */}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
                   BASE {baseTotal || bill.trajectory_score || '—'}
                 </span>
                 {xfMult && xfMult !== 1 && (
                   <>
-                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>×</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>×</span>
+                    {/* Thread 91: momentum multiplier info chip */}
+                    <span
+                      title="Momentum factor — how fast this bill moved relative to its stage."
+                      style={{
+                        fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)',
+                        cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3,
+                      }}
+                    >
                       {Number(xfMult).toFixed(2)}
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.5 }}>
+                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                        <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
+                      </svg>
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>=</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--teal)', fontWeight: 700 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>=</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
                       {score}
                     </span>
                   </>
