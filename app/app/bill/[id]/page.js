@@ -968,6 +968,99 @@ export default function BillDetailPage() {
           </div>
         </div>
 
+        {/* ── SCORE FORMULA BLOCK (Thread 92: moved above status banners) ── */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0e1014 0%, #0a0c12 100%)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
+        }}>
+          <ScoreBadge score={score} size="lg" status={confLabel}/>
+          <div style={{ flex: 1 }}>
+            {/* Phase 5C.5: trajectory score info icon + tooltip */}
+            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>Trajectory Score</span>
+              <button
+                type="button"
+                aria-label="About the trajectory score"
+                onClick={() => setScoreInfoOpen(v => !v)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-faint)', padding: 0, lineHeight: 0,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+              </button>
+            </div>
+            {/* Thread 91: formula prefix 13px muted, result 32px brass dominant */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
+                BASE {baseTotal || bill.trajectory_score || '—'}
+              </span>
+              {xfMult && xfMult !== 1 && (
+                <>
+                  <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>×</span>
+                  {/* Thread 91: momentum multiplier info chip */}
+                  <span
+                    title="Momentum factor — how fast this bill moved relative to its stage."
+                    style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)',
+                      cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3,
+                    }}
+                  >
+                    {Number(xfMult).toFixed(2)}
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.5 }}>
+                      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                      <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
+                    </svg>
+                  </span>
+                  <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>=</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
+                    {score}
+                  </span>
+                </>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {['LAW', 'PASSED_CHAMBER', 'DEAD'].includes(confLabel)
+                ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'PASSED_CHAMBER' ? 'Passed chamber — did not become law' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
+                : <>{getBucketLabel(score).rate}% historical pass rate · <span style={{ color: confColor }}>{confLabel}</span> signal</>
+              }
+            </div>
+          </div>
+        </div>
+
+        {/* Phase 5C.5: Trajectory score explanation panel */}
+        {scoreInfoOpen && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '14px 16px', fontSize: 12,
+            color: 'var(--text-muted)', lineHeight: 1.6,
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              How the trajectory score works
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              The score is a weighted sum of five signal components, multiplied by an X-factor adjustment, capped at 99 (100 is reserved for bills signed into law):
+            </div>
+            <ul style={{ margin: '0 0 8px 18px', padding: 0 }}>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Committee (0–25)</strong> — hearings held, executive action, committee passage</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Sponsor (0–20)</strong> — majority party, chair status, bipartisan cosponsors</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Momentum (0–20)</strong> — recent activity, substitutes filed, stalled penalties</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Historical (0–20)</strong> — category pass rates from prior sessions</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Fiscal (0–15)</strong> — lower for bills with larger fiscal notes</li>
+            </ul>
+            <div style={{ marginBottom: 8 }}>
+              <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
+            </div>
+            <div>
+              Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
+            </div>
+          </div>
+        )}
+
         {/* 6B.2: Session-ended banner for dead/carried-over bills during interim */}
         {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
           <div style={{
@@ -1636,98 +1729,6 @@ export default function BillDetailPage() {
             </div>
           )}
 
-          {/* Score + Score breakdown row */}
-          <div style={{
-            background: 'linear-gradient(135deg, #0e1014 0%, #0a0c12 100%)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
-          }}>
-            <ScoreBadge score={score} size="lg" status={confLabel}/>
-            <div style={{ flex: 1 }}>
-              {/* Phase 5C.5: trajectory score info icon + tooltip */}
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>Trajectory Score</span>
-                <button
-                  type="button"
-                  aria-label="About the trajectory score"
-                  onClick={() => setScoreInfoOpen(v => !v)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--text-faint)', padding: 0, lineHeight: 0,
-                  }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                  </svg>
-                </button>
-              </div>
-              {/* Thread 91: formula prefix 13px muted, result 32px brass dominant */}
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
-                  BASE {baseTotal || bill.trajectory_score || '—'}
-                </span>
-                {xfMult && xfMult !== 1 && (
-                  <>
-                    <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>×</span>
-                    {/* Thread 91: momentum multiplier info chip */}
-                    <span
-                      title="Momentum factor — how fast this bill moved relative to its stage."
-                      style={{
-                        fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)',
-                        cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3,
-                      }}
-                    >
-                      {Number(xfMult).toFixed(2)}
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.5 }}>
-                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-                        <text x="8" y="11.5" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">i</text>
-                      </svg>
-                    </span>
-                    <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>=</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
-                      {score}
-                    </span>
-                  </>
-                )}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {['LAW', 'PASSED_CHAMBER', 'DEAD'].includes(confLabel)
-                  ? <>{confLabel === 'LAW' ? 'Signed into law' : confLabel === 'PASSED_CHAMBER' ? 'Passed chamber — did not become law' : 'Dead — session ended'}{bill.signal_tier && <> · Signal was <span style={{ color: bill.signal_tier === 'HIGH' ? 'var(--teal)' : bill.signal_tier === 'MODERATE' ? 'var(--gold)' : 'var(--text-faint)' }}>{bill.signal_tier}</span></>}</>
-                  : <>{getBucketLabel(score).rate}% historical pass rate · <span style={{ color: confColor }}>{confLabel}</span> signal</>
-                }
-              </div>
-            </div>
-          </div>
-
-          {/* Phase 5C.5: Trajectory score explanation panel */}
-          {scoreInfoOpen && (
-            <div style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', padding: '14px 16px', fontSize: 12,
-              color: 'var(--text-muted)', lineHeight: 1.6,
-            }}>
-              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                How the trajectory score works
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                The score is a weighted sum of five signal components, multiplied by an X-factor adjustment, capped at 99 (100 is reserved for bills signed into law):
-              </div>
-              <ul style={{ margin: '0 0 8px 18px', padding: 0 }}>
-                <li><strong style={{ color: 'var(--text-primary)' }}>Committee (0–25)</strong> — hearings held, executive action, committee passage</li>
-                <li><strong style={{ color: 'var(--text-primary)' }}>Sponsor (0–20)</strong> — majority party, chair status, bipartisan cosponsors</li>
-                <li><strong style={{ color: 'var(--text-primary)' }}>Momentum (0–20)</strong> — recent activity, substitutes filed, stalled penalties</li>
-                <li><strong style={{ color: 'var(--text-primary)' }}>Historical (0–20)</strong> — category pass rates from prior sessions</li>
-                <li><strong style={{ color: 'var(--text-primary)' }}>Fiscal (0–15)</strong> — lower for bills with larger fiscal notes</li>
-              </ul>
-              <div style={{ marginBottom: 8 }}>
-                <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
-              </div>
-              <div>
-                Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── KEY INFO GRID ──────────────────────────────── */}
