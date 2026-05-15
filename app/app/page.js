@@ -525,12 +525,12 @@ export default function HomePage() {
         </div>
 
         {/* ── WATCHLIST SUMMARY ─────────────────────────────── */}
+        <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+          Your Watchlist
+        </div>
         {watchlist.length > 0 ? (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                Your Watchlist
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 10 }}>
               <button onClick={() => router.push('/watchlist')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
                 View all →
               </button>
@@ -645,6 +645,13 @@ export default function HomePage() {
             >Browse {SESSION} Bills</button>
           </div>
         )}
+
+        {/* ── GLOBAL ZONE: SESSION INTELLIGENCE ─────────────────── */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+            Session Intelligence · {bienniumShortLabel(SESSION)}
+          </div>
+        </div>
 
         {/* ── SESSION OUTCOMES (interim) / TOP TRAJECTORY (active) ─── */}
         {isInterimPeriod() ? (
