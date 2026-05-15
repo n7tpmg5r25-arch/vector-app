@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.0',
+    date: '2026-05-15',
+    phase: 'alpha',
+    highlights: [
+      'Home dashboard now has two clearly labeled zones — "YOUR WATCHLIST" for your personal tracked bills and "SESSION INTELLIGENCE · 2025-26" for legislature-wide data — so the difference between your portfolio and the whole session is immediately obvious (Thread 95).',
+      'A thin rule divides the personal zone from the global zone, giving the home page a cleaner reading hierarchy without changing any of the underlying data (Thread 95).',
+    ],
+  },
+  {
     version: '1.9',
     date: '2026-05-15',
     phase: 'alpha',
