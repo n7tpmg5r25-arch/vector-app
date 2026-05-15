@@ -419,6 +419,7 @@ export default function BillDetailPage() {
   const [editingSummary, setEditingSummary] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
   const [savingSummary, setSavingSummary] = useState(false)
+  const [summaryExpanded, setSummaryExpanded] = useState({}) // Thread 94: section header → expanded bool
   // Phase 7S: Analyst notes (bill_notes table)
   const [billNotes, setBillNotes]       = useState([])
   const [noteBody, setNoteBody]         = useState('')
@@ -1347,36 +1348,83 @@ export default function BillDetailPage() {
               </>
             ) : (
               <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-                {(bill.custom_summary || bill.ai_summary || '').split('\n').map((line, i) => {
-                  const trimmed = line.trim()
-                  // Section headers: **EXECUTIVE SUMMARY**, **WHO IS AFFECTED**, etc.
-                  const headerMatch = trimmed.match(/^\*\*(.+?)\*\*$/)
-                  if (headerMatch) {
+                {(() => {
+                  // Thread 94: progressive disclosure — WHO IS AFFECTED + KEY PROVISIONS collapse
+                  const COLLAPSIBLE = new Set(['WHO IS AFFECTED', 'KEY PROVISIONS'])
+                  const MAX_CONTENT = 2 // non-blank lines shown before "Show more"
+
+                  // Parse raw text into sections: [{ header: string|null, lines: string[] }]
+                  const raw = (bill.custom_summary || bill.ai_summary || '').split('\n')
+                  const sections = []
+                  let cur = { header: null, lines: [] }
+                  for (const line of raw) {
+                    const m = line.trim().match(/^\*\*(.+?)\*\*$/)
+                    if (m) {
+                      if (cur.header !== null || cur.lines.some(l => l.trim())) sections.push(cur)
+                      cur = { header: m[1], lines: [] }
+                    } else {
+                      cur.lines.push(line)
+                    }
+                  }
+                  if (cur.header !== null || cur.lines.some(l => l.trim())) sections.push(cur)
+
+                  const renderLine = (line, i) => {
+                    const t = line.trim()
+                    if (!t) return <div key={i} style={{ height: 6 }} />
+                    const parts = t.split(/\*\*(.+?)\*\*/)
                     return (
-                      <div key={i} style={{
-                        fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
-                        color: 'var(--teal)', letterSpacing: '0.06em',
-                        marginTop: i > 0 ? 14 : 0, marginBottom: 4,
-                        textTransform: 'uppercase',
-                      }}>
-                        {headerMatch[1]}
-                      </div>
+                      <p key={i} style={{ margin: '0 0 4px 0' }}>
+                        {parts.map((part, j) =>
+                          j % 2 === 1
+                            ? <strong key={j} style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{part}</strong>
+                            : <span key={j}>{part}</span>
+                        )}
+                      </p>
                     )
                   }
-                  // Blank lines become spacing
-                  if (!trimmed) return <div key={i} style={{ height: 6 }} />
-                  // Paragraph text — handle inline **bold** within text
-                  const parts = trimmed.split(/\*\*(.+?)\*\*/)
-                  return (
-                    <p key={i} style={{ margin: '0 0 4px 0' }}>
-                      {parts.map((part, j) =>
-                        j % 2 === 1
-                          ? <strong key={j} style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{part}</strong>
-                          : <span key={j}>{part}</span>
-                      )}
-                    </p>
-                  )
-                })}
+
+                  return sections.map((sec, si) => {
+                    const collapsible = sec.header && COLLAPSIBLE.has(sec.header.toUpperCase())
+                    const expanded = !!summaryExpanded[sec.header]
+                    const contentCount = sec.lines.filter(l => l.trim()).length
+                    const needsTrunc = collapsible && contentCount > MAX_CONTENT
+
+                    let visibleLines = sec.lines
+                    if (needsTrunc && !expanded) {
+                      let seen = 0
+                      const cutoff = sec.lines.findIndex(l => { if (l.trim()) seen++; return seen > MAX_CONTENT })
+                      visibleLines = cutoff === -1 ? sec.lines : sec.lines.slice(0, cutoff)
+                    }
+
+                    return (
+                      <div key={si}>
+                        {sec.header && (
+                          <div style={{
+                            fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                            color: 'var(--teal)', letterSpacing: '0.06em',
+                            marginTop: si > 0 ? 14 : 0, marginBottom: 4,
+                            textTransform: 'uppercase',
+                          }}>
+                            {sec.header}
+                          </div>
+                        )}
+                        {visibleLines.map((line, i) => renderLine(line, i))}
+                        {needsTrunc && (
+                          <button
+                            onClick={() => setSummaryExpanded(prev => ({ ...prev, [sec.header]: !expanded }))}
+                            style={{
+                              marginTop: 2, padding: 0, background: 'none', border: 'none',
+                              cursor: 'pointer', fontSize: 10, fontFamily: 'var(--font-mono)',
+                              color: 'var(--gold)', letterSpacing: '0.05em', display: 'block',
+                            }}
+                          >
+                            {expanded ? '▲ SHOW LESS' : '▼ SHOW MORE'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             )}
 
