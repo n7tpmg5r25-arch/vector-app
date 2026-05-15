@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '1.9',
+    date: '2026-05-15',
+    phase: 'alpha',
+    highlights: [
+      'Bill detail score formula now shows the result (e.g. "86") at 32px in brass — visually dominant over the formula prefix — so the conclusion is immediately readable without scanning the calculation (Thread 91).',
+      'Momentum multiplier on the formula line (e.g. "1.29") now shows a tappable info chip explaining it is a momentum factor — how fast the bill moved relative to its stage (Thread 91).',
+    ],
+  },
+  {
     version: '1.8',
     date: '2026-05-12',
     phase: 'alpha',
