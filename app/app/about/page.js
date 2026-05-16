@@ -140,32 +140,32 @@ export default function AboutPage() {
                 {
                   src: '/about/01-bill-detail.png',
                   caption: 'Bill detail with the score sparkline, the latest floor vote, and an AI-generated plain-English summary. The score is calibrated against past outcomes — this one passed.',
-                  alt: 'Vector | WA bill detail page for HB 2340 showing a score of 99 and a Senate floor vote of 46-2.',
+                  alt: 'Vector | WA bill detail page for SB 6226 showing a score of 99, a Senate floor vote of 49-0, and a score sparkline.',
                 },
                 {
                   src: '/about/02-search.png',
                   caption: 'Browse and filter every bill in flight. Score, outcome, stage, and category chips narrow the list; LAW / PASS / DEAD badges show where each bill ended up.',
-                  alt: 'Vector | WA search page showing a list of signed bills with score badges and outcome labels.',
+                  alt: 'Vector | WA search page showing signed-into-law bills sorted by top score with LAW badges and outcome labels.',
                 },
                 {
                   src: '/about/03-members-heatmap.png',
                   caption: 'Every legislator ranked by legislative success. Heatmap and list views, both chambers, both parties.',
-                  alt: 'Vector | WA members heatmap showing top House and Senate legislators ranked by laws sponsored.',
+                  alt: 'Vector | WA members heatmap showing 147 active legislators with top House and Senate members ranked by laws sponsored.',
                 },
                 {
                   src: '/about/04-member-detail.png',
                   caption: 'Drill into any legislator: bills sponsored, committee pass rate, cross-party voting signal, and where their bills tend to end up.',
-                  alt: 'Vector | WA member detail page for Joe Fitzgibbon showing 18 bills, 5 committee passes, 3 laws, and a 40 average score.',
+                  alt: 'Vector | WA member detail page for Marko Liias showing 60 bills, 41 committee passes, 14 laws, and a 58 average score.',
                 },
                 {
                   src: '/about/05-committees.png',
                   caption: 'Every committee meeting in the next two weeks, House and Senate, joint committees included.',
-                  alt: 'Vector | WA committees calendar showing a Joint Committee on Employment Relations meeting on May 8.',
+                  alt: 'Vector | WA committees calendar showing Environment and Energy and Select Committee on Pension Policy meetings on May 18-19.',
                 },
                 {
                   src: '/about/06-print-brief.png',
                   caption: 'One-tap PDF brief for any bill — score, key provisions, top X-factors, sponsor, committee, and the full vote tally on a single page.',
-                  alt: 'Vector | WA Print Brief PDF preview for HB 2340 showing a clean print-ready bill summary.',
+                  alt: 'Vector | WA Print Brief PDF preview showing a clean print-ready bill summary with score, provisions, and vote tally.',
                 },
               ].map((img, i) => (
                 <figure key={img.src} style={{ margin: 0 }}>
