@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.2',
+    date: '2026-05-15',
+    phase: 'alpha',
+    highlights: [
+      'Swipe left on any watchlist bill card to reveal two quick actions: Highlight (brass) marks the bill for your next report, Remove deletes it from your watchlist in one tap — no more navigating to the bill detail page (Thread 102).',
+      'When one or more bills are highlighted, the export button switches to "Export selected (N)" and the brief covers only those bills — sharper, faster reports for lobbyist workflows (Thread 102).',
+      'Highlighted cards get a brass left-border accent and a "FOR REPORT" label in the top corner. Opening a second card snaps the previous one closed. Highlight state resets on refresh, keeping the list clean between sessions (Thread 102).',
+    ],
+  },
+  {
     version: '2.1',
     date: '2026-05-15',
     phase: 'alpha',

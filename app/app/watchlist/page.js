@@ -11,6 +11,7 @@ import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
 import VectorLoader from '../components/VectorLoader'
+import SwipeableRow from '../components/SwipeableRow'
 import { Check, Bookmark, Clipboard } from 'lucide-react'
 
 import { STAGE_SHORT } from '../../lib/stages'
@@ -34,6 +35,9 @@ export default function WatchlistPage() {
   const [exporting, setExporting]           = useState(false)
   // Calendar subscribe state
   const [calCopied, setCalCopied]           = useState(false)
+  // Thread 102: swipe actions — highlight for report + remove
+  const [highlighted, setHighlighted]       = useState(new Set())
+  const [openSwipeId, setOpenSwipeId]       = useState(null)
   // Phase 7S: quick-note state
   const [notesBillId, setNotesBillId]       = useState(null)
   const [quickNote, setQuickNote]           = useState('')
@@ -200,7 +204,10 @@ export default function WatchlistPage() {
     try {
       const { generateBriefPDF } = await import('../../lib/generate-pdf')
       const tagLabel = activeTag !== 'All' ? activeTag : null
-      const billsToExport = sorted // uses current filter
+      // Thread 102: export only highlighted bills when any are selected
+      const billsToExport = highlighted.size > 0
+        ? sorted.filter(d => highlighted.has(d.bill_id))
+        : sorted
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
       // Phase 7S: fetch shared (export-visible) analyst notes for all tracked bills
@@ -267,6 +274,25 @@ export default function WatchlistPage() {
       alert('PDF export failed. Make sure jspdf is installed (npm install jspdf jspdf-autotable).')
     }
     setExporting(false)
+  }
+
+  /* ── Thread 102: Remove bill from watchlist (swipe action) ── */
+  const handleRemove = async (billId) => {
+    // Optimistic: remove from local state first, then delete from DB
+    setWatched(prev => prev.filter(w => w.bill_id !== billId))
+    setHighlighted(prev => { const n = new Set(prev); n.delete(billId); return n })
+    setOpenSwipeId(null)
+    await supabase.from('tracked_bills').delete().eq('bill_id', billId)
+  }
+
+  /* ── Thread 102: Toggle highlight for PDF report (swipe action) ── */
+  const toggleHighlight = (billId) => {
+    setHighlighted(prev => {
+      const n = new Set(prev)
+      n.has(billId) ? n.delete(billId) : n.add(billId)
+      return n
+    })
+    setOpenSwipeId(null) // snap card closed after toggling
   }
 
   /* ── Phase 7S: quick-note save handler ── */
@@ -360,7 +386,7 @@ export default function WatchlistPage() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
                 </svg>
-                {exporting ? 'Generating...' : 'Export PDF'}
+                {exporting ? 'Generating...' : highlighted.size > 0 ? `Export selected (${highlighted.size})` : 'Export PDF'}
               </button>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
@@ -431,6 +457,23 @@ export default function WatchlistPage() {
               cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
               boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
             }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
+          </div>
+        )}
+
+        {/* Thread 102: selected-for-report counter strip */}
+        {highlighted.size > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginTop: 6,
+            fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--brass, #b8975a)',
+          }}>
+            <span>\u25CF {highlighted.size} selected for report</span>
+            <button
+              onClick={() => setHighlighted(new Set())}
+              style={{
+                background: 'none', border: 'none', color: 'var(--text-muted)',
+                fontSize: 11, cursor: 'pointer', padding: 0, fontFamily: 'var(--font-mono)',
+              }}
+            >Clear</button>
           </div>
         )}
       </div>
@@ -546,16 +589,26 @@ export default function WatchlistPage() {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
-          <Link
+          <SwipeableRow
             key={bill_id}
+            isHighlighted={highlighted.has(bill_id)}
+            isOpen={openSwipeId === bill_id}
+            onOpen={() => setOpenSwipeId(bill_id)}
+            onClose={() => setOpenSwipeId(null)}
+            onHighlight={() => toggleHighlight(bill_id)}
+            onRemove={() => handleRemove(bill_id)}
+          >
+          <Link
             href={`/bill/${bill.bill_id}`}
             prefetch={false}
             style={{
               display: 'block',
+              position: 'relative',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '14px',
               cursor: 'pointer', transition: 'border-color 0.2s',
-              borderLeft: bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
+              borderLeft: highlighted.has(bill_id) ? '3px solid var(--brass, #b8975a)'
+                : bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
                 : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
                 : bill.confidence_label === 'PASSED_CHAMBER' ? '3px solid var(--gold)'
                 : bill.stalled ? '3px solid var(--danger)'
@@ -566,6 +619,15 @@ export default function WatchlistPage() {
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >
+            {/* Thread 102: FOR REPORT pip — shown when bill is highlighted */}
+            {highlighted.has(bill_id) && (
+              <span style={{
+                position: 'absolute', top: 6, right: 8,
+                fontSize: 7, color: 'var(--brass, #b8975a)',
+                fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+              }}>FOR REPORT</span>
+            )}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ position: 'relative' }}>
                 <ScoreBadge score={bill.final_score} size="md" status={bill.confidence_label}/>
@@ -767,6 +829,7 @@ export default function WatchlistPage() {
               </div>
             )}
           </Link>
+          </SwipeableRow>
         )})}
 
       </div>
