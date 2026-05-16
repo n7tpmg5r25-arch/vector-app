@@ -188,6 +188,11 @@ export default function WatchlistPage() {
   const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0
   const highCount = filtered.filter(d => (d.bills?.final_score || 0) >= 50).length
   const hearingCount = filtered.filter(d => d.bills?.has_public_hearing).length
+  // Thread 96: KPI card header — computed from full session watchlist (not tag/risk filter)
+  const highScoreCount = watched.filter(d => (d.bills?.final_score || 0) >= 50).length
+  const atRiskCount = watched.filter(d => !d.bills?.confidence_label && ((d.bills?.final_score || 0) < 25 || d.bills?.stalled)).length
+  const passedCount = watched.filter(d => d.bills?.confidence_label === 'LAW').length
+  const deadCount = watched.filter(d => d.bills?.confidence_label === 'DEAD').length
 
   /* ── PDF Export handler ── */
   const handleExport = async () => {
@@ -364,20 +369,28 @@ export default function WatchlistPage() {
           </div>
         </div>
 
-        {filtered.length > 0 && (
-          <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+        {/* Thread 96: KPI card strip — 3-col card grid matching home page personal zone */}
+        {watched.length > 0 && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
             {(isInterimPeriod() ? [
-              { label: 'Passed', value: filtered.filter(d => d.bills?.confidence_label === 'LAW').length, color: 'var(--teal)' },
-              { label: 'Passed Chamber', value: filtered.filter(d => d.bills?.confidence_label === 'PASSED_CHAMBER').length, color: 'var(--gold)' },
-              { label: 'Dead', value: filtered.filter(d => d.bills?.confidence_label === 'DEAD').length, color: 'var(--text-muted)' },
+              { label: 'Tracked',    value: watched.length, color: 'var(--teal)' },
+              { label: 'Passed',     value: passedCount, color: passedCount > 0 ? 'var(--teal)' : 'var(--text-muted)' },
+              { label: 'Dead',       value: deadCount, color: 'var(--text-muted)' },
             ] : [
-              { label: 'Avg Score', value: avgScore, color: avgScore >= 45 ? 'var(--teal)' : avgScore >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
-              { label: 'High Score', value: highCount, color: highCount > 0 ? 'var(--teal)' : 'var(--text-muted)' },
-              { label: 'Hearings', value: hearingCount, color: hearingCount > 0 ? 'var(--teal-mid)' : 'var(--text-muted)' },
+              { label: 'Tracked',    value: watched.length, color: 'var(--teal)' },
+              { label: 'High Score', value: highScoreCount, color: highScoreCount > 0 ? 'var(--teal-bright)' : 'var(--text-muted)' },
+              { label: 'At Risk',    value: atRiskCount, color: atRiskCount > 0 ? 'var(--danger)' : 'var(--text-muted)' },
             ]).map(({ label, value, color }) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</span>
-                <span style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+              <div key={label} style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
+              }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 12px rgba(184,151,90,0.3)' : color === 'var(--danger)' ? '0 0 12px rgba(196,71,48,0.3)' : 'transparent' }}>
+                  {value}
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>
+                  {label}
+                </div>
               </div>
             ))}
           </div>

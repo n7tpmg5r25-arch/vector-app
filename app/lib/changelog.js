@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.1',
+    date: '2026-05-15',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist header now shows three KPI cards — Tracked, High Score, and At Risk — in the same card format used on the home dashboard, so your portfolio summary is immediately readable without scanning the bill list (Thread 96).',
+      'During the interim period the KPI cards shift to Tracked, Passed, and Dead — the same biennium-aware pattern the home page uses (Thread 96).',
+    ],
+  },
+  {
     version: '2.0',
     date: '2026-05-15',
     phase: 'alpha',
