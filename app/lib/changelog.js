@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.6',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist remove action now includes a user-id guard on the database delete — defense-in-depth against any future RLS misconfiguration (Thread 106).',
+      'Bottom padding on the watchlist corrected from 20px to 110px — the last bill card no longer hides behind the nav bar (Thread 106).',
+      'Duplicate billIds computation in the PDF export handler consolidated into a single declaration (Thread 106).',
+    ],
+  },
+  {
     version: '2.5',
     date: '2026-05-18',
     phase: 'alpha',

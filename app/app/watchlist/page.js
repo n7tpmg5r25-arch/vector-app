@@ -232,11 +232,10 @@ export default function WatchlistPage() {
         : sorted
       const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
-      // Phase 7S: fetch shared (export-visible) analyst notes for all tracked bills
-      // (user comes from useViewer() hook closure)
+      // Compute once — used by notes, amendments, and fiscal queries below
+      const billIds = billsToExport.map(d => d.bill_id)
       let billNotes = []
       if (user) {
-        const billIds = billsToExport.map(d => d.bill_id)
         if (billIds.length > 0) {
           const { data: notesData } = await supabase
             .from('bill_notes')
@@ -250,7 +249,6 @@ export default function WatchlistPage() {
       }
 
       // Phase 10.5: fetch amendments and fiscal note history for activity line
-      const billIds = billsToExport.map(d => d.bill_id)
       let amendmentsData = []
       let fiscalData = []
       if (billIds.length > 0) {
@@ -304,7 +302,7 @@ export default function WatchlistPage() {
     setWatched(prev => prev.filter(w => w.bill_id !== billId))
     setHighlighted(prev => { const n = new Set(prev); n.delete(billId); return n })
     setOpenSwipeId(null)
-    await supabase.from('tracked_bills').delete().eq('bill_id', billId)
+    await supabase.from('tracked_bills').delete().eq('bill_id', billId).eq('user_id', user.id)
   }
 
   /* ── Thread 102: Toggle highlight for PDF report (swipe action) ── */
@@ -348,7 +346,7 @@ export default function WatchlistPage() {
   const showChanges = !changesDismissed && changedBills.length > 0
 
   return (
-    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
       {/* ━━━ HEADER ━━━ */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
