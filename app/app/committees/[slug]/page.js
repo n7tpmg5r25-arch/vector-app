@@ -99,7 +99,7 @@ export default function CommitteeDetail() {
         .eq('committee_name', cmte.name)
         .eq('chamber', cmte.chamber)
         .order('final_score', { ascending: false })
-        .limit(100)
+        .limit(300)
       setBills(bs || [])
 
       // Thread 105 — fetch which of this committee's bills the user tracks
