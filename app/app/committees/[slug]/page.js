@@ -50,6 +50,8 @@ export default function CommitteeDetail() {
   // Phase 11.2 — follow state
   const [follow, setFollow] = useState(null) // { alerts_enabled } or null
   const [followBusy, setFollowBusy] = useState(false)
+  // Thread 105 — "YOUR TRACKED BILLS" float-to-top
+  const [watchedIds, setWatchedIds] = useState(new Set())
 
   useEffect(() => {
     if (!slug) return
@@ -99,6 +101,18 @@ export default function CommitteeDetail() {
         .order('final_score', { ascending: false })
         .limit(100)
       setBills(bs || [])
+
+      // Thread 105 — fetch which of this committee's bills the user tracks
+      let watched = new Set()
+      if (user && (bs || []).length > 0) {
+        const { data: wData } = await supabase
+          .from('tracked_bills')
+          .select('bill_id')
+          .eq('user_id', user.id)
+          .in('bill_id', (bs || []).map(b => b.bill_id))
+        watched = new Set((wData || []).map(d => d.bill_id))
+      }
+      setWatchedIds(watched)
 
       // 4. Committee roster
       const { data: mem } = await supabase
@@ -321,49 +335,105 @@ export default function CommitteeDetail() {
           </Section>
 
           {/* SECTION 2 — BILLS IN THIS COMMITTEE */}
-          <Section title="Bills in Committee" subtitle={`${bills.length} bills · click to open`}>
-            {bills.length === 0 ? (
-              <EmptyCard>No bills are currently in this committee. Activity will appear once bills get referred or scheduled here.</EmptyCard>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {bills.slice(0, 50).map(b => (
-                  <Link key={b.bill_id} href={'/bill/' + b.bill_id} prefetch={false} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    textDecoration: 'none', color: 'inherit',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
-                    <ScoreBadge score={b.final_score} size="sm" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
-                          {b.chamber === 'House' ? 'HB' : 'SB'} {b.bill_number}
-                        </span>
-                        {b.committee_passed && (
-                          <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            <Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS
-                          </span>
+          {(() => {
+            const remainingBills = bills.filter(b => !watchedIds.has(b.bill_id))
+            const myBills = bills.filter(b => watchedIds.has(b.bill_id))
+            const subtitle = watchedIds.size > 0
+              ? `${watchedIds.size} of yours · ${bills.length} bills · click to open`
+              : `${bills.length} bills · click to open`
+            return (
+              <Section title="Bills in Committee" subtitle={subtitle}>
+                {bills.length === 0 ? (
+                  <EmptyCard>No bills are currently in this committee. Activity will appear once bills get referred or scheduled here.</EmptyCard>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {/* Thread 105 — YOUR TRACKED BILLS pinned section */}
+                    {myBills.length > 0 && (
+                      <>
+                        <div style={{
+                          fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                          color: 'var(--teal)', letterSpacing: '0.08em', textTransform: 'uppercase',
+                          marginBottom: 2,
+                        }}>YOUR TRACKED BILLS</div>
+                        {myBills.map(b => (
+                          <Link key={b.bill_id} href={'/bill/' + b.bill_id} prefetch={false} style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border)',
+                            borderLeft: '3px solid var(--teal)',
+                            textDecoration: 'none', color: 'inherit',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.06)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
+                            <ScoreBadge score={b.final_score} size="sm" />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                  {b.chamber === 'House' ? 'HB' : 'SB'} {b.bill_number}
+                                </span>
+                                {b.committee_passed && (
+                                  <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                    <Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS
+                                  </span>
+                                )}
+                                {b.stalled && (
+                                  <span style={{ fontSize: 9, color: 'var(--danger)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>STALLED</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {b.title || 'Bill ' + b.bill_number}
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                        {remainingBills.length > 0 && (
+                          <div style={{ height: 6 }} />
                         )}
-                        {b.stalled && (
-                          <span style={{ fontSize: 9, color: 'var(--danger)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>STALLED</span>
-                        )}
+                      </>
+                    )}
+
+                    {/* Full bill list (deduped) */}
+                    {remainingBills.slice(0, 50).map(b => (
+                      <Link key={b.bill_id} href={'/bill/' + b.bill_id} prefetch={false} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                        background: 'var(--bg-card)', border: '1px solid var(--border)',
+                        textDecoration: 'none', color: 'inherit',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,151,90,0.04)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
+                        <ScoreBadge score={b.final_score} size="sm" />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
+                              {b.chamber === 'House' ? 'HB' : 'SB'} {b.bill_number}
+                            </span>
+                            {b.committee_passed && (
+                              <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                                <Check size={9} aria-hidden="true" strokeWidth={3} /> CMTE PASS
+                              </span>
+                            )}
+                            {b.stalled && (
+                              <span style={{ fontSize: 9, color: 'var(--danger)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>STALLED</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {b.title || 'Bill ' + b.bill_number}
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                    {remainingBills.length > 50 && (
+                      <div style={{ textAlign: 'center', padding: 8, fontSize: 10, color: 'var(--text-faint)' }}>
+                        Showing top 50 of {remainingBills.length}
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {b.title || 'Bill ' + b.bill_number}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-                {bills.length > 50 && (
-                  <div style={{ textAlign: 'center', padding: 8, fontSize: 10, color: 'var(--text-faint)' }}>
-                    Showing top 50 of {bills.length}
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-          </Section>
+              </Section>
+            )
+          })()}
 
           {/* SECTION 3 — COMMITTEE ROSTER
               Interim note (Thread 1 Sub-task 5): WA Legislature does not
