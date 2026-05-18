@@ -12,7 +12,7 @@
  *   - bills (for the By Committee roll-up + Rules queue)
  *   - committees (Phase 11.1 new, used for slug-based links)
  *
- * Brand voice: Shorepine Government Relations v4.6. Terse, actionable, no jargon.
+ * Brand guide: Vector | WA Brand Guide v1.2.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -106,7 +106,7 @@ export default function CommitteesPage() {
     async function loadWatched() {
       const { data } = await supabase
         .from('tracked_bills')
-        .select('bill_id, bills(bill_id, bill_number, title, chamber)')
+        .select('bill_id, bills(bill_id, bill_number, title, chamber, final_score)')
         .eq('user_id', user.id)
       const ids = new Set((data || []).map(d => d.bill_id))
       setWatchedBillIds(ids)
@@ -428,15 +428,21 @@ export default function CommitteesPage() {
                               if (!bill) return null
                               const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
                               return (
-                                <span key={billId} style={{
-                                  fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
-                                  color: 'var(--teal)', padding: '2px 7px', borderRadius: 10,
-                                  border: '1px solid rgba(184,151,90,0.35)',
-                                  background: 'rgba(184,151,90,0.08)',
-                                  letterSpacing: '0.04em',
-                                }}>
-                                  {prefix} {bill.bill_number}
-                                </span>
+                                <Link
+                                  key={billId}
+                                  href={`/bill/${billId}`}
+                                  onClick={e => e.stopPropagation()}
+                                  style={{
+                                    fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
+                                    color: 'var(--teal)', padding: '2px 7px', borderRadius: 10,
+                                    border: '1px solid rgba(184,151,90,0.35)',
+                                    background: 'rgba(184,151,90,0.08)',
+                                    letterSpacing: '0.04em',
+                                    textDecoration: 'none', cursor: 'pointer',
+                                  }}
+                                >
+                                  {prefix} {bill.bill_number}{bill.final_score != null ? ` · ${bill.final_score}` : ''}
+                                </Link>
                               )
                             })}
                           </div>
