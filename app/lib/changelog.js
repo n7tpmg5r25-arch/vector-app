@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.3',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Committees calendar now opens with a pinned "YOUR BILLS" section for logged-in users — showing only the upcoming meetings where your tracked bills appear on the agenda, with bill number chips (HB 1234, SB 5678) listed directly on each card (Thread 103).',
+      'Every meeting card in the full calendar below now displays a brass "N of yours" pip when any of your watched bills are on that agenda — so you can spot relevant hearings at a glance without reading every committee name (Thread 103).',
+      'Both features are anon-safe and interim-safe: if you have no tracked bills, or there are no upcoming meetings, the page renders exactly as before (Thread 103).',
+    ],
+  },
+  {
     version: '2.2',
     date: '2026-05-15',
     phase: 'alpha',

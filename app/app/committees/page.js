@@ -84,6 +84,10 @@ export default function CommitteesPage() {
   const [meetingLoading, setMeetingLoading] = useState(true)
   const [committeeSlugs, setCommitteeSlugs] = useState({}) // {name|chamber: slug}
 
+  // Thread 103 — watched bills for "YOUR BILLS" section
+  const [watchedBillIds, setWatchedBillIds] = useState(new Set())
+  const [watchedBillDetails, setWatchedBillDetails] = useState({})
+
   // By-committee (legacy) state
   const [committees, setCommittees] = useState([])
   const [rulesQueue, setRulesQueue] = useState([])
@@ -95,6 +99,23 @@ export default function CommitteesPage() {
   // the bulk load. expandedLoading drives the inline loader.
   const [expandedLoading, setExpandedLoading] = useState(false)
   const [committeeLoading, setCommitteeLoading] = useState(true)
+
+  // Thread 103 — fetch watched bills when user is logged in
+  useEffect(() => {
+    if (!user) return
+    async function loadWatched() {
+      const { data } = await supabase
+        .from('tracked_bills')
+        .select('bill_id, bills(bill_id, bill_number, title, chamber)')
+        .eq('user_id', user.id)
+      const ids = new Set((data || []).map(d => d.bill_id))
+      setWatchedBillIds(ids)
+      const byId = {}
+      ;(data || []).forEach(d => { if (d.bills) byId[d.bill_id] = d.bills })
+      setWatchedBillDetails(byId)
+    }
+    loadWatched()
+  }, [user?.id])
 
   // Load committees (for slug lookups)
   useEffect(() => {
@@ -213,6 +234,19 @@ export default function CommitteesPage() {
     setExpandedBills(data || [])
     setExpandedLoading(false)
   }
+
+  // Thread 103 — cross-reference meetings against watchlist (client-side, no extra query)
+  const myMeetings = useMemo(() => {
+    if (!watchedBillIds.size || !meetings.length) return []
+    return meetings
+      .map(m => {
+        const myBills = (m.meeting_agenda_items || [])
+          .filter(a => watchedBillIds.has(a.bill_id))
+          .map(a => a.bill_id)
+        return myBills.length > 0 ? { ...m, myBills } : null
+      })
+      .filter(Boolean)
+  }, [meetings, watchedBillIds])
 
   // Filter meetings by chamber
   const filteredMeetings = useMemo(() => {
@@ -352,7 +386,69 @@ export default function CommitteesPage() {
               </div>
             )
           ) : (
-            ['Today', 'This Week', 'Next 2 Weeks', 'Later'].map(bucket => {
+            <>
+            {/* Thread 103 — YOUR BILLS pinned section */}
+            {user && myMeetings.length > 0 && !meetingLoading && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                  color: 'var(--teal)', letterSpacing: '0.08em', textTransform: 'uppercase',
+                  marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid rgba(184,151,90,0.3)',
+                  display: 'flex', alignItems: 'baseline', gap: 8,
+                }}>
+                  Your Bills
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 10 }}>
+                    {myMeetings.length} {myMeetings.length === 1 ? 'meeting' : 'meetings'} with your tracked bills
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {myMeetings.map(m => {
+                    const slug = committeeSlugs[`${m.committee_name}|${m.chamber}`]
+                    return (
+                      <div key={'my-' + m.id}>
+                        <MeetingCard
+                          m={m}
+                          highlight={false}
+                          myBillCount={m.myBills.length}
+                          onClick={() => { if (slug) router.push('/committees/' + slug) }}
+                        />
+                        {/* Bill chips */}
+                        {m.myBills.length > 0 && (
+                          <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 5,
+                            padding: '6px 14px 8px',
+                            background: 'rgba(184,151,90,0.04)',
+                            border: '1px solid rgba(184,151,90,0.2)',
+                            borderTop: 'none',
+                            borderRadius: '0 0 var(--radius) var(--radius)',
+                            marginTop: -6,
+                          }}>
+                            {m.myBills.map(billId => {
+                              const bill = watchedBillDetails[billId]
+                              if (!bill) return null
+                              const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
+                              return (
+                                <span key={billId} style={{
+                                  fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 600,
+                                  color: 'var(--teal)', padding: '2px 7px', borderRadius: 10,
+                                  border: '1px solid rgba(184,151,90,0.35)',
+                                  background: 'rgba(184,151,90,0.08)',
+                                  letterSpacing: '0.04em',
+                                }}>
+                                  {prefix} {bill.bill_number}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {['Today', 'This Week', 'Next 2 Weeks', 'Later'].map(bucket => {
               const items = buckets[bucket]
               if (!items || items.length === 0) return null
               return (
@@ -368,15 +464,20 @@ export default function CommitteesPage() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                    {items.map(m => (
-                      <MeetingCard key={m.id} m={m}
-                        highlight={interimMode && bucket === 'Today'}
-                        onClick={() => goToCommittee(m.committee_name, m.chamber)} />
-                    ))}
+                    {items.map(m => {
+                        const myBillCount = myMeetings.find(mm => mm.id === m.id)?.myBills?.length || 0
+                        return (
+                          <MeetingCard key={m.id} m={m}
+                            highlight={interimMode && bucket === 'Today'}
+                            myBillCount={myBillCount}
+                            onClick={() => goToCommittee(m.committee_name, m.chamber)} />
+                        )
+                      })}
                   </div>
                 </div>
               )
-            })
+            })}
+            </>
           )}
         </div>
       )}
@@ -407,7 +508,7 @@ export default function CommitteesPage() {
 
 // ── Meeting card ─────────────────────────────────────────────────────────────
 
-function MeetingCard({ m, highlight, onClick }) {
+function MeetingCard({ m, highlight, onClick, myBillCount }) {
   const billCount = (m.meeting_agenda_items || []).filter(a => a.bill_id).length
   const chamberColor = m.is_joint ? 'var(--gold)' : m.chamber === 'Senate' ? 'var(--teal)' : 'var(--gold)'
 
@@ -476,6 +577,17 @@ function MeetingCard({ m, highlight, onClick }) {
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
               {billCount} {billCount === 1 ? 'bill' : 'bills'}
             </span>
+            {myBillCount > 0 && (
+              <span style={{
+                fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 700,
+                color: 'var(--teal)', padding: '1px 6px', borderRadius: 10,
+                border: '1px solid rgba(184,151,90,0.4)',
+                background: 'rgba(184,151,90,0.1)',
+                letterSpacing: '0.04em',
+              }}>
+                {myBillCount} of yours
+              </span>
+            )}
             {m.location && (
               <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
                 {m.location}
