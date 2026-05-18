@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.4',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Tapping a hearing badge on the watchlist now navigates directly to the specific committee page — not just the full calendar — so you land on the exact committee that has your bill scheduled (Thread 104).',
+      'Watchlist load now fires a single batched query for all upcoming hearings across every tracked bill, replacing up to 25 individual queries — faster page load, fewer round-trips to the database (Thread 104).',
+    ],
+  },
+  {
     version: '2.3',
     date: '2026-05-18',
     phase: 'alpha',

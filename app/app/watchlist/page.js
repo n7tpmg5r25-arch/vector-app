@@ -38,6 +38,8 @@ export default function WatchlistPage() {
   // Thread 102: swipe actions — highlight for report + remove
   const [highlighted, setHighlighted]       = useState(new Set())
   const [openSwipeId, setOpenSwipeId]       = useState(null)
+  // Thread 104: batched meeting lookup — keyed by bill_id, built in load()
+  const [meetingByBill, setMeetingByBill]   = useState({})
   // Phase 7S: quick-note state
   const [notesBillId, setNotesBillId]       = useState(null)
   const [quickNote, setQuickNote]           = useState('')
@@ -85,8 +87,10 @@ export default function WatchlistPage() {
       }, null)
 
       /* ── 3 & 4. Phase 6.4 perf: Fetch snapshots + update last_viewed_at in parallel ── */
+      /* ── Thread 104: also batch all MeetingBadge queries into one ── */
       const billIds = items.map(d => d.bill_id)
-      const [snapsResult] = await Promise.all([
+      const today = new Date().toISOString().split('T')[0]
+      const [snapsResult, , agendaResult] = await Promise.all([
         billIds.length > 0
           ? supabase
               .from('trajectory_snapshots')
@@ -98,7 +102,25 @@ export default function WatchlistPage() {
           .from('tracked_bills')
           .update({ last_viewed_at: new Date().toISOString() })
           .eq('user_id', user.id),
+        billIds.length > 0
+          ? supabase
+              .from('meeting_agenda_items')
+              .select('bill_id, committee_meetings!inner(id, committee_name, chamber, meeting_date, meeting_time, is_joint, committees!inner(slug))')
+              .in('bill_id', billIds)
+              .gte('committee_meetings.meeting_date', today)
+          : Promise.resolve({ data: null }),
       ])
+
+      // Thread 104: build earliest-meeting-per-bill map for MeetingBadge props
+      const meetingMap = {}
+      ;(agendaResult?.data || []).forEach(item => {
+        const cm = item.committee_meetings
+        const existing = meetingMap[item.bill_id]
+        if (!existing || cm.meeting_date < existing.meeting_date) {
+          meetingMap[item.bill_id] = { ...cm, slug: cm.committees?.slug }
+        }
+      })
+      setMeetingByBill(meetingMap)
 
       const snaps = snapsResult.data
       if (snaps) {
@@ -532,7 +554,7 @@ export default function WatchlistPage() {
                     minWidth: 56, fontWeight: 500,
                   }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                    <MeetingBadge billId={bill.bill_id} compact />
+                    <MeetingBadge billId={bill.bill_id} meeting={meetingByBill[bill_id] || null} compact />
                   </span>
                   <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                     {change.scoreDiff !== 0 && (
@@ -649,7 +671,7 @@ export default function WatchlistPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontWeight: 500 }}>
                     {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                    <MeetingBadge billId={bill.bill_id} compact />
+                    <MeetingBadge billId={bill.bill_id} meeting={meetingByBill[bill_id] || null} compact />
                   </span>
                   <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
                     {STAGE_SHORT[bill.stage] || 'Intro'}

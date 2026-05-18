@@ -50,7 +50,7 @@ export default function MeetingBadge({ billId, meeting: propMeeting, compact = f
       const today = new Date().toISOString().split('T')[0]
       const { data } = await supabase
         .from('meeting_agenda_items')
-        .select('meeting_id, committee_meetings!inner(id, committee_name, meeting_date, meeting_time, chamber, is_joint)')
+        .select('meeting_id, committee_meetings!inner(id, committee_name, meeting_date, meeting_time, chamber, is_joint, committees!inner(slug))')
         .eq('bill_id', billId)
         .gte('committee_meetings.meeting_date', today)
         .order('committee_meetings(meeting_date)', { ascending: true })
@@ -76,8 +76,8 @@ export default function MeetingBadge({ billId, meeting: propMeeting, compact = f
     <span
       onClick={(e) => {
         e.stopPropagation()
-        // Link to the committees page filtered view; future: /meetings/[id]
-        router.push('/committees')
+        const slug = meeting.slug || meeting.committees?.slug
+        router.push(slug ? `/committees/${slug}` : '/committees')
       }}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 4,
