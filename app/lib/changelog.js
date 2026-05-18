@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.5',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Committee detail pages now surface your tracked bills at the top of the bill list under a "YOUR TRACKED BILLS" header — no more scanning 80 bills to find your 3 (Thread 105).',
+      'The bill count chip on committee detail pages shows how many of your tracked bills are in that committee at a glance (Thread 105).',
+    ],
+  },
+  {
     version: '2.4',
     date: '2026-05-18',
     phase: 'alpha',
