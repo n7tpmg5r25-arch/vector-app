@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.7',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Bill chips in the YOUR BILLS meetings section now navigate directly to the bill detail page — one tap from a scheduled hearing to the full bill (Thread 107).',
+      'Each bill chip now shows the trajectory score alongside the bill number (e.g. "HB 1271 · 74") so you can assess priority without leaving the calendar (Thread 107).',
+    ],
+  },
+  {
     version: '2.6',
     date: '2026-05-18',
     phase: 'alpha',
