@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '3.2',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Member baseball card: tap "Print Card" on any legislator to generate a PDF briefing with photo, contact info, committee assignments, and Vector | WA intelligence metrics (Thread 112).',
+      'Designed for pre-meeting preparation — professional enough to leave on a desk (Thread 112).',
+    ],
+  },
+  {
     version: '3.1',
     date: '2026-05-18',
     phase: 'alpha',
