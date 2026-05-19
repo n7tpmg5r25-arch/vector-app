@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '3.0',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Member detail panel now shows direct phone and email for every legislator — pulled from the WA Legislature roster API (Thread 110).',
+      'Phone and email are stored in the database and will refresh automatically on each nightly sync going forward (Thread 110).',
+    ],
+  },
+  {
     version: '2.9',
     date: '2026-05-18',
     phase: 'alpha',
