@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '3.1',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Member list now shows legislator photos with a blue or red party-color border instead of initials — instant face recognition without clicking through (Thread 111).',
+      'Opening a member panel shows a larger portrait photo so you can put a face to the briefing before your meeting (Thread 111).',
+    ],
+  },
+  {
     version: '3.0',
     date: '2026-05-18',
     phase: 'alpha',

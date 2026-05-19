@@ -152,6 +152,9 @@ function MembersContent() {
           top_score: r.top_score || 0,
           avg_score: r.avg_score || 0,
           pass_rate: r.pass_rate || 0,
+          member_id: r.member_id || null,
+          phone: r.phone || null,
+          email: r.email || null,
           committees: r.committees || [],
           bySession: {
             [r.session]: {
@@ -178,6 +181,9 @@ function MembersContent() {
             laws_passed: 0,
             top_score: 0,
             avg_score_weighted_sum: 0,  // for weighted recompute across biennia
+            member_id: null,
+            phone: null,
+            email: null,
             committees: new Set(),
             bySession: {},
           }
@@ -191,6 +197,9 @@ function MembersContent() {
           if (r.party && r.party !== '?') m.party = r.party
           if (r.chamber && r.chamber !== '?') m.chamber = r.chamber
           ;(r.committees || []).forEach(c => m.committees.add(c))
+          if (r.member_id) m.member_id = r.member_id
+          if (r.phone) m.phone = r.phone
+          if (r.email) m.email = r.email
           // Weighted avg across biennia: sum(avg_i * bills_i) / sum(bills_i)
           m.avg_score_weighted_sum += (r.avg_score || 0) * (r.bill_count || 0)
           m.bySession[r.session] = {
@@ -512,14 +521,23 @@ function MembersContent() {
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'rgba(184,151,90,0.1)',
-                border: '2px solid rgba(184,151,90,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 16, fontWeight: 700, color: 'var(--gold)', flexShrink: 0,
-                boxShadow: '0 0 16px rgba(184,151,90,0.15)',
+                width: 80, height: 80, borderRadius: '50%',
+                border: `3px solid ${selectedMember.party === 'D' ? '#4d9aff' : selectedMember.party === 'R' ? '#ef4444' : 'var(--border)'}`,
+                overflow: 'hidden', background: 'var(--bg-card)', flexShrink: 0,
               }}>
-                {selectedMember.name.split(' ').map(n => n[0]).slice(-2).join('')}
+                <img
+                  src={`https://leg.wa.gov/memberphoto/${selectedMember.member_id}.jpg`}
+                  alt={selectedMember.name}
+                  width={80}
+                  height={80}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                  onError={e => {
+                    e.target.style.display = 'none'
+                    e.target.parentNode.insertAdjacentHTML('beforeend',
+                      `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:20px;font-weight:700;color:var(--text-muted);font-family:var(--font-body)">${selectedMember.name.split(' ').map(n=>n[0]).slice(-2).join('')}</span>`
+                    )
+                  }}
+                />
               </div>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
@@ -1124,10 +1142,8 @@ function MembersContent() {
                     background: bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', position: 'relative',
-                    border: isActive ? '1.5px solid var(--teal)' : '1px solid rgba(255,255,255,0.06)',
+                    border: isActive ? '2px solid var(--teal)' : `2px solid ${m.party === 'D' ? '#4d9aff' : m.party === 'R' ? '#ef4444' : 'rgba(255,255,255,0.06)'}`,
                     transition: 'transform 0.15s, box-shadow 0.15s',
-                    fontSize: 11, fontWeight: 700, color: text,
-                    fontFamily: 'var(--font-mono)',
                     transform: isActive ? 'scale(1.15)' : 'scale(1)',
                     zIndex: isActive ? 10 : 1,
                     boxShadow: isActive ? '0 4px 16px rgba(0,0,0,0.4)' : 'none',
@@ -1135,7 +1151,26 @@ function MembersContent() {
                   onMouseEnter={e => { if (!popover) { e.currentTarget.style.transform = 'scale(1.12)'; e.currentTarget.style.zIndex = '10' }}}
                   onMouseLeave={e => { if (!isActive) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1' }}}
                 >
-                  {initials}
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: `2px solid ${m.party === 'D' ? '#4d9aff' : m.party === 'R' ? '#ef4444' : 'rgba(255,255,255,0.2)'}`,
+                    overflow: 'hidden', background: 'rgba(14,16,20,0.6)',
+                    flexShrink: 0,
+                  }}>
+                    <img
+                      src={`https://leg.wa.gov/memberthumbnail/${m.member_id}.jpg`}
+                      alt={m.name}
+                      width={32}
+                      height={32}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                      onError={e => {
+                        e.target.style.display = 'none'
+                        e.target.parentNode.insertAdjacentHTML('beforeend',
+                          `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:10px;font-weight:700;color:${text};font-family:var(--font-mono)">${initials}</span>`
+                        )
+                      }}
+                    />
+                  </div>
                   {m.is_chair && <div style={{
                     position: 'absolute', top: -3, right: -3,
                     width: 8, height: 8, borderRadius: '50%',
@@ -1388,14 +1423,23 @@ function MembersContent() {
               onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
             >
               <div style={{
-                width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                background: member.party === 'D' ? 'var(--party-d-pale)' : member.party === 'R' ? 'var(--party-r-pale)' : 'var(--bg-surface)',
-                border: `1.5px solid ${member.party === 'D' ? 'var(--party-d-border)' : member.party === 'R' ? 'var(--party-r-border)' : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700,
-                color: member.party === 'D' ? 'var(--party-d)' : member.party === 'R' ? 'var(--party-r)' : 'var(--text-muted)',
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                border: `3px solid ${member.party === 'D' ? '#4d9aff' : member.party === 'R' ? '#ef4444' : 'var(--border)'}`,
+                overflow: 'hidden', background: 'var(--bg-card)',
               }}>
-                {member.name.split(' ').map(n => n[0]).slice(-2).join('')}
+                <img
+                  src={`https://leg.wa.gov/memberthumbnail/${member.member_id}.jpg`}
+                  alt={member.name}
+                  width={36}
+                  height={36}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                  onError={e => {
+                    e.target.style.display = 'none'
+                    e.target.parentNode.insertAdjacentHTML('beforeend',
+                      `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:12px;font-weight:700;color:${member.party === 'D' ? '#4d9aff' : member.party === 'R' ? '#ef4444' : 'var(--text-muted)'};font-family:var(--font-body)">${member.name.split(' ').map(n=>n[0]).slice(-2).join('')}</span>`
+                    )
+                  }}
+                />
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
