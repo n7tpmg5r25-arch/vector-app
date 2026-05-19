@@ -99,7 +99,7 @@ export default function CommitteeDetail() {
         .eq('committee_name', cmte.name)
         .eq('chamber', cmte.chamber)
         .order('final_score', { ascending: false })
-        .limit(300)
+        .limit(500)
       setBills(bs || [])
 
       // Thread 105 — fetch which of this committee's bills the user tracks
@@ -339,8 +339,8 @@ export default function CommitteeDetail() {
             const remainingBills = bills.filter(b => !watchedIds.has(b.bill_id))
             const myBills = bills.filter(b => watchedIds.has(b.bill_id))
             const subtitle = watchedIds.size > 0
-              ? `${watchedIds.size} of yours · ${bills.length} bills · click to open`
-              : `${bills.length} bills · click to open`
+              ? `${watchedIds.size} of yours · ${bills.length} bills by score`
+              : `${bills.length} bills by score`
             return (
               <Section title="Bills in Committee" subtitle={subtitle}>
                 {bills.length === 0 ? (
@@ -425,8 +425,8 @@ export default function CommitteeDetail() {
                       </Link>
                     ))}
                     {remainingBills.length > 50 && (
-                      <div style={{ textAlign: 'center', padding: 8, fontSize: 10, color: 'var(--text-faint)' }}>
-                        Showing top 50 of {remainingBills.length}
+                      <div style={{ textAlign: 'center', padding: 8, fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                        Showing top 50 of {remainingBills.length} by score
                       </div>
                     )}
                   </div>

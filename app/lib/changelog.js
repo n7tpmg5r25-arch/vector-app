@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.8',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Committee detail bill query limit raised from 300 to 500 — defensive cap for any future session with a larger docket (Thread 108).',
+      'Bill count subtitle on committee detail pages now reads "X bills by score" so it is clear the list is sorted by trajectory score, not arbitrary order (Thread 108).',
+    ],
+  },
+  {
     version: '2.7',
     date: '2026-05-18',
     phase: 'alpha',
