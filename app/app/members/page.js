@@ -15,7 +15,7 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Printer } from 'lucide-react'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
 // readout on the Overview tab. Mirrors the same filter pattern used in
@@ -81,6 +81,8 @@ function MembersContent() {
   // data to derive "currently seated" reliably — drives the "active legislators"
   // label vs. the historical "legislators served" label for past biennia.
   const [hasActiveSignal, setHasActiveSignal] = useState(false)
+  // Thread 112: PDF card generation state
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -568,6 +570,35 @@ function MembersContent() {
                   >
                     leg.wa.gov <ArrowUpRight size={10} aria-hidden="true" />
                   </a>
+                  {/* Thread 112: Print Card — generates single-page PDF member brief */}
+                  <button
+                    disabled={pdfLoading}
+                    onClick={async e => {
+                      e.stopPropagation()
+                      if (pdfLoading) return
+                      setPdfLoading(true)
+                      try {
+                        const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
+                        await generateMemberPdf(selectedMember, memberBills, selectedSession)
+                      } catch (err) {
+                        console.error('[Print Card] PDF generation failed:', err)
+                      } finally {
+                        setPdfLoading(false)
+                      }
+                    }}
+                    style={{
+                      fontSize: 9, padding: '3px 10px', borderRadius: 10,
+                      background: pdfLoading ? 'var(--bg-surface)' : 'rgba(184,151,90,0.08)',
+                      color: pdfLoading ? 'var(--text-muted)' : 'var(--teal)',
+                      border: '1px solid rgba(184,151,90,0.2)',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      cursor: pdfLoading ? 'default' : 'pointer',
+                      fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    }}
+                  >
+                    <Printer size={9} aria-hidden="true" />
+                    {pdfLoading ? 'Generating…' : 'Print Card'}
+                  </button>
                 </div>
               </div>
             </div>
