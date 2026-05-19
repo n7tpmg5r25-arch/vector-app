@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '2.9',
+    date: '2026-05-18',
+    phase: 'alpha',
+    highlights: [
+      'Highlighted bills on the watchlist now glow with a subtle brass background and ring so it is immediately obvious which bills are selected for your PDF report (Thread 109).',
+      'The "Subscribe" button in the watchlist header is now labeled "Cal Feed" — it subscribes your Apple or Google Calendar to a live feed of hearing dates for your tracked bills (Thread 109).',
+    ],
+  },
+  {
     version: '2.8',
     date: '2026-05-18',
     phase: 'alpha',

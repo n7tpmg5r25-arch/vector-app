@@ -383,7 +383,7 @@ export default function WatchlistPage() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                Subscribe
+                Cal Feed
               </a>
             )}
             {/* Export Report button */}
@@ -624,9 +624,11 @@ export default function WatchlistPage() {
             style={{
               display: 'block',
               position: 'relative',
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              background: highlighted.has(bill_id) ? 'rgba(184,151,90,0.07)' : 'var(--bg-card)',
+              border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', padding: '14px',
-              cursor: 'pointer', transition: 'border-color 0.2s',
+              cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
+              boxShadow: highlighted.has(bill_id) ? '0 0 0 1px rgba(184,151,90,0.22), 0 0 18px rgba(184,151,90,0.08)' : 'none',
               borderLeft: highlighted.has(bill_id) ? '3px solid var(--brass, #b8975a)'
                 : bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
                 : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
@@ -636,8 +638,8 @@ export default function WatchlistPage() {
               animation: `fadeUp 0.3s ease ${idx * 0.03}s both`,
               textDecoration: 'none', color: 'inherit',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+            onMouseEnter={e => { if (!highlighted.has(bill_id)) e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)' }}
+            onMouseLeave={e => { if (!highlighted.has(bill_id)) e.currentTarget.style.borderColor = 'var(--border)' }}
           >
             {/* Thread 102: FOR REPORT pip — shown when bill is highlighted */}
             {highlighted.has(bill_id) && (
