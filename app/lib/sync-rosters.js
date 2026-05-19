@@ -189,6 +189,8 @@ function _toRosterRow(m, biennium) {
     first_name:  String(m.FirstName || '').trim() || null,
     last_name:   String(m.LastName || '').trim() || null,
     acronym:     String(m.Acronym || '').trim() || null,
+    phone:       String(m.Phone || '').trim() || null,
+    email:       String(m.Email || '').trim() || null,
     last_seen_at: new Date().toISOString(),
   };
 }

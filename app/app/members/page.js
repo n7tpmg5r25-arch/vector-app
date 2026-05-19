@@ -105,7 +105,7 @@ function MembersContent() {
       // (VOTE_DATA_FIRST_SESSION='2025-2026'), so biennium_has_vote_data is false
       // for them — we fall back to showing the full historical sponsor roster
       // for those sessions, with the count labeled "served" instead of "active".
-      const baseSelect = 'session, name, party, chamber, member_id, district, bill_count, committee_passes, hearing_count, laws_passed, avg_score, top_score, is_chair, tier, committees, pass_rate, currently_seated, biennium_has_vote_data'
+      const baseSelect = 'session, name, party, chamber, member_id, district, bill_count, committee_passes, hearing_count, laws_passed, avg_score, top_score, is_chair, tier, committees, pass_rate, currently_seated, biennium_has_vote_data, phone, email'
 
       let rows = []
       if (isAll) {
@@ -682,6 +682,39 @@ function MembersContent() {
                     </div>
                   ))}
                 </div>
+
+                {/* Thread 110: contact row — phone + email from roster API */}
+                {(selectedMember.phone || selectedMember.email) && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '10px 14px',
+                    display: 'flex', flexWrap: 'wrap', gap: '6px 18px', alignItems: 'center',
+                  }}>
+                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', flexBasis: '100%' }}>
+                      Direct Contact
+                    </span>
+                    {selectedMember.phone && (
+                      <a
+                        href={`tel:${selectedMember.phone.replace(/\D/g, '')}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      >
+                        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>☎</span>
+                        {selectedMember.phone}
+                      </a>
+                    )}
+                    {selectedMember.email && (
+                      <a
+                        href={`mailto:${selectedMember.email}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      >
+                        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>✉</span>
+                        {selectedMember.email}
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
