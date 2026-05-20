@@ -15,6 +15,7 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
+import MemberBioSection from '../components/MemberBioSection'
 import { ArrowUpRight, Printer } from 'lucide-react'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
@@ -83,6 +84,8 @@ function MembersContent() {
   const [hasActiveSignal, setHasActiveSignal] = useState(false)
   // Thread 112: PDF card generation state
   const [pdfLoading, setPdfLoading] = useState(false)
+  // Thread 113: biographical data from legislator_bios table
+  const [memberBio, setMemberBio] = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -408,8 +411,18 @@ function MembersContent() {
   function selectMember(m) {
     setSelected(m)
     setActiveTab('overview')  // Thread 22: each open lands on Overview
+    setMemberBio(null)        // Thread 113: clear previous member's bio
     loadMemberBills(m.name)
     loadMemberVotes(m)
+    // Thread 113: fetch bio data from legislator_bios
+    if (m.member_id) {
+      supabase
+        .from('legislator_bios')
+        .select('bio_summary, education, occupation, family, first_elected_year, priorities')
+        .eq('member_id', m.member_id)
+        .maybeSingle()
+        .then(({ data }) => setMemberBio(data || null))
+    }
   }
   // Thread 22: shared close handler. Inline rather than goBackOrFallback()
   // because the detail is a state-toggle on the same /members route — there
@@ -419,6 +432,7 @@ function MembersContent() {
     setMemberBills([])
     setMemberVotes([])
     setPartyBucketsByRcId({})
+    setMemberBio(null)        // Thread 113
     setActiveTab('overview')
   }
   // Note: no useEffect to refetch on selectedSession change — the list-view
@@ -579,7 +593,7 @@ function MembersContent() {
                       setPdfLoading(true)
                       try {
                         const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
-                        await generateMemberPdf(selectedMember, memberBills, selectedSession)
+                        await generateMemberPdf(selectedMember, memberBills, selectedSession, memberBio)
                       } catch (err) {
                         console.error('[Print Card] PDF generation failed:', err)
                       } finally {
@@ -949,6 +963,9 @@ function MembersContent() {
                     </div>
                   </div>
                 )}
+
+                {/* Thread 113: Bio section — education, career, family, priorities */}
+                <MemberBioSection bio={memberBio} />
               </>
             )
           })()}

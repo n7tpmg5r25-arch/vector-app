@@ -1,14 +1,9 @@
 /**
  * Vector | WA — Member Baseball Card PDF Generator
+ * Thread 113: Added drawBackground() and drawLegislativeFocus() sections
  *
- * Thread 112 hotfix: removed redundant doc.setTextColor(P.accent) call
- * (without spread) in drawCommittees that was throwing
- * "Invalid argument passed to jsPDF.f3". jsPDF encodeColorString requires
- * RGB values spread as separate args, not an array object.
- *
- * All setTextColor / setDrawColor / setFillColor calls now use ...spread.
- * Unicode star replaced with ASCII * (Windows-1252 safe).
- * En-dash replaced with ASCII / in session display.
+ * Call generateMemberPdf(member, memberBills, session, bio) where bio
+ * is a row from the legislator_bios table (may be null — sections degrade gracefully).
  */
 
 import jsPDF from 'jspdf'
@@ -213,6 +208,55 @@ function drawSectionLabel(doc, y, m, contentW, label) {
   return y + 4
 }
 
+// ── Section 2.5 — Background (Thread 113) ────────────────────────────────────
+
+function drawBackground(doc, y, m, contentW, bio) {
+  if (!bio) return y
+
+  const { education, occupation, family, first_elected_year } = bio
+
+  // Build the three display lines — skip any that have no data
+  const lines = []
+
+  // Education line: "Georgetown University — B.S.F.S.  |  UW — M.P.A."
+  if (education && education.length > 0) {
+    const edLine = education.slice(0, 3).map(e => {
+      const parts = [e.school, e.degree && e.field ? `${e.degree} ${e.field}` : (e.degree || e.field)]
+      return parts.filter(Boolean).join(' — ')
+    }).join('  |  ')
+    if (edLine.trim()) lines.push({ text: edLine, icon: null })
+  }
+
+  // Career line: "Planner  ·  City Council  ·  State Senator since 2014"
+  if (occupation && occupation.length > 0) {
+    let careerLine = occupation.slice(0, 4).join('  ·  ')
+    if (first_elected_year) careerLine += `  ·  Legislature since ${first_elected_year}`
+    lines.push({ text: careerLine, icon: null })
+  } else if (first_elected_year) {
+    lines.push({ text: `Legislature since ${first_elected_year}`, icon: null })
+  }
+
+  // Family line
+  if (family) {
+    lines.push({ text: family, icon: null })
+  }
+
+  if (!lines.length) return y
+
+  y = drawSectionLabel(doc, y, m, contentW, 'Background')
+
+  for (const { text } of lines) {
+    const wrapped = wrapText(doc, trunc(text, 140), contentW)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...P.primary)
+    doc.text(wrapped.slice(0, 2), m, y)
+    y += wrapped.slice(0, 2).length * 4.5
+  }
+
+  return y + 4
+}
+
 // ── Section 3 — Committee assignments ───────────────────────────────────────
 
 function drawCommittees(doc, y, m, contentW, pw, member) {
@@ -233,7 +277,6 @@ function drawCommittees(doc, y, m, contentW, pw, member) {
 
     const isChairRow = idx === 0 && !!member.is_chair
 
-    // FIX: set font and color with correct spread — no array passed directly
     if (isChairRow) {
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(...P.accent)
@@ -363,6 +406,68 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
   return y + 3
 }
 
+// ── Section 5.5 — Legislative Focus (Thread 113) ────────────────────────────
+
+function drawLegislativeFocus(doc, y, m, contentW, bio) {
+  if (!bio) return y
+
+  const priorities = bio.priorities || []
+  const summary    = bio.bio_summary || null
+
+  if (!priorities.length && !summary) return y
+
+  y = drawSectionLabel(doc, y, m, contentW, 'Legislative Focus')
+
+  // Priority chips — small pill labels across the page
+  if (priorities.length > 0) {
+    const chipH    = 5.5
+    const chipPadX = 4
+    const chipGap  = 3
+    let cx         = m
+
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+
+    for (const p of priorities.slice(0, 6)) {
+      const label = p.toUpperCase()
+      const chipW = doc.getTextWidth(label) + chipPadX * 2
+
+      // Wrap to next line if overflow
+      if (cx + chipW > m + contentW) {
+        cx  = m
+        y  += chipH + 2
+      }
+
+      // Chip background
+      doc.setFillColor(28, 32, 42)   // dark surface
+      doc.setDrawColor(...P.accent)
+      doc.setLineWidth(0.4)
+      doc.roundedRect(cx, y - chipH + 1, chipW, chipH, 1.2, 1.2, 'FD')
+
+      // Chip label
+      doc.setTextColor(...P.accent)
+      doc.text(label, cx + chipPadX, y - 0.5)
+
+      cx += chipW + chipGap
+    }
+
+    y += chipH + 2
+  }
+
+  // Bio summary below chips (if fits)
+  if (summary) {
+    y += 2
+    const wrapped = wrapText(doc, summary, contentW)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text(wrapped.slice(0, 3), m, y)
+    y += wrapped.slice(0, 3).length * 4
+  }
+
+  return y + 4
+}
+
 // ── Footer ───────────────────────────────────────────────────────────────────
 
 function drawFooter(doc, m, pw, ph, generatedAt) {
@@ -382,7 +487,8 @@ function drawFooter(doc, m, pw, ph, generatedAt) {
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-export async function generateMemberPdf(member, memberBills, session) {
+// bio param is a row from legislator_bios table (nullable)
+export async function generateMemberPdf(member, memberBills, session, bio = null) {
   if (!member) throw new Error('generateMemberPdf: member is required')
 
   const generatedAt = new Date()
@@ -395,9 +501,11 @@ export async function generateMemberPdf(member, memberBills, session) {
 
   y = await drawHeader(doc, y, m, pw, generatedAt)
   y = await drawIdentity(doc, y, m, pw, contentW, member)
+  y = drawBackground(doc, y, m, contentW, bio)          // NEW — Thread 113
   y = drawCommittees(doc, y, m, contentW, pw, member)
   y = drawIntelligence(doc, y, m, contentW, pw, member, session)
   y = drawTopBills(doc, y, m, contentW, pw, memberBills, session)
+  y = drawLegislativeFocus(doc, y, m, contentW, bio)    // NEW — Thread 113
   drawFooter(doc, m, pw, ph, generatedAt)
 
   const lastName = (member.name || 'member')
