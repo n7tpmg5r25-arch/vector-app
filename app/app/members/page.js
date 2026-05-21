@@ -515,6 +515,107 @@ function MembersContent() {
     const tier = tierLabel(selectedMember.tier)
     return (
       <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+        {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+        {isAnonPublic && <PublicNav />}
+        <div style={{
+          background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
+          padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(184,151,90,0.06) 0%, transparent 60%)',
+            pointerEvents: 'none',
+          }}/>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <button
+              onClick={closeDetail}
+              style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--teal)', cursor: 'pointer', marginBottom: 12, padding: 0, fontFamily: 'inherit' }}
+            >← Back</button>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                border: `3px solid ${selectedMember.party === 'D' ? '#4d9aff' : selectedMember.party === 'R' ? '#ef4444' : 'var(--border)'}`,
+                overflow: 'hidden', background: 'var(--bg-card)', flexShrink: 0,
+              }}>
+                <img
+                  src={`https://leg.wa.gov/memberphoto/${selectedMember.member_id}.jpg`}
+                  alt={selectedMember.name}
+                  width={80}
+                  height={80}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}
+                  onError={e => {
+                    e.target.style.display = 'none'
+                    e.target.parentNode.insertAdjacentHTML('beforeend',
+                      `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:20px;font-weight:700;color:var(--text-muted);font-family:var(--font-body)">${selectedMember.name.split(' ').map(n=>n[0]).slice(-2).join('')}</span>`
+                    )
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                  {selectedMember.name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                  {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
+                  {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
+                  {selectedMember.is_chair && ' · Committee Chair'}
+                  {memberBio?.first_elected_year && ` · Since ${memberBio.first_elected_year}`}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
+                    {tier.text}
+                  </span>
+                  <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: 'var(--bg-surface)', color: 'var(--text-mid)', border: '1px solid var(--border)' }}>
+                    {selectedMember.bill_count} bills sponsored
+                  </span>
+                  
+                  <a
+                    href={`https://leg.wa.gov/${selectedMember.chamber === 'House' ? 'House/Representatives' : 'Senate/Senators'}/Pages/${selectedMember.name.split(' ').pop()}.aspx`}
+                    target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      fontSize: 9, padding: '3px 10px', borderRadius: 10,
+                      background: 'rgba(184,151,90,0.08)', color: 'var(--teal)',
+                      border: '1px solid rgba(184,151,90,0.2)',
+                      textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    leg.wa.gov <ArrowUpRight size={10} aria-hidden="true" />
+                  </a>
+                  <button
+                    disabled={pdfLoading}
+                    onClick={async e => {
+                      e.stopPropagation()
+                      if (pdfLoading) return
+                      setPdfLoading(true)
+                      try {
+                        const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
+                        await generateMemberPdf(selectedMember, memberBills, selectedSession, memberBio)
+                      } catch (err) {
+                        console.error('[Print Card] PDF generation failed:', err)
+                      } finally {
+                        setPdfLoading(false)
+                      }
+                    }}
+                    style={{
+                      fontSize: 9, padding: '3px 10px', borderRadius: 10,
+                      background: pdfLoading ? 'var(--bg-surface)' : 'rgba(184,151,90,0.08)',
+                      color: pdfLoading ? 'var(--text-muted)' : 'var(--teal)',
+                      border: '1px solid rgba(184,151,90,0.2)',
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      cursor: pdfLoading ? 'default' : 'pointer',
+                      fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                    }}
+                  >
+                    <Printer size={9} aria-hidden="true" />
+                    {pdfLoading ? 'Generating…' : 'Print Card'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
                 {/* Thread 114: Sticky name bar */}
         <div style={{
           position: 'sticky', top: 0, zIndex: 10,
