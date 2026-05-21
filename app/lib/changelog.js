@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '3.3',
+    date: '2026-05-21',
+    phase: 'alpha',
+    highlights: [
+      'Member bio panel reordered for lobbyist use — legislative priorities and background (education, career, family) now appear at the top of the Overview tab, right after contact info, instead of buried below analytics cards (Threads 114–115).',
+      'Baseball card PDF redesigned with a congressional card layout — legislative focus section moves immediately after the photo/identity block, and top bills + committee assignments appear side by side in a two-column format (Thread 115).',
+      'Committee chip strip on member detail page relabeled "Bill Referral Committees" with a clarifying note — the data shows which committees received this member\'s sponsored bills, not which committees the member sits on as a seat holder (Thread 115).',
+    ],
+  },
+  {
     version: '3.2',
     date: '2026-05-18',
     phase: 'alpha',
