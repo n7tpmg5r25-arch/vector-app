@@ -220,7 +220,7 @@ function drawBackground(doc, y, m, contentW, bio) {
 
   // Education line: "Georgetown University — B.S.F.S.  |  UW — M.P.A."
   if (education && education.length > 0) {
-    const edLine = education.slice(0, 3).map(e => {
+    const edLine = education.slice(0, 2).map(e => {
       const parts = [e.school, e.degree && e.field ? `${e.degree} ${e.field}` : (e.degree || e.field)]
       return parts.filter(Boolean).join(' — ')
     }).join('  |  ')
@@ -428,6 +428,10 @@ function drawLegislativeFocus(doc, y, m, contentW, bio) {
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
+    // Brass-tinted band behind the priority chips row
+    doc.setFillColor(26, 24, 18)
+    doc.rect(m - 2, y - chipH - 1, contentW + 4, chipH + 4, 'F')
+
     for (const p of priorities.slice(0, 6)) {
       const label = p.toUpperCase()
       const chipW = doc.getTextWidth(label) + chipPadX * 2
@@ -461,8 +465,8 @@ function drawLegislativeFocus(doc, y, m, contentW, bio) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...P.muted)
-    doc.text(wrapped.slice(0, 3), m, y)
-    y += wrapped.slice(0, 3).length * 4
+    doc.text(wrapped.slice(0, 4), m, y)
+    y += wrapped.slice(0, 4).length * 4
   }
 
   return y + 4
@@ -501,11 +505,30 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
 
   y = await drawHeader(doc, y, m, pw, generatedAt)
   y = await drawIdentity(doc, y, m, pw, contentW, member)
-  y = drawBackground(doc, y, m, contentW, bio)          // NEW — Thread 113
-  y = drawCommittees(doc, y, m, contentW, pw, member)
+  y = drawLegislativeFocus(doc, y, m, contentW, bio)    // Thread 115: moved to position 3
+
+  // ── Two-column lower body (Thread 115) ───────────────────────────────────
+  const colSplit = 0.60         // left col = 60%, right = 38%, gap = 2%
+  const leftW    = contentW * colSplit - 2
+  const rightW   = contentW * (1 - colSplit - 0.02)
+  const rightX   = m + contentW * (colSplit + 0.02)
+
+  const yCol  = y
+  const yLeft = drawTopBills(doc, yCol, m, leftW, pw, memberBills, session)
+
+  let yRight = drawCommittees(doc, yCol, rightX, rightW, pw, member)
+  yRight     = drawBackground(doc, yRight, rightX, rightW, bio)
+
+  // Vertical separator between columns
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.2)
+  const sepX = m + contentW * colSplit
+  doc.line(sepX, yCol - 2, sepX, Math.max(yLeft, yRight) + 2)
+
+  y = Math.max(yLeft, yRight) + 4
+  // ─────────────────────────────────────────────────────────────────────────
+
   y = drawIntelligence(doc, y, m, contentW, pw, member, session)
-  y = drawTopBills(doc, y, m, contentW, pw, memberBills, session)
-  y = drawLegislativeFocus(doc, y, m, contentW, bio)    // NEW — Thread 113
   drawFooter(doc, m, pw, ph, generatedAt)
 
   const lastName = (member.name || 'member')
