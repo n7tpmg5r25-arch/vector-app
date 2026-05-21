@@ -616,26 +616,6 @@ function MembersContent() {
             </div>
           </div>
         </div>
-                {/* Thread 114: Sticky name bar */}
-        <div style={{
-          position: 'sticky', top: 0, zIndex: 10,
-          background: 'var(--bg)',
-          borderBottom: '1px solid var(--border)',
-          padding: '8px 16px',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-            background: selectedMember.party === 'D' ? '#4d9aff' : selectedMember.party === 'R' ? '#ef4444' : 'var(--border)',
-            display: 'inline-block',
-          }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedMember.name}
-          </span>
-          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {selectedMember.chamber === 'House' ? 'House' : 'Senate'} · {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
-          </span>
-        </div>
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border)',
@@ -792,9 +772,9 @@ function MembersContent() {
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
                 {/* Thread 114: Priorities + bio summary */}
-
                 <MemberBioSection bio={memberBio} section="priorities" />
-
+                {/* Thread 115: Background moved to position 4 — immediately after priorities */}
+                <MemberBioSection bio={memberBio} section="background" />
 
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
@@ -961,12 +941,12 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Existing committee-affiliations chip strip — preserved for
-                    completeness (small text, fast scan of all committees) */}
+                {/* Thread 115: Relabeled — this data is bill-referral committees
+                    (where their sponsored bills were sent), NOT committee seat membership. */}
                 {selectedMember.committees && selectedMember.committees.length > 0 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                      All Committee Affiliations
+                      Bill Referral Committees
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {selectedMember.committees.sort().map(c => (
@@ -977,13 +957,12 @@ function MembersContent() {
                         }}>{c}</span>
                       ))}
                     </div>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
+                      Committees this member's sponsored bills were referred to
+                    </div>
                   </div>
                 )}
 
-                {/* Thread 113: Bio section — education, career, family, priorities */}
-                {/* Thread 114: Background — education/career/family */}
-
-                <MemberBioSection bio={memberBio} section="background" />
               </>
             )
           })()}
