@@ -563,6 +563,8 @@ function MembersContent() {
                   {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
+
+                  {memberBio?.first_elected_year && ` · Since ${memberBio.first_elected_year}`}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
@@ -619,7 +621,27 @@ function MembersContent() {
           </div>
         </div>
 
-        {/* ── Thread 22: TAB STRIP ─────────────────────────
+        {/* ──         {/* Thread 114: Sticky name bar */}
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 10,
+          background: 'var(--bg)',
+          borderBottom: '1px solid var(--border)',
+          padding: '8px 16px',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+            background: selectedMember.party === 'D' ? '#4d9aff' : selectedMember.party === 'R' ? '#ef4444' : 'var(--border)',
+            display: 'inline-block',
+          }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-body)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedMember.name}
+          </span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {selectedMember.chamber === 'House' ? 'House' : 'Senate'} · {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
+          </span>
+        </div>
+Thread 22: TAB STRIP ─────────────────────────
             Mirrors the bill detail tab pattern (Thread 18). Three tabs;
             Overview default. Per-session breakdown lives on Overview AND
             on Sponsored Bills (matches the existing "All Sessions" UX
@@ -780,6 +802,11 @@ function MembersContent() {
                 )}
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
+                {/* Thread 114: Priorities + bio summary */}
+
+                <MemberBioSection bio={memberBio} section="priorities" />
+
+
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
@@ -965,7 +992,9 @@ function MembersContent() {
                 )}
 
                 {/* Thread 113: Bio section — education, career, family, priorities */}
-                <MemberBioSection bio={memberBio} />
+                {/* Thread 114: Background — education/career/family */}
+
+                <MemberBioSection bio={memberBio} section="background" />
               </>
             )
           })()}
