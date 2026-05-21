@@ -570,6 +570,7 @@ function MembersContent() {
                     {selectedMember.bill_count} bills sponsored
                   </span>
                   
+                  <a
                     href={`https://leg.wa.gov/${selectedMember.chamber === 'House' ? 'House/Representatives' : 'Senate/Senators'}/Pages/${selectedMember.name.split(' ').pop()}.aspx`}
                     target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
