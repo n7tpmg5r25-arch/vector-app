@@ -97,6 +97,9 @@ function caucusUrls(member) {
       `https://senatedemocrats.wa.gov/${fullSlug}/biography/`,
       `https://senatedemocrats.wa.gov/${fullSlug}/`,
       `https://senatedemocrats.wa.gov/${firstLastSlug}/biography/`,
+      // leg.wa.gov static HTML fallback (Thread 116)
+      `https://leg.wa.gov/senate/senators/Pages/${lastSlug}.aspx`,
+      `https://leg.wa.gov/senate/senators/Pages/${firstLastSlug}.aspx`,
     ]
   }
   if (chamber === 'Senate' && party === 'R') {
@@ -107,6 +110,9 @@ function caucusUrls(member) {
       `https://src.wa.gov/member/${lastSlug}/`,
       `https://src.wa.gov/senators/${lastSlug}/`,
       `https://src.wa.gov/senator/${firstLastSlug}/`,
+      // leg.wa.gov static HTML fallback — src.wa.gov is a React SPA (Thread 116)
+      `https://leg.wa.gov/senate/senators/Pages/${lastSlug}.aspx`,
+      `https://leg.wa.gov/senate/senators/Pages/${firstLastSlug}.aspx`,
     ]
   }
   if (chamber === 'House' && party === 'D') {
@@ -115,6 +121,9 @@ function caucusUrls(member) {
       `https://housedemocrats.wa.gov/members/${lastSlug}/`,
       `https://housedemocrats.wa.gov/members/${firstLastSlug}/`,
       `https://housedemocrats.wa.gov/member/${fullSlug}/`,
+      // leg.wa.gov static HTML fallback (Thread 116)
+      `https://leg.wa.gov/house/representatives/Pages/${lastSlug}.aspx`,
+      `https://leg.wa.gov/house/representatives/Pages/${firstLastSlug}.aspx`,
     ]
   }
   if (chamber === 'House' && party === 'R') {
@@ -125,6 +134,9 @@ function caucusUrls(member) {
       // Fallbacks for edge cases (McEntire-style names already handled by toNoSepSlug)
       `https://houserepublicans.wa.gov/representatives/${lastSlug}/`,
       `https://houserepublicans.wa.gov/representatives/${fullSlug}/`,
+      // leg.wa.gov static HTML fallback (Thread 116)
+      `https://leg.wa.gov/house/representatives/Pages/${lastSlug}.aspx`,
+      `https://leg.wa.gov/house/representatives/Pages/${firstLastSlug}.aspx`,
     ]
   }
   return []
