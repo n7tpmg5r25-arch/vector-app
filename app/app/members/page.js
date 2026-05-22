@@ -16,6 +16,7 @@ import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
 import { ArrowUpRight, Printer } from 'lucide-react'
+import MemberBioSection from '../components/MemberBioSection'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
 // readout on the Overview tab. Mirrors the same filter pattern used in
@@ -83,6 +84,8 @@ function MembersContent() {
   const [hasActiveSignal, setHasActiveSignal] = useState(false)
   // Thread 112: PDF card generation state
   const [pdfLoading, setPdfLoading] = useState(false)
+  // Thread 113: biographical data from legislator_bios table
+  const [memberBio, setMemberBio] = useState(null)
   // Thread 124: committee seat memberships for selected member (null=loading, []=loaded)
   const [memberCommittees, setMemberCommittees] = useState(null)
   // Thread 124: sticky condensed name bar
@@ -426,9 +429,19 @@ function MembersContent() {
   function selectMember(m) {
     setSelected(m)
     setActiveTab('overview')  // Thread 22: each open lands on Overview
+    setMemberBio(null)        // Thread 113: clear previous member's bio
     loadMemberBills(m.name)
     loadMemberVotes(m)
     loadMemberCommittees(m)  // Thread 124: real seat membership data
+    // Thread 113: fetch bio data from legislator_bios
+    if (m.member_id) {
+      supabase
+        .from('legislator_bios')
+        .select('bio_summary, education, occupation, family, first_elected_year, priorities')
+        .eq('member_id', m.member_id)
+        .maybeSingle()
+        .then(({ data }) => setMemberBio(data || null))
+    }
   }
   // Thread 22: shared close handler. Inline rather than goBackOrFallback()
   // because the detail is a state-toggle on the same /members route — there
@@ -438,6 +451,8 @@ function MembersContent() {
     setMemberBills([])
     setMemberVotes([])
     setPartyBucketsByRcId({})
+    setMemberBio(null)        // Thread 113
+    setMemberCommittees(null) // Thread 124
     setActiveTab('overview')
   }
   // Note: no useEffect to refetch on selectedSession change — the list-view
@@ -593,6 +608,7 @@ function MembersContent() {
                   {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
+                  {memberBio?.first_elected_year && ` · Since ${memberBio.first_elected_year}`}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
@@ -623,7 +639,7 @@ function MembersContent() {
                       setPdfLoading(true)
                       try {
                         const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
-                        await generateMemberPdf(selectedMember, memberBills, selectedSession)
+                        await generateMemberPdf(selectedMember, memberBills, selectedSession, memberBio)
                       } catch (err) {
                         console.error('[Print Card] PDF generation failed:', err)
                       } finally {
@@ -663,7 +679,7 @@ function MembersContent() {
           marginTop: 4,
           overflowX: 'auto',
           position: 'sticky',
-          top: 36,
+          top: stickyName ? 36 : 0,
           zIndex: 10,
           background: 'var(--bg)',
         }}>
@@ -812,6 +828,11 @@ function MembersContent() {
                     )}
                   </div>
                 )}
+
+                {/* Thread 114: Priorities chips + bio summary */}
+                <MemberBioSection bio={memberBio} section="priorities" />
+                {/* Thread 115: Background block (education, career, family) */}
+                <MemberBioSection bio={memberBio} section="background" />
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
