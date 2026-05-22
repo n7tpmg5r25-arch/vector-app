@@ -27,7 +27,7 @@ jobs:
         working-directory: ./app
         run: npm ci
 
-      - name: Run sync (2025-2026 session)
+      - name: Run sync-v2.js
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -41,158 +41,6 @@ jobs:
           SINE_DIE: '2026-03-12'
         run: node app/lib/sync-v2.js
 
-      # 6D.2: Pre-filing sync for next biennium
-      # Activates Dec 1, 2026 — fetches new 2027-2028 pre-filed bills
-      # Until then this step runs but exits quickly (0 bills in new session)
-      - name: Run sync (2027-2028 session — pre-filing)
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CURRENT_BIENNIUM: '2027-28'
-          CURRENT_YEAR: '2028'
-          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
-          SESSION_START: '2027-01-11'
-          COMMITTEE_CUTOFF: '2028-02-07'
-          FLOOR_CUTOFF: '2028-02-21'
-          OPPOSITE_CUTOFF: '2028-03-05'
-          SINE_DIE: '2028-03-10'
-        run: |
-          # Only run if pre-filing has opened (Dec 1, 2026)
-          PREFILING_DATE="2026-12-01"
-          TODAY=$(date -u +%Y-%m-%d)
-          if [[ "$TODAY" < "$PREFILING_DATE" ]]; then
-            echo "Pre-filing not yet open ($TODAY < $PREFILING_DATE). Skipping."
-            exit 0
-          fi
-          echo "Pre-filing is open. Syncing 2027-2028 session..."
-          node app/lib/sync-v2.js
-
-      # ── Thread 11.1: SponsorService roster cache + party backfill ────────
-      # Pulls the full legislator roster from SponsorService.asmx for the
-      # current biennium and upserts into legislator_party_history. Then
-      # stamps member_votes.party for any rows still NULL. Idempotent — a
-      # no-op when nothing has changed since last night.
-      # Read-only enrichment per Universal Guardrail G5; scoreBill() is not
-      # touched. Safe to fail: continue-on-error so a SponsorService outage
-      # can't take down the rest of the sync. Worst case: party labels stay
-      # stale for a day until tomorrow's run picks them up.
-      - name: Sync legislator rosters (2025-2026)
-        if: success()
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CURRENT_BIENNIUM: '2025-26'
-          CURRENT_YEAR: '2026'
-          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
-        run: node app/lib/sync-rosters.js
-
-      - name: Sync legislator rosters (2027-2028 — pre-filing)
-        if: success()
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CURRENT_BIENNIUM: '2027-28'
-          CURRENT_YEAR: '2028'
-          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
-        run: |
-          PREFILING_DATE="2026-12-01"
-          TODAY=$(date -u +%Y-%m-%d)
-          if [[ "$TODAY" < "$PREFILING_DATE" ]]; then
-            echo "Pre-filing not yet open ($TODAY < $PREFILING_DATE). Skipping 2027-28 roster sync."
-            exit 0
-          fi
-          node app/lib/sync-rosters.js
-
-      - name: Assert sync data quality (2025-2026)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SYNC_SESSION: '2025-2026'
-        run: node app/lib/assert-sync-quality.js
-
-      - name: Assert sync data quality (2027-2028)
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SYNC_SESSION: '2027-2028'
-        run: |
-          PREFILING_DATE="2026-12-01"
-          TODAY=$(date -u +%Y-%m-%d)
-          if [[ "$TODAY" < "$PREFILING_DATE" ]]; then
-            echo "Pre-filing not yet open. Skipping 2027-2028 assertions."
-            exit 0
-          fi
-          node app/lib/assert-sync-quality.js
-
-      # ── Phase 11.6: CSI sign-in scraper ────────────────────────────────
-      # Runs after sync-v2 so meeting_agenda_items is fresh. Descriptive-only:
-      # writes csi_sign_ins + csi_scrape_log. scoreBill() does NOT read it.
-      # Phase 11.7 (Jan 2027) wires the data into the UI.
-      - name: Install Playwright (CSI scraper)
-        if: success()
-        run: |
-          npm i --no-save playwright@^1.47.0
-          npx playwright install --with-deps chromium
-
-      - name: Scrape CSI sign-ins
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CURRENT_YEAR: '2026'
-        run: node scripts/scrape-csi.js --days-back 2 --days-forward 1
-
-      - name: Assert CSI scraper health
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: node scripts/assert-csi-freshness.js
-
-      # ── Phase 11.8: Committee referral capture ─────────────────────────
-      # Writes bill_committee_referrals from bills.committee_name/passed.
-      # Descriptive only during 2027 session freeze; enables post-session
-      # "days in committee → pass likelihood" analysis with no extra API
-      # cost. Safe to fail: not required by any downstream step.
-      - name: Capture committee referrals
-        if: success()
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: node scripts/capture-referrals.js
-
-      - name: Run alert detection
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: node app/lib/detect-alerts.js
-
-      - name: Send alert emails (if events pending)
-        if: success()
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
-        run: |
-          echo "Checking for pending alert events..."
-          RESULT=$(curl -s -w "\n%{http_code}" \
-            "${SUPABASE_URL}/functions/v1/send-alerts" \
-            -H "Content-Type: application/json" \
-            -H "x-function-secret: ${FUNCTION_SECRET}" \
-            -d '{"type": "event-batch"}')
-          HTTP_CODE=$(echo "$RESULT" | tail -1)
-          BODY=$(echo "$RESULT" | head -n -1)
-          echo "send-alerts: HTTP $HTTP_CODE - $BODY"
-
-      # AI summarization runs LAST so it can't block critical steps (sync,
-      # CSI, alerts) if it runs long. Capped at 30 calls (~750 bills/night)
-      # to keep total job under ~60 min steady-state and under the 2,000
-      # min/month free-tier ceiling. Backlog clears over a few nights.
       - name: Summarize bills with AI
         if: success()
         env:
@@ -203,7 +51,7 @@ jobs:
           REMAINING="more"
           TOTAL=0
           CALLS=0
-          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 30 ]; do
+          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 80 ]; do
             CALLS=$((CALLS + 1))
             RESULT=$(curl -s -w "\n%{http_code}" \
               "${SUPABASE_URL}/functions/v1/summarize-bills" \
@@ -231,6 +79,23 @@ jobs:
             sleep 2
           done
           echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
+
+      - name: Sync committee seats (weekly, Mondays only)
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+        run: |
+          DAY=$(date +%u)
+          if [ "$DAY" = "1" ]; then
+            echo "Monday -- running committee seat sync"
+            node app/lib/sync-committee-seats.js
+          else
+            echo "Not Monday (day $DAY) -- skipping committee seat sync"
+          fi
 
       - name: Report result
         if: always()
