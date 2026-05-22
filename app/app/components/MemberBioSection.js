@@ -34,7 +34,7 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
   const hasOcc  = occupation  && occupation.length > 0
   const hasPrio = priorities  && priorities.length > 0
   const hasBio  = !!bio_summary
-  const hasBg   = hasEd || hasOcc || !!family || !!first_elected_year
+  const hasBg   = hasEd || hasOcc || !!first_elected_year  // family excluded — private individuals
 
   // ── AI label chip — reused across sections ─────────────────────────────────
   const AiChip = () => (
@@ -147,12 +147,6 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
             </div>
           </div>
         )}
-        {family && (
-          <div>
-            <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>Family</div>
-            <div style={{ fontSize: 12, color: 'var(--text-primary)' }}>{family}</div>
-          </div>
-        )}
       </div>
     )
   }
@@ -243,12 +237,6 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
                   </span>
                 )}
               </div>
-            </div>
-          )}
-          {family && (
-            <div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>Family</div>
-              <div style={{ fontSize: 12, color: 'var(--text-primary)' }}>{family}</div>
             </div>
           )}
         </div>
