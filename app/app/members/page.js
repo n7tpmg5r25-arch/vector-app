@@ -437,7 +437,7 @@ function MembersContent() {
     if (m.member_id) {
       supabase
         .from('legislator_bios')
-        .select('bio_summary, education, occupation, family, first_elected_year, priorities')
+        .select('bio_summary, education, occupation, family, first_elected_year, priorities, caucus_url')
         .eq('member_id', m.member_id)
         .maybeSingle()
         .then(({ data }) => setMemberBio(data || null))
@@ -833,7 +833,7 @@ function MembersContent() {
                 )}
 
                 {/* Thread 114/125: combined bio card — chips, AI summary, background */}
-                <MemberBioSection bio={memberBio} />
+                <MemberBioSection bio={memberBio} caucusUrl={memberBio?.caucus_url} />
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (

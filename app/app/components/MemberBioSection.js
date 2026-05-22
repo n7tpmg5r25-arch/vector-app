@@ -1,23 +1,34 @@
 /**
  * Vector | WA — MemberBioSection component
  * Thread 113 (created) · Thread 114 (section prop) · Thread 124 (source attributions)
- * Thread 125 (hotfix 2): merged card, neutral chips, brass AI attribution
+ * Thread 125: merged card, neutral chips, brass AI label, source citation, compliance pass
  *
  * Props:
- *   bio     — row from legislator_bios table (or null)
- *   section — 'priorities' | 'background' | 'all' (default)
+ *   bio       — row from legislator_bios (or null)
+ *   caucusUrl — caucus_url from legislator_bios; shown as "Source" citation
+ *   section   — 'priorities' | 'background' | 'all' (default)
  *
- * section='all' (default) — single combined card: chips → AI summary → background
- * section='priorities'    — chips + AI summary only (used by PDF, etc.)
- * section='background'    — background block only (education / career / family)
+ * section='all'         — single combined card: chips → AI summary → background facts
+ * section='priorities'  — chips + AI summary only (PDF / standalone)
+ * section='background'  — education / career / family only (PDF / standalone)
  */
 
 'use client'
 
-export default function MemberBioSection({ bio, section = 'all' }) {
+// Extract a clean domain label from a URL for display (e.g. "houserepublicans.wa.gov")
+function sourceDomain(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
   if (!bio) return null
 
   const { bio_summary, education, occupation, family, first_elected_year, priorities } = bio
+  const sourceUrl = caucusUrl || bio?.caucus_url || null
 
   const hasEd   = education   && education.length > 0
   const hasOcc  = occupation  && occupation.length > 0
@@ -25,44 +36,76 @@ export default function MemberBioSection({ bio, section = 'all' }) {
   const hasBio  = !!bio_summary
   const hasBg   = hasEd || hasOcc || !!family || !!first_elected_year
 
-  // ── section="priorities": chips + AI bio summary (PDF / standalone use) ───
+  // ── AI label chip — reused across sections ─────────────────────────────────
+  const AiChip = () => (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
+      fontSize: 8,
+      fontFamily: 'var(--font-mono)',
+      fontWeight: 700,
+      letterSpacing: '0.08em',
+      textTransform: 'uppercase',
+      padding: '2px 7px',
+      borderRadius: 4,
+      background: 'rgba(184,151,90,0.12)',
+      color: 'var(--teal)',
+      border: '1px solid rgba(184,151,90,0.3)',
+    }}>
+      AI Generated
+    </span>
+  )
+
+  // ── Source citation line ────────────────────────────────────────────────────
+  const SourceLine = ({ extraStyle }) => sourceUrl ? (
+    <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em', ...extraStyle }}>
+      Source:{' '}
+      <a
+        href={sourceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}
+      >
+        {sourceDomain(sourceUrl)}
+      </a>
+    </div>
+  ) : null
+
+  // ── section="priorities": chips + AI bio summary ───────────────────────────
   if (section === 'priorities') {
     if (!hasPrio && !hasBio) return null
     return (
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-        <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
-          Legislative Focus
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+            Legislative Focus
+          </div>
         </div>
         {hasPrio && (
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
               {priorities.slice(0, 6).map((p, i) => (
                 <span key={i} style={{
-                  fontSize: 9,
-                  fontFamily: 'var(--font-mono)',
-                  fontWeight: 600,
-                  letterSpacing: '0.05em',
-                  padding: '3px 8px',
-                  borderRadius: 6,
-                  background: 'var(--bg)',
-                  color: 'var(--text-mid)',
-                  border: '1px solid var(--border)',
-                  textTransform: 'uppercase',
+                  fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                  letterSpacing: '0.05em', padding: '3px 8px', borderRadius: 6,
+                  background: 'var(--bg)', color: 'var(--text-mid)',
+                  border: '1px solid var(--border)', textTransform: 'uppercase',
                 }}>
                   {p}
                 </span>
               ))}
             </div>
-            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: hasBio ? 8 : 0, letterSpacing: '0.02em' }}>
-              Topics identified from member's official biography
-            </div>
+            <SourceLine extraStyle={{ marginBottom: hasBio ? 8 : 0 }} />
           </>
         )}
         {hasBio && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, fontStyle: 'italic', borderTop: hasPrio ? '1px solid var(--border)' : 'none', paddingTop: hasPrio ? 8 : 0 }}>
             {bio_summary}
-            <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', marginTop: 6, fontStyle: 'normal', letterSpacing: '0.02em', color: 'var(--teal)' }}>
-              AI summary of public biography
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AiChip />
+              <SourceLine extraStyle={{ display: 'inline' }} />
             </div>
           </div>
         )}
@@ -75,8 +118,11 @@ export default function MemberBioSection({ bio, section = 'all' }) {
     if (!hasBg) return null
     return (
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-        <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
-          Background
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+            Background
+          </div>
+          <SourceLine extraStyle={{}} />
         </div>
         {hasEd && (
           <div style={{ marginBottom: 8 }}>
@@ -112,66 +158,70 @@ export default function MemberBioSection({ bio, section = 'all' }) {
   }
 
   // ── section="all" (default) — single combined card ─────────────────────────
-  const hasAnything = hasPrio || hasBio || hasBg
-  if (!hasAnything) return null
+  if (!hasPrio && !hasBio && !hasBg) return null
 
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
 
+      {/* Card header: eyebrow + AI chip + source */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', flex: 1 }}>
+          Member Background
+        </div>
+        <AiChip />
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              fontSize: 8,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-faint)',
+              textDecoration: 'underline',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Source: {sourceDomain(sourceUrl)}
+          </a>
+        )}
+      </div>
+
       {/* Legislative Focus chips */}
       {hasPrio && (
-        <>
-          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
-            Legislative Focus
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 6 }}>
+        <div style={{ marginBottom: hasBio || hasBg ? 10 : 0 }}>
+          <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 6 }}>Legislative Focus</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {priorities.slice(0, 6).map((p, i) => (
               <span key={i} style={{
-                fontSize: 9,
-                fontFamily: 'var(--font-mono)',
-                fontWeight: 600,
-                letterSpacing: '0.05em',
-                padding: '3px 8px',
-                borderRadius: 6,
-                background: 'var(--bg)',
-                color: 'var(--text-mid)',
-                border: '1px solid var(--border)',
-                textTransform: 'uppercase',
+                fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                letterSpacing: '0.05em', padding: '3px 8px', borderRadius: 6,
+                background: 'var(--bg)', color: 'var(--text-mid)',
+                border: '1px solid var(--border)', textTransform: 'uppercase',
               }}>
                 {p}
               </span>
             ))}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: hasBio || hasBg ? 10 : 0, letterSpacing: '0.02em' }}>
-            Topics identified from member's official biography
-          </div>
-        </>
+        </div>
       )}
 
       {/* AI bio summary */}
       {hasBio && (
         <div style={{
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          lineHeight: 1.6,
-          fontStyle: 'italic',
+          fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, fontStyle: 'italic',
           borderTop: hasPrio ? '1px solid var(--border)' : 'none',
           paddingTop: hasPrio ? 10 : 0,
           marginBottom: hasBg ? 10 : 0,
         }}>
           {bio_summary}
-          <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', marginTop: 6, fontStyle: 'normal', letterSpacing: '0.02em', color: 'var(--teal)' }}>
-            AI summary of public biography
-          </div>
         </div>
       )}
 
-      {/* Background (education / career / family) */}
+      {/* Background: education / career / family */}
       {hasBg && (
         <div style={{ borderTop: (hasPrio || hasBio) ? '1px solid var(--border)' : 'none', paddingTop: (hasPrio || hasBio) ? 10 : 0 }}>
-          <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
-            Background
-          </div>
           {hasEd && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 3 }}>Education</div>
