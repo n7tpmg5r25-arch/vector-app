@@ -1,7 +1,7 @@
 'use client'
 
 import { POSITION_TIER_SCORES, CHAIR_BONUS, COMPOSITE_WEIGHTS, LOW_VOLUME_THRESHOLD, LOW_VOLUME_PENALTY, TIER_LABELS } from '../../lib/members-scoring'
-import { Suspense, useEffect, useState, useCallback } from 'react'
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
@@ -15,7 +15,6 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
-import MemberBioSection from '../components/MemberBioSection'
 import { ArrowUpRight, Printer } from 'lucide-react'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
@@ -84,8 +83,11 @@ function MembersContent() {
   const [hasActiveSignal, setHasActiveSignal] = useState(false)
   // Thread 112: PDF card generation state
   const [pdfLoading, setPdfLoading] = useState(false)
-  // Thread 113: biographical data from legislator_bios table
-  const [memberBio, setMemberBio] = useState(null)
+  // Thread 124: committee seat memberships for selected member (null=loading, []=loaded)
+  const [memberCommittees, setMemberCommittees] = useState(null)
+  // Thread 124: sticky condensed name bar
+  const heroNameRef = useRef(null)
+  const [stickyName, setStickyName] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -408,21 +410,25 @@ function MembersContent() {
     }
   }, [supabase, selectedSession])
 
+  const loadMemberCommittees = useCallback(async (m) => {
+    setMemberCommittees(null)
+    if (!m?.member_id) { setMemberCommittees([]); return }
+    const { data, error } = await supabase
+      .from('legislator_committee_seats')
+      .select('committee_name, role')
+      .eq('session', selectedSession)
+      .eq('member_id', String(m.member_id))
+      .order('committee_name')
+    if (error) { console.warn('loadMemberCommittees:', error.message); setMemberCommittees([]); return }
+    setMemberCommittees(data || [])
+  }, [supabase, selectedSession])
+
   function selectMember(m) {
     setSelected(m)
     setActiveTab('overview')  // Thread 22: each open lands on Overview
-    setMemberBio(null)        // Thread 113: clear previous member's bio
     loadMemberBills(m.name)
     loadMemberVotes(m)
-    // Thread 113: fetch bio data from legislator_bios
-    if (m.member_id) {
-      supabase
-        .from('legislator_bios')
-        .select('bio_summary, education, occupation, family, first_elected_year, priorities')
-        .eq('member_id', m.member_id)
-        .maybeSingle()
-        .then(({ data }) => setMemberBio(data || null))
-    }
+    loadMemberCommittees(m)  // Thread 124: real seat membership data
   }
   // Thread 22: shared close handler. Inline rather than goBackOrFallback()
   // because the detail is a state-toggle on the same /members route — there
@@ -432,7 +438,6 @@ function MembersContent() {
     setMemberBills([])
     setMemberVotes([])
     setPartyBucketsByRcId({})
-    setMemberBio(null)        // Thread 113
     setActiveTab('overview')
   }
   // Note: no useEffect to refetch on selectedSession change — the list-view
@@ -451,6 +456,16 @@ function MembersContent() {
     if (exact) selectMember(exact)
     setIncomingHandled(true)
   }, [incomingName, members, loading, incomingHandled])
+
+  // Thread 124: sticky condensed name bar — show when member name scrolls off screen
+  useEffect(() => {
+    if (!selectedMember) { setStickyName(false); return }
+    const el = heroNameRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(([entry]) => setStickyName(!entry.isIntersecting), { threshold: 0 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [selectedMember])
 
   const STAGE_LABELS = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -517,8 +532,23 @@ function MembersContent() {
       <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
         {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
         {isAnonPublic && <PublicNav />}
+
+        {/* Thread 124: sticky condensed name bar — visible when hero name scrolls off */}
         <div style={{
-          background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
+          position: 'sticky', top: 0, zIndex: 20,
+          background: 'rgba(14,16,20,0.95)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: stickyName ? '1px solid var(--border)' : 'none',
+          padding: '0 16px', height: 36,
+          display: stickyName ? 'flex' : 'none',
+          alignItems: 'center', gap: 10,
+        }}>
+          <button onClick={closeDetail} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: 13, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>←</button>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedMember.name}</span>
+        </div>
+
+        <div style={{
+          background: 'var(--bg)',
           padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
           position: 'relative', overflow: 'hidden',
         }}>
@@ -528,10 +558,13 @@ function MembersContent() {
             pointerEvents: 'none',
           }}/>
           <div style={{ position: 'relative', zIndex: 1 }}>
+            {/* Thread 22: chip-styled back affordance. Inline state-toggle —
+                see closeDetail() above for why this isn't goBackOrFallback(). */}
             <button
               onClick={closeDetail}
               style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--teal)', cursor: 'pointer', marginBottom: 12, padding: 0, fontFamily: 'inherit' }}
             >← Back</button>
+
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
                 width: 80, height: 80, borderRadius: '50%',
@@ -553,14 +586,13 @@ function MembersContent() {
                 />
               </div>
               <div>
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                <div ref={heroNameRef} style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                   {selectedMember.name}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
                   {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
-                  {memberBio?.first_elected_year && ` · Since ${memberBio.first_elected_year}`}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
@@ -569,7 +601,6 @@ function MembersContent() {
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: 'var(--bg-surface)', color: 'var(--text-mid)', border: '1px solid var(--border)' }}>
                     {selectedMember.bill_count} bills sponsored
                   </span>
-                  
                   <a
                     href={`https://leg.wa.gov/${selectedMember.chamber === 'House' ? 'House/Representatives' : 'Senate/Senators'}/Pages/${selectedMember.name.split(' ').pop()}.aspx`}
                     target="_blank" rel="noopener noreferrer"
@@ -583,6 +614,7 @@ function MembersContent() {
                   >
                     leg.wa.gov <ArrowUpRight size={10} aria-hidden="true" />
                   </a>
+                  {/* Thread 112: Print Card — generates single-page PDF member brief */}
                   <button
                     disabled={pdfLoading}
                     onClick={async e => {
@@ -591,7 +623,7 @@ function MembersContent() {
                       setPdfLoading(true)
                       try {
                         const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
-                        await generateMemberPdf(selectedMember, memberBills, selectedSession, memberBio)
+                        await generateMemberPdf(selectedMember, memberBills, selectedSession)
                       } catch (err) {
                         console.error('[Print Card] PDF generation failed:', err)
                       } finally {
@@ -616,6 +648,13 @@ function MembersContent() {
             </div>
           </div>
         </div>
+
+        {/* ── Thread 22: TAB STRIP ─────────────────────────
+            Mirrors the bill detail tab pattern (Thread 18). Three tabs;
+            Overview default. Per-session breakdown lives on Overview AND
+            on Sponsored Bills (matches the existing "All Sessions" UX
+            on both surfaces). G5 frozen-engine: nothing in any tab calls
+            scoreBill / extractFeatures. */}
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border)',
@@ -623,6 +662,10 @@ function MembersContent() {
           marginBottom: 14,
           marginTop: 4,
           overflowX: 'auto',
+          position: 'sticky',
+          top: 36,
+          zIndex: 10,
+          background: 'var(--bg)',
         }}>
           {[
             { key: 'overview', label: 'Overview' },
@@ -724,7 +767,7 @@ function MembersContent() {
                   {[
                     { label: 'Bills', value: selectedMember.bill_count, color: 'var(--teal)' },
                     { label: 'Cmte Passes', value: selectedMember.committee_passes, color: 'var(--teal-mid)' },
-                    { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? '#4ade80' : 'var(--text-muted)' },
+                    { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? 'var(--sage)' : 'var(--text-muted)' },
                     { label: 'Avg Score', value: selectedMember.avg_score, color: selectedMember.avg_score >= 45 ? 'var(--teal)' : selectedMember.avg_score >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{
@@ -771,11 +814,6 @@ function MembersContent() {
                 )}
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
-                {/* Thread 114: Priorities + bio summary */}
-                <MemberBioSection bio={memberBio} section="priorities" />
-                {/* Thread 115: Background moved to position 4 — immediately after priorities */}
-                <MemberBioSection bio={memberBio} section="background" />
-
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
@@ -922,47 +960,40 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Top committees (procedural shelves filtered) */}
-                {topCommittees.length > 0 && (
-                  <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                  }}>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Most Active Committees
+                {/* Thread 124: COMMITTEE MEMBERSHIPS — real seat data from legislator_committee_seats.
+                    Replaces "Most Active Committees" (bill referral count) and "All Committee
+                    Affiliations" (also bill-referral data from v_member_stats_by_session).
+                    Populated by loadMemberCommittees() via selectMember(). */}
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
+                    Committee Memberships
+                  </div>
+                  {memberCommittees === null ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</div>
+                  ) : memberCommittees.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {selectedMember.member_id
+                        ? `No seat data for ${selectedSession}`
+                        : 'Seat data not available for this member'}
                     </div>
-                    {topCommittees.map(([name, n], i) => (
-                      <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', width: 14, textAlign: 'right' }}>{i + 1}</span>
-                        <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>{name}</span>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{n} bill{n === 1 ? '' : 's'}</span>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', marginBottom: 8 }}>
+                        {selectedSession} · {memberCommittees.length} committee{memberCommittees.length === 1 ? '' : 's'}
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Thread 115: Relabeled — this data is bill-referral committees
-                    (where their sponsored bills were sent), NOT committee seat membership. */}
-                {selectedMember.committees && selectedMember.committees.length > 0 && (
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Bill Referral Committees
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {selectedMember.committees.sort().map(c => (
-                        <span key={c} style={{
-                          fontSize: 11, padding: '4px 10px', borderRadius: 8,
-                          background: 'var(--bg-surface)', color: 'var(--text-mid)',
-                          border: '1px solid var(--border)', lineHeight: 1.3,
-                        }}>{c}</span>
+                      {memberCommittees.map((seat, i) => (
+                        <div key={seat.committee_name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 12, flex: 1, color: seat.role === 'chair' ? 'var(--teal)' : 'var(--text-primary)' }}>
+                            {seat.committee_name}
+                          </span>
+                          {seat.role === 'chair' && (
+                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--teal)', letterSpacing: '0.08em', padding: '2px 6px', background: 'rgba(184,151,90,0.1)', borderRadius: 4 }}>CHAIR</span>
+                          )}
+                        </div>
                       ))}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic' }}>
-                      Committees this member's sponsored bills were referred to
-                    </div>
-                  </div>
-                )}
-
+                    </>
+                  )}
+                </div>
               </>
             )
           })()}
