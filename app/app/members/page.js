@@ -548,14 +548,17 @@ function MembersContent() {
         {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
         {isAnonPublic && <PublicNav />}
 
-        {/* Thread 124: sticky condensed name bar — visible when hero name scrolls off */}
+        {/* Thread 124: sticky condensed name bar — always in DOM so sticky works;
+            collapses to height 0 when hero name is still on screen */}
         <div style={{
           position: 'sticky', top: 0, zIndex: 20,
           background: 'rgba(14,16,20,0.95)',
           backdropFilter: 'blur(12px)',
           borderBottom: stickyName ? '1px solid var(--border)' : 'none',
-          padding: '0 16px', height: 36,
-          display: stickyName ? 'flex' : 'none',
+          padding: '0 16px',
+          display: 'flex',
+          height: stickyName ? 36 : 0,
+          overflow: 'hidden',
           alignItems: 'center', gap: 10,
         }}>
           <button onClick={closeDetail} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: 13, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>←</button>
@@ -829,10 +832,8 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Thread 114: Priorities chips + bio summary */}
-                <MemberBioSection bio={memberBio} section="priorities" />
-                {/* Thread 115: Background block (education, career, family) */}
-                <MemberBioSection bio={memberBio} section="background" />
+                {/* Thread 114/125: combined bio card — chips, AI summary, background */}
+                <MemberBioSection bio={memberBio} />
 
                 {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
