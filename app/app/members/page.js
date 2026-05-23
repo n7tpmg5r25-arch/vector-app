@@ -489,14 +489,19 @@ function MembersContent() {
     setIncomingHandled(true)
   }, [incomingName, members, loading, incomingHandled])
 
-  // Thread 124: sticky condensed name bar — show when member name scrolls off screen
+  // Thread 124 / T127 hotfix: sticky condensed name bar.
+  // IntersectionObserver was unreliable (doesn't fire when window.innerHeight=0 or
+  // when the hero element is hidden behind the fixed Nav). Replaced with a passive
+  // scroll listener that checks getBoundingClientRect() directly — fires when the
+  // bottom edge of the hero name has risen above the Nav (52px from viewport top).
   useEffect(() => {
     if (!selectedMember) { setStickyName(false); return }
     const el = heroNameRef.current
     if (!el) return
-    const obs = new IntersectionObserver(([entry]) => setStickyName(!entry.isIntersecting), { threshold: 0 })
-    obs.observe(el)
-    return () => obs.disconnect()
+    const check = () => setStickyName(el.getBoundingClientRect().bottom < 52)
+    check()
+    window.addEventListener('scroll', check, { passive: true })
+    return () => window.removeEventListener('scroll', check)
   }, [selectedMember])
 
   const STAGE_LABELS = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
