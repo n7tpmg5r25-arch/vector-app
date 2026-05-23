@@ -90,9 +90,7 @@ function MembersContent() {
   const [memberCommittees, setMemberCommittees] = useState(null)
   // T126: election results for electoral margin display (null=loading, []=loaded/none)
   const [memberElections, setMemberElections] = useState(null)
-  // Thread 124: sticky condensed name bar
-  const heroNameRef = useRef(null)
-  const [stickyName, setStickyName] = useState(false)
+  // T128: heroNameRef + stickyName removed — full-hero sticky replaces condensed bar
 
   useEffect(() => {
     async function load() {
@@ -489,20 +487,7 @@ function MembersContent() {
     setIncomingHandled(true)
   }, [incomingName, members, loading, incomingHandled])
 
-  // Thread 124 / T127 hotfix: sticky condensed name bar.
-  // IntersectionObserver was unreliable (doesn't fire when window.innerHeight=0 or
-  // when the hero element is hidden behind the fixed Nav). Replaced with a passive
-  // scroll listener that checks getBoundingClientRect() directly — fires when the
-  // bottom edge of the hero name has risen above the Nav (52px from viewport top).
-  useEffect(() => {
-    if (!selectedMember) { setStickyName(false); return }
-    const el = heroNameRef.current
-    if (!el) return
-    const check = () => setStickyName(el.getBoundingClientRect().bottom < 52)
-    check()
-    window.addEventListener('scroll', check, { passive: true })
-    return () => window.removeEventListener('scroll', check)
-  }, [selectedMember])
+  // T128: sticky scroll logic removed — full-hero wrapper is always-sticky, no JS needed
 
   const STAGE_LABELS = ['', 'Intro', 'Cmte', 'Floor', 'Opp.Ch.', 'Conf.', 'Signed']
 
@@ -570,27 +555,14 @@ function MembersContent() {
         {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
         {isAnonPublic && <PublicNav />}
 
-        {/* Thread 124 / T127: sticky condensed name bar.
-            top: 52 sits below the fixed Nav bar (52px tall).
-            Collapses to height 0 when the hero name is still on screen. */}
-        <div style={{
-          position: 'sticky', top: 52, zIndex: 20,
-          background: 'rgba(14,16,20,0.95)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: stickyName ? '1px solid var(--border)' : 'none',
-          padding: '0 16px',
-          display: 'flex',
-          height: stickyName ? 36 : 0,
-          overflow: 'hidden',
-          alignItems: 'center', gap: 10,
-        }}>
-          <button onClick={closeDetail} style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: 13, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>←</button>
-          <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedMember.name}</span>
-        </div>
+        {/* T128: full sticky header — hero + tab strip locked as one unit.
+            Replaces the condensed name bar (T124/T127). The entire hero
+            section (back, photo, name, chips) stays visible while scrolling. */}
+        <div style={{ position: 'sticky', top: 52, zIndex: 20, background: 'var(--bg)' }}>
 
         <div style={{
           background: 'var(--bg)',
-          padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
+          padding: '8px 20px 10px',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
@@ -627,7 +599,7 @@ function MembersContent() {
                 />
               </div>
               <div>
-                <div ref={heroNameRef} style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                   {selectedMember.name}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
@@ -702,19 +674,14 @@ function MembersContent() {
           </div>
         </div>
 
-        {/* ── Thread 22: TAB STRIP ─────────────────────────
-            T127: top adjusted to 88 (sticky bar 36 + Nav 52) when name
-            bar is visible, 52 otherwise — so it never hides under Nav. */}
+        {/* ── TAB STRIP — inside the sticky wrapper, no longer independently sticky */}
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border)',
           padding: '0 16px',
-          marginBottom: 14,
-          marginTop: 4,
+          marginBottom: 0,
+          marginTop: 0,
           overflowX: 'auto',
-          position: 'sticky',
-          top: stickyName ? 88 : 52,
-          zIndex: 10,
           background: 'var(--bg)',
         }}>
           {[
@@ -733,8 +700,9 @@ function MembersContent() {
             }}>{label}</button>
           ))}
         </div>
+        </div>{/* end T128 sticky wrapper */}
 
-        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* ─────────────────────────────────────────────
               OVERVIEW TAB
               T127: restructured into 3 tiers.
