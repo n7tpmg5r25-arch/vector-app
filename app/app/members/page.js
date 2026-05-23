@@ -88,6 +88,8 @@ function MembersContent() {
   const [memberBio, setMemberBio] = useState(null)
   // Thread 124: committee seat memberships for selected member (null=loading, []=loaded)
   const [memberCommittees, setMemberCommittees] = useState(null)
+  // T126: election results for electoral margin display (null=loading, []=loaded/none)
+  const [memberElections, setMemberElections] = useState(null)
   // Thread 124: sticky condensed name bar
   const heroNameRef = useRef(null)
   const [stickyName, setStickyName] = useState(false)
@@ -240,12 +242,14 @@ function MembersContent() {
   const loadMemberBills = useCallback(async (name) => {
     setBillsLoading(true)
     const isAll = showAllSessions
+    // T127: added `category` to SELECT so HIGH-tier category grouping works correctly
+    const billSelect = 'bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label, session, outcome_passed_law, category'
     if (isAll) {
       let allData = []
       for (const s of SESSIONS) {
         const { data } = await supabase
           .from('bills')
-          .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label, session, outcome_passed_law')
+          .select(billSelect)
           .eq('session', s)
           .eq('prime_sponsor', name)
           .order('final_score', { ascending: false })
@@ -256,7 +260,7 @@ function MembersContent() {
     } else {
       const { data } = await supabase
         .from('bills')
-        .select('bill_id, bill_number, title, final_score, stage, chamber, committee_name, committee_passed, has_public_hearing, bipartisan, hearing_date, status, confidence_label, session, outcome_passed_law')
+        .select(billSelect)
         .eq('session', selectedSession)
         .eq('prime_sponsor', name)
         .order('final_score', { ascending: false })
@@ -430,17 +434,29 @@ function MembersContent() {
     setSelected(m)
     setActiveTab('overview')  // Thread 22: each open lands on Overview
     setMemberBio(null)        // Thread 113: clear previous member's bio
+    setMemberElections(null)  // T126: clear previous election data
     loadMemberBills(m.name)
     loadMemberVotes(m)
     loadMemberCommittees(m)  // Thread 124: real seat membership data
     // Thread 113: fetch bio data from legislator_bios
+    // T127: added leadership_role to select
     if (m.member_id) {
       supabase
         .from('legislator_bios')
-        .select('bio_summary, education, occupation, family, first_elected_year, priorities, caucus_url')
+        .select('bio_summary, education, occupation, family, first_elected_year, priorities, caucus_url, leadership_role')
         .eq('member_id', m.member_id)
         .maybeSingle()
         .then(({ data }) => setMemberBio(data || null))
+      // T126: fetch election results for electoral margin display
+      supabase
+        .from('legislator_elections')
+        .select('election_year, vote_pct, margin_pct, opponent_name, total_votes, unopposed')
+        .eq('member_id', m.member_id)
+        .order('election_year', { ascending: false })
+        .limit(3)
+        .then(({ data }) => setMemberElections(data || []))
+    } else {
+      setMemberElections([])
     }
   }
   // Thread 22: shared close handler. Inline rather than goBackOrFallback()
@@ -453,6 +469,7 @@ function MembersContent() {
     setPartyBucketsByRcId({})
     setMemberBio(null)        // Thread 113
     setMemberCommittees(null) // Thread 124
+    setMemberElections(null)  // T126
     setActiveTab('overview')
   }
   // Note: no useEffect to refetch on selectedSession change — the list-view
@@ -548,10 +565,11 @@ function MembersContent() {
         {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
         {isAnonPublic && <PublicNav />}
 
-        {/* Thread 124: sticky condensed name bar — always in DOM so sticky works;
-            collapses to height 0 when hero name is still on screen */}
+        {/* Thread 124 / T127: sticky condensed name bar.
+            top: 52 sits below the fixed Nav bar (52px tall).
+            Collapses to height 0 when the hero name is still on screen. */}
         <div style={{
-          position: 'sticky', top: 0, zIndex: 20,
+          position: 'sticky', top: 52, zIndex: 20,
           background: 'rgba(14,16,20,0.95)',
           backdropFilter: 'blur(12px)',
           borderBottom: stickyName ? '1px solid var(--border)' : 'none',
@@ -620,6 +638,17 @@ function MembersContent() {
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: 'var(--bg-surface)', color: 'var(--text-mid)', border: '1px solid var(--border)' }}>
                     {selectedMember.bill_count} bills sponsored
                   </span>
+                  {/* T127: leadership role badge — only for named leadership positions */}
+                  {memberBio?.leadership_role && (
+                    <span style={{
+                      fontSize: 9, padding: '3px 10px', borderRadius: 10,
+                      background: 'rgba(184,151,90,0.12)', color: 'var(--teal)',
+                      border: '1px solid rgba(184,151,90,0.35)',
+                      fontFamily: 'var(--font-mono)', letterSpacing: '0.02em',
+                    }}>
+                      {memberBio.leadership_role}
+                    </span>
+                  )}
                   <a
                     href={`https://leg.wa.gov/${selectedMember.chamber === 'House' ? 'House/Representatives' : 'Senate/Senators'}/Pages/${selectedMember.name.split(' ').pop()}.aspx`}
                     target="_blank" rel="noopener noreferrer"
@@ -669,11 +698,8 @@ function MembersContent() {
         </div>
 
         {/* ── Thread 22: TAB STRIP ─────────────────────────
-            Mirrors the bill detail tab pattern (Thread 18). Three tabs;
-            Overview default. Per-session breakdown lives on Overview AND
-            on Sponsored Bills (matches the existing "All Sessions" UX
-            on both surfaces). G5 frozen-engine: nothing in any tab calls
-            scoreBill / extractFeatures. */}
+            T127: top adjusted to 88 (sticky bar 36 + Nav 52) when name
+            bar is visible, 52 otherwise — so it never hides under Nav. */}
         <div style={{
           display: 'flex',
           borderBottom: '1px solid var(--border)',
@@ -682,7 +708,7 @@ function MembersContent() {
           marginTop: 4,
           overflowX: 'auto',
           position: 'sticky',
-          top: stickyName ? 36 : 0,
+          top: stickyName ? 88 : 52,
           zIndex: 10,
           background: 'var(--bg)',
         }}>
@@ -706,6 +732,12 @@ function MembersContent() {
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* ─────────────────────────────────────────────
               OVERVIEW TAB
+              T127: restructured into 3 tiers.
+              Tier 1: contact + committee memberships (actionable, fast)
+              Tier 2: HIGH-tier activity, voting pattern, bio (intelligence)
+              Tier 3: bill funnel, career breakdown (deep dive)
+              Removed: 4-stat strip, committee pass-rate gauge.
+              Added: electoral margin card, party cohesion %.
               ───────────────────────────────────────────── */}
           {activeTab === 'overview' && (() => {
             // ── Thread 22 derived intelligence (computed every render — cheap;
@@ -715,6 +747,7 @@ function MembersContent() {
 
             // Cross-pollination: HIGH-tier bills (final_score >= 75) the member
             // is sponsoring + grouped category counts. Primary lobbyist signal.
+            // T127 fix: `category` now included in loadMemberBills SELECT.
             const highTierBills = (memberBills || []).filter(b => (b.final_score || 0) >= 75)
             const highTierCats = {}
             for (const b of highTierBills) {
@@ -742,7 +775,8 @@ function MembersContent() {
                 if (v.member_vote === oppMaj) crossed++
               }
             }
-            const crossPct = contested > 0 ? Math.round((crossed / contested) * 100) : null
+            const crossPct    = contested > 0 ? Math.round((crossed / contested) * 100) : null
+            const cohesionPct = crossPct !== null ? 100 - crossPct : null
 
             // Stage funnel: monotonic narrowing — every bill counts at every
             // stage it has reached. WA-actual stage values: 1 / 3 / 4 / 6.
@@ -757,49 +791,9 @@ function MembersContent() {
             }))
             const funnelMax = funnel[0].count || 0
 
-            // Top committees (procedural shelves filtered).
-            const committeeCounts = {}
-            for (const b of (memberBills || [])) {
-              const raw = (b.committee_name || '').trim()
-              if (!raw) continue
-              if (PROCEDURAL_SHELF_NAMES.has(raw.toLowerCase())) continue
-              committeeCounts[raw] = (committeeCounts[raw] || 0) + 1
-            }
-            const topCommittees = Object.entries(committeeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3)
-
-            // Pass-rate gauge (re-derived from currently loaded memberBills so
-            // it's consistent with what we render below; selectedMember.pass_rate
-            // is already-computed, but recomputing here costs nothing and stays
-            // honest if memberBills has been filtered/scoped).
-            const passRate = (memberBills || []).length > 0
-              ? Math.round((memberBills.filter(b => b.committee_passed).length / memberBills.length) * 100)
-              : 0
-            const gaugeColor = passRate >= 60 ? 'var(--teal)' : passRate >= 30 ? 'var(--gold)' : 'var(--text-muted)'
-            // Half-circle arc length: π × r where r = 30. Drawn from (8,38) to (68,38).
-            const arcLen = Math.PI * 30
-            const fillLen = (arcLen * passRate) / 100
-
             return (
               <>
-                {/* Existing 4-stat strip */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-                  {[
-                    { label: 'Bills', value: selectedMember.bill_count, color: 'var(--teal)' },
-                    { label: 'Cmte Passes', value: selectedMember.committee_passes, color: 'var(--teal-mid)' },
-                    { label: 'Laws', value: selectedMember.laws_passed, color: selectedMember.laws_passed > 0 ? 'var(--sage)' : 'var(--text-muted)' },
-                    { label: 'Avg Score', value: selectedMember.avg_score, color: selectedMember.avg_score >= 45 ? 'var(--teal)' : selectedMember.avg_score >= 30 ? 'var(--gold)' : 'var(--text-muted)' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} style={{
-                      background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
-                    }}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>{value}</div>
-                      <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>{label}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Thread 110: contact row — phone + email from roster API */}
+                {/* ── Tier 1: Direct Contact ── */}
                 {(selectedMember.phone || selectedMember.email) && (
                   <div style={{
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -832,31 +826,39 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Thread 114/125: combined bio card — chips, AI summary, background */}
-                <MemberBioSection bio={memberBio} caucusUrl={memberBio?.caucus_url} />
-
-                {/* Per-biennium breakdown (preserved — still surfaces on Overview when "All Sessions" selected) */}
-                {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-                      Per-Session Breakdown
-                    </div>
-                    {SESSIONS.filter(s => selectedMember.bySession[s]).map(s => {
-                      const d = selectedMember.bySession[s]
-                      return (
-                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
-                          <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', minWidth: 72 }}>{s}</span>
-                          <span style={{ fontSize: 11, color: 'var(--text-mid)', flex: 1 }}>
-                            {d.bill_count} bills · {d.committee_passes} cmte · {d.laws_passed} laws · avg {d.avg_score}
-                          </span>
-                        </div>
-                      )
-                    })}
+                {/* ── Tier 1: Committee Memberships (moved up from bottom) ── */}
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
+                    Committee Memberships
                   </div>
-                )}
+                  {memberCommittees === null ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</div>
+                  ) : memberCommittees.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      {selectedMember.member_id
+                        ? `No seat data for ${selectedSession}`
+                        : 'Seat data not available for this member'}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', marginBottom: 8 }}>
+                        {selectedSession} · {memberCommittees.length} committee{memberCommittees.length === 1 ? '' : 's'}
+                      </div>
+                      {memberCommittees.map((seat, i) => (
+                        <div key={seat.committee_name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 12, flex: 1, color: seat.role === 'chair' ? 'var(--teal)' : 'var(--text-primary)' }}>
+                            {seat.committee_name}
+                          </span>
+                          {seat.role === 'chair' && (
+                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--teal)', letterSpacing: '0.08em', padding: '2px 6px', background: 'rgba(184,151,90,0.1)', borderRadius: 4 }}>CHAIR</span>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
 
-                {/* Cross-pollination — HIGH-tier sponsorship + categories.
-                    Primary lobbyist signal (audit Thread 20). */}
+                {/* ── Tier 2: HIGH-tier sponsorship + categories ── */}
                 {highTierBills.length > 0 && (
                   <div style={{
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -889,36 +891,91 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Cross-party voting signal — staffer persona (audit Thread 20).
-                    Suppressed for independents and when contested sample is too
-                    thin to be meaningful (< 5 contested votes loaded). */}
+                {/* ── Tier 2: Voting pattern — cohesion + cross-party ──
+                    T127: merged cross-party signal + party cohesion % into
+                    one card. Shows both: how often they vote with their own
+                    party (cohesion) and how often they cross the aisle. */}
                 {crossPct !== null && contested >= 5 && (
                   <div style={{
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
                     borderRadius: 'var(--radius)', padding: '12px 14px',
                   }}>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-                      Cross-Party Signal
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Voting Pattern
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                      Crosses with the{' '}
-                      <span style={{ color: oppParty === 'R' ? 'var(--party-r)' : 'var(--party-d)', fontWeight: 700 }}>
-                        {oppParty === 'D' ? 'Democrats' : 'Republicans'}
-                      </span>
-                      {' '}on{' '}
-                      <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
-                        {crossPct}%
-                      </span>
-                      {' '}of contested votes
-                      <span style={{ color: 'var(--text-muted)' }}>{` (${crossed} of ${contested})`}</span>.
+                    <div style={{ display: 'flex', gap: 20, marginBottom: 8 }}>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', lineHeight: 1 }}>
+                          {cohesionPct}%
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>party cohesion</div>
+                      </div>
+                      <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }}/>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: oppParty === 'R' ? 'rgba(210,120,120,0.9)' : 'rgba(100,160,220,0.9)', lineHeight: 1 }}>
+                          {crossPct}%
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                          crosses w/ {oppParty === 'D' ? 'Dems' : 'Reps'}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
-                      Sample: most-recent {memberVotes.length} roll calls in {sessionLabel}. Contested = D and R majorities split.
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                      Based on {memberVotes.length} most-recent roll calls in {sessionLabel}. Contested = D and R majorities split ({contested} votes).
                     </div>
                   </div>
                 )}
 
-                {/* Stage funnel — where this member's bills end up. */}
+                {/* ── Tier 2: Bio card ── */}
+                <MemberBioSection bio={memberBio} caucusUrl={memberBio?.caucus_url} />
+
+                {/* ── Tier 3: Electoral record (T126 data) ── */}
+                {memberElections && memberElections.length > 0 && (() => {
+                  const recent = memberElections[0]
+                  const prev   = memberElections[1] || null
+                  return (
+                    <div style={{
+                      background: 'var(--bg-card)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)', padding: '12px 14px',
+                    }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
+                        Electoral Record
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', lineHeight: 1 }}>
+                          {recent.unopposed ? 'Unopposed' : `${recent.vote_pct}%`}
+                        </span>
+                        {!recent.unopposed && recent.margin_pct != null && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            +{recent.margin_pct}pt margin
+                          </span>
+                        )}
+                        <span style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
+                          {recent.election_year} general
+                        </span>
+                      </div>
+                      {!recent.unopposed && recent.opponent_name && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                          vs. {recent.opponent_name}
+                          {recent.total_votes && (
+                            <span style={{ color: 'var(--text-faint)', marginLeft: 8 }}>
+                              {recent.total_votes.toLocaleString()} total votes
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {prev && (
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+                          {prev.election_year}: {prev.unopposed ? 'Unopposed' : `${prev.vote_pct}%`}
+                          {!prev.unopposed && prev.margin_pct != null && ` (+${prev.margin_pct}pt)`}
+                          {!prev.unopposed && prev.opponent_name && ` vs. ${prev.opponent_name}`}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* ── Tier 3: Stage funnel (with % labels) ── */}
                 {funnelMax > 0 && (
                   <div style={{
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -937,7 +994,12 @@ function MembersContent() {
                         <div key={s.key} style={{ marginBottom: 6 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
                             <span style={{ color: 'var(--text-mid)' }}>{s.label}</span>
-                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{s.count}</span>
+                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              {s.count}
+                              <span style={{ color: 'var(--text-faint)', fontSize: 9, marginLeft: 4 }}>
+                                ({Math.round(pct)}%)
+                              </span>
+                            </span>
                           </div>
                           <div style={{ height: 6, background: 'var(--bg-surface)', borderRadius: 3, overflow: 'hidden' }}>
                             <div style={{
@@ -951,71 +1013,25 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* Committee pass-rate gauge */}
-                {(memberBills || []).length > 0 && (
-                  <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                  }}>
+                {/* ── Tier 3: Per-biennium career breakdown ── */}
+                {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-                      Committee Pass Rate
+                      Per-Session Breakdown
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <svg width="76" height="42" viewBox="0 0 76 42" style={{ flexShrink: 0 }}>
-                        <path d="M 8 38 A 30 30 0 0 1 68 38" stroke="var(--bg-surface)" strokeWidth="6" fill="none" strokeLinecap="round" />
-                        <path
-                          d="M 8 38 A 30 30 0 0 1 68 38"
-                          stroke={gaugeColor}
-                          strokeWidth="6" fill="none" strokeLinecap="round"
-                          strokeDasharray={`${fillLen} ${arcLen}`}
-                        />
-                      </svg>
-                      <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: gaugeColor, lineHeight: 1 }}>
-                          {passRate}%
+                    {SESSIONS.filter(s => selectedMember.bySession[s]).map(s => {
+                      const d = selectedMember.bySession[s]
+                      return (
+                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 11, color: 'var(--teal)', fontFamily: 'var(--font-mono)', minWidth: 72 }}>{s}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-mid)', flex: 1 }}>
+                            {d.bill_count} bills · {d.committee_passes} cmte · {d.laws_passed} laws · avg {d.avg_score}
+                          </span>
                         </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.3 }}>
-                          of sponsored bills cleared committee
-                        </div>
-                      </div>
-                    </div>
+                      )
+                    })}
                   </div>
                 )}
-
-                {/* Thread 124: COMMITTEE MEMBERSHIPS — real seat data from legislator_committee_seats.
-                    Replaces "Most Active Committees" (bill referral count) and "All Committee
-                    Affiliations" (also bill-referral data from v_member_stats_by_session).
-                    Populated by loadMemberCommittees() via selectMember(). */}
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
-                    Committee Memberships
-                  </div>
-                  {memberCommittees === null ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading…</div>
-                  ) : memberCommittees.length === 0 ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      {selectedMember.member_id
-                        ? `No seat data for ${selectedSession}`
-                        : 'Seat data not available for this member'}
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ fontSize: 9, color: 'var(--text-faint)', marginBottom: 8 }}>
-                        {selectedSession} · {memberCommittees.length} committee{memberCommittees.length === 1 ? '' : 's'}
-                      </div>
-                      {memberCommittees.map((seat, i) => (
-                        <div key={seat.committee_name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
-                          <span style={{ fontSize: 12, flex: 1, color: seat.role === 'chair' ? 'var(--teal)' : 'var(--text-primary)' }}>
-                            {seat.committee_name}
-                          </span>
-                          {seat.role === 'chair' && (
-                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--teal)', letterSpacing: '0.08em', padding: '2px 6px', background: 'rgba(184,151,90,0.1)', borderRadius: 4 }}>CHAIR</span>
-                          )}
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
               </>
             )
           })()}
@@ -1232,10 +1248,6 @@ function MembersContent() {
                     }
                   }}
                   style={{
-                    // Thread 15.5: cell grew 40→48 so the corner score glyph
-                    // can render at 11px without colliding with the centered
-                    // initials. Mobile-only — still fits 4 cells per chamber
-                    // column at the 480px column width.
                     width: 48, height: 48, borderRadius: 6,
                     background: bg,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1342,8 +1354,6 @@ function MembersContent() {
                 {/* Legend */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>LEGISLATIVE SUCCESS</span>
-                  {/* Thread 22: tappable explainer toggle — closes the audit
-                      ask for a tooltip on the heatmap composite. */}
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setLegendOpen(o => !o) }}
@@ -1367,8 +1377,6 @@ function MembersContent() {
                   ].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       <div style={{ width: 11, height: 11, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
-                      {/* Thread 15.5: legend labels lifted 8→11 to match the
-                          score-glyph bump inside cells. */}
                       <span style={{ fontSize: 11, color: l.text }}>{l.label}</span>
                     </div>
                   ))}
@@ -1377,9 +1385,6 @@ function MembersContent() {
                     <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Chair</span>
                   </div>
                 </div>
-                {/* Thread 22: legend explainer panel. Lives between the legend
-                    strip and the per-cell tap hint so it doesn't push layout
-                    when collapsed (it just doesn't render). */}
                 {legendOpen && (
                   <div
                     onClick={e => e.stopPropagation()}
