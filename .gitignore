@@ -29,3 +29,7 @@ Thumbs.db
 .vscode
 .idea
 *.bak
+
+# Claude / Cowork tooling (generated, not source)
+.agents/
+skills-lock.json
