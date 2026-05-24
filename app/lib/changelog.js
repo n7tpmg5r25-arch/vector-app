@@ -41,6 +41,10 @@ export const CHANGELOG = [
       'Accessibility pass: bottom nav tabs now announce the active page to screen readers (aria-current). Members heatmap legend button and list chevron tap zones expanded to 44×44px — meets Apple HIG and WCAG 2.5.5 minimum.',
       'Hearings page: removed a stale typeof window guard around isInterimPeriod() — the guard was causing a hydration flash on first load since the function is pure date math with no browser dependency.',
       'Members heatmap popover positioning switched from window.innerWidth to calc(50vw − 160px) — eliminates a server-side rendering mismatch and centers the popover correctly on all mobile viewports.',
+      'Score history sparkline now responds to tap on mobile — tapping a bar shows the tooltip, tapping again (or anywhere outside) dismisses it. Previously hover-only and invisible on touch screens.',
+      'Votes tab on bill detail now shows a clear empty state when no roll-call votes have been recorded, instead of silently rendering nothing.',
+      'Committees calendar loading state upgraded from plain text to the standard VectorLoader spinner — consistent with the rest of the app.',
+      'Search results list fades to 50% opacity while a new fetch is in flight, giving instant feedback during the debounce window.',
     ],
   },
   {

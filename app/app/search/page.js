@@ -386,7 +386,7 @@ function SearchContent() {
       </div>
 
       {/* Results */}
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
         {/* Thread 25 — results summary line + frozen cohort cite.
             "Showing N bills" gives the journalist a quotable filter context;
             the cite anchors any quoted statistic in the calibrated cohort. */}

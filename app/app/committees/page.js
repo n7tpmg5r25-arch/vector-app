@@ -330,8 +330,8 @@ export default function CommitteesPage() {
       {view === 'calendar' && (
         <div style={{ padding: '12px 16px' }}>
           {meetingLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-              Loading meetings…
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+              <VectorLoader label="Loading meetings" />
             </div>
           ) : filteredMeetings.length === 0 ? (
             isInterimPeriod() ? (

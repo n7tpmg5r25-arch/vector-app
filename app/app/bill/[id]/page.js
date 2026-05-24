@@ -250,7 +250,7 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
   const last = points[points.length - 1]
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }} onClick={() => setHoveredIdx(null)}>
       <svg ref={svgRef} width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
         style={{ overflow: 'visible' }}>
         <defs>
@@ -323,12 +323,13 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
           </g>
         )}
 
-        {/* Hover zones */}
+        {/* Tap/hover zones — onClick for mobile, onMouseEnter/Leave for pointer */}
         {drawn && points.map((p, i) => {
           const zoneW = (W - PAD * 2) / Math.max(scores.length - 1, 1)
           return (
             <rect key={i} x={p.x - zoneW / 2} y={0} width={zoneW} height={H}
               fill="transparent"
+              onClick={(e) => { e.stopPropagation(); setHoveredIdx(hoveredIdx === i ? null : i) }}
               onMouseEnter={() => setHoveredIdx(i)}
               onMouseLeave={() => setHoveredIdx(null)}
               style={{ cursor: 'crosshair' }}
@@ -2432,7 +2433,16 @@ export default function BillDetailPage() {
                   mode="by-bill"
                   scopeLabel={bienniumShortLabel(bill.session || getCurrentSession()) + ' session'}
                 />
-                <VoteHistoryTable mode="by-bill" rollCalls={rollCalls} partyBuckets={partyBucketsByRcId} />
+                {rollCalls.length === 0 ? (
+                  <div style={{
+                    color: 'var(--text-muted)', fontFamily: 'var(--font-body)',
+                    fontSize: 13, textAlign: 'center', padding: '32px 20px',
+                  }}>
+                    No roll-call votes recorded for this bill.
+                  </div>
+                ) : (
+                  <VoteHistoryTable mode="by-bill" rollCalls={rollCalls} partyBuckets={partyBucketsByRcId} />
+                )}
               </div>
             </div>
           )}
