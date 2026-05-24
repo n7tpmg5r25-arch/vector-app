@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
-  /* ── SHOREPINE DARK INTELLIGENCE THEME ─────────── */
+  /* ── VECTOR | WA DARK INTELLIGENCE THEME ─────────── */
   --bg:            #0e1014;
   --bg-card:       #171921;
   --bg-card-2:     #1c1f28;
@@ -31,7 +31,7 @@
   --text-primary:  #e8e9ec;
   --text-mid:      #a8acb4;
   --text-muted:    #6c7078;
-  --text-faint:    #3d4d42;
+  --text-faint:    #3d4050;
 
   /* Borders (forest-tinted) */
   --border:        #2a2d38;

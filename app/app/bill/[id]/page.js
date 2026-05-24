@@ -971,7 +971,7 @@ export default function BillDetailPage() {
 
         {/* ── SCORE FORMULA BLOCK (Thread 92: moved above status banners) ── */}
         <div style={{
-          background: 'linear-gradient(135deg, #0e1014 0%, #0a0c12 100%)',
+          background: 'linear-gradient(135deg, var(--bg) 0%, #0a0c12 100%)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
           padding: '16px', display: 'flex', alignItems: 'center', gap: 16,
@@ -995,13 +995,17 @@ export default function BillDetailPage() {
                 </svg>
               </button>
             </div>
-            {/* Thread 91: formula prefix 13px muted, result 32px brass dominant */}
+            {/* Thread 91: formula prefix 13px muted, result 32px brass dominant.
+                Impeccable audit fix (2026-05-23): 32px score now always visible —
+                previously only rendered inside the xfMult !== 1 branch, leaving
+                no dominant number on bills without a multiplier. Formula prefix
+                still only shows when a multiplier is applied. */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
-                BASE {baseTotal || bill.trajectory_score || '—'}
-              </span>
-              {xfMult && xfMult !== 1 && (
+              {xfMult && xfMult !== 1 ? (
                 <>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
+                    BASE {baseTotal || bill.trajectory_score || '—'}
+                  </span>
                   <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>×</span>
                   {/* Thread 91: momentum multiplier info chip */}
                   <span
@@ -1018,11 +1022,11 @@ export default function BillDetailPage() {
                     </svg>
                   </span>
                   <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>=</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
-                    {score}
-                  </span>
                 </>
-              )}
+              ) : null}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
+                {score}
+              </span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {['LAW', 'PASSED_CHAMBER', 'DEAD'].includes(confLabel)
@@ -1281,7 +1285,7 @@ export default function BillDetailPage() {
                   onChange={e => setSummaryDraft(e.target.value)}
                   style={{
                     width: '100%', minHeight: 180, fontSize: 13, lineHeight: 1.6,
-                    color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.15)',
+                    color: 'var(--text-primary)', background: 'rgba(0,0,0,0.15)',
                     border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8,
                     padding: '10px 12px', fontFamily: 'inherit', resize: 'vertical',
                   }}
@@ -1347,7 +1351,7 @@ export default function BillDetailPage() {
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-mid)' }}>
                 {(() => {
                   // Thread 94: progressive disclosure — WHO IS AFFECTED + KEY PROVISIONS collapse
                   const COLLAPSIBLE = new Set(['WHO IS AFFECTED', 'KEY PROVISIONS'])
@@ -1451,9 +1455,11 @@ export default function BillDetailPage() {
               <span style={{ color: 'var(--text-faint)' }}>· {bill.category === 'Other' && bill.committee_name ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
             )}
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35, marginBottom: bill.companion_bill ? 8 : 14 }}>
-            {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
-          </div>
+          {/* Impeccable audit (2026-05-23): title suppressed here — already displayed
+              in the compact identity header above the score block (Playfair 15px).
+              Rendering it again at Playfair 18px created a double-headline on scroll.
+              This block now opens with the bill number + metadata row (above) and
+              continues directly to companion pill, RCW cites, and political context. */}
 
           {/* Phase 7W.3: Enriched companion bill pill
               - stage label of the companion (e.g. "Comm. Pass")
@@ -2101,7 +2107,7 @@ export default function BillDetailPage() {
                   style={{
                     width: '100%', marginTop: 8, padding: '6px 0',
                     background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                    color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer',
+                    color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
                 >
@@ -2192,7 +2198,7 @@ export default function BillDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Score formula bar */}
               <div style={{
-                background: 'linear-gradient(135deg, #0e1014 0%, #0a0c12 100%)',
+                background: 'linear-gradient(135deg, var(--bg) 0%, #0a0c12 100%)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)',
                 padding: '12px 14px',
