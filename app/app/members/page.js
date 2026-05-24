@@ -15,7 +15,7 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
-import { ArrowUpRight, Printer } from 'lucide-react'
+import { ArrowUpRight, Printer, Phone, Mail } from 'lucide-react'
 import MemberBioSection from '../components/MemberBioSection'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
@@ -558,11 +558,11 @@ function MembersContent() {
         {/* T128: full sticky header — hero + tab strip locked as one unit.
             Replaces the condensed name bar (T124/T127). The entire hero
             section (back, photo, name, chips) stays visible while scrolling. */}
-        <div style={{ position: 'sticky', top: 52, zIndex: 20, background: 'var(--bg)' }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--bg)' }}>
 
         <div style={{
           background: 'var(--bg)',
-          padding: '8px 20px 10px',
+          padding: '52px 20px 10px',
           position: 'relative', overflow: 'hidden',
         }}>
           <div style={{
@@ -782,7 +782,7 @@ function MembersContent() {
                         onClick={e => e.stopPropagation()}
                         style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
-                        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>☎</span>
+                        <Phone size={11} color="var(--text-faint)" aria-hidden="true" />
                         {selectedMember.phone}
                       </a>
                     )}
@@ -792,7 +792,7 @@ function MembersContent() {
                         onClick={e => e.stopPropagation()}
                         style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                       >
-                        <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>✉</span>
+                        <Mail size={11} color="var(--text-faint)" aria-hidden="true" />
                         {selectedMember.email}
                       </a>
                     )}
@@ -885,7 +885,7 @@ function MembersContent() {
                       </div>
                       <div style={{ width: 1, background: 'var(--border)', flexShrink: 0 }}/>
                       <div>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: oppParty === 'R' ? 'rgba(210,120,120,0.9)' : 'rgba(100,160,220,0.9)', lineHeight: 1 }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: oppParty === 'R' ? 'var(--party-r)' : 'var(--party-d)', lineHeight: 1 }}>
                           {crossPct}%
                         </div>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>

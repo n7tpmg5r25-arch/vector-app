@@ -249,7 +249,7 @@ export default function HomePage() {
   )
 
   return (
-    <div style={{ paddingBottom: 20, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)' }}>
 
       {/* ── STICKY BRAND BAR (2026-05-01 home polish) ─────────
           Matches the sticky-header pattern that every other authed
@@ -277,7 +277,7 @@ export default function HomePage() {
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 20px 14px',
+        padding: '52px 16px 14px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -573,7 +573,7 @@ export default function HomePage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px',
                   marginBottom: 7, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 12,
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
                   transition: 'border-color 0.2s',
                   textDecoration: 'none', color: 'inherit',
                 }}
@@ -748,7 +748,7 @@ export default function HomePage() {
                   <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
                   {delta != null && delta !== 0 && (
                     <span style={{
-                      position: 'absolute', top: -5, right: -10,
+                      position: 'absolute', top: -6, right: -10,
                       fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700,
                       padding: '0px 4px', borderRadius: 6,
                       background: delta > 0 ? 'rgba(184,151,90,0.15)' : 'rgba(196,71,48,0.15)',
@@ -767,12 +767,12 @@ export default function HomePage() {
                       {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                     </span>
                     {!bill.bipartisan && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8 }}>
+                      <span style={{ fontSize: 9, padding: '1px 6px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8 }}>
                         Minority Only
                       </span>
                     )}
                     {bill.pulled_from_rules && (
-                      <span style={{ fontSize: 8, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8 }}>
+                      <span style={{ fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8 }}>
                         ↑ Rules
                       </span>
                     )}
@@ -874,7 +874,7 @@ export default function HomePage() {
             { label: 'Tracked', value: watchlist.length.toLocaleString(), color: 'var(--gold)' },
             isInterimPeriod()
               ? { label: 'Signed into Law', value: outcomeCounts.law.toLocaleString(), color: 'var(--teal-bright)' }
-              : { label: 'High Signal', value: topBills.filter(b => (b.final_score || 0) >= 75).length.toLocaleString(), color: 'var(--teal-bright)' },
+              : { label: 'Top Score', value: topBills[0]?.final_score != null ? String(topBills[0].final_score) : '—', color: 'var(--teal-bright)' },
           ].map(({ label, value, color }, i, arr) => (
             <div
               key={label}
