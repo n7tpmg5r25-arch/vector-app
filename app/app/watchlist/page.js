@@ -34,7 +34,7 @@ export default function WatchlistPage() {
   const [loading, setLoading]               = useState(true)
   const [exporting, setExporting]           = useState(false)
   // Calendar subscribe state
-  const [calCopied, setCalCopied]           = useState(false)
+  // calCopied removed — Cal Feed uses webcal:// redirect, no copy feedback needed
   // Thread 102: swipe actions — highlight for report + remove
   const [highlighted, setHighlighted]       = useState(new Set())
   const [openSwipeId, setOpenSwipeId]       = useState(null)
@@ -346,7 +346,7 @@ export default function WatchlistPage() {
   const showChanges = !changesDismissed && changedBills.length > 0
 
   return (
-    <div style={{ paddingBottom: 110, fontFamily: 'var(--font-body)' }}>
+    <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)' }}>
       {/* ━━━ HEADER ━━━ */}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
@@ -785,7 +785,8 @@ export default function WatchlistPage() {
                 <button
                   onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}
                   style={{
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '10px',
+                    margin: '-10px',
                     color: notesBillId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
                     opacity: notesBillId === bill_id ? 1 : 0.7, transition: 'all 0.15s',
                   }}
