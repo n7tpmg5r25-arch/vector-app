@@ -32,4 +32,5 @@ Thumbs.db
 
 # Claude / Cowork tooling (generated, not source)
 .agents/
+.claude/
 skills-lock.json
