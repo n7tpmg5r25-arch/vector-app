@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '3.7',
+    date: '2026-05-23',
+    phase: 'alpha',
+    highlights: [
+      'Search result cards no longer show the score twice — the redundant right-side number is removed, consistent with the watchlist and home page fixes.',
+      '"Watch All" button now shows the count of displayed bills (e.g. "+ Watch 50+") so the scope is clear before tapping.',
+      'Calibration citation on search results is now readable — was rendered at 10px italic in the faintest color token; now 11px in standard muted text.',
+      'Search scope hint ("Searches title, bill number, and AI summary") is now always visible below the input instead of appearing only after typing 3 characters.',
+    ],
+  },
+  {
     version: '3.6',
     date: '2026-05-23',
     phase: 'alpha',
