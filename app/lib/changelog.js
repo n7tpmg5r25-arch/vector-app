@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '3.8',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Members page typography pass: six sub-minimum font sizes eliminated across the heatmap popover, Top 5 callout, committee list, and member list cards — nothing now renders below 9px.',
+      'HIGH-tier activity disclaimer no longer italicised at minimum font size — consistent with the same fix applied to the search calibration citation.',
+    ],
+  },
+  {
     version: '3.7',
     date: '2026-05-23',
     phase: 'alpha',

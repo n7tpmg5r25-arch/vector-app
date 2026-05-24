@@ -823,7 +823,7 @@ function MembersContent() {
                             {seat.committee_name}
                           </span>
                           {seat.role === 'chair' && (
-                            <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--teal)', letterSpacing: '0.08em', padding: '2px 6px', background: 'rgba(184,151,90,0.1)', borderRadius: 4 }}>CHAIR</span>
+                            <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--teal)', letterSpacing: '0.08em', padding: '2px 6px', background: 'rgba(184,151,90,0.1)', borderRadius: 4 }}>CHAIR</span>
                           )}
                         </div>
                       ))}
@@ -858,7 +858,7 @@ function MembersContent() {
                         </span>
                       ))}
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 8, fontStyle: 'italic', lineHeight: 1.4 }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 8, lineHeight: 1.4 }}>
                       HIGH-tier = trajectory score ≥ 75. Historically ~5 in 6 HIGH bills become law (N=8,062, 3 bienniums).
                     </div>
                   </div>
@@ -1293,7 +1293,7 @@ function MembersContent() {
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', width: 14, textAlign: 'right' }}>{i + 1}</span>
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
                           {m.name}
-                          {m.is_chair && <span style={{ fontSize: 7, marginLeft: 5, padding: '1px 4px', background: 'var(--gold-pale)', color: 'var(--gold)', borderRadius: 4, verticalAlign: 'middle' }}>CHAIR</span>}
+                          {m.is_chair && <span style={{ fontSize: 9, marginLeft: 5, padding: '1px 4px', background: 'var(--gold-pale)', color: 'var(--gold)', borderRadius: 4, verticalAlign: 'middle' }}>CHAIR</span>}
                         </span>
                         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: text, fontWeight: 700 }}>{m.effectiveness}</span>
                         <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>{m.laws_passed}L · {m.committee_passes}C · {m.bill_count}B</span>
@@ -1451,8 +1451,8 @@ function MembersContent() {
                   }}>{m.effectiveness}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 6, background: bg, color: text }}>{tierLbl}</span>
-                  <span style={{ fontSize: 8, padding: '2px 6px', borderRadius: 6, background: tierInfo.bg, color: tierInfo.color, border: `1px solid ${tierInfo.border}` }}>{tierInfo.text}</span>
+                  <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 6, background: bg, color: text }}>{tierLbl}</span>
+                  <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 6, background: tierInfo.bg, color: tierInfo.color, border: `1px solid ${tierInfo.border}` }}>{tierInfo.text}</span>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, marginBottom: 8 }}>
                   {[
@@ -1463,7 +1463,7 @@ function MembersContent() {
                   ].map(s => (
                     <div key={s.l} style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--teal)', fontFamily: 'var(--font-mono)' }}>{s.v}</div>
-                      <div style={{ fontSize: 7, color: 'var(--text-faint)', textTransform: 'uppercase' }}>{s.l}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text-faint)', textTransform: 'uppercase' }}>{s.l}</div>
                     </div>
                   ))}
                 </div>
@@ -1522,7 +1522,7 @@ function MembersContent() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{member.name}</span>
                   {member.is_chair && (
-                    <span style={{ fontSize: 8, padding: '1px 5px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 6 }}>
+                    <span style={{ fontSize: 9, padding: '1px 5px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 6 }}>
                       Chair
                     </span>
                   )}
