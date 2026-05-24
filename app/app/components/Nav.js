@@ -145,6 +145,7 @@ export default function Nav() {
           <button
             key={path}
             onClick={() => router.push(path)}
+            aria-current={active ? 'page' : undefined}
             style={{
               display: 'flex', flexDirection: 'column',
               alignItems: 'center', gap: 3,
