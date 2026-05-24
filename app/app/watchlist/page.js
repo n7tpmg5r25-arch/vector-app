@@ -457,7 +457,7 @@ export default function WatchlistPage() {
           </div>
         )}
 
-        {filtered.length > 1 && (
+        {watched.length > 1 && (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A\u2013Z']].map(([val, label]) => (
               <button key={val} onClick={() => setSortBy(val)} style={{
