@@ -82,7 +82,7 @@ function SingleVoteSplitBar({ rc, buckets }) {
   ]
 
   const verdict = characterize(buckets)
-  const chamberAccent = rc.chamber === 'House' ? '#4d9aff' : '#ffa84d'
+  const chamberAccent = rc.chamber === 'House' ? '#4d9aff' : 'var(--senate-accent)'
 
   return (
     <div style={{
