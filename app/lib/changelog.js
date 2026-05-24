@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '3.6',
+    date: '2026-05-23',
+    phase: 'alpha',
+    highlights: [
+      'Home page bill cards no longer show the score twice — the redundant right-side number was removed from both the watchlist preview and the Top Trajectory list. The score badge carries it.',
+      '"Your Watchlist" heading and "View all →" link are now in the same row instead of appearing as two separate elements.',
+      'High Score stat card now dims correctly when the count is zero instead of glowing teal on a zero value.',
+      'Session Timeline date labels enlarged from 8px to 9px for readability on mobile.',
+      'Category Intelligence section now correctly labels itself during an active session instead of always reading "Interim Intelligence."',
+    ],
+  },
+  {
     version: '3.5',
     date: '2026-05-23',
     phase: 'alpha',
