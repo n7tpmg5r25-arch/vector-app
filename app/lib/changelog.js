@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '3.4',
+    date: '2026-05-23',
+    phase: 'alpha',
+    highlights: [
+      'Score formula on bill detail now always shows the large brass number — previously it disappeared on bills without a momentum multiplier.',
+      'Bill title no longer appears twice on the bill detail page — the duplicate below the AI summary was removed.',
+      'Visual tone corrections: undefined CSS color token patched, score block gradient anchored to design tokens, refresh button more visible at rest.',
+    ],
+  },
+  {
     version: '3.3',
     date: '2026-05-21',
     phase: 'alpha',
