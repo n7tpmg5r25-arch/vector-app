@@ -514,7 +514,7 @@ export default function HomePage() {
                   <span style={{ fontSize: 9, color: item.active ? 'var(--teal)' : 'var(--text-faint)', fontWeight: item.active ? 600 : 400, textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {item.label}
                   </span>
-                  <span style={{ fontSize: 8, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
+                  <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
                     {item.sublabel}
                   </span>
                 </div>
@@ -525,12 +525,12 @@ export default function HomePage() {
         </div>
 
         {/* ── WATCHLIST SUMMARY ─────────────────────────────── */}
-        <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-          Your Watchlist
-        </div>
         {watchlist.length > 0 ? (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                Your Watchlist
+              </div>
               <button onClick={() => router.push('/watchlist')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
                 View all →
               </button>
@@ -544,7 +544,7 @@ export default function HomePage() {
                 { label: 'Dead', value: atRisk, color: atRisk > 0 ? 'var(--text-muted)' : 'var(--text-muted)' },
               ] : [
                 { label: 'Tracked', value: watchlist.length, color: 'var(--teal)' },
-                { label: 'High Score', value: highMomentum, color: 'var(--teal-bright)' },
+                { label: 'High Score', value: highMomentum, color: highMomentum > 0 ? 'var(--teal-bright)' : 'var(--text-muted)' },
                 { label: 'At Risk', value: atRisk, color: atRisk > 0 ? 'var(--danger)' : 'var(--text-muted)' },
               ]).map(({ label, value, color }) => (
                 <div key={label} style={{
@@ -610,13 +610,6 @@ export default function HomePage() {
                     <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>{STAGE_SHORT[bill.stage] || 'Intro'}</span>
                   </div>
                 </div>
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
-                  color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
-                  minWidth: 36, textAlign: 'right', flexShrink: 0,
-                }}>
-                  {bill.final_score != null ? bill.final_score : '—'}
-                </div>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -624,6 +617,10 @@ export default function HomePage() {
             )})}
           </div>
         ) : (
+          <div>
+            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+              Your Watchlist
+            </div>
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderRadius: 'var(--radius)', padding: '20px 16px', textAlign: 'center',
@@ -643,6 +640,7 @@ export default function HomePage() {
                 border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}
             >Browse {SESSION} Bills</button>
+          </div>
           </div>
         )}
 
@@ -795,13 +793,6 @@ export default function HomePage() {
                     )}
                   </div>
                 </div>
-                <div style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
-                  color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
-                  minWidth: 36, textAlign: 'right', flexShrink: 0, alignSelf: 'center',
-                }}>
-                  {bill.final_score != null ? bill.final_score : '—'}
-                </div>
                 <button
                   type="button"
                   onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`, '_blank', 'noopener,noreferrer') }}
@@ -825,7 +816,7 @@ export default function HomePage() {
         {categories.length > 0 && (
           <div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-              Interim Intelligence · Category Pass Rates
+              {isInterimPeriod() ? 'Interim Intelligence · Category Pass Rates' : 'Category Intelligence · Avg Score by Category'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {categories.slice(0, 6).map(cat => {
