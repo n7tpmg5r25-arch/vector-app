@@ -298,7 +298,7 @@ export default function HomePage() {
                 disabled={refreshing}
                 aria-label="Refresh bill scores"
                 title={refreshing ? 'Refreshing…' : 'Refresh bill scores'}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.3 : 0.5 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.4 : 0.7 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
