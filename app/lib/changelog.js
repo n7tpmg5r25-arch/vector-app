@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '3.5',
+    date: '2026-05-23',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist "What\'s Changed" panel now shows bill titles alongside bill numbers — no more mental lookup when 20+ bills are tracked.',
+      'Redundant score number removed from bill cards — the score badge already carries this; the right column now shows only action icons.',
+      'Filter empty state corrected: activating At Risk or a tag filter with no matching bills now shows a clear "No bills match this filter" message instead of the misleading "No bills tracked yet" CTA.',
+      '"What\'s Changed" header reformatted — "Since your last visit" is now a distinct DM Mono metadata label below the heading instead of inline body text mixed with the display font.',
+      'Minor polish: quick-note pencil icon raised to 70% opacity at rest (was 50%), legacy note field labeled with a NOTE eyebrow, FOR REPORT text enlarged to 9px, --brass CSS fallback literals removed.',
+    ],
+  },
+  {
     version: '3.4',
     date: '2026-05-23',
     phase: 'alpha',

@@ -484,7 +484,7 @@ export default function WatchlistPage() {
         {highlighted.size > 0 && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, marginTop: 6,
-            fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--brass, #b8975a)',
+            fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--brass)',
           }}>
             <span>\u25CF {highlighted.size} selected for report</span>
             <button
@@ -511,17 +511,19 @@ export default function WatchlistPage() {
             marginBottom: 4,
             animation: 'fadeUp 0.3s ease both',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{
-                fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
-                color: 'var(--teal)',
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', boxShadow: '0 0 6px rgba(184,151,90,0.5)', display: 'inline-block' }}/>
-                What's Changed
-                <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
-                  since your last visit
-                </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div>
+                <div style={{
+                  fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+                  color: 'var(--teal)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--teal)', boxShadow: '0 0 6px rgba(184,151,90,0.5)', display: 'inline-block' }}/>
+                  What's Changed
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 3, paddingLeft: 12 }}>
+                  Since your last visit
+                </div>
               </div>
               <button
                 onClick={() => setChangesDismissed(true)}
@@ -541,20 +543,27 @@ export default function WatchlistPage() {
                   href={`/bill/${bill.bill_id}`}
                   prefetch={false}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
+                    display: 'block', padding: '8px 0',
                     borderTop: '1px solid rgba(184,151,90,0.08)',
-                    cursor: 'pointer',
                     textDecoration: 'none', color: 'inherit',
                   }}
                 >
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
-                    minWidth: 56, fontWeight: 500,
-                  }}>
-                    {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
+                      fontWeight: 500, flexShrink: 0,
+                    }}>
+                      {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+                    </span>
                     <MeetingBadge billId={bill.bill_id} meeting={meetingByBill[bill_id] || null} compact />
-                  </span>
-                  <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                  </div>
+                  <div style={{
+                    fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 5,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {bill.title || bill.committee_name || 'Bill ' + bill.bill_number}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
                     {change.scoreDiff !== 0 && (
                       <span style={{
                         fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600,
@@ -590,21 +599,37 @@ export default function WatchlistPage() {
         {loading ? (
           <VectorLoader label="Loading watchlist" />
         ) : sorted.length === 0 ? (
-          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
-            <div style={{ display: 'inline-flex', marginBottom: 16, color: 'var(--text-faint)', opacity: 0.6 }}>
-              <Clipboard size={32} aria-hidden="true" strokeWidth={1.5} />
+          watched.length > 0 ? (
+            /* Filter active, no bills match */
+            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: 28, marginBottom: 12, opacity: 0.35, lineHeight: 1 }}>⌀</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, color: 'var(--text-primary)', marginBottom: 6, fontWeight: 600 }}>
+                No bills match this filter
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {atRiskOnly
+                  ? 'None of your tracked bills are currently at risk.'
+                  : `No bills tagged "${activeTag}".`}
+              </div>
             </div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--teal)', marginBottom: 8, fontWeight: 600 }}>
-              No bills tracked yet
+          ) : (
+            /* No bills tracked at all */
+            <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ display: 'inline-flex', marginBottom: 16, color: 'var(--text-faint)', opacity: 0.6 }}>
+                <Clipboard size={32} aria-hidden="true" strokeWidth={1.5} />
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--teal)', marginBottom: 8, fontWeight: 600 }}>
+                No bills tracked yet
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+                Search bills and tap + Watch to add them here.
+              </div>
+              <button onClick={() => router.push('/search')} className="vec-cta-primary" style={{
+                padding: '10px 24px', background: 'var(--teal)', color: 'var(--bg)',
+                border: 'none', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+              }}>Browse Bills</button>
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-              Search bills and tap + Watch to add them here.
-            </div>
-            <button onClick={() => router.push('/search')} className="vec-cta-primary" style={{
-              padding: '10px 24px', background: 'var(--teal)', color: 'var(--bg)',
-              border: 'none', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-            }}>Browse Bills</button>
-          </div>
+          )
         ) : sorted.map(({ bill_id, tag, notes, bills: bill }, idx) => {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
@@ -629,7 +654,7 @@ export default function WatchlistPage() {
               borderRadius: 'var(--radius)', padding: '14px',
               cursor: 'pointer', transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
               boxShadow: highlighted.has(bill_id) ? '0 0 0 1px rgba(184,151,90,0.22), 0 0 18px rgba(184,151,90,0.08)' : 'none',
-              borderLeft: highlighted.has(bill_id) ? '3px solid var(--brass, #b8975a)'
+              borderLeft: highlighted.has(bill_id) ? '3px solid var(--brass)'
                 : bill.confidence_label === 'DEAD' ? '3px solid var(--border)'
                 : bill.confidence_label === 'LAW' ? '3px solid var(--teal)'
                 : bill.confidence_label === 'PASSED_CHAMBER' ? '3px solid var(--gold)'
@@ -645,7 +670,7 @@ export default function WatchlistPage() {
             {highlighted.has(bill_id) && (
               <span style={{
                 position: 'absolute', top: 6, right: 8,
-                fontSize: 7, color: 'var(--brass, #b8975a)',
+                fontSize: 9, color: 'var(--brass)',
                 fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
                 textTransform: 'uppercase',
               }}>FOR REPORT</span>
@@ -743,18 +768,14 @@ export default function WatchlistPage() {
                 </div>
                 {notes && (
                   <div style={{
-                    fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic',
+                    fontSize: 11, color: 'var(--text-muted)',
                     marginTop: 6, lineHeight: 1.4,
                     borderLeft: '2px solid var(--border)', paddingLeft: 8,
-                  }}>{notes}</div>
+                  }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginRight: 5 }}>NOTE</span>
+                    <span style={{ fontStyle: 'italic' }}>{notes}</span>
+                  </div>
                 )}
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
-                color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
-                minWidth: 36, textAlign: 'right', flexShrink: 0, alignSelf: 'center',
-              }}>
-                {bill.final_score != null ? bill.final_score : '—'}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 <div style={{ display: 'inline-flex', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>
@@ -766,10 +787,10 @@ export default function WatchlistPage() {
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
                     color: notesBillId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
-                    opacity: notesBillId === bill_id ? 1 : 0.5, transition: 'all 0.15s',
+                    opacity: notesBillId === bill_id ? 1 : 0.7, transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => { if (notesBillId !== bill_id) e.currentTarget.style.opacity = '0.5' }}
+                  onMouseLeave={e => { if (notesBillId !== bill_id) e.currentTarget.style.opacity = '0.7' }}
                   title="Quick note"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
