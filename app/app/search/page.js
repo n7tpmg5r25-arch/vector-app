@@ -235,7 +235,7 @@ function SearchContent() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              Watch All
+              + Watch {bills.length}{hasMore ? '+' : ''}
             </button>
           )}
         </div>
@@ -314,11 +314,9 @@ function SearchContent() {
               color: 'var(--text-primary)', outline: 'none',
             }}
           />
-          {query.trim().length >= 3 && (
-            <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4, paddingLeft: 2 }}>
-              Searching title, bill number, and AI summary
-            </div>
-          )}
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4, paddingLeft: 2 }}>
+            Searches title, bill number, and AI summary
+          </div>
         </div>
 
         {/* Filters */}
@@ -433,8 +431,8 @@ function SearchContent() {
         })()}
         {!loading && bills.length > 0 && (
           <div style={{
-            fontSize: 10, color: 'var(--text-faint)', lineHeight: 1.4,
-            padding: '0 2px 8px', fontStyle: 'italic',
+            fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4,
+            padding: '0 2px 8px',
           }}>
             <CohortCitation variant="calibration" />
           </div>
@@ -506,13 +504,6 @@ function SearchContent() {
                     <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Comm. Pass</span>
                   )}
                 </div>
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700,
-                color: bill.final_score != null ? 'var(--brass)' : 'var(--text-faint)',
-                minWidth: 36, textAlign: 'right', flexShrink: 0,
-              }}>
-                {bill.final_score != null ? bill.final_score : '—'}
               </div>
               <button
                 type="button"
