@@ -339,7 +339,7 @@ export default function CommitteeDetail() {
             const remainingBills = bills.filter(b => !watchedIds.has(b.bill_id))
             const myBills = bills.filter(b => watchedIds.has(b.bill_id))
             const subtitle = watchedIds.size > 0
-              ? `${watchedIds.size} of yours · ${bills.length} bills by score`
+              ? `${watchedIds.size} tracked · ${bills.length} bills by score`
               : `${bills.length} bills by score`
             return (
               <Section title="Bills in Committee" subtitle={subtitle}>

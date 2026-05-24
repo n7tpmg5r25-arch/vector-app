@@ -591,7 +591,7 @@ function MeetingCard({ m, highlight, onClick, myBillCount }) {
                 background: 'rgba(184,151,90,0.1)',
                 letterSpacing: '0.04em',
               }}>
-                {myBillCount} of yours
+                {myBillCount} tracked
               </span>
             )}
             {m.location && (

@@ -45,6 +45,10 @@ export const CHANGELOG = [
       'Votes tab on bill detail now shows a clear empty state when no roll-call votes have been recorded, instead of silently rendering nothing.',
       'Committees calendar loading state upgraded from plain text to the standard VectorLoader spinner — consistent with the rest of the app.',
       'Search results list fades to 50% opacity while a new fetch is in flight, giving instant feedback during the debounce window.',
+      'Senate accent color tokenized as --senate-accent (#c87941) — all Senate chamber indicators now share a single source of truth instead of scattered #ffa84d hardcodes.',
+      'Search empty state is now context-aware: cold state explains what to search; zero-results state gives targeted retry guidance.',
+      'Hearings empty state splits on session vs interim — active session shows committee schedule timing guidance, interim shows the next session open date.',
+      'Watchlist empty state improved: sharper headline, inline explanation of the + Watch gesture, and "Search Bills" CTA replaced the generic "Browse Bills" label.',
     ],
   },
   {

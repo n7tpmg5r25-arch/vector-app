@@ -266,11 +266,11 @@ export default function HearingsPage() {
               Legislature is in interim
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: 320, margin: '0 auto' }}>
-              Committee hearings will resume when the {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session && n?.start); return _hasRealNext ? `${n.session} session convenes on ${formatSessionDate(n.start)}` : 'next session convenes'; })()}.
-              {(() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; return n?.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
+              Committee hearings will resume when the {(() => { const n = getNextBiennium(); const _hasRealNext = !!(n?.session && n?.start); return _hasRealNext ? `${n.session} session convenes on ${formatSessionDate(n.start)}` : 'next session convenes'; })()}.
+              {(() => { const n = getNextBiennium(); return n?.prefilingOpens ? ` Pre-filing opens ${formatSessionDate(n.prefilingOpens)}.` : ''; })()}
             </div>
             <button
-              onClick={() => typeof window !== 'undefined' && (window.location.href = '/outcomes')}
+              onClick={() => router.push('/outcomes')}
               className="vec-cta-primary"
               style={{
                 marginTop: 16, padding: '8px 20px',
@@ -294,7 +294,9 @@ export default function HearingsPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
               {view === 'watched'
                 ? 'None of your watched bills have an upcoming hearing. Add more bills from Search, or switch to All to see everything on the calendar.'
-                : (() => { const n = typeof window !== 'undefined' ? getNextBiennium() : null; const _hasRealNext = !!(n?.session); return `Check back when session resumes — hearings populate as committees post their schedules${_hasRealNext ? ` for the ${n.session} session` : ''}.`; })()}
+                : isInterim
+                  ? `Hearings resume when session opens. Check back in ${(function(){ const n = getNextBiennium(); return n?.session ? `the ${n.session} session` : 'the next session'; })()}.`
+                  : 'No hearings posted yet this week. Committees typically publish schedules 3–5 days in advance — check back soon.'}
             </div>
           </div>
         ) : (

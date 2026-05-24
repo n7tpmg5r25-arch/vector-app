@@ -152,7 +152,7 @@ function LatestFloorVoteStrip({ rollCalls, partyBuckets, onOpenVotes, bill }) {
   const verdict = characterize(buckets)
   const passed = (latest.result || '').toLowerCase() === 'passed'
   const dateLbl = formatSessionDate(latest.vote_date)
-  const chamberAccent = latest.chamber === 'House' ? '#4d9aff' : '#ffa84d'
+  const chamberAccent = latest.chamber === 'House' ? '#4d9aff' : 'var(--senate-accent)'
 
   // Thread 51: branch eyebrow + date framing on bill final status.
   const cl = (bill?.confidence_label || '').toUpperCase()

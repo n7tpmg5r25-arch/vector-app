@@ -27,6 +27,9 @@
   --danger-pale:   rgba(196,71,48,0.1);
   --danger-glow:   0 0 10px rgba(196,71,48,0.3);
 
+  /* Senate accent — warm copper, distinct from House brass */
+  --senate-accent: #c87941;
+
   /* Text (warm-shifted) */
   --text-primary:  #e8e9ec;
   --text-mid:      #a8acb4;

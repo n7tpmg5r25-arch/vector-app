@@ -113,9 +113,9 @@ function ByBillRow({ rc, expanded, onToggle, votes, votesLoading, buckets }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
             <span style={{
               fontSize: 9, padding: '2px 7px', borderRadius: 6,
-              background: rc.chamber === 'House' ? 'rgba(77,154,255,0.10)' : 'rgba(255,168,77,0.10)',
-              color: rc.chamber === 'House' ? '#4d9aff' : '#ffa84d',
-              border: `1px solid ${rc.chamber === 'House' ? 'rgba(77,154,255,0.25)' : 'rgba(255,168,77,0.25)'}`,
+              background: rc.chamber === 'House' ? 'rgba(77,154,255,0.10)' : 'rgba(200,121,65,0.10)',
+              color: rc.chamber === 'House' ? '#4d9aff' : 'var(--senate-accent)',
+              border: `1px solid ${rc.chamber === 'House' ? 'rgba(77,154,255,0.25)' : 'rgba(200,121,65,0.25)'}`,
               fontWeight: 600, letterSpacing: '0.04em',
             }}>{rc.chamber}</span>
             <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>

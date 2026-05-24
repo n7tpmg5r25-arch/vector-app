@@ -619,15 +619,15 @@ export default function WatchlistPage() {
                 <Clipboard size={32} aria-hidden="true" strokeWidth={1.5} />
               </div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--teal)', marginBottom: 8, fontWeight: 600 }}>
-                No bills tracked yet
+                Your watchlist is empty
               </div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-                Search bills and tap + Watch to add them here.
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
+                Find the bills that matter to your work and tap <strong style={{ color: 'var(--text-mid)' }}>+ Watch</strong> to track trajectory, votes, and hearing alerts.
               </div>
               <button onClick={() => router.push('/search')} className="vec-cta-primary" style={{
                 padding: '10px 24px', background: 'var(--teal)', color: 'var(--bg)',
                 border: 'none', borderRadius: 'var(--radius)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              }}>Browse Bills</button>
+              }}>Search Bills</button>
             </div>
           )
         ) : sorted.map(({ bill_id, tag, notes, bills: bill }, idx) => {

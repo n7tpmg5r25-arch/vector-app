@@ -543,7 +543,9 @@ function SearchContent() {
 
         {!loading && bills.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, lineHeight: 1.55 }}>
-            No bills match your filters. Try widening the chamber, removing a category, or shortening the search query.
+            {query.trim().length > 0
+              ? 'No bills match — try a shorter keyword, different chamber, or remove a category filter.'
+              : 'Start typing to search ~3,400 Washington State bills by title, sponsor, or keyword.'}
           </div>
         )}
       </div>
