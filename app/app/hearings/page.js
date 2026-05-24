@@ -32,7 +32,7 @@ export default function HearingsPage() {
   const [chamber, setChamber]       = useState('All')
   const [view, setView]             = useState('upcoming')
   const [calCopied, setCalCopied]   = useState(false)
-  const isInterim = typeof window !== 'undefined' ? isInterimPeriod() : true
+  const isInterim = isInterimPeriod()
 
   useEffect(() => {
     if (viewerLoading) return

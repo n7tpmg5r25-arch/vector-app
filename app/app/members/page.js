@@ -1332,16 +1332,18 @@ function MembersContent() {
                     onClick={(e) => { e.stopPropagation(); setLegendOpen(o => !o) }}
                     aria-expanded={legendOpen}
                     aria-label="What is the legislative success score?"
-                    style={{
+                    style={{ padding: 15, margin: -15, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'none', border: 'none' }}
+                  >
+                    <span style={{
                       width: 14, height: 14, borderRadius: '50%',
                       background: legendOpen ? 'var(--bg-surface)' : 'transparent',
                       border: '1px solid var(--border)',
                       color: 'var(--text-muted)',
                       fontSize: 9, fontWeight: 700, lineHeight: 1,
-                      padding: 0, cursor: 'pointer', fontFamily: 'inherit',
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >?</button>
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: 'inherit', flexShrink: 0, pointerEvents: 'none',
+                    }}>?</span>
+                  </button>
                   {[
                     { label: '55+', ...effColor(60) },
                     { label: '35–54', ...effColor(40) },
@@ -1431,7 +1433,7 @@ function MembersContent() {
             return (
               <div style={{
                 position: 'fixed', zIndex: 100,
-                left: Math.min(Math.max(popover.x - 110, 8), window.innerWidth - 228),
+                left: 'calc(50vw - 160px)',
                 top: Math.max(popover.y - 110, 8),
                 width: 220, padding: '10px 12px',
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -1542,9 +1544,11 @@ function MembersContent() {
                 </div>
               </div>
 
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
+              <div style={{ padding: 16, margin: -16 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </div>
             </div>
           )
         })}

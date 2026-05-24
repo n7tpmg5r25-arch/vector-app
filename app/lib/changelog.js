@@ -38,6 +38,9 @@ export const CHANGELOG = [
       'Home stat strip bottom padding corrected — the session stats were partially clipped by the fixed bottom nav on taller content loads. "High Signal" (count of top-12 fetched bills) replaced with "Top Score" — a more accurate session signal.',
       'Phone and email icons on member cards now use consistent SVG icons; font-size floor enforced on two remaining 8px badges.',
       'DM Sans removed from the Google Fonts request — the fallback was never reached, saving ~30KB per page load.',
+      'Accessibility pass: bottom nav tabs now announce the active page to screen readers (aria-current). Members heatmap legend button and list chevron tap zones expanded to 44×44px — meets Apple HIG and WCAG 2.5.5 minimum.',
+      'Hearings page: removed a stale typeof window guard around isInterimPeriod() — the guard was causing a hydration flash on first load since the function is pure date math with no browser dependency.',
+      'Members heatmap popover positioning switched from window.innerWidth to calc(50vw − 160px) — eliminates a server-side rendering mismatch and centers the popover correctly on all mobile viewports.',
     ],
   },
   {
