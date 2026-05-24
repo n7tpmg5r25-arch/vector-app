@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '4.0',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'UI cleanup pass: 14 visual and UX fixes across home, watchlist, and members pages in one PR.',
+      'Member detail sticky hero now correctly shields the full 0–52px region on scroll — notched iPhones no longer show content sliding behind the hamburger button.',
+      'Home stat strip bottom padding corrected — the session stats were partially clipped by the fixed bottom nav on taller content loads. "High Signal" (count of top-12 fetched bills) replaced with "Top Score" — a more accurate session signal.',
+      'Phone and email icons on member cards now use consistent SVG icons; font-size floor enforced on two remaining 8px badges.',
+      'DM Sans removed from the Google Fonts request — the fallback was never reached, saving ~30KB per page load.',
+    ],
+  },
+  {
     version: '3.9',
     date: '2026-05-24',
     phase: 'alpha',
