@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '3.9',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Bill detail page typography pass: 15 sub-minimum font sizes eliminated — the densest fix count of any page audited. The Trajectory tab formula bar, Momentum Index and Committee Density cards, stage pipeline labels, sparkline x-axis, and score history eyebrow all now meet the 9px floor.',
+      'AI badge labels (AI · EDITED, AI-GENERATED), the confidence label duplicate chip, and the X-factor "Top contributors" eyebrow all brought up to 9px.',
+      'Italic dropped from the floor vote verdict chip and the score history "No score change" row — consistent with the same fix applied to search and members pages.',
+    ],
+  },
+  {
     version: '3.8',
     date: '2026-05-24',
     phase: 'alpha',
