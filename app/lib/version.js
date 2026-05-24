@@ -16,7 +16,7 @@
 
 // User-facing semver-ish display version. Bump on phase ships.
 // 1.0 = post-Phase-5 baseline.
-export const VERSION = '3.7'
+export const VERSION = '3.8'
 
 // Release-phase calendar. Each entry has an optional start and end
 // date (ISO yyyy-mm-dd). The first entry that contains "now" wins.
