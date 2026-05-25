@@ -1,6 +1,6 @@
 'use client'
-import { Suspense, useEffect, useState, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { useSession } from '../../lib/useSession'
@@ -16,6 +16,7 @@ import VectorLoader from '../components/VectorLoader'
 import { Check } from 'lucide-react'
 
 import { CATEGORIES } from '../../lib/categories'
+
 const STAGES = [
   { label: 'All Stages', value: 0 },
   { label: 'Introduced', value: 1 },
@@ -55,51 +56,46 @@ function getSummarySnippet(summary, term) {
 }
 
 function SearchContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  // Phase 12 Batch 3: auth state via the capabilities helper, not ad-hoc getUser().
-  // Batch 6 adds `publicLayerEnabled` + `isAnonPublic` so the page can swap
-  // the bottom Nav for a sticky PublicNav when an anon visitor lands here
-  // with the flag on.
-  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
-  // Thread 15.2: gate isAnonPublic on !viewerLoading. Without the gate, the
-  // brief async window before useViewer() resolves leaves user=null for
-  // everyone (authed or not), which made the page flash PublicNav and hide
-  // the bottom Nav for authed users until auth resolved.
+  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+
+  // Filter state
+  // BUG FIX: initialize loading=true to prevent empty-state flash on mount
   const [bills, setBills] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
-  // Thread 15.4: debounce the query so each keystroke doesn't trigger a
-  // fresh network round-trip. UI text (input value, snippet highlight) keeps
-  // reading the live `query`; the network-driven effect reads `debouncedQuery`.
   const debouncedQuery = useDebouncedValue(query, 250)
   const [category, setCategory] = useState(searchParams?.get('category') || 'All')
   const [chamber, setChamber] = useState('All')
   const [stage, setStage] = useState(0)
   const [sortBy, setSortBy] = useState('score')
   const [outcome, setOutcome] = useState('All')
+  // BUG FIX: hearingOnly renamed from T144 — now labelled "Had Hearing" (historical flag, not future)
+  const [hearingOnly, setHearingOnly] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const PAGE_SIZE = 50
 
-  // Bulk watch state (auth-gated features)
+  // BUG FIX: use a ref to avoid stale page closure in fetchBills during Load More.
+  // Without this, Load More calls fetchBills with the old page value (0) because
+  // setPage is async — so it always re-fetches page 0 and appends duplicates.
+  const pageRef = useRef(0)
+  pageRef.current = page
+
+  // Reduced motion preference
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  // Bulk watch state (auth-gated)
   const [watchedIds, setWatchedIds] = useState(new Set())
   const [showWatchAll, setShowWatchAll] = useState(false)
   const [bulkTag, setBulkTag] = useState('')
   const [bulkAdding, setBulkAdding] = useState(false)
   const [bulkResult, setBulkResult] = useState(null)
 
-  // T143 UI audit: respect prefers-reduced-motion (UI UX Pro Max A6)
-  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  // T144 lobbyist UX: hearing filter + category counts
-  const [hearingOnly, setHearingOnly] = useState(false)
-  const [categoryCounts, setCategoryCounts] = useState({})
-
-  // Load watched bill IDs when the viewer is authed
+  // Load watched bill IDs when authed
   useEffect(() => {
     if (viewerLoading) return
     if (!user) { setWatchedIds(new Set()); return }
@@ -112,23 +108,12 @@ function SearchContent() {
       })
   }, [user?.id, viewerLoading])
 
-  // T144: fetch category counts for the current session (client-side tally, ~3400 rows × 1 col ≈ 60KB)
-  useEffect(() => {
-    supabase
-      .from('bills')
-      .select('category')
-      .eq('session', SESSION)
-      .then(({ data }) => {
-        if (!data) return
-        const counts = {}
-        data.forEach(b => { if (b.category) counts[b.category] = (counts[b.category] || 0) + 1 })
-        setCategoryCounts(counts)
-      })
-  }, [SESSION])
-
+  // BUG FIX: page intentionally NOT in fetchBills deps — we read pageRef.current
+  // instead so the callback stays stable and Load More can call it synchronously
+  // without hitting a stale closure.
   const fetchBills = useCallback(async (reset = false) => {
     setLoading(true)
-    const currentPage = reset ? 0 : page
+    const currentPage = reset ? 0 : pageRef.current
 
     let q = supabase
       .from('bills')
@@ -145,25 +130,22 @@ function SearchContent() {
       q = q.or(`title.ilike.%${debouncedQuery}%,bill_number.ilike.%${debouncedQuery}%,ai_summary.ilike.%${debouncedQuery}%,custom_summary.ilike.%${debouncedQuery}%`)
     }
 
-    if (sortBy === 'score') q = q.order('final_score', { ascending: false })
-    else if (sortBy === 'number') q = q.order('bill_number_seq', { ascending: true })
-    else if (sortBy === 'action') q = q.order('last_action_date', { ascending: false, nullsFirst: false })
-    else if (sortBy === 'movers') {
-      // Thread 25 — bills that just moved.
-      // Active session: clamp to last 7 days of last_action_date so the page
-      // surfaces only genuinely recent activity. Interim: drop the date clamp
-      // (most bills haven't moved in months) and just sort by recency.
-      // Tie-break on final_score so the most consequential mover sits on top
-      // when several share the same action date.
-      if (!isInterimPeriod()) {
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
-          .toISOString()
-          .split('T')[0]
-        q = q.gte('last_action_date', sevenDaysAgo)
-      }
+    if (sortBy === 'score') {
+      q = q.order('final_score', { ascending: false })
+    } else if (sortBy === 'number') {
+      q = q.order('bill_number_seq', { ascending: true })
+    } else if (sortBy === 'action') {
+      q = q.order('last_action_date', { ascending: false, nullsFirst: false })
+    } else if (sortBy === 'movers') {
+      // BUG FIX: always apply the 7-day clamp regardless of isInterimPeriod().
+      // Previously the clamp was skipped during interim, making "This Week" identical
+      // to "Recent". Now if nothing moved in 7 days, we correctly return 0 results
+      // and show an honest empty state instead of silently showing stale data.
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
       q = q
+        .gte('last_action_date', sevenDaysAgo)
         .order('last_action_date', { ascending: false, nullsFirst: false })
-        .order('final_score',      { ascending: false, nullsFirst: false })
+        .order('final_score', { ascending: false, nullsFirst: false })
     }
 
     const { data, error } = await q
@@ -175,35 +157,30 @@ function SearchContent() {
     }
 
     setLoading(false)
-  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, hearingOnly, page])
+  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, hearingOnly])
+  // Note: SESSION intentionally omitted — it never changes within a page session.
+  // page intentionally omitted — read via pageRef.current.
 
+  // Reset + refetch whenever any filter changes
   useEffect(() => {
     setPage(0)
+    pageRef.current = 0
     fetchBills(true)
-  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, hearingOnly])
+  }, [fetchBills])
 
   // Bulk watch all displayed bills
   async function bulkWatchAll() {
     if (!user || bills.length === 0) return
     setBulkAdding(true)
     setBulkResult(null)
-
     const newBills = bills.filter(b => !watchedIds.has(b.bill_id))
     if (newBills.length === 0) {
       setBulkResult({ added: 0, skipped: bills.length })
       setBulkAdding(false)
       return
     }
-
-    const rows = newBills.map(b => ({
-      bill_id: b.bill_id,
-      user_id: user.id,
-      tag: bulkTag.trim() || null,
-      notes: '',
-    }))
-
+    const rows = newBills.map(b => ({ bill_id: b.bill_id, user_id: user.id, tag: bulkTag.trim() || null, notes: '' }))
     const { error } = await supabase.from('tracked_bills').insert(rows)
-
     if (!error) {
       const newIds = new Set(watchedIds)
       newBills.forEach(b => newIds.add(b.bill_id))
@@ -212,16 +189,13 @@ function SearchContent() {
     } else {
       setBulkResult({ error: 'Failed to add bills. Try again.' })
     }
-
     setBulkAdding(false)
     setShowWatchAll(false)
     setBulkTag('')
-
-    // Auto-dismiss result after 4 seconds
     setTimeout(() => setBulkResult(null), 4000)
   }
 
-  // T144: toggle single bill watch state inline
+  // Toggle single bill watch inline
   async function handleToggleWatch(bill) {
     if (!user) return
     const billId = bill.bill_id
@@ -234,43 +208,66 @@ function SearchContent() {
     }
   }
 
+  // Build active filter labels for the results summary bar
+  const activeFilters = []
+  if (chamber !== 'All') activeFilters.push(chamber)
+  if (stage > 0) { const s = STAGES.find(s => s.value === stage); if (s) activeFilters.push(s.label) }
+  if (category !== 'All') activeFilters.push(category)
+  if (outcome !== 'All' && isInterimPeriod()) {
+    const o = { LAW: 'Signed into Law', PASSED_CHAMBER: 'Passed Chamber', DEAD: 'Dead' }[outcome]
+    if (o) activeFilters.push(o)
+  }
+  if (debouncedQuery.trim()) activeFilters.push(`"${debouncedQuery.trim()}"`)
+  if (sortBy === 'movers') activeFilters.push('This Week')
+  if (hearingOnly) activeFilters.push('Had Hearing')
+
+  // Smart empty state message per active context
+  const emptyMessage = sortBy === 'movers'
+    ? 'No bills had new activity in the last 7 days.'
+    : hearingOnly
+    ? 'No bills with a committee hearing match your current filters.'
+    : debouncedQuery.trim()
+    ? `No bills match "${debouncedQuery.trim()}" — try fewer words or a different filter.`
+    : 'No bills match your current filters.'
+
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
-      {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
+      {/* Hide horizontal scrollbar on category strip — works in Webkit (iOS Safari, Chrome) */}
+      <style>{`.vec-cat-strip::-webkit-scrollbar { display: none }`}</style>
+
       {isAnonPublic && <PublicNav />}
-      {/* Header */}
+
+      {/* ── Sticky header ── */}
       <div style={{
-        background: 'rgba(14,16,20,0.95)',
+        background: 'rgba(14,16,20,0.97)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: isAnonPublic ? '16px 16px 12px' : '52px 16px 12px',
+        padding: isAnonPublic ? '16px 16px 10px' : '52px 16px 10px',
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+
+        {/* Row 1: Title + Watch All */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 22, fontWeight: 700,
-            color: 'var(--teal)',
-            textShadow: '0 0 16px rgba(184,151,90,0.2)',
+            fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700,
+            color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)',
           }}>Bill Search</div>
 
-          {/* Watch All button — only if logged in */}
           {user && bills.length > 0 && (
             <button
               onClick={() => setShowWatchAll(!showWatchAll)}
               style={{
-                padding: '10px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                padding: '8px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                 background: showWatchAll ? 'var(--teal)' : 'transparent',
                 color: showWatchAll ? 'var(--bg)' : 'var(--teal)',
-                border: '1px solid var(--teal)',
-                cursor: 'pointer', transition: 'all 0.15s',
-                display: 'flex', alignItems: 'center', gap: 5,
+                border: '1px solid var(--teal)', cursor: 'pointer', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 4,
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
-              + Watch {bills.length}{hasMore ? '+' : ''}
+              Watch {bills.length}{hasMore ? '+' : ''}
             </button>
           )}
         </div>
@@ -286,31 +283,19 @@ function SearchContent() {
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
-                type="text"
-                value={bulkTag}
-                onChange={e => setBulkTag(e.target.value)}
+                type="text" value={bulkTag} onChange={e => setBulkTag(e.target.value)}
                 placeholder="Tag (optional, e.g. Housing, Transit)"
                 aria-label="Tag for bulk-watched bills (optional)"
-                style={{
-                  flex: 1, padding: '8px 12px',
-                  background: 'var(--bg-surface)', border: '1px solid var(--border)',
-                  borderRadius: 8, fontSize: 12,
-                  color: 'var(--text-primary)', outline: 'none',
-                }}
+                style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14, color: 'var(--text-primary)', outline: 'none' }}
                 onFocus={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.5)'}
                 onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
               />
-              <button
-                onClick={bulkWatchAll}
-                disabled={bulkAdding}
-                style={{
-                  padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  background: 'var(--teal)', color: 'var(--bg)',
-                  border: 'none', cursor: bulkAdding ? 'wait' : 'pointer',
-                  opacity: bulkAdding ? 0.6 : 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <button onClick={bulkWatchAll} disabled={bulkAdding} style={{
+                padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                background: 'var(--teal)', color: 'var(--bg)',
+                border: 'none', cursor: bulkAdding ? 'wait' : 'pointer',
+                opacity: bulkAdding ? 0.6 : 1, whiteSpace: 'nowrap',
+              }}>
                 {bulkAdding ? 'Adding...' : 'Add All'}
               </button>
             </div>
@@ -330,14 +315,13 @@ function SearchContent() {
           }}>
             {bulkResult.error
               ? bulkResult.error
-              : `Added ${bulkResult.added} bill${bulkResult.added !== 1 ? 's' : ''} to watchlist.${bulkResult.skipped > 0 ? ` ${bulkResult.skipped} already tracked.` : ''}`
-            }
+              : `Added ${bulkResult.added} bill${bulkResult.added !== 1 ? 's' : ''} to watchlist.${bulkResult.skipped > 0 ? ` ${bulkResult.skipped} already tracked.` : ''}`}
           </div>
         )}
 
-        {/* Search */}
-        <div style={{ position: 'relative', marginBottom: 10 }}>
-          <svg aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* Row 2: Search input */}
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <svg aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input
@@ -350,26 +334,24 @@ function SearchContent() {
               width: '100%', padding: '10px 14px 10px 36px',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius)', fontSize: 16,
-              color: 'var(--text-primary)', outline: 'none',
+              color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box',
             }}
             onFocus={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.5)'}
             onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
           />
-          <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4, paddingLeft: 2 }}>
-            Searches title, bill number, and AI summary
-          </div>
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {/* Row 3: Filter controls — horizontally scrollable so they never wrap */}
+        <div style={{
+          display: 'flex', gap: 6, alignItems: 'center',
+          overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none', msOverflowStyle: 'none',
+          paddingBottom: 2,
+        }}>
           <DropdownMenu
             value={chamber}
             onChange={v => setChamber(v)}
-            options={[
-              { value: 'All', label: 'All' },
-              { value: 'House', label: 'House' },
-              { value: 'Senate', label: 'Senate' },
-            ]}
+            options={[{ value: 'All', label: 'All' }, { value: 'House', label: 'House' }, { value: 'Senate', label: 'Senate' }]}
             ariaLabel="Filter by chamber"
           />
           <DropdownMenu
@@ -385,41 +367,59 @@ function SearchContent() {
               { value: 'score', label: 'Top Score' },
               { value: 'number', label: 'Bill #' },
               { value: 'action', label: 'Recent' },
-              { value: 'movers', label: isInterimPeriod() ? 'Movers (recent)' : 'This Week' },
+              { value: 'movers', label: 'This Week' },
             ]}
             ariaLabel="Sort results"
           />
-        </div>
-
-        {/* T144: Quick-filter chips — hearing scheduled + this week movers */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          {/* BUG FIX: renamed from "Hearing Scheduled" → "Had Hearing".
+              has_public_hearing is a historical flag (set during session when a hearing
+              was held). The session ended March 12 — no hearings are being scheduled now.
+              "Had Hearing" is accurate; "Hearing Scheduled" implies future events. */}
           <button
             onClick={() => setHearingOnly(v => !v)}
             aria-pressed={hearingOnly}
             style={{
-              padding: '7px 12px', borderRadius: 16, fontSize: 11,
+              flexShrink: 0, height: 36, padding: '0 11px',
+              borderRadius: 8, fontSize: 11, fontWeight: hearingOnly ? 600 : 400,
               background: hearingOnly ? 'rgba(184,151,90,0.15)' : 'transparent',
               color: hearingOnly ? 'var(--teal)' : 'var(--text-muted)',
               border: `1px solid ${hearingOnly ? 'var(--teal)' : 'var(--border)'}`,
-              cursor: 'pointer', fontWeight: hearingOnly ? 600 : 400,
+              cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
             }}
-          >Hearing Scheduled</button>
-          <button
-            onClick={() => setSortBy('movers')}
-            aria-pressed={sortBy === 'movers'}
-            style={{
-              padding: '7px 12px', borderRadius: 16, fontSize: 11,
-              background: sortBy === 'movers' ? 'rgba(184,151,90,0.15)' : 'transparent',
-              color: sortBy === 'movers' ? 'var(--teal)' : 'var(--text-muted)',
-              border: `1px solid ${sortBy === 'movers' ? 'var(--teal)' : 'var(--border)'}`,
-              cursor: 'pointer', fontWeight: sortBy === 'movers' ? 600 : 400,
-            }}
-          >This Week</button>
+          >Had Hearing</button>
         </div>
 
-        {/* Outcome filter chips — interim only (replaces Outcomes page in nav) */}
+        {/* Row 4: Category strip — single horizontal-scroll line, no wrap.
+            BUG FIX: removed per-category counts. They were calculated from a
+            select('category') query capped at PostgREST's 1000-row default limit,
+            so the counts were based on ~1000 of ~3400 bills and were wrong.
+            Without a custom RPC or raised row limit they cannot be made accurate. */}
+        <div
+          className="vec-cat-strip"
+          style={{
+            display: 'flex', gap: 6, marginTop: 8,
+            overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none', msOverflowStyle: 'none',
+            padding: '2px 0',
+          }}
+        >
+          {CATEGORIES.map(c => (
+            <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c} style={{
+              flexShrink: 0,
+              padding: '6px 12px', borderRadius: 16, fontSize: 11,
+              background: category === c ? 'var(--teal)' : 'transparent',
+              color: category === c ? 'var(--bg)' : 'var(--text-muted)',
+              border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
+              cursor: 'pointer', fontWeight: category === c ? 600 : 400,
+              boxShadow: category === c ? 'var(--teal-glow)' : 'none',
+              transition: 'all 0.15s', whiteSpace: 'nowrap',
+            }}>{c}</button>
+          ))}
+        </div>
+
+        {/* Outcome chips — interim only. Useful for post-session lobbying analysis. */}
         {isInterimPeriod() && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
             {[
               { label: 'All Outcomes', value: 'All' },
               { label: 'Signed into Law', value: 'LAW', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
@@ -427,7 +427,7 @@ function SearchContent() {
               { label: 'Dead', value: 'DEAD', color: 'var(--text-faint)', bg: 'rgba(255,255,255,0.04)' },
             ].map(o => (
               <button key={o.value} onClick={() => setOutcome(o.value)} aria-pressed={outcome === o.value} style={{
-                padding: '7px 12px', borderRadius: 16, fontSize: 11,
+                padding: '5px 10px', borderRadius: 16, fontSize: 11,
                 background: outcome === o.value ? (o.bg || 'var(--teal)') : 'transparent',
                 color: outcome === o.value ? (o.color || 'var(--bg)') : 'var(--text-muted)',
                 border: `1px solid ${outcome === o.value ? (o.color || 'var(--teal)') : 'var(--border)'}`,
@@ -436,81 +436,47 @@ function SearchContent() {
             ))}
           </div>
         )}
-
-        {/* Category chips */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c} style={{
-              padding: '7px 12px', borderRadius: 16, fontSize: 11,
-              background: category === c ? 'var(--teal)' : 'transparent',
-              color: category === c ? 'var(--bg)' : 'var(--text-muted)',
-              border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
-              cursor: 'pointer', fontWeight: category === c ? 600 : 400,
-              boxShadow: category === c ? 'var(--teal-glow)' : 'none',
-            }}>{c}{categoryCounts[c] ? ` (${categoryCounts[c]})` : ''}</button>
-          ))}
-        </div>
       </div>
 
-      {/* Results */}
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
-        {/* Thread 25 — results summary line + frozen cohort cite.
-            "Showing N bills" gives the journalist a quotable filter context;
-            the cite anchors any quoted statistic in the calibrated cohort. */}
-        {!loading && bills.length > 0 && (() => {
-          const activeFilters = []
-          if (chamber !== 'All') activeFilters.push(chamber)
-          if (stage > 0) {
-            const s = STAGES.find(s => s.value === stage)
-            if (s) activeFilters.push(s.label)
-          }
-          if (category !== 'All') activeFilters.push(category)
-          if (outcome !== 'All' && isInterimPeriod()) {
-            const o = { LAW: 'Signed into Law', PASSED_CHAMBER: 'Passed Chamber', DEAD: 'Dead' }[outcome]
-            if (o) activeFilters.push(o)
-          }
-          if (debouncedQuery.trim()) activeFilters.push(`"${debouncedQuery.trim()}"`)
-          if (sortBy === 'movers') activeFilters.push(isInterimPeriod() ? 'Movers' : 'This Week')
-          if (hearingOnly) activeFilters.push('Has Hearing')
-          const countLabel = `${bills.length}${hasMore ? '+' : ''} bill${bills.length === 1 ? '' : 's'}`
-          return (
-            <div style={{
-              fontSize: 11, color: 'var(--text-faint)',
-              padding: '2px 2px 6px',
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
-              borderBottom: '1px solid var(--border)', marginBottom: 4,
-            }}>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Showing {countLabel}</span>
-              {activeFilters.length > 0 && (
-                <>
-                  <span aria-hidden="true">&#183;</span>
-                  <span>Filtered by:</span>
-                  {activeFilters.map((f, i) => (
-                    <span key={i} style={{
-                      padding: '1px 7px', borderRadius: 10, fontSize: 10,
-                      background: 'rgba(184,151,90,0.08)', color: 'var(--text-muted)',
-                      border: '1px solid var(--border)',
-                    }}>{f}</span>
-                  ))}
-                </>
-              )}
-              {activeFilters.length === 0 && !debouncedQuery.trim() && (
-                <>
-                  <span aria-hidden="true">&#183;</span>
-                  <span style={{ fontStyle: 'italic' }}>Top-scoring bills this session · sorted by trajectory</span>
-                </>
-              )}
-            </div>
-          )
-        })()}
+      {/* ── Results ── */}
+      <div style={{
+        padding: '10px 16px',
+        display: 'flex', flexDirection: 'column', gap: 8,
+        opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s ease',
+      }}>
+
+        {/* Results summary bar */}
         {!loading && bills.length > 0 && (
           <div style={{
-            fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4,
-            padding: '0 2px 8px',
+            fontSize: 11, color: 'var(--text-faint)',
+            padding: '2px 2px 6px',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+            borderBottom: '1px solid var(--border)', marginBottom: 2,
           }}>
-            <CohortCitation variant="calibration" />
+            <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>
+              {bills.length}{hasMore ? '+' : ''} bill{bills.length === 1 ? '' : 's'}
+            </span>
+            {activeFilters.length > 0 ? (
+              <>
+                <span aria-hidden="true">·</span>
+                {activeFilters.map((f, i) => (
+                  <span key={i} style={{
+                    padding: '1px 7px', borderRadius: 10, fontSize: 10,
+                    background: 'rgba(184,151,90,0.08)', color: 'var(--text-muted)',
+                    border: '1px solid var(--border)',
+                  }}>{f}</span>
+                ))}
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">·</span>
+                <span style={{ fontStyle: 'italic' }}>top score · all categories</span>
+              </>
+            )}
           </div>
         )}
+
+        {/* Bill cards */}
         {bills.map((bill, idx) => {
           const isWatched = watchedIds.has(bill.bill_id)
           return (
@@ -519,61 +485,86 @@ function SearchContent() {
               href={`/bill/${bill.bill_id}`}
               prefetch={false}
               style={{
-                background: 'var(--bg-card)', border: `1px solid ${isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius)', padding: '12px 14px',
-                display: 'flex', alignItems: 'center', gap: 12,
+                background: 'var(--bg-card)',
+                border: `1px solid ${isWatched ? 'rgba(184,151,90,0.25)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius)', padding: '11px 12px',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
                 cursor: 'pointer', transition: 'border-color 0.2s',
-                animation: reducedMotion ? 'none' : `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
+                animation: reducedMotion ? 'none' : `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.4)}s both`,
                 textDecoration: 'none', color: 'inherit',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(184,151,90,0.2)' : 'var(--border)'}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.35)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = isWatched ? 'rgba(184,151,90,0.25)' : 'var(--border)'}
             >
-              <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
+              {/* Score badge — pinned to top */}
+              <div style={{ flexShrink: 0, paddingTop: 1 }}>
+                <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
+              </div>
+
+              {/* Main content */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
-                  {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
+
+                {/* Bill number + status chips */}
+                <div style={{
+                  fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)',
+                  marginBottom: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4,
+                }}>
+                  <span>{bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}</span>
                   {isWatched && (
-                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--teal)', fontWeight: 600, background: 'rgba(184,151,90,0.15)', border: '1px solid rgba(184,151,90,0.3)', borderRadius: 8, padding: '1px 5px' }}>WATCHING</span>
-                  )}
-                  {isInterimPeriod() && bill.confidence_label === 'LAW' && (
-                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
-                  )}
-                  {isInterimPeriod() && bill.confidence_label === 'PASSED_CHAMBER' && (
-                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Passed Chamber</span>
-                  )}
-                  {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
-                    <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-faint)', border: '1px solid var(--border)', borderRadius: 10 }}>Dead</span>
+                    <span style={{ fontSize: 9, color: 'var(--teal)', fontWeight: 600, background: 'rgba(184,151,90,0.15)', border: '1px solid rgba(184,151,90,0.3)', borderRadius: 8, padding: '1px 5px' }}>WATCHING</span>
                   )}
                   {bill.category && (
-                    <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other \u2014 ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
+                    <span style={{ color: 'var(--text-faint)' }}>
+                      · {bill.category === 'Other' && bill.committee_name
+                        ? `Other — ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}`
+                        : bill.category}
+                    </span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'LAW' && (
+                    <span style={{ fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'PASSED_CHAMBER' && (
+                    <span style={{ fontSize: 9, padding: '1px 6px', background: 'var(--gold-pale)', color: 'var(--gold)', border: '1px solid rgba(212,180,122,0.25)', borderRadius: 10, fontWeight: 500 }}>Passed</span>
+                  )}
+                  {isInterimPeriod() && bill.confidence_label === 'DEAD' && (
+                    <span style={{ fontSize: 9, padding: '1px 6px', background: 'rgba(255,255,255,0.04)', color: 'var(--text-faint)', border: '1px solid var(--border)', borderRadius: 10 }}>Dead</span>
                   )}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+
+                {/* Bill title — 2-line clamp */}
+                <div style={{
+                  fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden', lineHeight: 1.35, marginBottom: 3,
+                }}>
                   {query.trim().length >= 3
                     ? highlightMatch(bill.title || bill.committee_name || `Bill ${bill.bill_number}`, query.trim())
                     : (bill.title || bill.committee_name || `Bill ${bill.bill_number}`)
                   }
                 </div>
-                {/* T144: sponsor + committee attribution line */}
+
+                {/* Sponsor + committee — always shown if available */}
                 {(bill.prime_sponsor || bill.committee_name) && (
-                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginBottom: 3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                     {bill.prime_sponsor && (
-                      <span style={{ color: bill.prime_party === 'D' ? 'var(--party-d)' : bill.prime_party === 'R' ? 'var(--party-r)' : 'var(--text-faint)' }}>
+                      <span style={{ color: bill.prime_party === 'D' ? 'var(--party-d)' : bill.prime_party === 'R' ? 'var(--party-r)' : 'var(--text-muted)' }}>
                         {bill.prime_sponsor}
                       </span>
                     )}
-                    {bill.prime_sponsor && bill.committee_name && <span style={{ color: 'var(--text-faint)' }}> · </span>}
-                    {bill.committee_name && <span>{bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}</span>}
+                    {bill.prime_sponsor && bill.committee_name && <span> · </span>}
+                    {bill.committee_name && (
+                      <span>{bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}</span>
+                    )}
                   </div>
                 )}
-                {/* Show summary snippet when keyword matched in ai_summary */}
+
+                {/* Summary snippet when keyword found in AI summary */}
                 {(() => {
                   const snip = query.trim().length >= 3 ? getSummarySnippet(bill.custom_summary || bill.ai_summary, query.trim()) : null
                   if (!snip) return null
                   const { snippet, matchStart, matchLen } = snip
                   return (
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                       {snippet.slice(0, matchStart)}
                       <mark style={{ background: 'rgba(184,151,90,0.25)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
                         {snippet.slice(matchStart, matchStart + matchLen)}
@@ -582,27 +573,35 @@ function SearchContent() {
                     </div>
                   )
                 })()}
-                <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
-                  {bill.has_public_hearing && (
-                    <span style={{ fontSize: 9, color: 'var(--teal-mid)', fontFamily: 'var(--font-mono)' }}>Hearing</span>
-                  )}
-                  {bill.committee_passed && (
-                    <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Comm. Pass</span>
-                  )}
-                  {bill.bipartisan === false && (
-                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', fontStyle: 'italic' }}>Minority Only</span>
-                  )}
-                </div>
+
+                {/* Status badges row */}
+                {(bill.has_public_hearing || bill.committee_passed || bill.bipartisan === false) && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 1 }}>
+                    {bill.has_public_hearing && (
+                      // BUG FIX: replaced var(--teal-mid) which is not defined in globals.css
+                      <span style={{ fontSize: 9, color: 'rgba(184,151,90,0.75)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>HAD HEARING</span>
+                    )}
+                    {bill.committee_passed && (
+                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        <Check size={9} aria-hidden="true" strokeWidth={3} /> COMM. PASS
+                      </span>
+                    )}
+                    {bill.bipartisan === false && (
+                      <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', fontStyle: 'italic' }}>Minority Only</span>
+                    )}
+                  </div>
+                )}
               </div>
-              {/* T144: watch toggle + external link stacked */}
-              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+
+              {/* Action buttons: bookmark + external link */}
+              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {user && (
                   <button
                     type="button"
                     onClick={e => { e.preventDefault(); e.stopPropagation(); handleToggleWatch(bill) }}
-                    style={{ minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isWatched ? 'var(--teal)' : 'var(--text-faint)', opacity: isWatched ? 1 : 0.5, transition: 'all 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isWatched ? 'var(--teal)' : 'var(--text-faint)', opacity: isWatched ? 1 : 0.45, transition: 'all 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                    onMouseLeave={e => { if (!isWatched) e.currentTarget.style.opacity = '0.5' }}
+                    onMouseLeave={e => { if (!isWatched) e.currentTarget.style.opacity = '0.45' }}
                     title={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
                     aria-label={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
                     aria-pressed={isWatched}
@@ -615,9 +614,9 @@ function SearchContent() {
                 <button
                   type="button"
                   onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
-                  style={{ minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.4, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
                   title="View on leg.wa.gov"
                   aria-label="View on leg.wa.gov"
                 >
@@ -630,30 +629,41 @@ function SearchContent() {
           )
         })}
 
-        {loading && (
-          <VectorLoader label="Searching bills" size="sm" />
-        )}
+        {loading && <VectorLoader label="Searching bills" size="sm" />}
 
+        {/* BUG FIX: Load More now correctly updates pageRef before calling fetchBills,
+            so the stale closure reads the new page value instead of always fetching page 0. */}
         {!loading && hasMore && bills.length > 0 && (
           <button
-            onClick={() => { setPage(p => p + 1); fetchBills() }}
+            onClick={() => {
+              pageRef.current = page + 1
+              setPage(page + 1)
+              fetchBills(false)
+            }}
             style={{
               padding: '12px', background: 'var(--bg-card)',
               border: '1px solid var(--border)', borderRadius: 'var(--radius)',
               fontSize: 13, color: 'var(--teal)', fontWeight: 500,
-              cursor: 'pointer', marginTop: 8,
-              transition: 'border-color 0.2s',
+              cursor: 'pointer', marginTop: 4, transition: 'border-color 0.2s',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
           >Load more</button>
         )}
 
+        {/* BUG FIX: context-aware empty states instead of the generic
+            "Start typing to search" message that appeared even when the page
+            loads bills by default. */}
         {!loading && bills.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-mid)', fontSize: 13, lineHeight: 1.55 }}>
-            {query.trim().length > 0
-              ? 'No bills match — try a shorter keyword, different chamber, or remove a category filter.'
-              : 'Start typing to search ~3,400 Washington State bills by title, sponsor, or keyword.'}
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-mid)', fontSize: 13, lineHeight: 1.6 }}>
+            {emptyMessage}
+          </div>
+        )}
+
+        {/* Calibration footnote — kept per methodology transparency requirement */}
+        {!loading && bills.length > 0 && (
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', padding: '8px 2px 0', lineHeight: 1.5 }}>
+            <CohortCitation variant="calibration" />
           </div>
         )}
       </div>
