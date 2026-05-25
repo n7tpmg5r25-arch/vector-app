@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '4.4',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Swipe snap-back fixed: tapping Highlight or Remove now animates the card closed before the state update fires. Previously the action panel stayed visible because React re-renders and card unmounts were racing the 200ms CSS transition.',
+      'Desktop swipe support added: bill cards on the watchlist now respond to click-and-drag in addition to touch — drag left to reveal the action panel, release to snap open or close.',
+      'Swipe affordance indicator added: a faint brass double-chevron (‹‹) sits on the right edge of each watchlist card so it is clear the cards are swipeable.',
+    ],
+  },
+  {
     version: '4.3',
     date: '2026-05-24',
     phase: 'alpha',
