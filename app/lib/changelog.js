@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '4.2',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Swipe actions fixed: tapping Highlight or Remove now snaps the action panel closed immediately instead of leaving it visible behind the updated card.',
+      'Tag and sort chips on the watchlist header now wrap to a second line on narrow viewports — consistent with the Search and Committees fix shipped in v4.1.',
+      'Cal Feed button converted from a styled anchor to a proper button element — fixes a VoiceOver/TalkBack announcement issue where the element was read as a "link" with no destination.',
+      '"What\'s Changed" dismiss button tap zone expanded to 44×44px — was a 16×16px character with minimal padding.',
+      '"N selected for report" strip gains a top border separator so it reads as a distinct action row rather than trailing copy.',
+    ],
+  },
+  {
     version: '4.1',
     date: '2026-05-24',
     phase: 'alpha',
