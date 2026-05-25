@@ -2,40 +2,33 @@
 import { useRef, useEffect } from 'react'
 
 /**
- * SwipeableRow — T140 (complete rebuild)
+ * SwipeableRow — T141
  *
- * ROOT CAUSE of every previous failure (T102→T138):
- *   React synthetic onTouchMove handlers are ALWAYS passive. Calling
- *   e.preventDefault() inside them is silently ignored — the browser
- *   scrolls anyway, stealing the gesture before JS can act.
+ * WHY T140 STILL FAILED:
+ *   The card div had `zIndex: 1` and `will-change: transform`, which promotes
+ *   it to its own GPU compositing layer. Composited layers always render above
+ *   non-composited siblings regardless of CSS z-index or DOM position. So the
+ *   action panel — a regular positioned div with no compositing — was always
+ *   painted under the card layer, even after the card slid away.
  *
- * THE FIX — two things working together:
+ * THE FIX:
+ *   Animate BOTH the card and the panel. Each has its own ref and its own
+ *   transform. As the card slides left by X px, the panel slides left by the
+ *   same X px (starting from REVEAL_W off-screen). They move in lockstep.
+ *   The panel lives inside its own overflow:hidden clip container so it never
+ *   bleeds outside its 144px column. No z-index needed anywhere.
  *
- *   1. CSS `touch-action: pan-y` on the sliding element.
- *      Tells the browser: "vertical movement = your scroll, horizontal = mine."
- *      The browser never competes with JS on the horizontal axis.
- *      No preventDefault() needed for scroll. No passive-listener gymnastics.
+ *   Card:  translateX(0)        → translateX(-REVEAL_W)
+ *   Panel: translateX(+REVEAL_W) → translateX(0)
  *
- *   2. Pointer Events API (onPointerDown/Move/Up/Cancel) instead of separate
- *      touch + mouse handler pairs.
- *      `setPointerCapture` routes ALL subsequent pointer events to this element
- *      even when the finger/cursor moves off it during a fast swipe.
- *      `releasePointerCapture` on vertical intent hands control back to the
- *      browser immediately so scroll resumes with zero jank.
+ *   Both driven by the same value. Zero compositing conflicts.
  *
- * Props:
- *   children       — card content (slides with the card)
- *   onRemove()     — called after Remove tapped
- *   onHighlight()  — called after Highlight tapped
- *   isHighlighted  — boolean, Highlight button active state
- *   isOpen         — boolean, parent-controlled open state
- *   onOpen()       — tell parent this row opened (parent closes others)
- *   onClose()      — tell parent this row closed
+ * Gesture engine: CSS touch-action:pan-y + Pointer Events API (T140 logic kept).
  */
 
-const REVEAL_W = 144  // px — action panel width
-const SNAP_PX  = 60   // px — drag threshold to commit open
-const ANIM_MS  = 200  // ms
+const REVEAL_W = 144
+const SNAP_PX  = 60
+const ANIM_MS  = 200
 
 export default function SwipeableRow({
   children,
@@ -46,27 +39,35 @@ export default function SwipeableRow({
   onOpen,
   onClose,
 }) {
-  const cardRef = useRef(null)
+  const cardRef  = useRef(null)
+  const panelRef = useRef(null)
 
-  // All drag state in refs — no re-renders mid-gesture
   const active  = useRef(false)
   const intentH = useRef(false)
   const startX  = useRef(0)
   const startY  = useRef(0)
-  const baseX   = useRef(0)   // card offset at drag start: 0 or -REVEAL_W
+  const baseX   = useRef(0)
 
-  // Sync when parent closes this row (e.g. another row opened)
   useEffect(() => {
-    if (!isOpen) snap(0)
+    if (!isOpen) setX(0, true)
   }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function snap(x, animated = true) {
-    if (!cardRef.current) return
-    cardRef.current.style.transition = animated ? `transform ${ANIM_MS}ms ease` : 'none'
-    cardRef.current.style.transform  = `translateX(${x}px)`
+  // Move card and panel in lockstep.
+  // card:  translateX(x)            x in [-REVEAL_W, 0]
+  // panel: translateX(REVEAL_W + x) starts off-screen right, ends at 0
+  function setX(x, animated) {
+    const t = animated ? `transform ${ANIM_MS}ms ease` : 'none'
+    if (cardRef.current) {
+      cardRef.current.style.transition = t
+      cardRef.current.style.transform  = `translateX(${x}px)`
+    }
+    if (panelRef.current) {
+      panelRef.current.style.transition = t
+      panelRef.current.style.transform  = `translateX(${REVEAL_W + x}px)`
+    }
   }
 
-  // ── Pointer event handlers ──────────────────────────────────────
+  // ── Pointer Events (same logic as T140) ────────────────────────
 
   function onPointerDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return
@@ -75,8 +76,7 @@ export default function SwipeableRow({
     startX.current  = e.clientX
     startY.current  = e.clientY
     baseX.current   = isOpen ? -REVEAL_W : 0
-    snap(baseX.current, false)
-    // Capture: all future pointer events come here, even off-element
+    setX(baseX.current, false)
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
@@ -84,36 +84,30 @@ export default function SwipeableRow({
     if (!active.current) return
     const dx = e.clientX - startX.current
     const dy = e.clientY - startY.current
-
     if (!intentH.current) {
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return // dead zone
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return
       if (Math.abs(dy) > Math.abs(dx)) {
-        // Vertical intent — release capture, let touch-action: pan-y handle scroll
         active.current = false
         e.currentTarget.releasePointerCapture(e.pointerId)
         return
       }
       intentH.current = true
     }
-
-    const raw     = baseX.current + dx
-    const clamped = Math.max(-REVEAL_W, Math.min(0, raw))
-    snap(clamped, false)
+    const clamped = Math.max(-REVEAL_W, Math.min(0, baseX.current + dx))
+    setX(clamped, false)
   }
 
   function onPointerUp(e) {
     if (!active.current) return
     active.current = false
     if (!intentH.current) return
-
     const dx  = e.clientX - startX.current
     const eff = baseX.current + dx
-
     if (eff < -SNAP_PX) {
-      snap(-REVEAL_W)
+      setX(-REVEAL_W, true)
       onOpen()
     } else {
-      snap(0)
+      setX(0, true)
       if (isOpen) onClose()
     }
   }
@@ -121,14 +115,13 @@ export default function SwipeableRow({
   function onPointerCancel() {
     if (!active.current) return
     active.current = false
-    snap(isOpen ? -REVEAL_W : 0)
+    setX(isOpen ? -REVEAL_W : 0, true)
   }
 
   function onCardClick(e) {
-    // Tap anywhere on the open card closes the panel
     if (isOpen) {
       e.preventDefault()
-      snap(0)
+      setX(0, true)
       onClose()
     }
   }
@@ -137,72 +130,86 @@ export default function SwipeableRow({
     <div
       style={{
         position: 'relative',
-        overflow: 'hidden',
         borderRadius: 'var(--radius)',
-        // Brass ring when this card is swiped open — shows which card is active
+        // Brass ring on the open card — shows which bill is active
         boxShadow: isOpen
           ? '0 0 0 1.5px rgba(184,151,90,0.6), 0 4px 24px rgba(0,0,0,0.4)'
           : 'none',
         transition: `box-shadow ${ANIM_MS}ms ease`,
       }}
     >
-      {/* ── Action panel — behind card, revealed when card slides left ── */}
+      {/* ── Panel clip container ──────────────────────────────────
+          Fixed at right:0, width:REVEAL_W.
+          overflow:hidden keeps the panel invisible until it slides in.
+          No z-index needed — the card slides away, revealing this area. */}
       <div
-        aria-hidden="true"
         style={{
-          position: 'absolute', right: 0, top: 0, bottom: 0,
+          position: 'absolute',
+          right: 0, top: 0, bottom: 0,
           width: REVEAL_W,
-          display: 'flex',
           overflow: 'hidden',
           borderRadius: 'var(--radius)',
         }}
       >
-        {/* Highlight — brass left half */}
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            snap(0)
-            onClose()
-            setTimeout(onHighlight, ANIM_MS)
-          }}
+        {/* Panel content — starts translateX(+REVEAL_W), slides to 0 */}
+        <div
+          ref={panelRef}
           style={{
-            flex: 1, border: 'none', cursor: 'pointer',
-            background: isHighlighted ? 'rgba(184,151,90,0.85)' : 'var(--teal)',
-            color: 'var(--bg)',
-            fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 5, lineHeight: 1.2,
+            display: 'flex',
+            height: '100%',
+            transform: `translateX(${REVEAL_W}px)`,
+            willChange: 'transform',
           }}
         >
-          <span style={{ fontSize: 20 }}>{isHighlighted ? '●' : '+'}</span>
-          <span>{isHighlighted ? 'In Report' : 'Highlight'}</span>
-        </button>
+          {/* Highlight — brass left half */}
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              setX(0, true)
+              onClose()
+              setTimeout(onHighlight, ANIM_MS)
+            }}
+            style={{
+              flex: 1, border: 'none', cursor: 'pointer',
+              background: isHighlighted ? 'rgba(184,151,90,0.85)' : 'var(--teal)',
+              color: 'var(--bg)',
+              fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 5, lineHeight: 1.2,
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{isHighlighted ? '●' : '+'}</span>
+            <span>{isHighlighted ? 'In Report' : 'Highlight'}</span>
+          </button>
 
-        {/* Remove — danger red right half */}
-        <button
-          onClick={e => {
-            e.stopPropagation()
-            snap(0)
-            onClose()
-            setTimeout(onRemove, ANIM_MS)
-          }}
-          style={{
-            flex: 1, border: 'none', cursor: 'pointer',
-            background: 'var(--danger)',
-            color: '#fff',
-            fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 5, lineHeight: 1.2,
-          }}
-        >
-          <span style={{ fontSize: 20 }}>✕</span>
-          <span>Remove</span>
-        </button>
+          {/* Remove — danger right half */}
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              setX(0, true)
+              onClose()
+              setTimeout(onRemove, ANIM_MS)
+            }}
+            style={{
+              flex: 1, border: 'none', cursor: 'pointer',
+              background: 'var(--danger)',
+              color: '#fff',
+              fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 5, lineHeight: 1.2,
+            }}
+          >
+            <span style={{ fontSize: 20 }}>✕</span>
+            <span>Remove</span>
+          </button>
+        </div>
       </div>
 
-      {/* ── Sliding card ── */}
+      {/* ── Sliding card ─────────────────────────────────────────
+          No z-index set — DOM order and compositing are not the enemy
+          because the panel moves with the card (no static panel to hide behind). */}
       <div
         ref={cardRef}
         onPointerDown={onPointerDown}
@@ -212,16 +219,15 @@ export default function SwipeableRow({
         onClick={onCardClick}
         style={{
           position: 'relative',
-          zIndex: 1,
           willChange: 'transform',
-          touchAction: 'pan-y',   // ← THE KEY: vertical scroll = browser, horizontal = JS
-          userSelect: 'none',     // no text-selection flash on desktop drag
+          touchAction: 'pan-y',
+          userSelect: 'none',
           cursor: isOpen ? 'default' : 'grab',
         }}
       >
         {children}
 
-        {/* Swipe hint — left-edge brass sliver, only when closed */}
+        {/* Swipe affordance — left-edge brass sliver */}
         {!isOpen && (
           <div
             aria-hidden="true"
