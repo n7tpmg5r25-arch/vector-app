@@ -29,6 +29,21 @@
 
 export const CHANGELOG = [
   {
+    version: '5.2',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Search page lobbyist UX upgrade (T144). Bill cards now show the prime sponsor with party color (blue / red) and the committee — two pieces of context lobbyists need at a glance without opening the bill.',
+      'Inline watch toggle added to every bill card. Tap the bookmark icon to add or remove a bill from your watchlist directly from search results — no need to open the bill detail page.',
+      '"Hearing Scheduled" and "This Week" quick-filter chips added below the dropdowns. One tap to surface only bills with a public hearing, or only bills that moved in the last 7 days.',
+      'Category chips now show live bill counts — e.g. "Environment (312)" — so you can see where the legislative volume is before filtering.',
+      'Bill titles now wrap to two lines instead of truncating. Short titles were fine at one line; longer titles now fully visible without opening the bill.',
+      'WATCHING badge gained a brass pill background for legibility — previously the text label read as metadata rather than status.',
+      'Bills with minority-only sponsors now show a "Minority Only" label, surfacing partisan alignment that matters to coalition-tracking work.',
+      'Default view now shows an eyebrow: "Top-scoring bills this session · sorted by trajectory" — clarifies what you\'re looking at when no filters are active.',
+    ],
+  },
+  {
     version: '5.1',
     date: '2026-05-25',
     phase: 'alpha',

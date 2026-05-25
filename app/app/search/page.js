@@ -95,6 +95,10 @@ function SearchContent() {
   // T143 UI audit: respect prefers-reduced-motion (UI UX Pro Max A6)
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  // T144 lobbyist UX: hearing filter + category counts
+  const [hearingOnly, setHearingOnly] = useState(false)
+  const [categoryCounts, setCategoryCounts] = useState({})
+
   // Load watched bill IDs when the viewer is authed
   useEffect(() => {
     if (viewerLoading) return
@@ -108,13 +112,27 @@ function SearchContent() {
       })
   }, [user?.id, viewerLoading])
 
+  // T144: fetch category counts for the current session (client-side tally, ~3400 rows × 1 col ≈ 60KB)
+  useEffect(() => {
+    supabase
+      .from('bills')
+      .select('category')
+      .eq('session', SESSION)
+      .then(({ data }) => {
+        if (!data) return
+        const counts = {}
+        data.forEach(b => { if (b.category) counts[b.category] = (counts[b.category] || 0) + 1 })
+        setCategoryCounts(counts)
+      })
+  }, [SESSION])
+
   const fetchBills = useCallback(async (reset = false) => {
     setLoading(true)
     const currentPage = reset ? 0 : page
 
     let q = supabase
       .from('bills')
-      .select('bill_id, bill_number, title, ai_summary, custom_summary, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label')
+      .select('bill_id, bill_number, title, ai_summary, custom_summary, final_score, stage, chamber, category, committee_name, has_public_hearing, committee_passed, status, confidence_label, prime_sponsor, prime_party, bipartisan')
       .eq('session', SESSION)
       .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1)
 
@@ -122,6 +140,7 @@ function SearchContent() {
     if (chamber !== 'All') q = q.eq('chamber', chamber)
     if (stage > 0) q = q.eq('stage', stage)
     if (outcome !== 'All') q = q.eq('confidence_label', outcome)
+    if (hearingOnly) q = q.eq('has_public_hearing', true)
     if (debouncedQuery.trim()) {
       q = q.or(`title.ilike.%${debouncedQuery}%,bill_number.ilike.%${debouncedQuery}%,ai_summary.ilike.%${debouncedQuery}%,custom_summary.ilike.%${debouncedQuery}%`)
     }
@@ -156,12 +175,12 @@ function SearchContent() {
     }
 
     setLoading(false)
-  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, page])
+  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, hearingOnly, page])
 
   useEffect(() => {
     setPage(0)
     fetchBills(true)
-  }, [debouncedQuery, category, chamber, stage, sortBy, outcome])
+  }, [debouncedQuery, category, chamber, stage, sortBy, outcome, hearingOnly])
 
   // Bulk watch all displayed bills
   async function bulkWatchAll() {
@@ -202,6 +221,19 @@ function SearchContent() {
     setTimeout(() => setBulkResult(null), 4000)
   }
 
+  // T144: toggle single bill watch state inline
+  async function handleToggleWatch(bill) {
+    if (!user) return
+    const billId = bill.bill_id
+    if (watchedIds.has(billId)) {
+      await supabase.from('tracked_bills').delete().eq('bill_id', billId).eq('user_id', user.id)
+      setWatchedIds(prev => { const n = new Set(prev); n.delete(billId); return n })
+    } else {
+      await supabase.from('tracked_bills').insert({ bill_id: billId, user_id: user.id, tag: null, notes: '' })
+      setWatchedIds(prev => new Set([...prev, billId]))
+    }
+  }
+
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
       {/* Phase 12 Batch 6 — PublicNav for anon when flag is on */}
@@ -220,7 +252,7 @@ function SearchContent() {
             fontSize: 22, fontWeight: 700,
             color: 'var(--teal)',
             textShadow: '0 0 16px rgba(184,151,90,0.2)',
-          }}>Browse Bills</div>
+          }}>Bill Search</div>
 
           {/* Watch All button — only if logged in */}
           {user && bills.length > 0 && (
@@ -353,10 +385,36 @@ function SearchContent() {
               { value: 'score', label: 'Top Score' },
               { value: 'number', label: 'Bill #' },
               { value: 'action', label: 'Recent' },
-              { value: 'movers', label: isInterimPeriod() ? 'Movers (recent)' : 'Movers (last 7 days)' },
+              { value: 'movers', label: isInterimPeriod() ? 'Movers (recent)' : 'This Week' },
             ]}
             ariaLabel="Sort results"
           />
+        </div>
+
+        {/* T144: Quick-filter chips — hearing scheduled + this week movers */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setHearingOnly(v => !v)}
+            aria-pressed={hearingOnly}
+            style={{
+              padding: '7px 12px', borderRadius: 16, fontSize: 11,
+              background: hearingOnly ? 'rgba(184,151,90,0.15)' : 'transparent',
+              color: hearingOnly ? 'var(--teal)' : 'var(--text-muted)',
+              border: `1px solid ${hearingOnly ? 'var(--teal)' : 'var(--border)'}`,
+              cursor: 'pointer', fontWeight: hearingOnly ? 600 : 400,
+            }}
+          >Hearing Scheduled</button>
+          <button
+            onClick={() => setSortBy('movers')}
+            aria-pressed={sortBy === 'movers'}
+            style={{
+              padding: '7px 12px', borderRadius: 16, fontSize: 11,
+              background: sortBy === 'movers' ? 'rgba(184,151,90,0.15)' : 'transparent',
+              color: sortBy === 'movers' ? 'var(--teal)' : 'var(--text-muted)',
+              border: `1px solid ${sortBy === 'movers' ? 'var(--teal)' : 'var(--border)'}`,
+              cursor: 'pointer', fontWeight: sortBy === 'movers' ? 600 : 400,
+            }}
+          >This Week</button>
         </div>
 
         {/* Outcome filter chips — interim only (replaces Outcomes page in nav) */}
@@ -389,7 +447,7 @@ function SearchContent() {
               border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
               cursor: 'pointer', fontWeight: category === c ? 600 : 400,
               boxShadow: category === c ? 'var(--teal-glow)' : 'none',
-            }}>{c}</button>
+            }}>{c}{categoryCounts[c] ? ` (${categoryCounts[c]})` : ''}</button>
           ))}
         </div>
       </div>
@@ -412,7 +470,8 @@ function SearchContent() {
             if (o) activeFilters.push(o)
           }
           if (debouncedQuery.trim()) activeFilters.push(`"${debouncedQuery.trim()}"`)
-          if (sortBy === 'movers') activeFilters.push(isInterimPeriod() ? 'Movers' : 'Movers (last 7 days)')
+          if (sortBy === 'movers') activeFilters.push(isInterimPeriod() ? 'Movers' : 'This Week')
+          if (hearingOnly) activeFilters.push('Has Hearing')
           const countLabel = `${bills.length}${hasMore ? '+' : ''} bill${bills.length === 1 ? '' : 's'}`
           return (
             <div style={{
@@ -433,6 +492,12 @@ function SearchContent() {
                       border: '1px solid var(--border)',
                     }}>{f}</span>
                   ))}
+                </>
+              )}
+              {activeFilters.length === 0 && !debouncedQuery.trim() && (
+                <>
+                  <span aria-hidden="true">&#183;</span>
+                  <span style={{ fontStyle: 'italic' }}>Top-scoring bills this session · sorted by trajectory</span>
                 </>
               )}
             </div>
@@ -469,7 +534,7 @@ function SearchContent() {
                 <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginBottom: 1 }}>
                   {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
                   {isWatched && (
-                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--teal)', fontWeight: 600 }}>WATCHING</span>
+                    <span style={{ marginLeft: 6, fontSize: 9, color: 'var(--teal)', fontWeight: 600, background: 'rgba(184,151,90,0.15)', border: '1px solid rgba(184,151,90,0.3)', borderRadius: 8, padding: '1px 5px' }}>WATCHING</span>
                   )}
                   {isInterimPeriod() && bill.confidence_label === 'LAW' && (
                     <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 10, fontWeight: 500 }}>Signed</span>
@@ -484,12 +549,24 @@ function SearchContent() {
                     <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>&#183; {bill.category === 'Other' && bill.committee_name ? `Other \u2014 ${bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}` : bill.category}</span>
                   )}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                   {query.trim().length >= 3
                     ? highlightMatch(bill.title || bill.committee_name || `Bill ${bill.bill_number}`, query.trim())
                     : (bill.title || bill.committee_name || `Bill ${bill.bill_number}`)
                   }
                 </div>
+                {/* T144: sponsor + committee attribution line */}
+                {(bill.prime_sponsor || bill.committee_name) && (
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                    {bill.prime_sponsor && (
+                      <span style={{ color: bill.prime_party === 'D' ? 'var(--party-d)' : bill.prime_party === 'R' ? 'var(--party-r)' : 'var(--text-faint)' }}>
+                        {bill.prime_sponsor}
+                      </span>
+                    )}
+                    {bill.prime_sponsor && bill.committee_name && <span style={{ color: 'var(--text-faint)' }}> · </span>}
+                    {bill.committee_name && <span>{bill.committee_name.replace(/ \d+ Review$/, '').replace(/^Rules$/, 'General')}</span>}
+                  </div>
+                )}
                 {/* Show summary snippet when keyword matched in ai_summary */}
                 {(() => {
                   const snip = query.trim().length >= 3 ? getSummarySnippet(bill.custom_summary || bill.ai_summary, query.trim()) : null
@@ -512,21 +589,43 @@ function SearchContent() {
                   {bill.committee_passed && (
                     <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Comm. Pass</span>
                   )}
+                  {bill.bipartisan === false && (
+                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', fontStyle: 'italic' }}>Minority Only</span>
+                  )}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
-                style={{ flexShrink: 0, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                title="View on leg.wa.gov"
-                aria-label="View on leg.wa.gov"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                </svg>
-              </button>
+              {/* T144: watch toggle + external link stacked */}
+              <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                {user && (
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); handleToggleWatch(bill) }}
+                    style={{ minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isWatched ? 'var(--teal)' : 'var(--text-faint)', opacity: isWatched ? 1 : 0.5, transition: 'all 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                    onMouseLeave={e => { if (!isWatched) e.currentTarget.style.opacity = '0.5' }}
+                    title={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
+                    aria-label={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
+                    aria-pressed={isWatched}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill={isWatched ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
+                  style={{ minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
+                  title="View on leg.wa.gov"
+                  aria-label="View on leg.wa.gov"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </button>
+              </div>
             </Link>
           )
         })}
