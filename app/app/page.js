@@ -11,7 +11,7 @@ import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
 import VectorLoader from './components/VectorLoader'
-import { Check } from 'lucide-react'
+import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -69,6 +69,10 @@ export default function HomePage() {
 
   const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
   const daysToSession   = daysUntil(nextBiennium.start)
+
+  // T142 UI audit: respect prefers-reduced-motion (UI UX Pro Max rule A2/A3)
+  // Checked once at render time; SSR-safe (typeof window guard).
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   async function loadData() {
     // Phase 6.4 perf: Step 1 — auth state comes from useViewer() hook (closure)
@@ -298,7 +302,7 @@ export default function HomePage() {
                 disabled={refreshing}
                 aria-label="Refresh bill scores"
                 title={refreshing ? 'Refreshing…' : 'Refresh bill scores'}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, opacity: refreshing ? 0.4 : 0.7 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: refreshing ? 0.4 : 0.7 }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   style={{ transition: 'transform 0.5s', transform: refreshing ? 'rotate(360deg)' : 'none' }}>
@@ -319,7 +323,7 @@ export default function HomePage() {
           on chips/picker/transitions stays intact. */}
       <div style={{
         background: 'var(--bg)',
-        padding: '20px 20px 20px',
+        padding: '20px 16px 20px',
         position: 'relative', overflow: 'hidden',
       }}>
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -450,7 +454,8 @@ export default function HomePage() {
                     fontFamily: 'var(--font-mono)', fontWeight: 500,
                     letterSpacing: '0.06em',
                   }}>
-                    ▲ {momentum.text}
+                    {momentum.text.includes('RISING') ? <TrendingUp size={10} aria-hidden="true" strokeWidth={2.5} /> : momentum.text.includes('DECLINING') ? <TrendingDown size={10} aria-hidden="true" strokeWidth={2.5} /> : <Minus size={10} aria-hidden="true" strokeWidth={2.5} />}
+                    {momentum.text}
                   </div>
                 )}
               </div>
@@ -509,7 +514,7 @@ export default function HomePage() {
                     borderRadius: '50%',
                     background: item.active ? 'var(--teal)' : 'var(--border)',
                     boxShadow: item.active ? 'var(--teal-glow)' : 'none',
-                    animation: item.active ? 'dotPulse 2s ease-in-out infinite' : 'none',
+                    animation: (item.active && !reducedMotion) ? 'dotPulse 2s ease-in-out infinite' : 'none',
                   }}/>
                   <span style={{ fontSize: 9, color: item.active ? 'var(--teal)' : 'var(--text-faint)', fontWeight: item.active ? 600 : 400, textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {item.label}
@@ -531,9 +536,9 @@ export default function HomePage() {
               <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
                 Your Watchlist
               </div>
-              <button onClick={() => router.push('/watchlist')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+              <Link href="/watchlist" style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 500, padding: '8px 0 8px 8px', display: 'inline-block' }}>
                 View all →
-              </button>
+              </Link>
             </div>
 
             {/* Stats row */}
@@ -572,7 +577,7 @@ export default function HomePage() {
                 style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px',
-                  marginBottom: 7, cursor: 'pointer',
+                  marginBottom: 8, cursor: 'pointer',
                   display: 'flex', alignItems: 'flex-start', gap: 12,
                   transition: 'border-color 0.2s',
                   textDecoration: 'none', color: 'inherit',
@@ -658,9 +663,9 @@ export default function HomePage() {
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                 Session Outcomes · {SESSION}
               </div>
-              <button onClick={() => router.push('/outcomes')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+              <Link href="/outcomes" style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 500, padding: '8px 0 8px 8px', display: 'inline-block' }}>
                 All outcomes →
-              </button>
+              </Link>
             </div>
 
             {/* Outcome stat cards */}
@@ -713,12 +718,12 @@ export default function HomePage() {
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Top Trajectory · {SESSION}
             </div>
-            <button onClick={() => router.push('/search')} style={{ fontSize: 11, color: 'var(--teal)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+            <Link href="/search" style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 500, padding: '8px 0 8px 8px', display: 'inline-block' }}>
               All bills →
-            </button>
+            </Link>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {loading ? (
               <VectorLoader label="Loading top bills" size="sm" />
             ) : topBills.map((bill, idx) => {
@@ -733,7 +738,7 @@ export default function HomePage() {
                   borderRadius: 'var(--radius)', padding: '12px 14px',
                   cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
                   transition: 'border-color 0.2s, box-shadow 0.2s',
-                  animation: `fadeUp 0.3s ease ${idx * 0.04}s both`,
+                  animation: reducedMotion ? 'none' : `fadeUp 0.3s ease ${idx * 0.04}s both`,
                   textDecoration: 'none', color: 'inherit',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(184,151,90,0.06)' }}
@@ -796,7 +801,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`, '_blank', 'noopener,noreferrer') }}
-                  style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{ flexShrink: 0, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                   onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                   title="View on leg.wa.gov"
@@ -824,7 +829,10 @@ export default function HomePage() {
                 const barColor = avg >= 50 ? 'var(--teal)' : avg >= 35 ? 'var(--gold)' : 'var(--text-muted)'
                 return (
                   <div key={cat.category}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => router.push(`/search?category=${encodeURIComponent(cat.category)}`)}
+                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && router.push(`/search?category=${encodeURIComponent(cat.category)}`)}
                     style={{
                     background: 'var(--bg-card)', border: '1px solid var(--border)',
                     borderRadius: 'var(--radius)', padding: '10px 14px',
