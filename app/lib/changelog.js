@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '4.1',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Filter chips on Search and Committees now wrap onto a second line instead of scrolling horizontally — all filters stay visible on any viewport width without swiping.',
+      'Committees chip tap targets raised to 28px minimum height via inline-flex alignment — meets the same 44×44px standard applied to nav and legend buttons in v4.0.',
+    ],
+  },
+  {
     version: '4.0',
     date: '2026-05-24',
     phase: 'alpha',

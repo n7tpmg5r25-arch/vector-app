@@ -299,10 +299,11 @@ export default function CommitteesPage() {
         </div>
 
         {/* View toggle: Calendar / By Committee */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
           {[['calendar', 'Calendar'], ['by-committee', 'By Committee']].map(([val, label]) => (
             <button key={val} onClick={() => setView(val)} style={{
               padding: '5px 14px', borderRadius: 16, fontSize: 11, fontWeight: 600,
+              minHeight: 28, display: 'inline-flex', alignItems: 'center',
               background: view === val ? 'var(--teal)' : 'transparent',
               color: view === val ? 'var(--bg)' : 'var(--text-muted)',
               border: '1px solid ' + (view === val ? 'var(--teal)' : 'var(--border)'),
@@ -313,10 +314,11 @@ export default function CommitteesPage() {
         </div>
 
         {/* Chamber filter */}
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {['All', 'House', 'Senate', 'Joint'].map(c => (
             <button key={c} onClick={() => setChamberFilter(c)} style={{
               padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
+              minHeight: 28, display: 'inline-flex', alignItems: 'center',
               background: chamberFilter === c ? 'var(--bg-surface)' : 'transparent',
               color: chamberFilter === c ? 'var(--text-primary)' : 'var(--text-faint)',
               border: '1px solid ' + (chamberFilter === c ? 'var(--border)' : 'transparent'),
