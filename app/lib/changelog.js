@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '4.9',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist swipe action panel now correctly appears when a card is swiped. Root cause: the card\'s GPU compositing layer always rendered above the static panel regardless of CSS z-index. Fix: the card and panel now animate in lockstep — as the card slides left, the panel slides in from the right in perfect sync. No z-index, no compositing conflict.',
+    ],
+  },
+  {
     version: '4.8',
     date: '2026-05-25',
     phase: 'alpha',
