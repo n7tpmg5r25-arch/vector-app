@@ -86,6 +86,8 @@ function MembersContent() {
   const [pdfLoading, setPdfLoading] = useState(false)
   // Thread 113: biographical data from legislator_bios table
   const [memberBio, setMemberBio] = useState(null)
+  // T135: distinguish "bio still loading" from "bio loaded but empty"
+  const [bioLoading, setBioLoading] = useState(false)
   // Thread 124: committee seat memberships for selected member (null=loading, []=loaded)
   const [memberCommittees, setMemberCommittees] = useState(null)
   // T126: election results for electoral margin display (null=loading, []=loaded/none)
@@ -153,6 +155,7 @@ function MembersContent() {
           name: r.name,
           party: r.party || '?',
           chamber: r.chamber || '?',
+          district: r.district || null,
           is_chair: !!r.is_chair,
           tier: r.tier ?? 3,
           bill_count: r.bill_count || 0,
@@ -183,6 +186,7 @@ function MembersContent() {
             name: r.name,
             party: r.party || '?',
             chamber: r.chamber || '?',
+            district: null,
             is_chair: false,
             tier: 3,
             bill_count: 0,
@@ -208,6 +212,7 @@ function MembersContent() {
           if (r.chamber && r.chamber !== '?') m.chamber = r.chamber
           ;(r.committees || []).forEach(c => m.committees.add(c))
           if (r.member_id) m.member_id = r.member_id
+          if (r.district) m.district = r.district
           if (r.phone) m.phone = r.phone
           if (r.email) m.email = r.email
           // Weighted avg across biennia: sum(avg_i * bills_i) / sum(bills_i)
@@ -433,18 +438,20 @@ function MembersContent() {
     setActiveTab('overview')  // Thread 22: each open lands on Overview
     setMemberBio(null)        // Thread 113: clear previous member's bio
     setMemberElections(null)  // T126: clear previous election data
+    setBioLoading(false)      // T135: reset before conditional set below
     loadMemberBills(m.name)
     loadMemberVotes(m)
     loadMemberCommittees(m)  // Thread 124: real seat membership data
     // Thread 113: fetch bio data from legislator_bios
     // T127: added leadership_role to select
     if (m.member_id) {
+      setBioLoading(true)
       supabase
         .from('legislator_bios')
         .select('bio_summary, education, occupation, family, first_elected_year, priorities, caucus_url, leadership_role')
         .eq('member_id', m.member_id)
         .maybeSingle()
-        .then(({ data }) => setMemberBio(data || null))
+        .then(({ data }) => { setMemberBio(data || null); setBioLoading(false) })
       // T126: fetch election results for electoral margin display
       supabase
         .from('legislator_elections')
@@ -466,6 +473,7 @@ function MembersContent() {
     setMemberVotes([])
     setPartyBucketsByRcId({})
     setMemberBio(null)        // Thread 113
+    setBioLoading(false)      // T135
     setMemberCommittees(null) // Thread 124
     setMemberElections(null)  // T126
     setActiveTab('overview')
@@ -575,8 +583,17 @@ function MembersContent() {
                 see closeDetail() above for why this isn't goBackOrFallback(). */}
             <button
               onClick={closeDetail}
-              style={{ background: 'none', border: 'none', fontSize: 13, color: 'var(--teal)', cursor: 'pointer', marginBottom: 12, padding: 0, fontFamily: 'inherit' }}
-            >← Back</button>
+              style={{
+                background: 'transparent', border: '1px solid var(--border)',
+                borderRadius: 20, fontSize: 11, color: 'var(--text-muted)',
+                cursor: 'pointer', marginBottom: 14, padding: '5px 12px',
+                fontFamily: 'var(--font-body)', display: 'inline-flex',
+                alignItems: 'center', gap: 4,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+              Members
+            </button>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{
@@ -603,7 +620,8 @@ function MembersContent() {
                   {selectedMember.name}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
-                  {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'} ·{' '}
+                  {selectedMember.chamber === 'House' ? 'State House' : 'State Senate'}
+                  {selectedMember.district ? ` · District ${selectedMember.district}` : ''}{' ·'}{' '}
                   {selectedMember.party === 'D' ? 'Democrat' : selectedMember.party === 'R' ? 'Republican' : selectedMember.party}
                   {selectedMember.is_chair && ' · Committee Chair'}
                   {memberBio?.first_elected_year && ` · Since ${memberBio.first_elected_year}`}
@@ -611,9 +629,6 @@ function MembersContent() {
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: tier.bg, color: tier.color, border: `1px solid ${tier.border}` }}>
                     {tier.text}
-                  </span>
-                  <span style={{ fontSize: 9, padding: '3px 10px', borderRadius: 10, background: 'var(--bg-surface)', color: 'var(--text-mid)', border: '1px solid var(--border)' }}>
-                    {selectedMember.bill_count} bills sponsored
                   </span>
                   {/* T127: leadership role badge — only for named leadership positions */}
                   {memberBio?.leadership_role && (
@@ -639,7 +654,7 @@ function MembersContent() {
                   >
                     leg.wa.gov <ArrowUpRight size={10} aria-hidden="true" />
                   </a>
-                  {/* Thread 112: Print Card — generates single-page PDF member brief */}
+                  {/* Thread 112: Print Card — visual separator + PDF brief */}
                   <button
                     disabled={pdfLoading}
                     onClick={async e => {
@@ -663,6 +678,7 @@ function MembersContent() {
                       display: 'inline-flex', alignItems: 'center', gap: 4,
                       cursor: pdfLoading ? 'default' : 'pointer',
                       fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
+                      marginLeft: 'auto',
                     }}
                   >
                     <Printer size={9} aria-hidden="true" />
@@ -766,40 +782,16 @@ function MembersContent() {
 
             return (
               <>
-                {/* ── Tier 1: Direct Contact ── */}
-                {(selectedMember.phone || selectedMember.email) && (
-                  <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '10px 14px',
-                    display: 'flex', flexWrap: 'wrap', gap: '6px 18px', alignItems: 'center',
-                  }}>
-                    <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', flexBasis: '100%' }}>
-                      Direct Contact
-                    </span>
-                    {selectedMember.phone && (
-                      <a
-                        href={`tel:${selectedMember.phone.replace(/\D/g, '')}`}
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                      >
-                        <Phone size={11} color="var(--text-faint)" aria-hidden="true" />
-                        {selectedMember.phone}
-                      </a>
-                    )}
-                    {selectedMember.email && (
-                      <a
-                        href={`mailto:${selectedMember.email}`}
-                        onClick={e => e.stopPropagation()}
-                        style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                      >
-                        <Mail size={11} color="var(--text-faint)" aria-hidden="true" />
-                        {selectedMember.email}
-                      </a>
-                    )}
+                {/* ── Tier 1: Profile / Bio — identity first for lobbyist UX ── */}
+                {bioLoading ? (
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px' }}>
+                    <VectorLoader label="Loading profile…" size="sm" />
                   </div>
+                ) : (
+                  <MemberBioSection bio={memberBio} caucusUrl={memberBio?.caucus_url} />
                 )}
 
-                {/* ── Tier 1: Committee Memberships (moved up from bottom) ── */}
+                {/* ── Tier 1: Committee Memberships ── */}
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
                   <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', marginBottom: 8 }}>
                     Committee Memberships
@@ -899,8 +891,52 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* ── Tier 2: Bio card ── */}
-                <MemberBioSection bio={memberBio} caucusUrl={memberBio?.caucus_url} />
+                {/* ── Tier 2: Direct Contact — full-width tap targets ── */}
+                {(selectedMember.phone || selectedMember.email) && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', overflow: 'hidden',
+                  }}>
+                    <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '10px 14px 6px' }}>
+                      Direct Contact
+                    </div>
+                    {selectedMember.phone && (
+                      <a
+                        href={`tel:${selectedMember.phone.replace(/\D/g, '')}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '11px 14px', borderTop: '1px solid var(--border)',
+                          textDecoration: 'none', minHeight: 44,
+                        }}
+                      >
+                        <Phone size={15} color="var(--text-muted)" aria-hidden="true" />
+                        <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                          {selectedMember.phone}
+                        </span>
+                      </a>
+                    )}
+                    {selectedMember.email && (
+                      <a
+                        href={`mailto:${selectedMember.email}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '11px 14px', borderTop: '1px solid var(--border)',
+                          textDecoration: 'none', minHeight: 44,
+                        }}
+                      >
+                        <Mail size={15} color="var(--text-muted)" aria-hidden="true" />
+                        <span style={{
+                          fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {selectedMember.email}
+                        </span>
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Tier 3: Electoral record (T126 data) ── */}
                 {memberElections && memberElections.length > 0 && (() => {
