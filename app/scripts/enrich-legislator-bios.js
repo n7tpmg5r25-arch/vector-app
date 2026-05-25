@@ -103,14 +103,16 @@ function caucusUrls(member) {
     ]
   }
   if (chamber === 'Senate' && party === 'R') {
+    // Each senator has a personal subdomain on src.wastateleg.org — same pattern
+    // as House R on houserepublicans.wa.gov. Previous src.wa.gov URLs were a React
+    // SPA that returned nothing useful (Thread 137 fix).
+    // Pattern: {firstnamelastname}.src.wastateleg.org/about/
     return [
-      `https://src.wa.gov/senator/${lastSlug}/`,
-      `https://src.wa.gov/senator/${fullSlug}/`,
-      `https://src.wa.gov/member/${fullSlug}/`,
-      `https://src.wa.gov/member/${lastSlug}/`,
-      `https://src.wa.gov/senators/${lastSlug}/`,
-      `https://src.wa.gov/senator/${firstLastSlug}/`,
-      // leg.wa.gov static HTML fallback — src.wa.gov is a React SPA (Thread 116)
+      `https://${noSepSlug}.src.wastateleg.org/about/`,
+      `https://${noSepSlug}.src.wastateleg.org/`,
+      // Hyphenated slug fallback for any edge-case names
+      `https://${firstLastSlug}.src.wastateleg.org/about/`,
+      // leg.wa.gov static HTML last-resort fallback
       `https://leg.wa.gov/senate/senators/Pages/${lastSlug}.aspx`,
       `https://leg.wa.gov/senate/senators/Pages/${firstLastSlug}.aspx`,
     ]
