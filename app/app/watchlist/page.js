@@ -11,7 +11,7 @@ import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
 import VectorLoader from '../components/VectorLoader'
-import SwipeableRow from '../components/SwipeableRow'
+// SwipeableRow removed T139 — replaced with ⋮ action menu
 import { Check, Bookmark, Clipboard } from 'lucide-react'
 
 import { STAGE_SHORT } from '../../lib/stages'
@@ -635,15 +635,7 @@ export default function WatchlistPage() {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
-          <SwipeableRow
-            key={bill_id}
-            isHighlighted={highlighted.has(bill_id)}
-            isOpen={openSwipeId === bill_id}
-            onOpen={() => setOpenSwipeId(bill_id)}
-            onClose={() => setOpenSwipeId(null)}
-            onHighlight={() => toggleHighlight(bill_id)}
-            onRemove={() => handleRemove(bill_id)}
-          >
+          <div key={bill_id} style={{ position: 'relative' }}>
           <Link
             href={`/bill/${bill.bill_id}`}
             prefetch={false}
@@ -778,11 +770,13 @@ export default function WatchlistPage() {
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {/* ── Right icon column ── */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, position: 'relative' }}>
+                {/* Bookmark — visual highlight indicator only */}
                 <div style={{ display: 'inline-flex', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>
                   <Bookmark size={14} aria-hidden="true" fill="currentColor" />
                 </div>
-                {/* Phase 7S: quick-note pencil icon */}
+                {/* Quick-note pencil */}
                 <button
                   onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}
                   style={{
@@ -808,26 +802,76 @@ export default function WatchlistPage() {
                     {billNoteMeta[bill_id].count} note{billNoteMeta[bill_id].count !== 1 ? 's' : ''}
                   </span>
                 )}
+                {/* ⋮ action menu button — T139: replaces swipe */}
                 <button
-                  type="button"
-                  onClick={e => {
-                    e.preventDefault(); e.stopPropagation()
-                    // Thread 7 (G4): drop the literal '2025-2026' fallback in favor
-                    // of getCurrentSession() so the leg.wa.gov bill-summary deep link
-                    // auto-rolls when sessions change.
-                    const url = `https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${(bill.session || getCurrentSession()).split('-')[0]}`
-                    window.open(url, '_blank', 'noopener,noreferrer')
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setOpenSwipeId(openSwipeId === bill_id ? null : bill_id) }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: '8px 4px', margin: '-8px -4px',
+                    color: openSwipeId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
+                    fontSize: 16, lineHeight: 1, letterSpacing: '0.05em',
+                    opacity: openSwipeId === bill_id ? 1 : 0.55,
+                    transition: 'color 0.15s, opacity 0.15s',
                   }}
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                  title="View on leg.wa.gov"
-                  aria-label={`Open ${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number} on leg.wa.gov`}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                  </svg>
-                </button>
+                  onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--text-primary)' }}
+                  onMouseLeave={e => { if (openSwipeId !== bill_id) { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.color = 'var(--text-faint)' } }}
+                  aria-label="Bill actions"
+                  title="Actions"
+                >⋮</button>
+
+                {/* Action popover */}
+                {openSwipeId === bill_id && (
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      position: 'absolute', right: 0, top: '100%', marginTop: 4,
+                      zIndex: 200,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 8,
+                      boxShadow: '0 6px 28px rgba(0,0,0,0.55)',
+                      overflow: 'hidden',
+                      minWidth: 168,
+                    }}
+                  >
+                    {/* Highlight / In Report */}
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); toggleHighlight(bill_id); setOpenSwipeId(null) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9,
+                        width: '100%', padding: '11px 14px', textAlign: 'left',
+                        background: 'none', border: 'none', borderBottom: '1px solid var(--border)',
+                        cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)',
+                        color: highlighted.has(bill_id) ? 'var(--teal)' : 'var(--text-primary)',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      <span style={{ fontSize: 13, width: 14, textAlign: 'center' }}>
+                        {highlighted.has(bill_id) ? '●' : '+'}
+                      </span>
+                      {highlighted.has(bill_id) ? 'In Report' : 'Add to Report'}
+                    </button>
+                    {/* Remove */}
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); handleRemove(bill_id); setOpenSwipeId(null) }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9,
+                        width: '100%', padding: '11px 14px', textAlign: 'left',
+                        background: 'none', border: 'none',
+                        cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)',
+                        color: 'var(--danger)',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,71,48,0.08)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                    >
+                      <span style={{ fontSize: 13, width: 14, textAlign: 'center' }}>✕</span>
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -874,7 +918,7 @@ export default function WatchlistPage() {
               </div>
             )}
           </Link>
-          </SwipeableRow>
+          </div>
         )})}
 
       </div>
