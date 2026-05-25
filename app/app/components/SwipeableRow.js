@@ -2,31 +2,41 @@
 import { useRef, useEffect } from 'react'
 
 /**
- * SwipeableRow — Thread 102 · T136 · T138
- * Wraps a bill card with left-swipe reveal behavior.
- * Reveals a 144px action panel: "Highlight" (brass, left) + "Remove" (danger, right).
+ * SwipeableRow — T140 (complete rebuild)
  *
- * T138 fixes:
- *   1. Swipe affordance moved to left edge: a thin brass bar replaces the
- *      right-edge «« chevrons that were hidden behind the bookmark/pencil/link
- *      icon column. Left-edge position has zero icon conflict and semantically
- *      points in the swipe direction.
- *   2. Desktop drag: userSelect:none applied imperatively during drag so the
- *      browser's native text-selection drag no longer steals mouse events.
- *   3. Mouse preventDefault after horizontal intent confirmed (same treatment
- *      as touch), preventing browser drag-image interference.
- *   4. Cursor updated imperatively (grabbing during drag) since refs don't
- *      trigger re-renders.
+ * ROOT CAUSE of every previous failure (T102→T138):
+ *   React synthetic onTouchMove handlers are ALWAYS passive. Calling
+ *   e.preventDefault() inside them is silently ignored — the browser
+ *   scrolls anyway, stealing the gesture before JS can act.
+ *
+ * THE FIX — two things working together:
+ *
+ *   1. CSS `touch-action: pan-y` on the sliding element.
+ *      Tells the browser: "vertical movement = your scroll, horizontal = mine."
+ *      The browser never competes with JS on the horizontal axis.
+ *      No preventDefault() needed for scroll. No passive-listener gymnastics.
+ *
+ *   2. Pointer Events API (onPointerDown/Move/Up/Cancel) instead of separate
+ *      touch + mouse handler pairs.
+ *      `setPointerCapture` routes ALL subsequent pointer events to this element
+ *      even when the finger/cursor moves off it during a fast swipe.
+ *      `releasePointerCapture` on vertical intent hands control back to the
+ *      browser immediately so scroll resumes with zero jank.
  *
  * Props:
- *   children       — card content
- *   onRemove()     — called when Remove is tapped
- *   onHighlight()  — called when Highlight is tapped
- *   isHighlighted  — boolean, drives active state of Highlight button
- *   isOpen         — boolean, parent-controlled: whether this row is swiped open
- *   onOpen()       — tell parent this row is opening (parent closes others)
- *   onClose()      — tell parent to close this row (sets openSwipeId → null)
+ *   children       — card content (slides with the card)
+ *   onRemove()     — called after Remove tapped
+ *   onHighlight()  — called after Highlight tapped
+ *   isHighlighted  — boolean, Highlight button active state
+ *   isOpen         — boolean, parent-controlled open state
+ *   onOpen()       — tell parent this row opened (parent closes others)
+ *   onClose()      — tell parent this row closed
  */
+
+const REVEAL_W = 144  // px — action panel width
+const SNAP_PX  = 60   // px — drag threshold to commit open
+const ANIM_MS  = 200  // ms
+
 export default function SwipeableRow({
   children,
   onRemove,
@@ -36,250 +46,193 @@ export default function SwipeableRow({
   onOpen,
   onClose,
 }) {
-  const PANEL_WIDTH   = 144
-  const ANIM_DURATION = 220 // ms — matches '0.2s ease' CSS transition
+  const cardRef = useRef(null)
 
-  const cardRef       = useRef(null)
-  const touchStartX   = useRef(0)
-  const touchStartY   = useRef(0)
-  const currentDeltaX = useRef(0)
-  const intentLocked  = useRef(null) // 'horizontal' | 'vertical' | null
-  const swipingRef    = useRef(false)
-  const isDragging    = useRef(false)
+  // All drag state in refs — no re-renders mid-gesture
+  const active  = useRef(false)
+  const intentH = useRef(false)
+  const startX  = useRef(0)
+  const startY  = useRef(0)
+  const baseX   = useRef(0)   // card offset at drag start: 0 or -REVEAL_W
 
-  // ── Helpers ─────────────────────────────────────────────────
-  function snapBack() {
-    if (!cardRef.current) return
-    cardRef.current.style.transition = `transform ${ANIM_DURATION}ms ease`
-    cardRef.current.style.transform  = 'translateX(0)'
-  }
-
-  function snapOpen() {
-    if (!cardRef.current) return
-    cardRef.current.style.transition = `transform ${ANIM_DURATION}ms ease`
-    cardRef.current.style.transform  = `translateX(-${PANEL_WIDTH}px)`
-  }
-
-  function disableTransition() {
-    if (!cardRef.current) return
-    cardRef.current.style.transition = 'none'
-  }
-
-  // When parent flips isOpen → false, snap card back
+  // Sync when parent closes this row (e.g. another row opened)
   useEffect(() => {
-    if (!isOpen) snapBack()
-  }, [isOpen])
+    if (!isOpen) snap(0)
+  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Shared drag logic ────────────────────────────────────────
-  function startDrag(clientX, clientY) {
-    touchStartX.current   = clientX
-    touchStartY.current   = clientY
-    currentDeltaX.current = 0
-    intentLocked.current  = null
-    swipingRef.current    = false
-    disableTransition()
-    // Prevent browser text-selection drag from stealing mouse events
-    if (cardRef.current) {
-      cardRef.current.style.userSelect = 'none'
-      cardRef.current.style.cursor     = 'grabbing'
-    }
+  function snap(x, animated = true) {
+    if (!cardRef.current) return
+    cardRef.current.style.transition = animated ? `transform ${ANIM_MS}ms ease` : 'none'
+    cardRef.current.style.transform  = `translateX(${x}px)`
   }
 
-  function moveDrag(clientX, clientY, isTouch, nativeEvent) {
-    const deltaX = clientX - touchStartX.current
-    const deltaY = clientY - touchStartY.current
+  // ── Pointer event handlers ──────────────────────────────────────
 
-    if (!intentLocked.current) {
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
-        intentLocked.current = 'horizontal'
-      } else if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 5) {
-        intentLocked.current = 'vertical'
+  function onPointerDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    active.current  = true
+    intentH.current = false
+    startX.current  = e.clientX
+    startY.current  = e.clientY
+    baseX.current   = isOpen ? -REVEAL_W : 0
+    snap(baseX.current, false)
+    // Capture: all future pointer events come here, even off-element
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onPointerMove(e) {
+    if (!active.current) return
+    const dx = e.clientX - startX.current
+    const dy = e.clientY - startY.current
+
+    if (!intentH.current) {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return // dead zone
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Vertical intent — release capture, let touch-action: pan-y handle scroll
+        active.current = false
+        e.currentTarget.releasePointerCapture(e.pointerId)
+        return
       }
+      intentH.current = true
     }
 
-    if (intentLocked.current !== 'horizontal') return
-    if (deltaX > 0 && !isOpen) return
-
-    // Prevent scroll (touch) and browser drag-image (mouse) once horizontal intent confirmed
-    if (nativeEvent) nativeEvent.preventDefault()
-    swipingRef.current    = true
-    currentDeltaX.current = deltaX
-
-    const base    = isOpen ? -PANEL_WIDTH : 0
-    const clamped = Math.min(0, Math.max(-PANEL_WIDTH, base + deltaX))
-    if (cardRef.current) cardRef.current.style.transform = `translateX(${clamped}px)`
+    const raw     = baseX.current + dx
+    const clamped = Math.max(-REVEAL_W, Math.min(0, raw))
+    snap(clamped, false)
   }
 
-  function endDrag() {
-    // Restore text selection and cursor regardless of whether swipe happened
-    if (cardRef.current) {
-      cardRef.current.style.userSelect = ''
-      cardRef.current.style.cursor     = 'grab'
-    }
+  function onPointerUp(e) {
+    if (!active.current) return
+    active.current = false
+    if (!intentH.current) return
 
-    if (intentLocked.current !== 'horizontal') return
+    const dx  = e.clientX - startX.current
+    const eff = baseX.current + dx
 
-    const base      = isOpen ? -PANEL_WIDTH : 0
-    const effective = base + currentDeltaX.current
-
-    if (effective < -60) {
-      snapOpen()
+    if (eff < -SNAP_PX) {
+      snap(-REVEAL_W)
       onOpen()
     } else {
-      snapBack()
+      snap(0)
       if (isOpen) onClose()
     }
   }
 
-  // ── Touch handlers ───────────────────────────────────────────
-  const handleTouchStart = (e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)
-  const handleTouchMove  = (e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY, true, e)
-  const handleTouchEnd   = ()  => endDrag()
-
-  // ── Mouse handlers (desktop) ─────────────────────────────────
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return
-    isDragging.current = true
-    startDrag(e.clientX, e.clientY)
+  function onPointerCancel() {
+    if (!active.current) return
+    active.current = false
+    snap(isOpen ? -REVEAL_W : 0)
   }
 
-  const handleMouseMove = (e) => {
-    if (!isDragging.current) return
-    moveDrag(e.clientX, e.clientY, false, e)
-  }
-
-  const handleMouseUp = () => {
-    if (!isDragging.current) return
-    isDragging.current = false
-    endDrag()
-  }
-
-  // Also end drag if mouse leaves the wrapper
-  const handleMouseLeave = () => {
-    if (!isDragging.current) return
-    isDragging.current = false
-    endDrag()
-  }
-
-  // ── Card click (tap to close when open) ──────────────────────
-  const handleCardClick = (e) => {
+  function onCardClick(e) {
+    // Tap anywhere on the open card closes the panel
     if (isOpen) {
       e.preventDefault()
-      snapBack()
+      snap(0)
       onClose()
-      return
     }
-    if (swipingRef.current) e.preventDefault()
   }
 
   return (
     <div
-      style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius)' }}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: 'var(--radius)',
+        // Brass ring when this card is swiped open — shows which card is active
+        boxShadow: isOpen
+          ? '0 0 0 1.5px rgba(184,151,90,0.6), 0 4px 24px rgba(0,0,0,0.4)'
+          : 'none',
+        transition: `box-shadow ${ANIM_MS}ms ease`,
+      }}
     >
-      {/* ── Action panel (sits behind card, revealed on right side) ── */}
+      {/* ── Action panel — behind card, revealed when card slides left ── */}
       <div
         aria-hidden="true"
         style={{
           position: 'absolute', right: 0, top: 0, bottom: 0,
-          width: PANEL_WIDTH,
+          width: REVEAL_W,
           display: 'flex',
-          borderRadius: 'var(--radius)',
           overflow: 'hidden',
+          borderRadius: 'var(--radius)',
         }}
       >
-        {/* Highlight button — brass, left 72px */}
+        {/* Highlight — brass left half */}
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation()
-            snapBack()
+            snap(0)
             onClose()
-            setTimeout(onHighlight, ANIM_DURATION)
+            setTimeout(onHighlight, ANIM_MS)
           }}
           style={{
-            flex: 1,
-            background: 'var(--brass, #b8975a)',
-            color: 'var(--bg, #0e1014)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: 12,
-            fontFamily: 'var(--font-body)',
-            fontWeight: 700,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 3,
-            lineHeight: 1.2,
+            flex: 1, border: 'none', cursor: 'pointer',
+            background: isHighlighted ? 'rgba(184,151,90,0.85)' : 'var(--teal)',
+            color: 'var(--bg)',
+            fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 5, lineHeight: 1.2,
           }}
         >
-          <span style={{ fontSize: 14 }}>{isHighlighted ? '●' : '+'}</span>
+          <span style={{ fontSize: 20 }}>{isHighlighted ? '●' : '+'}</span>
           <span>{isHighlighted ? 'In Report' : 'Highlight'}</span>
         </button>
 
-        {/* Remove button — danger, right 72px */}
+        {/* Remove — danger red right half */}
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation()
-            snapBack()
+            snap(0)
             onClose()
-            setTimeout(onRemove, ANIM_DURATION)
+            setTimeout(onRemove, ANIM_MS)
           }}
           style={{
-            flex: 1,
-            background: 'var(--danger, #c44730)',
-            color: '#ffffff',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: 12,
-            fontFamily: 'var(--font-body)',
-            fontWeight: 700,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 3,
-            lineHeight: 1.2,
+            flex: 1, border: 'none', cursor: 'pointer',
+            background: 'var(--danger)',
+            color: '#fff',
+            fontSize: 12, fontFamily: 'var(--font-body)', fontWeight: 700,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 5, lineHeight: 1.2,
           }}
         >
-          <span style={{ fontSize: 14 }}>✕</span>
+          <span style={{ fontSize: 20 }}>✕</span>
           <span>Remove</span>
         </button>
       </div>
 
-      {/* ── Card (slides left to reveal panel) ── */}
+      {/* ── Sliding card ── */}
       <div
         ref={cardRef}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onClick={handleCardClick}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onClick={onCardClick}
         style={{
-          position: 'relative', zIndex: 1, willChange: 'transform',
-          cursor: 'grab',
+          position: 'relative',
+          zIndex: 1,
+          willChange: 'transform',
+          touchAction: 'pan-y',   // ← THE KEY: vertical scroll = browser, horizontal = JS
+          userSelect: 'none',     // no text-selection flash on desktop drag
+          cursor: isOpen ? 'default' : 'grab',
         }}
       >
         {children}
 
-        {/* ── Swipe affordance: left-edge brass bar ── */}
-        {/* Positioned AFTER children so it always paints on top. Left edge has   */}
-        {/* zero conflict with the right-side icon column (bookmark/pencil/link). */}
+        {/* Swipe hint — left-edge brass sliver, only when closed */}
         {!isOpen && (
           <div
             aria-hidden="true"
             style={{
               position: 'absolute',
-              left: 0,
-              top: '50%',
+              left: 0, top: '50%',
               transform: 'translateY(-50%)',
-              width: 3,
-              height: '38%',
+              width: 3, height: '35%',
               background: 'var(--teal)',
               borderRadius: '0 2px 2px 0',
-              opacity: 0.35,
+              opacity: 0.4,
               pointerEvents: 'none',
             }}
           />
