@@ -2,9 +2,17 @@
 import { useRef, useEffect } from 'react'
 
 /**
- * SwipeableRow — Thread 102
+ * SwipeableRow — Thread 102 · T136
  * Wraps a bill card with left-swipe reveal behavior.
  * Reveals a 144px action panel: "Highlight" (brass, left) + "Remove" (danger, right).
+ *
+ * T136 fixes:
+ *   1. Snap-back: action callbacks delayed 220ms via setTimeout so the
+ *      0.2s CSS transition finishes before React state fires. Previously
+ *      onRemove() unmounted the card mid-animation; onHighlight() caused a
+ *      re-render that raced the imperative transform.
+ *   2. Mouse drag: onMouseDown/Move/Up/Leave added for desktop support.
+ *   3. Swipe indicator: subtle brass «« affordance on card right edge.
  *
  * Props:
  *   children       — card content
@@ -24,7 +32,8 @@ export default function SwipeableRow({
   onOpen,
   onClose,
 }) {
-  const PANEL_WIDTH = 144
+  const PANEL_WIDTH   = 144
+  const ANIM_DURATION = 220 // ms — matches '0.2s ease' CSS transition
 
   const cardRef       = useRef(null)
   const touchStartX   = useRef(0)
@@ -32,29 +41,45 @@ export default function SwipeableRow({
   const currentDeltaX = useRef(0)
   const intentLocked  = useRef(null) // 'horizontal' | 'vertical' | null
   const swipingRef    = useRef(false)
+  const isDragging    = useRef(false)
+
+  // ── Helpers ─────────────────────────────────────────────────
+  function snapBack() {
+    if (!cardRef.current) return
+    cardRef.current.style.transition = `transform ${ANIM_DURATION}ms ease`
+    cardRef.current.style.transform  = 'translateX(0)'
+  }
+
+  function snapOpen() {
+    if (!cardRef.current) return
+    cardRef.current.style.transition = `transform ${ANIM_DURATION}ms ease`
+    cardRef.current.style.transform  = `translateX(-${PANEL_WIDTH}px)`
+  }
+
+  function disableTransition() {
+    if (!cardRef.current) return
+    cardRef.current.style.transition = 'none'
+  }
 
   // When parent flips isOpen → false, snap card back
   useEffect(() => {
-    if (!isOpen && cardRef.current) {
-      cardRef.current.style.transition = 'transform 0.2s ease'
-      cardRef.current.style.transform  = 'translateX(0)'
-    }
+    if (!isOpen) snapBack()
   }, [isOpen])
 
-  const handleTouchStart = (e) => {
-    touchStartX.current   = e.touches[0].clientX
-    touchStartY.current   = e.touches[0].clientY
+  // ── Shared drag logic ────────────────────────────────────────
+  function startDrag(clientX, clientY) {
+    touchStartX.current   = clientX
+    touchStartY.current   = clientY
     currentDeltaX.current = 0
     intentLocked.current  = null
     swipingRef.current    = false
-    if (cardRef.current) cardRef.current.style.transition = 'none'
+    disableTransition()
   }
 
-  const handleTouchMove = (e) => {
-    const deltaX = e.touches[0].clientX - touchStartX.current
-    const deltaY = e.touches[0].clientY - touchStartY.current
+  function moveDrag(clientX, clientY, isTouch, nativeEvent) {
+    const deltaX = clientX - touchStartX.current
+    const deltaY = clientY - touchStartY.current
 
-    // Lock intent on first meaningful movement
     if (!intentLocked.current) {
       if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
         intentLocked.current = 'horizontal'
@@ -64,11 +89,10 @@ export default function SwipeableRow({
     }
 
     if (intentLocked.current !== 'horizontal') return
-
-    // Ignore right-swipe when card is already closed
     if (deltaX > 0 && !isOpen) return
 
-    e.preventDefault() // prevent page scroll only after horizontal intent confirmed
+    // Prevent page scroll on touch only after horizontal intent confirmed
+    if (isTouch && nativeEvent) nativeEvent.preventDefault()
     swipingRef.current    = true
     currentDeltaX.current = deltaX
 
@@ -77,44 +101,69 @@ export default function SwipeableRow({
     if (cardRef.current) cardRef.current.style.transform = `translateX(${clamped}px)`
   }
 
-  const handleTouchEnd = () => {
+  function endDrag() {
     if (intentLocked.current !== 'horizontal') return
-
-    if (cardRef.current) cardRef.current.style.transition = 'transform 0.2s ease'
 
     const base      = isOpen ? -PANEL_WIDTH : 0
     const effective = base + currentDeltaX.current
 
     if (effective < -60) {
-      // Snap open
-      if (cardRef.current) cardRef.current.style.transform = `translateX(-${PANEL_WIDTH}px)`
+      snapOpen()
       onOpen()
     } else {
-      // Snap closed
-      if (cardRef.current) cardRef.current.style.transform = 'translateX(0)'
+      snapBack()
       if (isOpen) onClose()
     }
   }
 
+  // ── Touch handlers ───────────────────────────────────────────
+  const handleTouchStart = (e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)
+  const handleTouchMove  = (e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY, true, e)
+  const handleTouchEnd   = ()  => endDrag()
+
+  // ── Mouse handlers (desktop) ─────────────────────────────────
+  const handleMouseDown = (e) => {
+    if (e.button !== 0) return
+    isDragging.current = true
+    startDrag(e.clientX, e.clientY)
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isDragging.current) return
+    moveDrag(e.clientX, e.clientY, false, null)
+  }
+
+  const handleMouseUp = () => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    endDrag()
+  }
+
+  // Also end drag if mouse leaves the wrapper
+  const handleMouseLeave = () => {
+    if (!isDragging.current) return
+    isDragging.current = false
+    endDrag()
+  }
+
+  // ── Card click (tap to close when open) ──────────────────────
   const handleCardClick = (e) => {
-    // If swiped open, tapping card body closes it (no navigation)
     if (isOpen) {
       e.preventDefault()
-      if (cardRef.current) {
-        cardRef.current.style.transition = 'transform 0.2s ease'
-        cardRef.current.style.transform  = 'translateX(0)'
-      }
+      snapBack()
       onClose()
       return
     }
-    // If a swipe just finished (but didn't reach open threshold), block nav
-    if (swipingRef.current) {
-      e.preventDefault()
-    }
+    if (swipingRef.current) e.preventDefault()
   }
 
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius)' }}>
+    <div
+      style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius)' }}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* ── Action panel (sits behind card, revealed on right side) ── */}
       <div
         aria-hidden="true"
@@ -130,13 +179,10 @@ export default function SwipeableRow({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            // Snap card back immediately (imperative) before React re-render cycle
-            if (cardRef.current) {
-              cardRef.current.style.transition = 'transform 0.2s ease'
-              cardRef.current.style.transform  = 'translateX(0)'
-            }
-            onHighlight()
+            snapBack()
             onClose()
+            // Delay state callback until snap animation finishes
+            setTimeout(onHighlight, ANIM_DURATION)
           }}
           style={{
             flex: 1,
@@ -163,13 +209,10 @@ export default function SwipeableRow({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            // Snap card back immediately before React removes it from the list
-            if (cardRef.current) {
-              cardRef.current.style.transition = 'transform 0.2s ease'
-              cardRef.current.style.transform  = 'translateX(0)'
-            }
+            snapBack()
             onClose()
-            onRemove()
+            // Delay remove until snap animation finishes (prevents mid-animation unmount)
+            setTimeout(onRemove, ANIM_DURATION)
           }}
           style={{
             flex: 1,
@@ -199,9 +242,39 @@ export default function SwipeableRow({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
         onClick={handleCardClick}
-        style={{ position: 'relative', zIndex: 1, willChange: 'transform' }}
+        style={{
+          position: 'relative', zIndex: 1, willChange: 'transform',
+          cursor: isDragging.current ? 'grabbing' : 'grab',
+        }}
       >
+        {/* ── Swipe affordance indicator ── */}
+        {!isOpen && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              right: 10,
+              top: 0,
+              bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              pointerEvents: 'none',
+              zIndex: 2,
+              gap: 0,
+              opacity: 0.22,
+            }}
+          >
+            {/* Two overlapping left-chevrons in brass */}
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true">
+              <polyline points="8,1 2,7 8,13" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true" style={{ marginLeft: -3 }}>
+              <polyline points="8,1 2,7 8,13" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        )}
         {children}
       </div>
     </div>
