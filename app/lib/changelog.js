@@ -29,6 +29,19 @@
 
 export const CHANGELOG = [
   {
+    version: '5.0',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Home page UI quality pass (T142). Touch targets on the refresh button, navigation links, and the leg.wa.gov external link all meet the 44px minimum — previously as small as 20px on mobile.',
+      '"View all", "All bills", and "All outcomes" converted from buttons to links — correct semantics for navigation, and now tappable across the full label area.',
+      'Category intelligence cards are now keyboard-accessible: Enter and Space activate them. Previously click-only.',
+      'Animations (timeline pulse dot, bill card fade-in stagger) now respect prefers-reduced-motion.',
+      'Momentum velocity chip now uses SVG icons (Lucide TrendingUp/TrendingDown/Minus) instead of a Unicode triangle that rendered inconsistently across Android and iOS.',
+      'Header horizontal padding aligned to 16px to match the sticky bar and content column — eliminates a 4px left-edge drift visible on narrow phones.',
+    ],
+  },
+  {
     version: '4.9',
     date: '2026-05-25',
     phase: 'alpha',
