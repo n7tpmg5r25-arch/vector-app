@@ -119,6 +119,10 @@ function caucusUrls(member) {
   }
   if (chamber === 'House' && party === 'D') {
     return [
+      // Primary: /{lastName}/biography/ pattern (same as Senate D)
+      `https://housedemocrats.wa.gov/${lastSlug}/biography/`,
+      `https://housedemocrats.wa.gov/${lastSlug}/`,
+      // Fallback slug variations
       `https://housedemocrats.wa.gov/members/${fullSlug}/`,
       `https://housedemocrats.wa.gov/members/${lastSlug}/`,
       `https://housedemocrats.wa.gov/members/${firstLastSlug}/`,
