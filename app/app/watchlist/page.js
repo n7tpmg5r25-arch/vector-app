@@ -486,7 +486,7 @@ export default function WatchlistPage() {
             paddingTop: 8, borderTop: '1px solid var(--border)',
             fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--brass)',
           }}>
-            <span>\u25CF {highlighted.size} selected for report</span>
+            <span>{'\u25CF'} {highlighted.size} selected for report</span>
             <button
               onClick={() => setHighlighted(new Set())}
               style={{
