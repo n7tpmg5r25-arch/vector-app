@@ -320,7 +320,7 @@ function SearchContent() {
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <DropdownMenu
             value={chamber}
             onChange={v => setChamber(v)}
@@ -352,7 +352,7 @@ function SearchContent() {
 
         {/* Outcome filter chips — interim only (replaces Outcomes page in nav) */}
         {isInterimPeriod() && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {[
               { label: 'All Outcomes', value: 'All' },
               { label: 'Signed into Law', value: 'LAW', color: '#4ade80', bg: 'rgba(74,222,128,0.12)' },
@@ -360,7 +360,7 @@ function SearchContent() {
               { label: 'Dead', value: 'DEAD', color: 'var(--text-faint)', bg: 'rgba(255,255,255,0.04)' },
             ].map(o => (
               <button key={o.value} onClick={() => setOutcome(o.value)} style={{
-                padding: '4px 12px', borderRadius: 16, fontSize: 11, flexShrink: 0,
+                padding: '4px 12px', borderRadius: 16, fontSize: 11,
                 background: outcome === o.value ? (o.bg || 'var(--teal)') : 'transparent',
                 color: outcome === o.value ? (o.color || 'var(--bg)') : 'var(--text-muted)',
                 border: `1px solid ${outcome === o.value ? (o.color || 'var(--teal)') : 'var(--border)'}`,
@@ -371,10 +371,10 @@ function SearchContent() {
         )}
 
         {/* Category chips */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {CATEGORIES.map(c => (
             <button key={c} onClick={() => setCategory(c)} style={{
-              padding: '4px 12px', borderRadius: 16, fontSize: 11, flexShrink: 0,
+              padding: '4px 12px', borderRadius: 16, fontSize: 11,
               background: category === c ? 'var(--teal)' : 'transparent',
               color: category === c ? 'var(--bg)' : 'var(--text-muted)',
               border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
