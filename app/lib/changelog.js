@@ -29,6 +29,20 @@
 
 export const CHANGELOG = [
   {
+    version: '5.1',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Search page UI quality pass (T143). Tapping the search field on iPhone no longer zooms the viewport — the input was 14px, below iOS Safari\'s 16px auto-zoom threshold. Now fixed.',
+      'Outcome and category filter chips grew from 22px to a comfortable tap height. Each chip is now at least 34px — previously easy to miss on a phone.',
+      'Filter chip state is now communicated to screen readers via aria-pressed. Toggle state was previously invisible to assistive technology.',
+      'Search and bulk-tag inputs gained visible focus rings. Removing the browser outline without a replacement violates WCAG 2.4.7; brass border highlight now appears on focus.',
+      'aria-label added to search and bulk-tag inputs. Placeholder text is not an accessible label.',
+      'Bill card stagger animation (up to 50 cards) now respects prefers-reduced-motion.',
+      'Empty state text contrast improved — was ~2:1 ratio against the dark background, now uses a readable mid-grey.',
+    ],
+  },
+  {
     version: '5.0',
     date: '2026-05-25',
     phase: 'alpha',
