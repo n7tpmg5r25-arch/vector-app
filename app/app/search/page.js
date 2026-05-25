@@ -390,31 +390,45 @@ function SearchContent() {
         </div>
 
         {/* Row 4: Category strip — single horizontal-scroll line, no wrap.
-            BUG FIX: removed per-category counts. They were calculated from a
-            select('category') query capped at PostgREST's 1000-row default limit,
-            so the counts were based on ~1000 of ~3400 bills and were wrong.
-            Without a custom RPC or raised row limit they cannot be made accurate. */}
-        <div
-          className="vec-cat-strip"
-          style={{
-            display: 'flex', gap: 6, marginTop: 8,
-            overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-            scrollbarWidth: 'none', msOverflowStyle: 'none',
-            padding: '2px 0',
-          }}
-        >
-          {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c} style={{
-              flexShrink: 0,
-              padding: '6px 12px', borderRadius: 16, fontSize: 11,
-              background: category === c ? 'var(--teal)' : 'transparent',
-              color: category === c ? 'var(--bg)' : 'var(--text-muted)',
-              border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
-              cursor: 'pointer', fontWeight: category === c ? 600 : 400,
-              boxShadow: category === c ? 'var(--teal-glow)' : 'none',
-              transition: 'all 0.15s', whiteSpace: 'nowrap',
-            }}>{c}</button>
-          ))}
+            Right-edge fade + chevron signal scrollability (iOS affordance pattern). */}
+        <div style={{ position: 'relative', marginTop: 8 }}>
+          <div
+            className="vec-cat-strip"
+            style={{
+              display: 'flex', gap: 6,
+              overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none', msOverflowStyle: 'none',
+              padding: '2px 40px 2px 0',
+            }}
+          >
+            {CATEGORIES.map(c => (
+              <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c} style={{
+                flexShrink: 0,
+                padding: '6px 12px', borderRadius: 16, fontSize: 11,
+                background: category === c ? 'var(--teal)' : 'transparent',
+                color: category === c ? 'var(--bg)' : 'var(--text-muted)',
+                border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
+                cursor: 'pointer', fontWeight: category === c ? 600 : 400,
+                boxShadow: category === c ? 'var(--teal-glow)' : 'none',
+                transition: 'all 0.15s', whiteSpace: 'nowrap',
+              }}>{c}</button>
+            ))}
+          </div>
+          {/* Fade + chevron — non-interactive, signals more content to the right */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: 44,
+              background: 'linear-gradient(to right, transparent, rgba(14,16,20,0.97) 60%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+              paddingRight: 2,
+              pointerEvents: 'none',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
         </div>
 
         {/* Outcome chips — interim only. Useful for post-session lobbying analysis. */}
