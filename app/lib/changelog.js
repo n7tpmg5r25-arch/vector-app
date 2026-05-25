@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '4.7',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist swipe actions replaced with a three-dot (⋮) menu button on each bill card. Tap ⋮ to reveal "Add to Report" and "Remove" — no gestures required, works the same on mobile and desktop.',
+      'Swipe gesture removed from watchlist cards. Multiple rounds of fixes confirmed the swipe paradigm conflicts with mobile scroll and desktop click-to-navigate; the action menu is a cleaner and more reliable solution.',
+    ],
+  },
+  {
     version: '4.6',
     date: '2026-05-24',
     phase: 'alpha',
