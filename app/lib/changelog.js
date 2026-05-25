@@ -29,6 +29,21 @@
 
 export const CHANGELOG = [
   {
+    version: '5.3',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Search page deep audit and full rewrite (T145). Seven bugs fixed, UI rebuilt from scratch for lobbyist usability.',
+      '"This Week" sort now works correctly. It was previously identical to "Recent" during interim period because the 7-day date clamp was skipped. The clamp now always applies — if nothing moved in the last 7 days, the page says so honestly.',
+      '"Hearing Scheduled" filter renamed to "Had Hearing". The has_public_hearing field is a historical record of hearings that occurred during session — not a live schedule. The old label implied future events that no longer exist.',
+      'Category counts removed. They were calculated from a PostgREST query capped at 1000 rows out of ~3400 bills, so every number was wrong. The counts are gone; category names remain.',
+      'Category chips now scroll horizontally in a single line instead of wrapping to 5+ rows. The filter controls are now a compact 3-row header regardless of how many categories exist.',
+      '"Load more" pagination fixed. It was re-fetching page 0 every time due to a stale closure on the page state variable. A ref now tracks the current page so new data is fetched correctly.',
+      'Loading flash on initial page load fixed. The empty state briefly appeared before the first data fetch completed. Loading now starts as true to prevent the flicker.',
+      'Empty state messages are now context-aware: "This Week" returns "No bills had new activity in the last 7 days" rather than the generic search hint.',
+    ],
+  },
+  {
     version: '5.2',
     date: '2026-05-25',
     phase: 'alpha',
