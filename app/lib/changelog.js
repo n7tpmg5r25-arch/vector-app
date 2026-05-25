@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '4.6',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Swipe affordance moved to the left edge of watchlist cards: a thin brass bar replaces the right-edge chevrons that were hidden behind the bookmark, pencil, and external-link icons. Left edge has no icon conflict and visually points in the swipe direction.',
+      'Desktop swipe drag fixed: the browser\'s native text-selection drag no longer interrupts mid-gesture. Cursor now correctly shows "grabbing" while dragging.',
+    ],
+  },
+  {
     version: '4.5',
     date: '2026-05-24',
     phase: 'alpha',

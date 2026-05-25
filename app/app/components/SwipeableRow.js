@@ -2,17 +2,21 @@
 import { useRef, useEffect } from 'react'
 
 /**
- * SwipeableRow — Thread 102 · T136
+ * SwipeableRow — Thread 102 · T136 · T138
  * Wraps a bill card with left-swipe reveal behavior.
  * Reveals a 144px action panel: "Highlight" (brass, left) + "Remove" (danger, right).
  *
- * T136 fixes:
- *   1. Snap-back: action callbacks delayed 220ms via setTimeout so the
- *      0.2s CSS transition finishes before React state fires. Previously
- *      onRemove() unmounted the card mid-animation; onHighlight() caused a
- *      re-render that raced the imperative transform.
- *   2. Mouse drag: onMouseDown/Move/Up/Leave added for desktop support.
- *   3. Swipe indicator: subtle brass «« affordance on card right edge.
+ * T138 fixes:
+ *   1. Swipe affordance moved to left edge: a thin brass bar replaces the
+ *      right-edge «« chevrons that were hidden behind the bookmark/pencil/link
+ *      icon column. Left-edge position has zero icon conflict and semantically
+ *      points in the swipe direction.
+ *   2. Desktop drag: userSelect:none applied imperatively during drag so the
+ *      browser's native text-selection drag no longer steals mouse events.
+ *   3. Mouse preventDefault after horizontal intent confirmed (same treatment
+ *      as touch), preventing browser drag-image interference.
+ *   4. Cursor updated imperatively (grabbing during drag) since refs don't
+ *      trigger re-renders.
  *
  * Props:
  *   children       — card content
@@ -74,6 +78,11 @@ export default function SwipeableRow({
     intentLocked.current  = null
     swipingRef.current    = false
     disableTransition()
+    // Prevent browser text-selection drag from stealing mouse events
+    if (cardRef.current) {
+      cardRef.current.style.userSelect = 'none'
+      cardRef.current.style.cursor     = 'grabbing'
+    }
   }
 
   function moveDrag(clientX, clientY, isTouch, nativeEvent) {
@@ -91,8 +100,8 @@ export default function SwipeableRow({
     if (intentLocked.current !== 'horizontal') return
     if (deltaX > 0 && !isOpen) return
 
-    // Prevent page scroll on touch only after horizontal intent confirmed
-    if (isTouch && nativeEvent) nativeEvent.preventDefault()
+    // Prevent scroll (touch) and browser drag-image (mouse) once horizontal intent confirmed
+    if (nativeEvent) nativeEvent.preventDefault()
     swipingRef.current    = true
     currentDeltaX.current = deltaX
 
@@ -102,6 +111,12 @@ export default function SwipeableRow({
   }
 
   function endDrag() {
+    // Restore text selection and cursor regardless of whether swipe happened
+    if (cardRef.current) {
+      cardRef.current.style.userSelect = ''
+      cardRef.current.style.cursor     = 'grab'
+    }
+
     if (intentLocked.current !== 'horizontal') return
 
     const base      = isOpen ? -PANEL_WIDTH : 0
@@ -130,7 +145,7 @@ export default function SwipeableRow({
 
   const handleMouseMove = (e) => {
     if (!isDragging.current) return
-    moveDrag(e.clientX, e.clientY, false, null)
+    moveDrag(e.clientX, e.clientY, false, e)
   }
 
   const handleMouseUp = () => {
@@ -181,7 +196,6 @@ export default function SwipeableRow({
             e.stopPropagation()
             snapBack()
             onClose()
-            // Delay state callback until snap animation finishes
             setTimeout(onHighlight, ANIM_DURATION)
           }}
           style={{
@@ -211,7 +225,6 @@ export default function SwipeableRow({
             e.stopPropagation()
             snapBack()
             onClose()
-            // Delay remove until snap animation finishes (prevents mid-animation unmount)
             setTimeout(onRemove, ANIM_DURATION)
           }}
           style={{
@@ -246,36 +259,31 @@ export default function SwipeableRow({
         onClick={handleCardClick}
         style={{
           position: 'relative', zIndex: 1, willChange: 'transform',
-          cursor: isDragging.current ? 'grabbing' : 'grab',
+          cursor: 'grab',
         }}
       >
-        {/* ── Swipe affordance indicator ── */}
+        {children}
+
+        {/* ── Swipe affordance: left-edge brass bar ── */}
+        {/* Positioned AFTER children so it always paints on top. Left edge has   */}
+        {/* zero conflict with the right-side icon column (bookmark/pencil/link). */}
         {!isOpen && (
           <div
             aria-hidden="true"
             style={{
               position: 'absolute',
-              right: 10,
-              top: 0,
-              bottom: 0,
-              display: 'flex',
-              alignItems: 'center',
+              left: 0,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 3,
+              height: '38%',
+              background: 'var(--teal)',
+              borderRadius: '0 2px 2px 0',
+              opacity: 0.35,
               pointerEvents: 'none',
-              zIndex: 2,
-              gap: 0,
-              opacity: 0.22,
             }}
-          >
-            {/* Two overlapping left-chevrons in brass */}
-            <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true">
-              <polyline points="8,1 2,7 8,13" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <svg width="10" height="14" viewBox="0 0 10 14" fill="none" aria-hidden="true" style={{ marginLeft: -3 }}>
-              <polyline points="8,1 2,7 8,13" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
+          />
         )}
-        {children}
       </div>
     </div>
   )
