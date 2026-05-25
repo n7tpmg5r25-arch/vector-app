@@ -29,6 +29,19 @@
 
 export const CHANGELOG = [
   {
+    version: '4.3',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Member detail page restructured: bio and legislative focus now appear first — the most decision-relevant context for a lobbyist — followed by committees, intelligence signals, and contact.',
+      'Contact card redesigned with full-width tap targets (44px minimum height) and each method on its own row — phone and email are now distinct, tappable rows instead of inline text fragments.',
+      'Bio summary text bumped from 11px to 13px and italic removed — profile text now reads at comfortable body scale, consistent with bill titles elsewhere in the app.',
+      '"Member Background" eyebrow renamed to "Profile" — shorter and more accurate.',
+      'Header chip row tightened: redundant "N bills sponsored" chip removed (visible in the Sponsored Bills tab), Print Card pushed to the trailing edge with auto margin.',
+      'Bio loading state added: a skeleton loader now fills the profile card slot while the async bio fetch is in flight, replacing an invisible empty gap.',
+    ],
+  },
+  {
     version: '4.2',
     date: '2026-05-24',
     phase: 'alpha',

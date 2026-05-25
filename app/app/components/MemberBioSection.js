@@ -101,7 +101,7 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
           </>
         )}
         {hasBio && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, fontStyle: 'italic', borderTop: hasPrio ? '1px solid var(--border)' : 'none', paddingTop: hasPrio ? 8 : 0 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65, borderTop: hasPrio ? '1px solid var(--border)' : 'none', paddingTop: hasPrio ? 8 : 0 }}>
             {bio_summary}
             <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
               <AiChip />
@@ -160,7 +160,7 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
       {/* Card header: eyebrow + AI chip + source */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)', flex: 1 }}>
-          Member Background
+          Profile
         </div>
         <AiChip />
         {sourceUrl && (
@@ -204,7 +204,7 @@ export default function MemberBioSection({ bio, caucusUrl, section = 'all' }) {
       {/* AI bio summary */}
       {hasBio && (
         <div style={{
-          fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, fontStyle: 'italic',
+          fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.65,
           borderTop: hasPrio ? '1px solid var(--border)' : 'none',
           paddingTop: hasPrio ? 10 : 0,
           marginBottom: hasBg ? 10 : 0,
