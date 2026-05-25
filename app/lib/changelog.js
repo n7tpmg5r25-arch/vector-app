@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '4.8',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist swipe rebuilt from scratch. Root cause of previous failures: React synthetic touch handlers are always passive, making preventDefault() silently ignored by the browser. Fix: CSS touch-action: pan-y tells the browser to own vertical scroll and route horizontal movement to JS — no conflict possible.',
+      'Swipe now uses the Pointer Events API with setPointerCapture, which works identically on mobile and desktop with a single code path.',
+      'Swiped card gets a brass selection ring so it\'s clear which bill is active.',
+    ],
+  },
+  {
     version: '4.7',
     date: '2026-05-24',
     phase: 'alpha',

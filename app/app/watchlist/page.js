@@ -11,7 +11,7 @@ import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
 import VectorLoader from '../components/VectorLoader'
-// SwipeableRow removed T139 — replaced with ⋮ action menu
+import SwipeableRow from '../components/SwipeableRow'
 import { Check, Bookmark, Clipboard } from 'lucide-react'
 
 import { STAGE_SHORT } from '../../lib/stages'
@@ -635,7 +635,15 @@ export default function WatchlistPage() {
           const delta = scoreDeltas[bill_id]
           const hasChange = changes[bill_id]
           return (
-          <div key={bill_id} style={{ position: 'relative' }}>
+          <SwipeableRow
+            key={bill_id}
+            isHighlighted={highlighted.has(bill_id)}
+            isOpen={openSwipeId === bill_id}
+            onOpen={() => setOpenSwipeId(bill_id)}
+            onClose={() => setOpenSwipeId(null)}
+            onHighlight={() => toggleHighlight(bill_id)}
+            onRemove={() => handleRemove(bill_id)}
+          >
           <Link
             href={`/bill/${bill.bill_id}`}
             prefetch={false}
@@ -771,7 +779,7 @@ export default function WatchlistPage() {
                 )}
               </div>
               {/* ── Right icon column ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, position: 'relative' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {/* Bookmark — visual highlight indicator only */}
                 <div style={{ display: 'inline-flex', color: 'var(--gold)', filter: 'drop-shadow(0 0 4px rgba(184,151,90,0.3))' }}>
                   <Bookmark size={14} aria-hidden="true" fill="currentColor" />
@@ -801,76 +809,6 @@ export default function WatchlistPage() {
                   }}>
                     {billNoteMeta[bill_id].count} note{billNoteMeta[bill_id].count !== 1 ? 's' : ''}
                   </span>
-                )}
-                {/* ⋮ action menu button — T139: replaces swipe */}
-                <button
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); setOpenSwipeId(openSwipeId === bill_id ? null : bill_id) }}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    padding: '8px 4px', margin: '-8px -4px',
-                    color: openSwipeId === bill_id ? 'var(--teal)' : 'var(--text-faint)',
-                    fontSize: 16, lineHeight: 1, letterSpacing: '0.05em',
-                    opacity: openSwipeId === bill_id ? 1 : 0.55,
-                    transition: 'color 0.15s, opacity 0.15s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--text-primary)' }}
-                  onMouseLeave={e => { if (openSwipeId !== bill_id) { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.color = 'var(--text-faint)' } }}
-                  aria-label="Bill actions"
-                  title="Actions"
-                >⋮</button>
-
-                {/* Action popover */}
-                {openSwipeId === bill_id && (
-                  <div
-                    onClick={e => e.stopPropagation()}
-                    style={{
-                      position: 'absolute', right: 0, top: '100%', marginTop: 4,
-                      zIndex: 200,
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      boxShadow: '0 6px 28px rgba(0,0,0,0.55)',
-                      overflow: 'hidden',
-                      minWidth: 168,
-                    }}
-                  >
-                    {/* Highlight / In Report */}
-                    <button
-                      onClick={e => { e.preventDefault(); e.stopPropagation(); toggleHighlight(bill_id); setOpenSwipeId(null) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 9,
-                        width: '100%', padding: '11px 14px', textAlign: 'left',
-                        background: 'none', border: 'none', borderBottom: '1px solid var(--border)',
-                        cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)',
-                        color: highlighted.has(bill_id) ? 'var(--teal)' : 'var(--text-primary)',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      <span style={{ fontSize: 13, width: 14, textAlign: 'center' }}>
-                        {highlighted.has(bill_id) ? '●' : '+'}
-                      </span>
-                      {highlighted.has(bill_id) ? 'In Report' : 'Add to Report'}
-                    </button>
-                    {/* Remove */}
-                    <button
-                      onClick={e => { e.preventDefault(); e.stopPropagation(); handleRemove(bill_id); setOpenSwipeId(null) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 9,
-                        width: '100%', padding: '11px 14px', textAlign: 'left',
-                        background: 'none', border: 'none',
-                        cursor: 'pointer', fontSize: 13, fontFamily: 'var(--font-body)',
-                        color: 'var(--danger)',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,71,48,0.08)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      <span style={{ fontSize: 13, width: 14, textAlign: 'center' }}>✕</span>
-                      Remove
-                    </button>
-                  </div>
                 )}
               </div>
             </div>
@@ -918,7 +856,7 @@ export default function WatchlistPage() {
               </div>
             )}
           </Link>
-          </div>
+          </SwipeableRow>
         )})}
 
       </div>
