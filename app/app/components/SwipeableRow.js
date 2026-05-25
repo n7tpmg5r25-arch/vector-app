@@ -128,7 +128,16 @@ export default function SwipeableRow({
       >
         {/* Highlight button — brass, left 72px */}
         <button
-          onClick={(e) => { e.stopPropagation(); onHighlight() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            // Snap card back immediately (imperative) before React re-render cycle
+            if (cardRef.current) {
+              cardRef.current.style.transition = 'transform 0.2s ease'
+              cardRef.current.style.transform  = 'translateX(0)'
+            }
+            onHighlight()
+            onClose()
+          }}
           style={{
             flex: 1,
             background: 'var(--brass, #b8975a)',
@@ -152,7 +161,16 @@ export default function SwipeableRow({
 
         {/* Remove button — danger, right 72px */}
         <button
-          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            // Snap card back immediately before React removes it from the list
+            if (cardRef.current) {
+              cardRef.current.style.transition = 'transform 0.2s ease'
+              cardRef.current.style.transform  = 'translateX(0)'
+            }
+            onClose()
+            onRemove()
+          }}
           style={{
             flex: 1,
             background: 'var(--danger, #c44730)',

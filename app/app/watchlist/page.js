@@ -362,10 +362,9 @@ export default function WatchlistPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Subscribe to Calendar — direct webcal:// link */}
             {filtered.length > 0 && (
-              <a
-                href="#"
-                onClick={async (e) => {
-                  e.preventDefault()
+              <button
+                type="button"
+                onClick={async () => {
                   const { data: { session: sess } } = await supabase.auth.getSession()
                   if (!sess?.access_token) { alert('Please log in to subscribe.'); return }
                   const base = window.location.origin
@@ -377,14 +376,14 @@ export default function WatchlistPage() {
                   border: '1px solid rgba(184,151,90,0.35)',
                   cursor: 'pointer', transition: 'all 0.15s',
                   display: 'flex', alignItems: 'center', gap: 4,
-                  fontFamily: 'var(--font-mono)', textDecoration: 'none',
+                  fontFamily: 'var(--font-mono)',
                 }}
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
                 Cal Feed
-              </a>
+              </button>
             )}
             {/* Export Report button */}
             {filtered.length > 0 && (
@@ -443,10 +442,10 @@ export default function WatchlistPage() {
         )}
 
         {tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
             {['All', ...tags].map(c => (
               <button key={c} onClick={() => setActiveTag(c)} style={{
-                padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500, flexShrink: 0,
+                padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 500,
                 background: activeTag === c ? 'var(--teal)' : 'transparent',
                 color: activeTag === c ? 'var(--bg)' : 'var(--text-muted)',
                 border: `1px solid ${activeTag === c ? 'var(--teal)' : 'var(--border)'}`,
@@ -458,10 +457,10 @@ export default function WatchlistPage() {
         )}
 
         {watched.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A\u2013Z']].map(([val, label]) => (
               <button key={val} onClick={() => setSortBy(val)} style={{
-                padding: '3px 10px', borderRadius: 12, fontSize: 10, flexShrink: 0,
+                padding: '3px 10px', borderRadius: 12, fontSize: 10,
                 background: sortBy === val ? 'var(--bg-surface)' : 'transparent',
                 color: sortBy === val ? 'var(--text-primary)' : 'var(--text-faint)',
                 border: `1px solid ${sortBy === val ? 'var(--border)' : 'transparent'}`,
@@ -483,7 +482,8 @@ export default function WatchlistPage() {
         {/* Thread 102: selected-for-report counter strip */}
         {highlighted.size > 0 && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginTop: 6,
+            display: 'flex', alignItems: 'center', gap: 8, marginTop: 8,
+            paddingTop: 8, borderTop: '1px solid var(--border)',
             fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--brass)',
           }}>
             <span>\u25CF {highlighted.size} selected for report</span>
@@ -529,7 +529,8 @@ export default function WatchlistPage() {
                 onClick={() => setChangesDismissed(true)}
                 style={{
                   background: 'none', border: 'none', color: 'var(--text-faint)',
-                  cursor: 'pointer', fontSize: 16, padding: '0 4px', lineHeight: 1,
+                  cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                  padding: 14, margin: -14,
                 }}
                 aria-label="Dismiss changes"
               >{'×'}</button>
