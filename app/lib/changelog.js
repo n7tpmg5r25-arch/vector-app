@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '4.5',
+    date: '2026-05-24',
+    phase: 'alpha',
+    highlights: [
+      'Republican Senate member bios fixed: all 19 senators now have accurate bio profiles. The previous scraper pointed to a React-only site (src.wa.gov) that returned no readable content; updated to use the correct WA Senate Republican Caucus subdomain pages (src.wastateleg.org).',
+      'Bio enrichment re-run for all members without summaries, covering the 19 affected Republican senators and any other members with stale or missing bio data.',
+      'Monthly bio sync workflow now uses the corrected URL pattern, so future enrichment runs will stay current.',
+    ],
+  },
+  {
     version: '4.4',
     date: '2026-05-24',
     phase: 'alpha',
