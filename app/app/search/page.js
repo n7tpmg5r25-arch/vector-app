@@ -92,6 +92,9 @@ function SearchContent() {
   const [bulkAdding, setBulkAdding] = useState(false)
   const [bulkResult, setBulkResult] = useState(null)
 
+  // T143 UI audit: respect prefers-reduced-motion (UI UX Pro Max A6)
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
   // Load watched bill IDs when the viewer is authed
   useEffect(() => {
     if (viewerLoading) return
@@ -224,7 +227,7 @@ function SearchContent() {
             <button
               onClick={() => setShowWatchAll(!showWatchAll)}
               style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                padding: '10px 14px', borderRadius: 8, fontSize: 11, fontWeight: 600,
                 background: showWatchAll ? 'var(--teal)' : 'transparent',
                 color: showWatchAll ? 'var(--bg)' : 'var(--teal)',
                 border: '1px solid var(--teal)',
@@ -255,12 +258,15 @@ function SearchContent() {
                 value={bulkTag}
                 onChange={e => setBulkTag(e.target.value)}
                 placeholder="Tag (optional, e.g. Housing, Transit)"
+                aria-label="Tag for bulk-watched bills (optional)"
                 style={{
                   flex: 1, padding: '8px 12px',
                   background: 'var(--bg-surface)', border: '1px solid var(--border)',
                   borderRadius: 8, fontSize: 12,
                   color: 'var(--text-primary)', outline: 'none',
                 }}
+                onFocus={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.5)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
               />
               <button
                 onClick={bulkWatchAll}
@@ -299,7 +305,7 @@ function SearchContent() {
 
         {/* Search */}
         <div style={{ position: 'relative', marginBottom: 10 }}>
-          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input
@@ -307,12 +313,15 @@ function SearchContent() {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search by title, bill number, or keyword..."
+            aria-label="Search bills by title, number, or keyword"
             style={{
               width: '100%', padding: '10px 14px 10px 36px',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', fontSize: 14,
+              borderRadius: 'var(--radius)', fontSize: 16,
               color: 'var(--text-primary)', outline: 'none',
             }}
+            onFocus={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.5)'}
+            onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
           />
           <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 4, paddingLeft: 2 }}>
             Searches title, bill number, and AI summary
@@ -359,8 +368,8 @@ function SearchContent() {
               { label: 'Passed Chamber', value: 'PASSED_CHAMBER', color: 'var(--gold)', bg: 'var(--gold-pale)' },
               { label: 'Dead', value: 'DEAD', color: 'var(--text-faint)', bg: 'rgba(255,255,255,0.04)' },
             ].map(o => (
-              <button key={o.value} onClick={() => setOutcome(o.value)} style={{
-                padding: '4px 12px', borderRadius: 16, fontSize: 11,
+              <button key={o.value} onClick={() => setOutcome(o.value)} aria-pressed={outcome === o.value} style={{
+                padding: '7px 12px', borderRadius: 16, fontSize: 11,
                 background: outcome === o.value ? (o.bg || 'var(--teal)') : 'transparent',
                 color: outcome === o.value ? (o.color || 'var(--bg)') : 'var(--text-muted)',
                 border: `1px solid ${outcome === o.value ? (o.color || 'var(--teal)') : 'var(--border)'}`,
@@ -373,8 +382,8 @@ function SearchContent() {
         {/* Category chips */}
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
           {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} style={{
-              padding: '4px 12px', borderRadius: 16, fontSize: 11,
+            <button key={c} onClick={() => setCategory(c)} aria-pressed={category === c} style={{
+              padding: '7px 12px', borderRadius: 16, fontSize: 11,
               background: category === c ? 'var(--teal)' : 'transparent',
               color: category === c ? 'var(--bg)' : 'var(--text-muted)',
               border: `1px solid ${category === c ? 'var(--teal)' : 'var(--border)'}`,
@@ -386,7 +395,7 @@ function SearchContent() {
       </div>
 
       {/* Results */}
-      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, opacity: loading ? 0.5 : 1, transition: 'opacity 0.15s ease' }}>
         {/* Thread 25 — results summary line + frozen cohort cite.
             "Showing N bills" gives the journalist a quotable filter context;
             the cite anchors any quoted statistic in the calibrated cohort. */}
@@ -449,7 +458,7 @@ function SearchContent() {
                 borderRadius: 'var(--radius)', padding: '12px 14px',
                 display: 'flex', alignItems: 'center', gap: 12,
                 cursor: 'pointer', transition: 'border-color 0.2s',
-                animation: `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
+                animation: reducedMotion ? 'none' : `fadeUp 0.25s ease ${Math.min(idx * 0.02, 0.5)}s both`,
                 textDecoration: 'none', color: 'inherit',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
@@ -508,7 +517,7 @@ function SearchContent() {
               <button
                 type="button"
                 onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}
-                style={{ flexShrink: 0, padding: 4, color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
+                style={{ flexShrink: 0, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
                 onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                 onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
                 title="View on leg.wa.gov"
@@ -533,7 +542,7 @@ function SearchContent() {
               padding: '12px', background: 'var(--bg-card)',
               border: '1px solid var(--border)', borderRadius: 'var(--radius)',
               fontSize: 13, color: 'var(--teal)', fontWeight: 500,
-              cursor: 'pointer', marginTop: 4,
+              cursor: 'pointer', marginTop: 8,
               transition: 'border-color 0.2s',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
@@ -542,7 +551,7 @@ function SearchContent() {
         )}
 
         {!loading && bills.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-faint)', fontSize: 13, lineHeight: 1.55 }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-mid)', fontSize: 13, lineHeight: 1.55 }}>
             {query.trim().length > 0
               ? 'No bills match — try a shorter keyword, different chamber, or remove a category filter.'
               : 'Start typing to search ~3,400 Washington State bills by title, sponsor, or keyword.'}
