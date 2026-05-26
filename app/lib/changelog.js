@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.2',
+    date: '2026-05-26',
+    phase: 'alpha',
+    highlights: [
+      'Member brief PDF precision pass: bill title column width increased to guarantee a clean gap before the score circle — no more titles running into score numbers.',
+      'Priority chips redrawn with top-anchored positioning; they now sit cleanly below the section rule line instead of overlapping it.',
+      'Page-break safety net tightened (threshold lowered by 10mm) so the footer separator no longer cuts into the last stats footnote on busy member profiles.',
+      'All committee abbreviations removed: "Cmte" → "Committee Passes", "V.CHAIR" → "VICE CHAIR", funnel labels written out in full.',
+    ],
+  },
+  {
     version: '5.5.1',
     date: '2026-05-25',
     phase: 'alpha',

@@ -55,7 +55,7 @@ const TIER_TEXT = {
 }
 
 // Stage index → display label (WA actual stage values: 1 / 3 / 4 / 6)
-const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Comm.', 'Passed Floor', 'Conference', 'Signed']
+const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Committee', 'Passed Floor', 'Conference', 'Signed']
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -374,6 +374,10 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     const chipPadX = 4
     const chipGap  = 3
     let cx = m
+    // T147c: use chipRowY as chip TOP (not text baseline) so chip rects render
+    // entirely below the section rule line. Previous baseline approach caused
+    // chip tops to sit 0.5mm above the rule, visually cutting through it.
+    let chipRowY = y
 
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
@@ -383,19 +387,19 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
       const chipW = doc.getTextWidth(label) + chipPadX * 2
 
       if (cx + chipW > m + contentW) {
-        cx  = m
-        y  += chipH + 2
+        cx       = m
+        chipRowY += chipH + 2
       }
 
       doc.setFillColor(...P.surface)      // off-white fill — reads on paper
       doc.setDrawColor(...P.accent)       // brass border
       doc.setLineWidth(0.5)
-      doc.roundedRect(cx, y - chipH + 1, chipW, chipH, 1.2, 1.2, 'FD')
+      doc.roundedRect(cx, chipRowY, chipW, chipH, 1.2, 1.2, 'FD')
       doc.setTextColor(...P.primary)      // dark text
-      doc.text(label, cx + chipPadX, y - 0.5)
+      doc.text(label, cx + chipPadX, chipRowY + chipH - 1.5)
       cx += chipW + chipGap
     }
-    y += chipH + 2
+    y = chipRowY + chipH + 2
   }
 
   // HIGH-tier category summary — surfaces what they're actually pushing
@@ -457,7 +461,10 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
 
   const circleR = 3.5
   const numColW = 16
-  const titleW  = contentW - numColW - (circleR * 2 + 4)
+  // T147c: padding increased from +4 → +10 to guarantee a clean gap between
+  // the title text right edge and the score circle left edge. Previous 3mm gap
+  // was too tight — jsPDF font metrics occasionally over-ran it.
+  const titleW  = contentW - numColW - (circleR * 2 + 10)
 
   for (const bill of bills) {
     const score      = bill.final_score || 0
@@ -580,7 +587,7 @@ function drawCommittees(doc, y, m, contentW, committeeSeats, member) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(6)
       doc.setTextColor(...P.muted)
-      doc.text('V.CHAIR', m + contentW, y, { align: 'right' })
+      doc.text('VICE CHAIR', m + contentW, y, { align: 'right' })
     }
 
     y += lines.slice(0, 2).length * 4.5 + 0.5
@@ -646,10 +653,10 @@ function drawStageFunnel(doc, y, m, contentW, memberBills) {
   if (!bills.length) return y
 
   const stages = [
-    { label: 'Introduced',  min: 1, color: [...P.neutralLt] },
-    { label: 'Comm. Pass',  min: 3, color: [58, 122, 138]   },
-    { label: 'Floor Pass',  min: 4, color: [...P.tierMod]   },
-    { label: 'Signed',      min: 6, color: [...P.accent]    },
+    { label: 'Introduced',       min: 1, color: [...P.neutralLt] },
+    { label: 'Passed Committee', min: 3, color: [58, 122, 138]   },
+    { label: 'Passed Floor',     min: 4, color: [...P.tierMod]   },
+    { label: 'Signed',           min: 6, color: [...P.accent]    },
   ].map(s => ({
     ...s,
     count: bills.filter(b => (b.stage || 0) >= s.min).length,
@@ -732,7 +739,7 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
     [
       { label: 'Party Cohesion', value: votingStats?.cohesionPct != null ? votingStats.cohesionPct + '%' : '—' },
       { label: 'Attendance',     value: votingStats?.attendancePct != null ? votingStats.attendancePct + '%' : '—' },
-      { label: 'Cmte Passes',    value: String(member.committee_passes || 0) },
+      { label: 'Committee Passes', value: String(member.committee_passes || 0) },
       { label: 'Best Trajectory', value: String(member.top_score      || 0) },
     ],
   ]
@@ -851,9 +858,13 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
 
   y = Math.max(yLeft, yRight) + 5
 
-  // T147b: page-break safety net — funnel (~22mm) + stats (~40mm) + footer buffer (18mm) = 80mm.
-  // If we can't fit them, start a fresh page rather than clipping silently.
-  if (y > ph - 80) {
+  // T147c: lowered threshold from ph-80 to ph-90. Actual measured heights:
+  // stage funnel ~23.5mm + legislative record ~48.5mm = 72mm content.
+  // Footer rule sits at ph-14 (265.4mm on letter). Max safe y before sections
+  // = ph-14-72 = ph-86. Use ph-90 for a 4mm safety buffer above the footer rule.
+  // Previous ph-80 allowed y up to 199.4mm → content ending at 271.4mm which
+  // overran the footer rule by ~6mm on busy member profiles.
+  if (y > ph - 90) {
     doc.addPage()
     y = 16
   }
