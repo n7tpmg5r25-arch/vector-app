@@ -663,7 +663,18 @@ function MembersContent() {
                       setPdfLoading(true)
                       try {
                         const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
-                        await generateMemberPdf(selectedMember, memberBills, selectedSession, memberBio)
+                        await generateMemberPdf(
+                          selectedMember,
+                          memberBills,
+                          selectedSession,
+                          memberBio,
+                          {
+                            committeeSeats:     memberCommittees  || [],
+                            elections:          memberElections   || [],
+                            memberVotes:        memberVotes       || [],
+                            partyBucketsByRcId: partyBucketsByRcId || {},
+                          }
+                        )
                       } catch (err) {
                         console.error('[Print Card] PDF generation failed:', err)
                       } finally {

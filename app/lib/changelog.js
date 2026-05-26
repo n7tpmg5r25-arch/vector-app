@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Member brief PDF fully rebuilt for C-suite and lobbyist sharing: logo smaller, "CONFIDENTIAL BRIEFING" removed, Vector branding reduced to header-only.',
+      'Priority chips corrected for print — previous dark fill was designed for the dark UI and printed as blobs; now uses light surface fill with brass border.',
+      'Bill rows now show stage, outcome (SIGNED / DEAD), and upcoming hearing dates within 60 days — the single most time-sensitive fact before a meeting.',
+      'Electoral margin, party cohesion %, and attendance rate added — all computed from data already loaded, no new queries.',
+      'Committee roles (CHAIR / V.CHAIR) now shown from real seat data; stage funnel and AI attribution tag added; "Session" stat replaced with Years Served.',
+    ],
+  },
+  {
     version: '5.4',
     date: '2026-05-25',
     phase: 'alpha',

@@ -1,9 +1,38 @@
 /**
- * Vector | WA — Member Baseball Card PDF Generator
- * Thread 113: Added drawBackground() and drawLegislativeFocus() sections
+ * Vector | WA — Member Brief PDF Generator
  *
- * Call generateMemberPdf(member, memberBills, session, bio) where bio
- * is a row from the legislator_bios table (may be null — sections degrade gracefully).
+ * T147 (2026-05-25): Full C-suite quality rewrite.
+ *
+ * What changed vs. Thread 112/113/115:
+ *  - Logo reduced (logoH 22 → 14) — was dominating the header
+ *  - "CONFIDENTIAL BRIEFING" removed — wrong framing for a shareable brief
+ *  - "VECTOR | WA INTELLIGENCE" section label removed — brand already in header
+ *  - Vector mention in footer removed — logo + domain in header is sufficient
+ *  - Priority chip styling flipped to light (surface bg, brass border) — the
+ *    previous dark panels were designed for the UI dark theme; on white paper
+ *    they printed as blobs
+ *  - AI attribution tag added under bio summary
+ *  - leadership_role from bio surfaced in identity block
+ *  - Electoral margin (from legislator_elections) added as one-liner in identity
+ *  - Official leg.wa.gov profile URL added (constructable from chamber + name)
+ *  - "Legislative Building · Olympia, WA 98504" removed — filler everyone knows
+ *  - TIER double-dash (--) → middle dot (·) — professional punctuation
+ *  - Bill stage + outcome tag + upcoming hearing date added to each top-bill row
+ *  - Prime-sponsored-only disclosure footnote added to top bills section
+ *  - Committee roles (CHAIR / V.CHAIR) from legislator_committee_seats shown
+ *  - Stage funnel (full-width compact bars) added as new section
+ *  - "Session" stat replaced with "Yrs Served" (from bio.first_elected_year)
+ *  - "Hearings" stat replaced with "Attendance" (from roll-call sample)
+ *  - Party cohesion % added to stats grid
+ *  - Score context footnote added under stats
+ *  - HIGH-tier category grouping added in Legislative Focus
+ *  - Photo height 60 → 50mm (header space reclaimed)
+ *
+ * Extended signature:
+ *   generateMemberPdf(member, memberBills, session, bio, extras)
+ *   extras: { committeeSeats, elections, memberVotes, partyBucketsByRcId }
+ *
+ * All extras are optional — sections degrade gracefully when absent.
  */
 
 import jsPDF from 'jspdf'
@@ -15,14 +44,20 @@ import {
 } from './pdf-shared'
 
 const P = VECTOR_PALETTE
-const VECTOR_DOMAIN = 'vectorwa' + '.' + 'com'
+const VECTOR_DOMAIN = 'vectorwa.com'
 
+// T147: middle dot replaces double-dash (professional punctuation on print)
 const TIER_TEXT = {
-  1: 'TIER 1 -- MAJORITY LEADERSHIP',
-  2: 'TIER 2 -- SENIOR MEMBER',
-  3: 'TIER 3 -- MEMBER',
-  4: 'TIER 4 -- MINORITY',
+  1: 'TIER 1 · MAJORITY LEADERSHIP',
+  2: 'TIER 2 · SENIOR MEMBER',
+  3: 'TIER 3 · MEMBER',
+  4: 'TIER 4 · MINORITY',
 }
+
+// Stage index → display label (WA actual stage values: 1 / 3 / 4 / 6)
+const STAGE_LABELS = ['', 'Introduced', 'Committee', 'Passed Comm.', 'Passed Floor', 'Conference', 'Signed']
+
+// ── Pure helpers ─────────────────────────────────────────────────────────────
 
 function chamberPrefix(chamber) {
   return chamber === 'Senate' ? 'SEN.' : 'REP.'
@@ -45,153 +80,95 @@ function wrapText(doc, text, maxW) {
 }
 
 function billLabel(bill) {
-  const prefix = (bill.chamber || bill.prime_sponsor_chamber || 'House') === 'Senate' ? 'SB' : 'HB'
+  const prefix = (bill.chamber || 'House') === 'Senate' ? 'SB' : 'HB'
   return prefix + ' ' + (bill.bill_number || '')
 }
 
-// ── Section 1 — Header band ──────────────────────────────────────────────────
-
-async function drawHeader(doc, y, m, pw, generatedAt) {
-  const logoH = 22
-  const logoW = logoH * (895 / 500)
-
-  let logoDrawn = false
-  try {
-    const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
-      '#ebeae4': '#0e1014',
-    })
-    if (dataUrl) {
-      doc.addImage(dataUrl, 'PNG', m, y - 1, logoW, logoH)
-      logoDrawn = true
-    }
-  } catch (_) {}
-
-  if (!logoDrawn) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(18)
-    doc.setTextColor(...P.primary)
-    doc.text('VECTOR | WA', m, y + 12)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(...P.muted)
-    doc.text('WASHINGTON STATE LEGISLATIVE INTELLIGENCE', m, y + 18)
-  }
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(...P.accent)
-  doc.text(VECTOR_DOMAIN, pw - m, y + 6, { align: 'right' })
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(...P.muted)
-  const stamp = generatedAt.toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-  doc.text('Generated ' + stamp, pw - m, y + 12, { align: 'right' })
-
-  doc.setDrawColor(...P.neutralLt)
-  doc.setLineWidth(0.3)
-  doc.line(m, y + logoH + 1, pw - m, y + logoH + 1)
-
-  return y + logoH + 5
+/** Constructable from member fields — no new DB fetch needed. */
+function memberProfileUrl(member) {
+  const lastName = (member.name || '').trim().split(/\s+/).pop()
+  if (member.chamber === 'Senate') return `leg.wa.gov/Senate/Senators/Pages/${lastName}.aspx`
+  return `leg.wa.gov/House/Representatives/Pages/${lastName}.aspx`
 }
 
-// ── Section 2 — Identity block ───────────────────────────────────────────────
+/** One-line electoral summary for the identity block. */
+function electionLine(elections) {
+  if (!elections || elections.length === 0) return null
+  const r = elections[0]
+  if (r.unopposed) return `${r.election_year} general · Unopposed`
+  if (r.vote_pct != null) {
+    return `${r.election_year} general · ${r.vote_pct}%` +
+      (r.margin_pct != null ? ` (+${r.margin_pct}pt margin)` : '') +
+      (r.opponent_name ? ` vs. ${r.opponent_name}` : '')
+  }
+  return null
+}
 
-async function drawIdentity(doc, y, m, pw, contentW, member) {
-  const photoW = 45
-  const photoH = 60
-  const photoX = m
-  const textX  = m + photoW + 6
-  const textW  = contentW - photoW - 6
+/**
+ * Return an upcoming hearing date string if the bill's hearing_date is in
+ * the future and within 60 days. Returns null otherwise.
+ */
+function getUpcomingHearing(bill) {
+  if (!bill.hearing_date) return null
+  const hd  = new Date(bill.hearing_date)
+  const now = new Date()
+  const in60 = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000)
+  if (hd <= now || hd > in60) return null
+  return hd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
-  let photoDrawn = false
-  if (member.member_id) {
-    try {
-      const photoData = await loadImageAsBase64('/api/member-photo/' + member.member_id)
-      if (photoData) {
-        doc.addImage(photoData, 'JPEG', photoX, y, photoW, photoH)
-        photoDrawn = true
-      }
-    } catch (_) {}
+/** Returns 'SIGNED', 'DEAD', or null based on bill confidence_label / outcome. */
+function outcomeTag(bill) {
+  const cl = (bill.confidence_label || '').toUpperCase()
+  if (cl === 'LAW' || bill.outcome_passed_law) return 'SIGNED'
+  if (cl === 'DEAD') return 'DEAD'
+  return null
+}
+
+/** Group HIGH-tier bills (score ≥ 75) by category, sorted by count. */
+function highTierCats(memberBills) {
+  const high = (memberBills || []).filter(b => (b.final_score || 0) >= 75)
+  if (!high.length) return []
+  const cats = {}
+  for (const b of high) {
+    const c = (b.category && b.category.trim()) || 'Other'
+    cats[c] = (cats[c] || 0) + 1
+  }
+  return Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 4)
+}
+
+/**
+ * Compute attendance rate and party cohesion from the memberVotes sample.
+ * Uses the same algorithm as the Overview tab in members/page.js.
+ * All values are null when the sample is too small or data is absent.
+ */
+function computeVotingStats(memberVotes, partyBucketsByRcId, memberParty) {
+  const oppParty = memberParty === 'D' ? 'R' : memberParty === 'R' ? 'D' : null
+  let participated = 0, missed = 0, contested = 0, crossed = 0
+
+  for (const v of (memberVotes || [])) {
+    const vote = (v.member_vote || '').toUpperCase()
+    if (vote === 'YEA' || vote === 'NAY') participated++
+    else if (vote === 'EXCUSED' || vote === 'ABSENT') missed++
+
+    if (oppParty && (vote === 'YEA' || vote === 'NAY') && partyBucketsByRcId) {
+      const b = partyBucketsByRcId[v.roll_call_id]
+      if (!b) continue
+      const dMaj = b.yesD > b.noD ? 'YEA' : 'NAY'
+      const rMaj = b.yesR > b.noR ? 'YEA' : 'NAY'
+      if (dMaj === rMaj) continue   // unanimous — not contested
+      contested++
+      const oppMaj = oppParty === 'D' ? dMaj : rMaj
+      if (vote === oppMaj) crossed++
+    }
   }
 
-  if (!photoDrawn) {
-    doc.setFillColor(...P.surface)
-    doc.setDrawColor(...P.neutralLt)
-    doc.setLineWidth(0.3)
-    doc.rect(photoX, y, photoW, photoH, 'FD')
-    const initials = (member.name || '').split(' ').map(n => n[0]).slice(-2).join('')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(20)
-    doc.setTextColor(...P.muted)
-    doc.text(initials, photoX + photoW / 2, y + photoH / 2 + 4, { align: 'center' })
-  }
+  const sampleN       = participated + missed
+  const attendancePct = sampleN > 0 ? Math.round((participated / sampleN) * 100) : null
+  const crossPct      = contested >= 5 ? Math.round((crossed / contested) * 100) : null
+  const cohesionPct   = crossPct !== null ? 100 - crossPct : null
 
-  const partyRgb = member.party === 'D' ? [77, 154, 255]
-    : member.party === 'R' ? [239, 68, 68]
-    : [...P.neutralLt]
-  doc.setFillColor(...partyRgb)
-  doc.rect(photoX, y, 1.5, photoH, 'F')
-
-  let ty = y + 5
-
-  const fullName = chamberPrefix(member.chamber) + ' ' + (member.name || '').toUpperCase()
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(...P.primary)
-  const nameLines = wrapText(doc, fullName, textW)
-  doc.text(nameLines, textX, ty)
-  ty += nameLines.length * 7 + 1
-
-  const districtLine = [
-    member.district ? 'District ' + member.district : null,
-    member.chamber || null,
-    partyName(member.party),
-  ].filter(Boolean).join(' · ')
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...P.muted)
-  doc.text(districtLine, textX, ty)
-  ty += 5
-
-  if (member.is_chair || member.tier <= 2) {
-    const roleLabel = member.is_chair ? 'Committee Chair'
-      : member.tier === 1 ? 'Majority Leadership'
-      : 'Senior Member'
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.accent)
-    doc.text(roleLabel, textX, ty)
-    ty += 5
-  }
-
-  ty += 3
-
-  if (member.phone) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9.5)
-    doc.setTextColor(...P.primary)
-    doc.text(member.phone, textX, ty)
-    ty += 5
-  }
-
-  if (member.email) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.muted)
-    doc.text(trunc(member.email, 45), textX, ty)
-    ty += 5
-  }
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(...P.muted)
-  doc.text('Legislative Building  ·  Olympia, WA 98504', textX, ty)
-
-  return Math.max(y + photoH, ty) + 6
+  return { attendancePct, cohesionPct, sampleN, contested }
 }
 
 // ── Section label helper ─────────────────────────────────────────────────────
@@ -208,145 +185,253 @@ function drawSectionLabel(doc, y, m, contentW, label) {
   return y + 4
 }
 
-// ── Section 2.5 — Background (Thread 113) ────────────────────────────────────
+// ── Section 1 — Header ───────────────────────────────────────────────────────
 
-function drawBackground(doc, y, m, contentW, bio) {
-  if (!bio) return y
+async function drawHeader(doc, y, m, pw, generatedAt) {
+  // T147: reduced from 22 → 14mm — previous size dominated the header
+  const logoH = 14
+  const logoW = logoH * (895 / 500)
 
-  const { education, occupation, family, first_elected_year } = bio
-
-  // Build the three display lines — skip any that have no data
-  const lines = []
-
-  // Education line: "Georgetown University — B.S.F.S.  |  UW — M.P.A."
-  if (education && education.length > 0) {
-    const edLine = education.slice(0, 2).map(e => {
-      const parts = [e.school, e.degree && e.field ? `${e.degree} ${e.field}` : (e.degree || e.field)]
-      return parts.filter(Boolean).join(' — ')
-    }).join('  |  ')
-    if (edLine.trim()) lines.push({ text: edLine, icon: null })
-  }
-
-  // Career line: "Planner  ·  City Council  ·  State Senator since 2014"
-  if (occupation && occupation.length > 0) {
-    let careerLine = occupation.slice(0, 4).join('  ·  ')
-    if (first_elected_year) careerLine += `  ·  Legislature since ${first_elected_year}`
-    lines.push({ text: careerLine, icon: null })
-  } else if (first_elected_year) {
-    lines.push({ text: `Legislature since ${first_elected_year}`, icon: null })
-  }
-
-  // Family line
-  if (family) {
-    lines.push({ text: family, icon: null })
-  }
-
-  if (!lines.length) return y
-
-  y = drawSectionLabel(doc, y, m, contentW, 'Background')
-
-  for (const { text } of lines) {
-    const wrapped = wrapText(doc, trunc(text, 140), contentW)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.primary)
-    doc.text(wrapped.slice(0, 2), m, y)
-    y += wrapped.slice(0, 2).length * 4.5
-  }
-
-  return y + 4
-}
-
-// ── Section 3 — Committee assignments ───────────────────────────────────────
-
-function drawCommittees(doc, y, m, contentW, pw, member) {
-  y = drawSectionLabel(doc, y, m, contentW, 'Committee Assignments')
-
-  const committees = member.committees || []
-
-  if (!committees.length) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(...P.muted)
-    doc.text('No committee assignments on record', m, y)
-    return y + 8
-  }
-
-  committees.forEach((cmte, idx) => {
-    if (!cmte || !cmte.trim()) return
-
-    const isChairRow = idx === 0 && !!member.is_chair
-
-    if (isChairRow) {
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...P.accent)
-    } else {
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(...P.primary)
+  let logoDrawn = false
+  try {
+    const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
+      '#ebeae4': '#0e1014',
+    })
+    if (dataUrl) {
+      doc.addImage(dataUrl, 'PNG', m, y, logoW, logoH)
+      logoDrawn = true
     }
-    doc.setFontSize(9)
+  } catch (_) {}
 
-    const prefix = isChairRow ? '* ' : '  '
-    const lines = wrapText(doc, prefix + cmte, contentW - 2)
-    doc.text(lines, m, y)
-    y += lines.length * 4.5
-  })
+  if (!logoDrawn) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...P.primary)
+    doc.text('VECTOR | WA', m, y + 9)
+  }
 
-  return y + 4
-}
-
-// ── Section 4 — Vector | WA Intelligence ────────────────────────────────────
-
-function drawIntelligence(doc, y, m, contentW, pw, member, session) {
-  const sessionLabel = session
-    ? 'VECTOR | WA INTELLIGENCE  --  ' + session
-    : 'VECTOR | WA INTELLIGENCE'
-
-  y = drawSectionLabel(doc, y, m, contentW, sessionLabel)
-
-  doc.setFillColor(...P.surface)
-  doc.rect(m, y - 2, contentW, 9, 'F')
+  // Domain — one reference to the brand, top-right
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   doc.setTextColor(...P.accent)
-  doc.text(TIER_TEXT[member.tier] || TIER_TEXT[3], m + 2, y + 4)
-  y += 11
+  doc.text(VECTOR_DOMAIN, pw - m, y + 5, { align: 'right' })
 
-  const statW = contentW / 4
-  const rows = [
-    [
-      { label: 'Bills Sponsored', value: String(member.bill_count || 0) },
-      { label: 'Laws Passed',     value: String(member.laws_passed || 0) },
-      { label: 'Pass Rate',       value: (member.pass_rate || 0) + '%' },
-      { label: 'Hearings',        value: String(member.hearing_count || 0) },
-    ],
-    [
-      { label: 'Avg Score',    value: String(member.avg_score || 0) },
-      { label: 'Top Score',    value: String(member.top_score || 0) },
-      { label: 'Cmte Passes', value: String(member.committee_passes || 0) },
-      { label: 'Session',     value: (session || '').replace('-', '/') },
-    ],
-  ]
-
-  rows.forEach(row => {
-    row.forEach(({ label, value }, i) => {
-      const sx = m + i * statW
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(6.5)
-      doc.setTextColor(...P.muted)
-      doc.text(label.toUpperCase(), sx + 1, y)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(11)
-      doc.setTextColor(...P.primary)
-      doc.text(value, sx + 1, y + 5)
-    })
-    y += 11
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.muted)
+  const stamp = generatedAt.toLocaleDateString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
   })
+  doc.text('Generated ' + stamp, pw - m, y + 10, { align: 'right' })
 
-  return y + 3
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.3)
+  doc.line(m, y + logoH + 2, pw - m, y + logoH + 2)
+
+  return y + logoH + 6
 }
 
-// ── Section 5 — Top bills ────────────────────────────────────────────────────
+// ── Section 2 — Identity ─────────────────────────────────────────────────────
+
+async function drawIdentity(doc, y, m, pw, contentW, member, bio, elections) {
+  const photoW = 38
+  const photoH = 50   // T147: reduced from 60 to reclaim vertical space
+  const photoX = m
+  const textX  = m + photoW + 7
+  const textW  = contentW - photoW - 7
+
+  // Photo
+  let photoDrawn = false
+  if (member.member_id) {
+    try {
+      const photoData = await loadImageAsBase64('/api/member-photo/' + member.member_id)
+      if (photoData) {
+        doc.addImage(photoData, 'JPEG', photoX, y, photoW, photoH)
+        photoDrawn = true
+      }
+    } catch (_) {}
+  }
+  if (!photoDrawn) {
+    doc.setFillColor(...P.surface)
+    doc.setDrawColor(...P.neutralLt)
+    doc.setLineWidth(0.3)
+    doc.rect(photoX, y, photoW, photoH, 'FD')
+    const initials = (member.name || '').split(' ').map(n => n[0]).slice(-2).join('')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.setTextColor(...P.muted)
+    doc.text(initials, photoX + photoW / 2, y + photoH / 2 + 4, { align: 'center' })
+  }
+
+  // Party color bar on left edge of photo
+  const partyRgb = member.party === 'D' ? [77, 154, 255]
+    : member.party === 'R' ? [239, 68, 68]
+    : [...P.neutralLt]
+  doc.setFillColor(...partyRgb)
+  doc.rect(photoX, y, 1.5, photoH, 'F')
+
+  let ty = y + 4
+
+  // Name
+  const fullName = chamberPrefix(member.chamber) + ' ' + (member.name || '').toUpperCase()
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  doc.setTextColor(...P.primary)
+  const nameLines = wrapText(doc, fullName, textW)
+  doc.text(nameLines, textX, ty)
+  ty += nameLines.length * 6.5 + 1
+
+  // District · Chamber · Party
+  const districtLine = [
+    member.district ? 'District ' + member.district : null,
+    member.chamber  || null,
+    partyName(member.party),
+  ].filter(Boolean).join(' · ')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.muted)
+  doc.text(districtLine, textX, ty)
+  ty += 4.5
+
+  // Leadership role — from bio.leadership_role if populated (named position);
+  // falls back to tier-derived label for chairs / senior members.
+  if (bio?.leadership_role) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...P.accent)
+    doc.text(bio.leadership_role, textX, ty)
+    ty += 4.5
+  } else if (member.is_chair || member.tier <= 2) {
+    const roleLabel = member.is_chair ? 'Committee Chair'
+      : member.tier === 1 ? 'Majority Leadership'
+      : 'Senior Member'
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...P.accent)
+    doc.text(roleLabel, textX, ty)
+    ty += 4.5
+  }
+
+  // Electoral margin — one muted line, high signal for engagement strategy
+  const elLine = electionLine(elections)
+  if (elLine) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.muted)
+    doc.text(trunc(elLine, 70), textX, ty)
+    ty += 4
+  }
+
+  ty += 1.5
+
+  // Phone — primary contact for a lobbyist
+  if (member.phone) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(...P.primary)
+    doc.text(member.phone, textX, ty)
+    ty += 4.5
+  }
+
+  // Email
+  if (member.email) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text(trunc(member.email, 55), textX, ty)
+    ty += 4.5
+  }
+
+  // Official profile URL — constructable, no new data needed, replaces
+  // the removed "Legislative Building · Olympia, WA 98504" filler line
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(...P.accent)
+  doc.text(memberProfileUrl(member), textX, ty)
+
+  return Math.max(y + photoH, ty + 4) + 5
+}
+
+// ── Section 3 — Legislative Focus ────────────────────────────────────────────
+
+function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
+  if (!bio) return y
+
+  const priorities = bio.priorities || []
+  const summary    = bio.bio_summary || null
+  const htCats     = highTierCats(memberBills)
+
+  if (!priorities.length && !summary && !htCats.length) return y
+
+  y = drawSectionLabel(doc, y, m, contentW, 'Legislative Focus')
+
+  // Priority chips — T147: light styling for print.
+  // Previous version used dark fill (26,24,18) and dark bg band — designed
+  // for the UI dark theme, printed as blobs on white paper. Flipped to
+  // surface fill + brass border + dark text for clean print output.
+  if (priorities.length > 0) {
+    const chipH    = 5.5
+    const chipPadX = 4
+    const chipGap  = 3
+    let cx = m
+
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+
+    for (const p of priorities.slice(0, 6)) {
+      const label = p.toUpperCase()
+      const chipW = doc.getTextWidth(label) + chipPadX * 2
+
+      if (cx + chipW > m + contentW) {
+        cx  = m
+        y  += chipH + 2
+      }
+
+      doc.setFillColor(...P.surface)      // off-white fill — reads on paper
+      doc.setDrawColor(...P.accent)       // brass border
+      doc.setLineWidth(0.5)
+      doc.roundedRect(cx, y - chipH + 1, chipW, chipH, 1.2, 1.2, 'FD')
+      doc.setTextColor(...P.primary)      // dark text
+      doc.text(label, cx + chipPadX, y - 0.5)
+      cx += chipW + chipGap
+    }
+    y += chipH + 2
+  }
+
+  // HIGH-tier category summary — surfaces what they're actually pushing
+  if (htCats.length > 0) {
+    y += 1.5
+    const catLine = 'HIGH-tier focus: ' + htCats.map(([c, n]) => `${c} x${n}`).join(' · ')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.muted)
+    const catWrapped = wrapText(doc, catLine, contentW)
+    doc.text(catWrapped.slice(0, 1), m, y)
+    y += 4
+  }
+
+  // Bio summary — T147: AI attribution tag required; max 3 lines (was 4)
+  if (summary) {
+    y += 2
+    const wrapped = wrapText(doc, summary, contentW)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text(wrapped.slice(0, 3), m, y)
+    y += wrapped.slice(0, 3).length * 4
+
+    y += 1.5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...P.neutralLt)
+    doc.text('AI-assisted summary · Verify key facts with member\'s office', m, y)
+    y += 4
+  }
+
+  return y + 2
+}
+
+// ── Section 4 — Top Bills ────────────────────────────────────────────────────
 
 function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
   y = drawSectionLabel(doc, y, m, contentW, 'Top Bills This Session')
@@ -370,130 +455,355 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     return y + 8
   }
 
-  const numColW = 14
-  const titleW  = contentW - numColW - 14
+  const circleR = 3.5
+  const numColW = 16
+  const titleW  = contentW - numColW - (circleR * 2 + 4)
 
-  bills.forEach(bill => {
-    const score    = bill.final_score || 0
-    const scoreRgb = getScoreColor(score)
-    const label    = billLabel(bill)
-    const title    = trunc(bill.title || bill.committee_name || 'Untitled', 80)
-
-    doc.setFont('courier', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.accent)
-    doc.text(label, m, y + 3)
-
+  for (const bill of bills) {
+    const score      = bill.final_score || 0
+    const scoreRgb   = getScoreColor(score)
+    const label      = billLabel(bill)
+    const title      = trunc(bill.title || 'Untitled', 70)
     const titleLines = wrapText(doc, title, titleW)
+    const titleShown = titleLines.slice(0, 2)
+    const titleH     = titleShown.length * 4.5
+
+    // Bill number
+    doc.setFont('courier', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.accent)
+    doc.text(label, m, y + 4)
+
+    // Title
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(...P.primary)
-    doc.text(titleLines.slice(0, 2), m + numColW, y + 3)
+    doc.text(titleShown, m + numColW, y + 4)
 
-    const circleR = 3.5
-    const scoreX  = m + contentW - circleR - 1
-    const scoreY  = y + 3
+    // Score circle
+    const scoreX = m + contentW - circleR - 1
+    const scoreY = y + 3.5
     doc.setFillColor(...scoreRgb)
-    doc.circle(scoreX, scoreY - circleR + 1, circleR, 'F')
+    doc.circle(scoreX, scoreY, circleR, 'F')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
+    doc.setFontSize(6.5)
     doc.setTextColor(...P.white)
-    doc.text(String(score), scoreX, scoreY + 0.5, { align: 'center' })
+    doc.text(String(score), scoreX, scoreY + 1.2, { align: 'center' })
 
-    y += Math.max(5.5, Math.min(titleLines.length, 2) * 4.5) + 1.5
-  })
+    // Sub-row: stage · outcome · upcoming hearing
+    const subY     = y + 4 + titleH
+    const stageStr = STAGE_LABELS[bill.stage] || ''
+    const outcome  = outcomeTag(bill)
+    const hearing  = getUpcomingHearing(bill)
+    const subParts = [stageStr, outcome, hearing ? 'Hearing ' + hearing : null].filter(Boolean)
 
-  return y + 3
-}
-
-// ── Section 5.5 — Legislative Focus (Thread 113) ────────────────────────────
-
-function drawLegislativeFocus(doc, y, m, contentW, bio) {
-  if (!bio) return y
-
-  const priorities = bio.priorities || []
-  const summary    = bio.bio_summary || null
-
-  if (!priorities.length && !summary) return y
-
-  y = drawSectionLabel(doc, y, m, contentW, 'Legislative Focus')
-
-  // Priority chips — small pill labels across the page
-  if (priorities.length > 0) {
-    const chipH    = 5.5
-    const chipPadX = 4
-    const chipGap  = 3
-    let cx         = m
-
-    doc.setFontSize(7.5)
-    doc.setFont('helvetica', 'bold')
-
-    // Brass-tinted band behind the priority chips row
-    doc.setFillColor(26, 24, 18)
-    doc.rect(m - 2, y - chipH - 1, contentW + 4, chipH + 4, 'F')
-
-    for (const p of priorities.slice(0, 6)) {
-      const label = p.toUpperCase()
-      const chipW = doc.getTextWidth(label) + chipPadX * 2
-
-      // Wrap to next line if overflow
-      if (cx + chipW > m + contentW) {
-        cx  = m
-        y  += chipH + 2
-      }
-
-      // Chip background
-      doc.setFillColor(28, 32, 42)   // dark surface
-      doc.setDrawColor(...P.accent)
-      doc.setLineWidth(0.4)
-      doc.roundedRect(cx, y - chipH + 1, chipW, chipH, 1.2, 1.2, 'FD')
-
-      // Chip label
-      doc.setTextColor(...P.accent)
-      doc.text(label, cx + chipPadX, y - 0.5)
-
-      cx += chipW + chipGap
+    if (subParts.length > 0) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6.5)
+      let sx = m + numColW
+      subParts.forEach((part, i) => {
+        const isSigned  = part === 'SIGNED'
+        const isDead    = part === 'DEAD'
+        const isHearing = part.startsWith('Hearing')
+        doc.setTextColor(
+          ...(isSigned  ? P.accent  :
+              isDead    ? P.danger  :
+              isHearing ? P.tierMod :
+              P.muted)
+        )
+        doc.text(part, sx, subY)
+        const partW = doc.getTextWidth(part)
+        if (i < subParts.length - 1) {
+          doc.setTextColor(...P.neutralLt)
+          doc.text(' ·', sx + partW, subY)
+          sx += partW + doc.getTextWidth(' · ')
+        }
+      })
+      y = subY + 5
+    } else {
+      y = subY + 2
     }
-
-    y += chipH + 2
   }
 
-  // Bio summary below chips (if fits)
-  if (summary) {
-    y += 2
-    const wrapped = wrapText(doc, summary, contentW)
+  // Prime-sponsored-only disclosure
+  y += 1
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  doc.setTextColor(...P.neutralLt)
+  doc.text('Prime-sponsored bills only. Co-sponsorships not shown.', m, y)
+
+  return y + 5
+}
+
+// ── Section 5 — Committee Assignments ────────────────────────────────────────
+
+function drawCommittees(doc, y, m, contentW, committeeSeats, member) {
+  y = drawSectionLabel(doc, y, m, contentW, 'Committees')
+
+  // Use rich seat data (with roles) if available; fall back to flat string array
+  const seats = committeeSeats && committeeSeats.length > 0
+    ? committeeSeats
+    : (member.committees || []).map(c => ({ committee_name: c, role: null }))
+
+  if (!seats.length) {
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(8.5)
     doc.setTextColor(...P.muted)
-    doc.text(wrapped.slice(0, 4), m, y)
-    y += wrapped.slice(0, 4).length * 4
+    doc.text('No committee assignments on record', m, y)
+    return y + 8
+  }
+
+  for (const seat of seats) {
+    const name    = typeof seat === 'string' ? seat : (seat.committee_name || '')
+    const role    = typeof seat === 'string' ? null : (seat.role || null)
+    const isChair = role === 'chair'
+    const isVice  = role === 'vice_chair'
+
+    doc.setFont('helvetica', isChair ? 'bold' : 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...(isChair ? P.accent : P.primary))
+
+    const lines = wrapText(doc, name, contentW - (isChair || isVice ? 14 : 0))
+    doc.text(lines.slice(0, 2), m, y)
+
+    if (isChair) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6)
+      doc.setTextColor(...P.accent)
+      doc.text('CHAIR', m + contentW, y, { align: 'right' })
+    } else if (isVice) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6)
+      doc.setTextColor(...P.muted)
+      doc.text('V.CHAIR', m + contentW, y, { align: 'right' })
+    }
+
+    y += lines.slice(0, 2).length * 4.5 + 0.5
   }
 
   return y + 4
 }
 
+// ── Section 5.5 — Background ─────────────────────────────────────────────────
+
+function drawBackground(doc, y, m, contentW, bio) {
+  if (!bio) return y
+
+  const { education, occupation, family, first_elected_year } = bio
+  const lines = []
+
+  if (education && education.length > 0) {
+    const edLine = education.slice(0, 2).map(e => {
+      const parts = [e.school, e.degree && e.field ? `${e.degree} ${e.field}` : (e.degree || e.field)]
+      return parts.filter(Boolean).join(' — ')
+    }).join('  |  ')
+    if (edLine.trim()) lines.push(edLine)
+  }
+
+  if (occupation && occupation.length > 0) {
+    let careerLine = occupation.slice(0, 3).join('  ·  ')
+    if (first_elected_year) careerLine += `  ·  Since ${first_elected_year}`
+    lines.push(careerLine)
+  } else if (first_elected_year) {
+    lines.push(`Legislature since ${first_elected_year}`)
+  }
+
+  if (family) lines.push(family)
+
+  if (!lines.length) return y
+
+  y = drawSectionLabel(doc, y, m, contentW, 'Background')
+
+  for (const text of lines) {
+    const wrapped = wrapText(doc, trunc(text, 120), contentW)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.primary)
+    doc.text(wrapped.slice(0, 2), m, y)
+    y += wrapped.slice(0, 2).length * 4.5
+  }
+
+  return y + 3
+}
+
+// ── Section 6 — Bill Pipeline (Stage Funnel) ─────────────────────────────────
+
+function drawStageFunnel(doc, y, m, contentW, memberBills) {
+  const bills = (memberBills || [])
+  if (!bills.length) return y
+
+  const stages = [
+    { label: 'Introduced',  min: 1, color: [...P.neutralLt] },
+    { label: 'Comm. Pass',  min: 3, color: [58, 122, 138]   },
+    { label: 'Floor Pass',  min: 4, color: [...P.tierMod]   },
+    { label: 'Signed',      min: 6, color: [...P.accent]    },
+  ].map(s => ({
+    ...s,
+    count: bills.filter(b => (b.stage || 0) >= s.min).length,
+  }))
+
+  const total = stages[0].count || 0
+  if (!total) return y
+
+  y = drawSectionLabel(doc, y, m, contentW, 'Bill Pipeline')
+
+  const colW = (contentW - 6) / stages.length
+  const barH = 4
+
+  stages.forEach((s, i) => {
+    const sx  = m + i * (colW + 2)
+    const pct = total > 0 ? Math.round((s.count / total) * 100) : 0
+    const barW = colW
+
+    // Track
+    doc.setFillColor(...P.surface)
+    doc.rect(sx, y, barW, barH, 'F')
+    // Fill
+    if (pct > 0) {
+      doc.setFillColor(...s.color)
+      doc.rect(sx, y, barW * (pct / 100), barH, 'F')
+    }
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6)
+    doc.setTextColor(...P.muted)
+    doc.text(s.label, sx, y + barH + 3.5)
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.primary)
+    doc.text(`${s.count}`, sx, y + barH + 9)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...P.muted)
+    doc.text(`(${pct}%)`, sx + doc.getTextWidth(`${s.count}`) + 1.5, y + barH + 9)
+  })
+
+  return y + barH + 14
+}
+
+// ── Section 7 — Legislative Record (Stats) ───────────────────────────────────
+
+function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats) {
+  // T147: renamed from "VECTOR | WA INTELLIGENCE" — brand already in header
+  const sectionLabel = session
+    ? 'LEGISLATIVE RECORD  -  ' + session
+    : 'LEGISLATIVE RECORD'
+
+  y = drawSectionLabel(doc, y, m, contentW, sectionLabel)
+
+  // Tier chip
+  doc.setFillColor(...P.surface)
+  doc.rect(m, y - 2, contentW, 8, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(...P.accent)
+  // T147: double-dash (--) replaced with middle dot (·) in TIER_TEXT constant
+  doc.text(TIER_TEXT[member.tier] || TIER_TEXT[3], m + 2, y + 3.5)
+  y += 11
+
+  // Years served from bio.first_elected_year
+  const yrsVal = bio?.first_elected_year
+    ? String(new Date().getFullYear() - bio.first_elected_year) + ' yrs'
+    : null
+
+  const statW = contentW / 4
+  const rows = [
+    [
+      { label: 'Laws Passed',    value: String(member.laws_passed    || 0) },
+      { label: 'Pass Rate',      value: (member.pass_rate            || 0) + '%' },
+      { label: 'Yrs Served',     value: yrsVal || '—' },        // T147: replaces Session
+      { label: 'Bills Sponsored', value: String(member.bill_count   || 0) },
+    ],
+    [
+      { label: 'Party Cohesion', value: votingStats?.cohesionPct != null ? votingStats.cohesionPct + '%' : '—' },
+      { label: 'Attendance',     value: votingStats?.attendancePct != null ? votingStats.attendancePct + '%' : '—' },
+      { label: 'Cmte Passes',    value: String(member.committee_passes || 0) },
+      { label: 'Best Trajectory', value: String(member.top_score      || 0) },
+    ],
+  ]
+
+  rows.forEach(row => {
+    row.forEach(({ label, value }, i) => {
+      const sx = m + i * statW
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(6)
+      doc.setTextColor(...P.muted)
+      doc.text(label.toUpperCase(), sx + 1, y)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(...P.primary)
+      doc.text(value, sx + 1, y + 5.5)
+    })
+    y += 10.5
+  })
+
+  // Context footnotes — give an external reader enough to interpret the numbers
+  y += 2
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  doc.setTextColor(...P.neutralLt)
+  doc.text('Trajectory scores: predicted likelihood of legislative success, 0–100 (Vector | WA model).', m, y)
+  y += 3.5
+  if (votingStats?.sampleN) {
+    doc.text(
+      `Cohesion + attendance based on ${votingStats.sampleN} most-recent roll calls in session.`,
+      m, y
+    )
+    y += 3.5
+  }
+
+  return y + 2
+}
+
 // ── Footer ───────────────────────────────────────────────────────────────────
 
 function drawFooter(doc, m, pw, ph, generatedAt) {
-  const fy = ph - 14
+  const fy = ph - 12
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
   doc.line(m, fy - 2, pw - m, fy - 2)
+
   const stamp = generatedAt.toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
   })
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
+  // T147: removed "Vector | WA · Washington State Legislative Intelligence" left text
+  //        (brand already in header — no need to repeat in footer)
+  // T147: removed "CONFIDENTIAL BRIEFING" right text
+  //        (wrong framing for a document shared with lobbyist clients)
   doc.setTextColor(...P.muted)
-  doc.text('Vector | WA  ·  Washington State Legislative Intelligence', m, fy + 3)
-  doc.text('CONFIDENTIAL BRIEFING  ·  Generated ' + stamp, pw - m, fy + 3, { align: 'right' })
+  doc.text('Generated ' + stamp, m, fy + 3)
+  doc.setTextColor(...P.accent)
+  doc.text(VECTOR_DOMAIN, pw - m, fy + 3, { align: 'right' })
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-// bio param is a row from legislator_bios table (nullable)
-export async function generateMemberPdf(member, memberBills, session, bio = null) {
+/**
+ * @param {object}   member       — row from v_member_stats_by_session
+ * @param {object[]} memberBills  — bills where prime_sponsor = member.name
+ * @param {string}   session      — e.g. '2025-2026'
+ * @param {object}   bio          — row from legislator_bios (nullable)
+ * @param {object}   extras       — optional enrichment data:
+ *   committeeSeats     {committee_name, role}[] from legislator_committee_seats
+ *   elections          {election_year, vote_pct, margin_pct, ...}[] from legislator_elections
+ *   memberVotes        stitched vote rows from loadMemberVotes
+ *   partyBucketsByRcId {[rcId]: {yesD,yesR,noD,noR}} from loadMemberVotes
+ */
+export async function generateMemberPdf(member, memberBills, session, bio = null, extras = {}) {
   if (!member) throw new Error('generateMemberPdf: member is required')
+
+  const {
+    committeeSeats     = [],
+    elections          = [],
+    memberVotes        = [],
+    partyBucketsByRcId = {},
+  } = extras
+
+  const votingStats = computeVotingStats(memberVotes, partyBucketsByRcId, member.party)
 
   const generatedAt = new Date()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
@@ -503,12 +813,13 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
   const contentW = pw - 2 * m
   let y = 14
 
+  // ── Render pipeline ───────────────────────────────────────────────────────
   y = await drawHeader(doc, y, m, pw, generatedAt)
-  y = await drawIdentity(doc, y, m, pw, contentW, member)
-  y = drawLegislativeFocus(doc, y, m, contentW, bio)    // Thread 115: moved to position 3
+  y = await drawIdentity(doc, y, m, pw, contentW, member, bio, elections)
+  y = drawLegislativeFocus(doc, y, m, contentW, bio, memberBills)
 
-  // ── Two-column lower body (Thread 115) ───────────────────────────────────
-  const colSplit = 0.60         // left col = 60%, right = 38%, gap = 2%
+  // Two-column: Top Bills (left 58%) | Committees + Background (right 40%)
+  const colSplit = 0.58
   const leftW    = contentW * colSplit - 2
   const rightW   = contentW * (1 - colSplit - 0.02)
   const rightX   = m + contentW * (colSplit + 0.02)
@@ -516,24 +827,27 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
   const yCol  = y
   const yLeft = drawTopBills(doc, yCol, m, leftW, pw, memberBills, session)
 
-  let yRight = drawCommittees(doc, yCol, rightX, rightW, pw, member)
+  let yRight = drawCommittees(doc, yCol, rightX, rightW, committeeSeats, member)
   yRight     = drawBackground(doc, yRight, rightX, rightW, bio)
 
-  // Vertical separator between columns
+  // Column separator
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.2)
   const sepX = m + contentW * colSplit
   doc.line(sepX, yCol - 2, sepX, Math.max(yLeft, yRight) + 2)
 
-  y = Math.max(yLeft, yRight) + 4
+  y = Math.max(yLeft, yRight) + 5
+
+  // Stage funnel — full-width, compact
+  y = drawStageFunnel(doc, y, m, contentW, memberBills)
+
+  // Stats / Legislative Record
+  y = drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats)
+
+  drawFooter(doc, m, pw, ph, generatedAt)
   // ─────────────────────────────────────────────────────────────────────────
 
-  y = drawIntelligence(doc, y, m, contentW, pw, member, session)
-  drawFooter(doc, m, pw, ph, generatedAt)
-
-  const lastName = (member.name || 'member')
-    .split(' ').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
+  const lastName    = (member.name || 'member').split(' ').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
   const sessionSlug = (session || 'wa').replace('/', '-').replace(/\s/g, '-')
-
-  doc.save(`${lastName}-member-card-${sessionSlug}.pdf`)
+  doc.save(`${lastName}-member-brief-${sessionSlug}.pdf`)
 }
