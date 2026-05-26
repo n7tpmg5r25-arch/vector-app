@@ -236,7 +236,14 @@ function AnimatedSparkline({ scores, snapshots, stageLabels }) {
       if (path) {
         const len = path.getTotalLength()
         setPathLen(len)
-        setTimeout(() => setDrawn(true), 50)
+        // Skip the draw animation when the user prefers reduced motion
+        const prefersReduced = typeof window !== 'undefined' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        if (prefersReduced) {
+          setDrawn(true)
+        } else {
+          setTimeout(() => setDrawn(true), 50)
+        }
       }
     }
   }, [scores])
@@ -1114,6 +1121,95 @@ export default function BillDetailPage() {
           </div>
         )}
 
+        {/* ── STAGE PIPELINE (T146: moved above sparkline) ───────────────── */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: '14px 16px',
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
+            Legislative Stage
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {PIPELINE_STAGES.map((ps, i) => {
+              const done = ps.num < bill.stage
+              const active = ps.num === bill.stage
+              const dotColor = done ? 'var(--teal-dim)' : active ? 'var(--teal)' : 'var(--border)'
+              const lineColor = done ? 'var(--teal-dim)' : 'var(--border)'
+              const isLast = i === PIPELINE_STAGES.length - 1
+              return (
+                <div key={ps.num} style={{ display: 'flex', alignItems: 'center', flex: isLast ? 'none' : 1 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{
+                      width: active ? 11 : 7, height: active ? 11 : 7,
+                      borderRadius: '50%', background: dotColor,
+                      boxShadow: active ? 'var(--teal-glow)' : done ? '0 0 4px rgba(184,151,90,0.2)' : 'none',
+                      animation: active ? 'dotPulse 2s ease-in-out infinite' : 'none',
+                      transition: 'all 0.2s',
+                    }}/>
+                    <span style={{
+                      fontSize: 9, color: active ? 'var(--teal)' : done ? 'var(--teal-dim)' : 'var(--text-faint)',
+                      textAlign: 'center', whiteSpace: 'nowrap', fontWeight: active ? 600 : 400,
+                    }}>{ps.label}</span>
+                  </div>
+                  {!isLast && <div style={{ flex: 1, height: 1, background: lineColor, margin: '0 2px', marginBottom: 14 }}/>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── KEY INFO GRID (T146: moved above sparkline) ─────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[
+            { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
+            // Thread 12.2: prime sponsor name links to /members?selectedName=...
+            { label: 'Prime Sponsor', value: bill.prime_sponsor
+                ? (
+                  <Link
+                    href={`/members?selectedName=${encodeURIComponent(bill.prime_sponsor)}`}
+                    style={{ color: 'var(--teal)', textDecoration: 'none', borderBottom: '1px dotted rgba(184,151,90,0.4)' }}
+                  >
+                    {bill.prime_sponsor}
+                    {bill.prime_party && (
+                      <>
+                        <span aria-hidden="true" style={{
+                          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                          background: bill.prime_party.charAt(0) === 'D' ? '#4d9aff'
+                            : bill.prime_party.charAt(0) === 'R' ? '#ef4444'
+                            : 'var(--text-faint)',
+                          marginLeft: 6, verticalAlign: 'middle',
+                        }}/>
+                        <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', border: 0 }}>
+                          ({bill.prime_party.charAt(0)})
+                        </span>
+                      </>
+                    )}
+                  </Link>
+                )
+                : '—',
+              extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
+            ...(isInterimPeriod() && ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel)
+              ? [{ label: 'Session', value: `Ended ${formatSessionDate(getCurrentBiennium().end)}`, extraColor: 'var(--text-muted)' }]
+              : [
+                { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
+                { label: 'To Cutoff', value: bill.days_to_cutoff != null ? (bill.days_to_cutoff > 10 ? 'Safe' : bill.days_to_cutoff > 0 ? `${bill.days_to_cutoff}d` : 'Passed') : '—',
+                  extraColor: bill.days_to_cutoff > 10 ? 'var(--teal)' : bill.days_to_cutoff > 0 ? 'var(--gold)' : 'var(--text-muted)' },
+              ]),
+            { label: 'Floor Margin', value: floorMargin !== null ? `${floorMargin > 0 ? '+' : ''}${floorMargin}%` : 'No vote yet',
+              extraColor: floorMargin !== null ? (floorMargin >= 10 ? 'var(--teal)' : floorMargin >= 0 ? 'var(--gold)' : 'var(--danger)') : undefined },
+            { label: 'Fiscal', value: bill.fiscal_note_size ? bill.fiscal_note_size.charAt(0).toUpperCase() + bill.fiscal_note_size.slice(1) : '—' },
+          ].map(({ label, value, extra, extraColor }) => (
+            <div key={label} style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)', padding: '10px 12px',
+            }}>
+              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 12, color: extraColor || 'var(--text-primary)', fontWeight: 500, lineHeight: 1.3 }}>{value}</div>
+              {extra && <div style={{ fontSize: 9, color: extraColor, marginTop: 2, fontFamily: 'var(--font-mono)' }}>{extra}</div>}
+            </div>
+          ))}
+        </div>
+
         {/* Thread 18.4: Latest Floor Vote strip — surfaced above the
             sparkline so the lobbyist-grade headline is the first thing
             below the banner. Tappable; opens the Votes tab. */}
@@ -1285,7 +1381,7 @@ export default function BillDetailPage() {
                   value={summaryDraft}
                   onChange={e => setSummaryDraft(e.target.value)}
                   style={{
-                    width: '100%', minHeight: 180, fontSize: 13, lineHeight: 1.6,
+                    width: '100%', minHeight: 180, fontSize: 16, lineHeight: 1.6,
                     color: 'var(--text-primary)', background: 'rgba(0,0,0,0.15)',
                     border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8,
                     padding: '10px 12px', fontFamily: 'inherit', resize: 'vertical',
@@ -1296,7 +1392,6 @@ export default function BillDetailPage() {
                     disabled={savingSummary}
                     onClick={async () => {
                       setSavingSummary(true)
-                      const supabase = createBrowserClient()
                       await supabase.from('bills').update({
                         custom_summary: summaryDraft,
                         summary_locked: true,
@@ -1319,7 +1414,6 @@ export default function BillDetailPage() {
                       disabled={savingSummary}
                       onClick={async () => {
                         setSavingSummary(true)
-                        const supabase = createBrowserClient()
                         await supabase.from('bills').update({
                           custom_summary: null,
                           summary_locked: false,
@@ -1786,61 +1880,6 @@ export default function BillDetailPage() {
 
         </div>
 
-        {/* ── KEY INFO GRID ──────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[
-            { label: 'Committee', value: bill.committee_name || 'No committee assigned' },
-            // Thread 12.2: prime sponsor name links to /members?selectedName=...
-            // so a click jumps to the legislator's voting record. Members page
-            // pre-fills its query input from selectedName and auto-selects on
-            // exact match.
-            { label: 'Prime Sponsor', value: bill.prime_sponsor
-                ? (
-                  <Link
-                    href={`/members?selectedName=${encodeURIComponent(bill.prime_sponsor)}`}
-                    style={{ color: 'var(--teal)', textDecoration: 'none', borderBottom: '1px dotted rgba(184,151,90,0.4)' }}
-                  >
-                    {bill.prime_sponsor}
-                    {bill.prime_party && (
-                      <>
-                        <span aria-hidden="true" style={{
-                          display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-                          background: bill.prime_party.charAt(0) === 'D' ? '#4d9aff'
-                            : bill.prime_party.charAt(0) === 'R' ? '#ef4444'
-                            : 'var(--text-faint)',
-                          marginLeft: 6, verticalAlign: 'middle',
-                        }}/>
-                        <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', border: 0 }}>
-                          ({bill.prime_party.charAt(0)})
-                        </span>
-                      </>
-                    )}
-                  </Link>
-                )
-                : '—',
-              extra: bill.is_committee_chair ? '✦ Committee Chair' : null, extraColor: 'var(--teal)' },
-            ...(isInterimPeriod() && ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel)
-              ? [{ label: 'Session', value: `Ended ${formatSessionDate(getCurrentBiennium().end)}`, extraColor: 'var(--text-muted)' }]
-              : [
-                { label: 'Hearing', value: bill.hearing_date ? new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'None scheduled' },
-                { label: 'To Cutoff', value: bill.days_to_cutoff != null ? (bill.days_to_cutoff > 10 ? 'Safe' : bill.days_to_cutoff > 0 ? `${bill.days_to_cutoff}d` : 'Passed') : '—',
-                  extraColor: bill.days_to_cutoff > 10 ? 'var(--teal)' : bill.days_to_cutoff > 0 ? 'var(--gold)' : 'var(--text-muted)' },
-              ]),
-            { label: 'Floor Margin', value: floorMargin !== null ? `${floorMargin > 0 ? '+' : ''}${floorMargin}%` : 'No vote yet',
-              extraColor: floorMargin !== null ? (floorMargin >= 10 ? 'var(--teal)' : floorMargin >= 0 ? 'var(--gold)' : 'var(--danger)') : undefined },
-            { label: 'Fiscal', value: bill.fiscal_note_size ? bill.fiscal_note_size.charAt(0).toUpperCase() + bill.fiscal_note_size.slice(1) : '—' },
-          ].map(({ label, value, extra, extraColor }) => (
-            <div key={label} style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)', padding: '10px 12px',
-            }}>
-              <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
-              <div style={{ fontSize: 12, color: extraColor || 'var(--text-primary)', fontWeight: 500, lineHeight: 1.3 }}>{value}</div>
-              {extra && <div style={{ fontSize: 9, color: extraColor, marginTop: 2, fontFamily: 'var(--font-mono)' }}>{extra}</div>}
-            </div>
-          ))}
-        </div>
-
         {/* ── X FACTOR PILLS ─────────────────────────────── */}
         {xfFactors.length > 0 && (
           <div style={{ opacity: ['DEAD','LAW','PASSED_CHAMBER'].includes(confLabel) ? 0.45 : 1, transition: 'opacity 0.2s' }}>
@@ -1855,7 +1894,8 @@ export default function BillDetailPage() {
               const positives = xfFactors.filter(f => f.pos).sort((a, b) => b.d - a.d).slice(0, 2)
               const negatives = xfFactors.filter(f => !f.pos).sort((a, b) => a.d - b.d).slice(0, 2)
               const top4 = [...positives, ...negatives]
-              if (top4.length < 2) return null  // Don't bother with a 1-chip summary
+              // Only show the summary strip when there are 7+ factors (fewer fit in one row)
+              if (top4.length < 2 || xfFactors.length <= 6) return null
 
               return (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
@@ -2119,43 +2159,6 @@ export default function BillDetailPage() {
           )
         })()}
 
-        {/* ── STAGE PIPELINE ─────────────────────────────── */}
-        <div style={{
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)', padding: '14px 16px',
-        }}>
-          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 12 }}>
-            Legislative Stage
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            {PIPELINE_STAGES.map((ps, i) => {
-              const done = ps.num < bill.stage
-              const active = ps.num === bill.stage
-              const dotColor = done ? 'var(--teal-dim)' : active ? 'var(--teal)' : 'var(--border)'
-              const lineColor = done ? 'var(--teal-dim)' : 'var(--border)'
-              const isLast = i === PIPELINE_STAGES.length - 1
-              return (
-                <div key={ps.num} style={{ display: 'flex', alignItems: 'center', flex: isLast ? 'none' : 1 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <div style={{
-                      width: active ? 11 : 7, height: active ? 11 : 7,
-                      borderRadius: '50%', background: dotColor,
-                      boxShadow: active ? 'var(--teal-glow)' : done ? '0 0 4px rgba(184,151,90,0.2)' : 'none',
-                      animation: active ? 'dotPulse 2s ease-in-out infinite' : 'none',
-                      transition: 'all 0.2s',
-                    }}/>
-                    <span style={{
-                      fontSize: 9, color: active ? 'var(--teal)' : done ? 'var(--teal-dim)' : 'var(--text-faint)',
-                      textAlign: 'center', whiteSpace: 'nowrap', fontWeight: active ? 600 : 400,
-                    }}>{ps.label}</span>
-                  </div>
-                  {!isLast && <div style={{ flex: 1, height: 1, background: lineColor, margin: '0 2px', marginBottom: 14 }}/>}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
         {/* ── TABS ───────────────────────────────────────── */}
         <div ref={tabsSectionRef}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 16, overflowX: 'auto' }}>
@@ -2170,17 +2173,17 @@ export default function BillDetailPage() {
                 ? [
                     { key: 'votes',      label: 'Votes' },
                     { key: 'trajectory', label: 'Trajectory' },
-                    { key: 'signals',    label: 'Signals' },
-                    { key: 'signal',     label: 'Signal Strength' },
+                    { key: 'signals',    label: 'Score Breakdown' },
+                    { key: 'signal',     label: 'Pass Rates' },
                   ]
                 : [
                     { key: 'trajectory', label: 'Trajectory' },
-                    { key: 'signals',    label: 'Signals' },
+                    { key: 'signals',    label: 'Score Breakdown' },
                     { key: 'votes',      label: 'Votes' },
-                    { key: 'signal',     label: 'Signal Strength' },
+                    { key: 'signal',     label: 'Pass Rates' },
                   ]
               return _tabs.map(({ key, label }) => (
-              <button key={key} onClick={() => setTab(key)} style={{
+              <button key={key} role="tab" aria-pressed={tab === key} onClick={() => setTab(key)} style={{
                 padding: '8px 14px', background: 'none', border: 'none',
                 borderBottom: tab === key ? '2px solid var(--teal)' : '2px solid transparent',
                 fontSize: 12, fontWeight: tab === key ? 600 : 400,
@@ -2197,37 +2200,16 @@ export default function BillDetailPage() {
           {/* ── TRAJECTORY TAB ─────────────────────────── */}
           {tab === 'trajectory' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* Score formula bar */}
-              <div style={{
-                background: 'linear-gradient(135deg, var(--bg) 0%, #0a0c12 100%)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius)',
-                padding: '12px 14px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>BASE</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--text-mid)' }}>{baseTotal || '—'}</div>
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-faint)' }}>×</div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>X FACTOR</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--gold)' }}>{xfMult !== 1 ? `${Number(xfMult).toFixed(2)}×` : '1.00×'}</div>
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-faint)' }}>=</div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>FINAL</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(184,151,90,0.4)' }}>{score}</div>
-                </div>
-              </div>
+              {/* Score formula already shown in the top score block above the sparkline.
+                  No duplication here — score history + component bars carry the tab. */}
 
-              {/* Momentum index + Committee density */}
+              {/* Current score + Score components */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px',
                 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Momentum Index</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Current Score</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(184,151,90,0.3)' }}>
                       {score}
@@ -2243,7 +2225,7 @@ export default function BillDetailPage() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px',
                 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Committee Density</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Score Components</div>
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 32 }}>
                     {[
                       sig.committee_score || 0,
@@ -2268,7 +2250,7 @@ export default function BillDetailPage() {
                     })}
                   </div>
                   <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 3, textAlign: 'center' }}>
-                    Past rates for similar bills
+                    Committee · Sponsor · Momentum · Historical · Fiscal
                   </div>
                 </div>
               </div>
@@ -2514,7 +2496,7 @@ export default function BillDetailPage() {
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Tag</label>
               <input type="text" value={tag} onChange={e => setTag(e.target.value)}
                 placeholder="e.g. Housing, Transit, Education..."
-                style={{ width: '100%', padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: 'var(--text-primary)', outline: 'none' }}
+                style={{ width: '100%', padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 16, color: 'var(--text-primary)', outline: 'none' }}
               />
               <button onClick={saveNotes} disabled={saving} style={{
                 marginTop: 6, padding: '5px 14px', background: 'transparent',
@@ -2528,12 +2510,12 @@ export default function BillDetailPage() {
               <textarea
                 value={noteBody}
                 onChange={e => setNoteBody(e.target.value)}
-                placeholder="Intelligence note ΓÇö who you talked to, what the chair signaled, strategy..."
+                placeholder="Intelligence note — who you talked to, what the chair signaled, strategy..."
                 rows={3}
                 style={{
                   width: '100%', padding: '8px 12px', background: 'var(--bg)',
                   border: '1px solid var(--border)', borderRadius: 8,
-                  fontSize: 13, color: 'var(--text-primary)', outline: 'none',
+                  fontSize: 16, color: 'var(--text-primary)', outline: 'none',
                   resize: 'vertical', lineHeight: 1.5,
                 }}
               />

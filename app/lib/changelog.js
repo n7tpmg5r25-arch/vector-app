@@ -29,6 +29,21 @@
 
 export const CHANGELOG = [
   {
+    version: '5.4',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Bill detail page deep audit and reorganization (T146). Layout reordered, duplicate content removed, labels corrected, accessibility improved.',
+      'Stage Pipeline and Key Info Grid (committee, sponsor, hearing, cutoff, fiscal) now appear immediately below the score block — before the sparkline. "Where is this bill?" is answered in the first scroll, not the last.',
+      'Trajectory tab labels corrected. "Momentum Index" (which was displaying the final score, not the momentum component) renamed to "Current Score". "Committee Density" (which was showing five signal component bars) renamed to "Score Components" with an accurate caption.',
+      'Duplicate score formula removed from the Trajectory tab. The BASE × X Factor = Final formula is already shown in the main score block above the sparkline — repeating it in the tab added noise without adding information.',
+      'Tab names clarified: "Signals" → "Score Breakdown", "Signal Strength" → "Pass Rates". The previous names were nearly identical and gave no indication of what each tab contained.',
+      'X Factor top-summary strip now only appears when a bill has 7 or more X factors — previously it showed on every bill, duplicating every factor that also appeared in the full chip list below.',
+      'iOS auto-zoom fixed on all three inputs and textareas (tag, notes, summary edit). Font size raised from 13px to 16px to prevent Safari\'s viewport zoom on focus.',
+      'Sparkline draw animation now respects prefers-reduced-motion — the chart appears instantly for users with reduced motion enabled.',
+    ],
+  },
+  {
     version: '5.3',
     date: '2026-05-25',
     phase: 'alpha',
