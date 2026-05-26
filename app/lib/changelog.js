@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.1',
+    date: '2026-05-25',
+    phase: 'alpha',
+    highlights: [
+      'Member brief PDF layout fixes: bill titles capped at one line, committee list capped at 5 seats with "+N more" indicator — resolves overflow for busy senators.',
+      'Bio summary trimmed to 2 lines and bill row spacing tightened; a page-break safety net added to prevent content clipping on members with full profiles.',
+    ],
+  },
+  {
     version: '5.5',
     date: '2026-05-25',
     phase: 'alpha',
