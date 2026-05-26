@@ -417,8 +417,8 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...P.muted)
-    doc.text(wrapped.slice(0, 3), m, y)
-    y += wrapped.slice(0, 3).length * 4
+    doc.text(wrapped.slice(0, 2), m, y)   // T147b: 2-line cap — was 3, saves ~4mm
+    y += wrapped.slice(0, 2).length * 4
 
     y += 1.5
     doc.setFont('helvetica', 'normal')
@@ -465,7 +465,7 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     const label      = billLabel(bill)
     const title      = trunc(bill.title || 'Untitled', 70)
     const titleLines = wrapText(doc, title, titleW)
-    const titleShown = titleLines.slice(0, 2)
+    const titleShown = titleLines.slice(0, 1)   // T147b: 1-line cap — was 2, saves ~4.5mm/bill
     const titleH     = titleShown.length * 4.5
 
     // Bill number
@@ -519,9 +519,9 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
           sx += partW + doc.getTextWidth(' · ')
         }
       })
-      y = subY + 5
+      y = subY + 3   // T147b: tightened from 5
     } else {
-      y = subY + 2
+      y = subY + 1.5 // T147b: tightened from 2
     }
   }
 
@@ -553,7 +553,12 @@ function drawCommittees(doc, y, m, contentW, committeeSeats, member) {
     return y + 8
   }
 
-  for (const seat of seats) {
+  // T147b: cap at 5 seats to prevent right column overflow for senior senators
+  const MAX_SEATS   = 5
+  const visibleSeats = seats.slice(0, MAX_SEATS)
+  const hiddenCount  = seats.length - MAX_SEATS
+
+  for (const seat of visibleSeats) {
     const name    = typeof seat === 'string' ? seat : (seat.committee_name || '')
     const role    = typeof seat === 'string' ? null : (seat.role || null)
     const isChair = role === 'chair'
@@ -579,6 +584,14 @@ function drawCommittees(doc, y, m, contentW, committeeSeats, member) {
     }
 
     y += lines.slice(0, 2).length * 4.5 + 0.5
+  }
+
+  if (hiddenCount > 0) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...P.neutralLt)
+    doc.text(`+${hiddenCount} more committee${hiddenCount > 1 ? 's' : ''}`, m, y)
+    y += 4
   }
 
   return y + 4
@@ -837,6 +850,13 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
   doc.line(sepX, yCol - 2, sepX, Math.max(yLeft, yRight) + 2)
 
   y = Math.max(yLeft, yRight) + 5
+
+  // T147b: page-break safety net — funnel (~22mm) + stats (~40mm) + footer buffer (18mm) = 80mm.
+  // If we can't fit them, start a fresh page rather than clipping silently.
+  if (y > ph - 80) {
+    doc.addPage()
+    y = 16
+  }
 
   // Stage funnel — full-width, compact
   y = drawStageFunnel(doc, y, m, contentW, memberBills)
