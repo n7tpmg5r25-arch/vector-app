@@ -359,9 +359,8 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
 
   const priorities = bio.priorities || []
   const summary    = bio.bio_summary || null
-  const htCats     = highTierCats(memberBills)
 
-  if (!priorities.length && !summary && !htCats.length) return y
+  if (!priorities.length && !summary) return y
 
   y = drawSectionLabel(doc, y, m, contentW, 'Legislative Focus')
 
@@ -382,7 +381,7 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
-    for (const p of priorities.slice(0, 6)) {
+    for (const p of priorities.slice(0, 4)) {  // T148: cap 4 (was 6) — keeps chips in 1 row
       const label = p.toUpperCase()
       const chipW = doc.getTextWidth(label) + chipPadX * 2
 
@@ -402,27 +401,16 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     y = chipRowY + chipH + 2
   }
 
-  // HIGH-tier category summary — surfaces what they're actually pushing
-  if (htCats.length > 0) {
-    y += 1.5
-    const catLine = 'HIGH-tier focus: ' + htCats.map(([c, n]) => `${c} x${n}`).join(' · ')
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(...P.muted)
-    const catWrapped = wrapText(doc, catLine, contentW)
-    doc.text(catWrapped.slice(0, 1), m, y)
-    y += 4
-  }
-
-  // Bio summary — T147: AI attribution tag required; max 3 lines (was 4)
+  // Bio summary — T148: 1-line cap + font set before wrapText (metric fix)
   if (summary) {
     y += 2
-    const wrapped = wrapText(doc, summary, contentW)
+    // T148: font MUST be set before wrapText — same metric-match requirement as drawTopBills
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
+    const wrapped = wrapText(doc, summary, contentW)
     doc.setTextColor(...P.muted)
-    doc.text(wrapped.slice(0, 2), m, y)   // T147b: 2-line cap — was 3, saves ~4mm
-    y += wrapped.slice(0, 2).length * 4
+    doc.text(wrapped.slice(0, 1), m, y)   // T148: 1-line cap — was 2, saves ~4mm
+    y += 1 * 4
 
     y += 1.5
     doc.setFont('helvetica', 'normal')
@@ -471,8 +459,15 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     const scoreRgb   = getScoreColor(score)
     const label      = billLabel(bill)
     const title      = trunc(bill.title || 'Untitled', 70)
+
+    // T148: font MUST be set before wrapText so splitTextToSize uses the same
+    // metrics as the actual render. Previous order (split → then setFont) caused
+    // split at wrong size → single kept line wider than titleW → bleeds into
+    // score circle ("names extend into numbers" regression from T147b).
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
     const titleLines = wrapText(doc, title, titleW)
-    const titleShown = titleLines.slice(0, 1)   // T147b: 1-line cap — was 2, saves ~4.5mm/bill
+    const titleShown = titleLines.slice(0, 1)
     const titleH     = titleShown.length * 4.5
 
     // Bill number
@@ -481,7 +476,7 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     doc.setTextColor(...P.accent)
     doc.text(label, m, y + 4)
 
-    // Title
+    // Title (font already set above for correct wrap; just set color)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     doc.setTextColor(...P.primary)
@@ -526,9 +521,9 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
           sx += partW + doc.getTextWidth(' · ')
         }
       })
-      y = subY + 3   // T147b: tightened from 5
+      y = subY + 2   // T148: tightened from 3
     } else {
-      y = subY + 1.5 // T147b: tightened from 2
+      y = subY + 1   // T148: tightened from 1.5
     }
   }
 
@@ -635,9 +630,10 @@ function drawBackground(doc, y, m, contentW, bio) {
   y = drawSectionLabel(doc, y, m, contentW, 'Background')
 
   for (const text of lines) {
-    const wrapped = wrapText(doc, trunc(text, 120), contentW)
+    // T148: font set before wrapText so split metrics match render metrics
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
+    const wrapped = wrapText(doc, trunc(text, 120), contentW)
     doc.setTextColor(...P.primary)
     doc.text(wrapped.slice(0, 2), m, y)
     y += wrapped.slice(0, 2).length * 4.5
