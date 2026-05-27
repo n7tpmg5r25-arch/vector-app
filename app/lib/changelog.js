@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.3',
+    date: '2026-05-26',
+    phase: 'alpha',
+    highlights: [
+      'Member brief PDF audit (T148): fixed font-metric bug where bill titles were measured at the wrong font size before wrapping — titles now stay inside their column and no longer bleed into score circles.',
+      'High-tier category line removed from Legislative Focus; bio summary capped at 1 line (was 2); priority chips capped at 4 (was 6). Combined savings of ~12mm keep most member profiles on a single page.',
+      'Bill sub-row spacing tightened (1mm each × 5 bills) without losing stage/outcome/hearing-date context.',
+      'Font-before-wrapText fix applied throughout: background lines and bio text now split at the correct rendered size.',
+    ],
+  },
+  {
     version: '5.5.2',
     date: '2026-05-26',
     phase: 'alpha',
