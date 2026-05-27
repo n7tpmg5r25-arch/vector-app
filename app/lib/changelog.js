@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.4',
+    date: '2026-05-26',
+    phase: 'alpha',
+    highlights: [
+      'Member brief PDF privacy fix: family information no longer appears in the Background section. Family members are private individuals — the PDF now matches the member card which has always excluded this field.',
+    ],
+  },
+  {
     version: '5.5.3',
     date: '2026-05-26',
     phase: 'alpha',

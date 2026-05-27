@@ -604,7 +604,9 @@ function drawCommittees(doc, y, m, contentW, committeeSeats, member) {
 function drawBackground(doc, y, m, contentW, bio) {
   if (!bio) return y
 
-  const { education, occupation, family, first_elected_year } = bio
+  // T149: family excluded — family members are private individuals.
+  // Matches MemberBioSection.js hasBg definition: education + career + first_elected_year only.
+  const { education, occupation, first_elected_year } = bio
   const lines = []
 
   if (education && education.length > 0) {
@@ -622,8 +624,6 @@ function drawBackground(doc, y, m, contentW, bio) {
   } else if (first_elected_year) {
     lines.push(`Legislature since ${first_elected_year}`)
   }
-
-  if (family) lines.push(family)
 
   if (!lines.length) return y
 
