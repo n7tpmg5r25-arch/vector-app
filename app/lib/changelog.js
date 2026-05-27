@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.5',
+    date: '2026-05-27',
+    phase: 'alpha',
+    highlights: [
+      'Bill brief PDF fully rebuilt (T150): one-page US letter, lobbyist-first layout. Four noise sections removed — bill timeline, political dynamics one-liner, recent amendments list, and "What to Watch" — replaced by a signal-ranked hierarchy.',
+      'AI summary now shows only the Executive Summary (3 lines max) and Who is Affected (1 line) instead of rendering the full multi-section briefing memo. Wall-of-text problem resolved.',
+      'Score display upgraded to a filled circle matching the member PDF gold standard (T147–T148). Tier label, one-liner context, and TRAJECTORY SCORE label all anchored to the right of the circle.',
+      'Sponsor and Committee cards tightened from 22mm to 16mm; X-Factor chips rebalanced to 3 chips in a single row. Most bills now fit comfortably in ~140–190mm, well within a single page.',
+      'All jsPDF font-before-wrapText discipline applied throughout (T148 pattern). Logo reduced to 14mm matching member PDF. loadSvgWithFillSwap no longer duplicated — uses the shared helper from pdf-shared.js.',
+    ],
+  },
+  {
     version: '5.5.4',
     date: '2026-05-26',
     phase: 'alpha',
