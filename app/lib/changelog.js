@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.8',
+    date: '2026-05-27',
+    phase: 'alpha',
+    highlights: [
+      'Bill brief PDF formatting pass (T153): 14 fixes across typography, spacing, and edge cases. Bill title is now the dominant typographic element (12pt) — the trajectory tier word reduced to 11pt, differentiated by color rather than size.',
+      'Empty-state handling added to all conditional sections — bills with no AI summary, no signals, or no floor votes now show a clean fallback line instead of a blank void. Single-signal bills no longer have their signal suppressed.',
+      'SPONSOR / COMMITTEE column labels added so first-time readers know which column is which. Affects line now appends an ellipsis when truncated. "Day N of session" removed from header (not actionable — cutoff countdown remains).',
+      'Raw score annotation ("Score 74") removed from status block — the tier word alone is the signal. Stage History separator changed from > to · consistent with the rest of the document.',
+    ],
+  },
+  {
     version: '5.5.7',
     date: '2026-05-27',
     phase: 'alpha',
