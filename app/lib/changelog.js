@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.6',
+    date: '2026-05-27',
+    phase: 'alpha',
+    highlights: [
+      'Bill brief PDF C-suite refinements (T151): "Who is Affected" now appears as a brass callout directly under the bill title — no longer buried in the body. A blank RECOMMENDATION field gives lobbyists a write-in action line.',
+      'Score one-liner now leads with the probability statement ("84% historical pass rate") instead of qualitative hedging. Tier labels translated to plain English: Majority Leadership / Senior Member / Rank-and-file.',
+      'Hearing date removed from the status pill (was duplicated in the Committee card). Committee card now shows a plain-language countdown: "Hearing in 3 days" or "Heard · [date]". Bill number typeset in Helvetica, not Courier.',
+      '"TOP X-FACTORS" renamed to "KEY SIGNALS". "PRIME SPONSOR" renamed to "SPONSOR". AI-GENERATED label moved to the footer — no longer cluttering the body.',
+    ],
+  },
+  {
     version: '5.5.5',
     date: '2026-05-27',
     phase: 'alpha',

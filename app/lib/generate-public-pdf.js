@@ -2,31 +2,29 @@
  * Vector | WA — Public Bill Brief PDF Generator
  *
  * T150 (2026-05-27): Full rewrite — lobbyist-first, one-page US letter.
+ * T151 (2026-05-27): C-suite refinements.
+ *   - WHO IS AFFECTED callout moved directly under bill title (most important
+ *     line; C-suite needs it before anything else)
+ *   - RECOMMENDATION field added (signals this is an actionable document)
+ *   - Score one-liner now leads with probability % ("84% historical pass rate")
+ *   - Hearing date removed from status pill (was duplicated in committee card)
+ *   - Hearing date in committee card adds countdown ("Hearing May 30 (3 days)")
+ *   - "TOP X-FACTORS" renamed "KEY SIGNALS"
+ *   - "PRIME SPONSOR" renamed "SPONSOR"
+ *   - Sponsor tier translated to plain English (Majority Leadership / Senior
+ *     Member / Rank-and-file, not tier numbers)
+ *   - Bill number in helvetica (not Courier — looks like a terminal, not a brief)
+ *   - "AI-GENERATED" label moved to footer disclaimer (out of the summary header)
+ *   - Footer tagline de-duplicated (logo in header is sufficient brand presence)
  *
- * Audience: professional lobbyist who prints before a committee hearing and
- * reads in 45 seconds. C-suite executive who wants to know if the bill
- * matters, who's behind it, and what happens next.
- *
- * Information hierarchy (Tier 1 above the fold → Tier 3 supporting detail):
- *   Tier 1: Bill identity · Sponsor · Status · Trajectory score
- *   Tier 2: What the bill does (AI exec summary + who affected) · Committee
- *            · Top X-factors
- *   Tier 3: Floor vote (if voted) · Companion (if any) · Fiscal note (if any)
- *            · Stage timeline (only if 3+ transitions)
- *
- * CUT from previous version: full AI summary wall, bill timeline, political
- * dynamics one-liner, recent amendments list, "What to Watch" section.
- *
- * Style: mirrors generate-member-pdf.js gold standard (T147–T148).
- *   — VECTOR_PALETTE (P) throughout; no legacy aliases
- *   — drawSectionLabel() matches member PDF exactly
- *   — Font-before-wrapText discipline on every splitTextToSize call
- *   — US letter format (not A4)
- *   — logoH = 14 (consistent with member PDF)
- *   — loadSvgWithFillSwap from pdf-shared (not duplicated locally)
+ * Information hierarchy:
+ *   Tier 1: Bill identity · WHO IS AFFECTED callout · Status · Score ·
+ *            Recommendation
+ *   Tier 2: Sponsor · Committee · What the bill does (exec summary) · Key signals
+ *   Tier 3: Floor vote · Companion · Fiscal note · Stage timeline
  *
  * jsPDF built-in fonts (Helvetica/Courier) only support Windows-1252.
- * No box-drawing, Greek, or arrow glyphs. Triangles drawn via doc.triangle().
+ * No box-drawing, Greek, or arrow glyphs. Triangles via doc.triangle().
  */
 
 import jsPDF from 'jspdf'
@@ -59,8 +57,8 @@ const PARTY_COLOR = {
   L: [138, 128, 112],
 }
 
-// Sponsor-tier copy (matches bill page)
-const SPONSOR_TIER_LABEL = { 1: 'Leadership', 2: 'Senior', 3: 'Member' }
+// Sponsor-tier copy — plain English for a non-insider reader
+const SPONSOR_TIER_LABEL = { 1: 'Majority Leadership', 2: 'Senior Member', 3: 'Rank-and-file' }
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -80,8 +78,8 @@ function getStagePlainText(bill) {
   const cm = bill.committee_name || ''
   const cl = (bill.confidence_label || '').toUpperCase()
 
-  if (cl === 'LAW')             return 'Signed into law'
-  if (cl === 'DEAD')            return 'Did not advance — session ended'
+  if (cl === 'LAW')            return 'Signed into law'
+  if (cl === 'DEAD')           return 'Did not advance — session ended'
   if (cl === 'PASSED_CHAMBER') {
     if (isPostBienniumClose()) {
       const next = getNextBiennium()?.session
@@ -109,7 +107,10 @@ function getRecentActionDate(bill) {
   } catch (e) { return '' }
 }
 
-/** One-sentence read of the score for the trajectory block. */
+/**
+ * One-sentence read of the score. Leads with the historical pass rate %
+ * so the first word a C-suite reader sees is a probability, not a label.
+ */
 function getScoreOneLiner(bill, score) {
   const cl = (bill.confidence_label || '').toUpperCase()
   if (cl === 'LAW')  return 'Signed into law — outcome final.'
@@ -122,9 +123,9 @@ function getScoreOneLiner(bill, score) {
     }
     return 'Passed its first chamber — carries into the next session.'
   }
-  if (score >= TIER_HIGH)     return 'Strong forward movement — historically, bills in this band become law ~84% of the time.'
-  if (score >= TIER_MODERATE) return 'Moderate momentum — a viable path to passage with active committee work.'
-  if (score >= TIER_LOW)      return 'Limited movement — needs a sponsor push or hearing to gain ground.'
+  if (score >= TIER_HIGH)     return '84% historical pass rate — strong forward momentum.'
+  if (score >= TIER_MODERATE) return 'Viable path to passage — moderate momentum, active committee work required.'
+  if (score >= TIER_LOW)      return 'Limited movement — needs a sponsor push or a scheduled hearing to gain ground.'
   return 'Very limited momentum — most bills in this band do not advance this session.'
 }
 
@@ -207,8 +208,8 @@ function structureSummary(raw) {
 }
 
 /**
- * Extract chronological stage events from snapshots for the optional
- * compact timeline row. Returns [] when fewer than 3 transitions exist.
+ * Build chronological stage events from snapshots.
+ * Returns [] when fewer than 3 transitions exist.
  */
 function buildBillTimeline(snapshots) {
   if (!snapshots || snapshots.length === 0) return []
@@ -235,11 +236,6 @@ function buildBillTimeline(snapshots) {
 
 // ── Section label helper (matches generate-member-pdf.js exactly) ────────────
 
-/**
- * Draw a brass ALL-CAPS section label + rule line.
- * Returns y advanced past the rule + 4mm gap.
- * Font + size are set here — callers must re-set font for body text after.
- */
 function drawSectionLabel(doc, y, m, contentW, label) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
@@ -254,14 +250,9 @@ function drawSectionLabel(doc, y, m, contentW, label) {
 
 // ── Section 1 — Header ────────────────────────────────────────────────────────
 
-/**
- * Logo (left) + domain + generated timestamp + session context (right).
- * logoH = 14 — consistent with generate-member-pdf.js T147.
- * Async: rasterizes /logos/vector-wa-primary.svg via canvas.
- */
 async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
   const logoH = 14
-  const logoW = logoH * (895 / 500)  // aspect 895:500 = ~25mm
+  const logoW = logoH * (895 / 500)
 
   let logoDrawn = false
   try {
@@ -281,13 +272,11 @@ async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
     doc.text('VECTOR | WA', m, y + 9)
   }
 
-  // Right: domain
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   doc.setTextColor(...P.accent)
   doc.text(VECTOR_DOMAIN, pw - m, y + 5, { align: 'right' })
 
-  // Right: generated timestamp
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
@@ -298,7 +287,6 @@ async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
   })
   doc.text('Generated ' + stamp, pw - m, y + 10, { align: 'right' })
 
-  // Right: session context strip (active session vs. interim)
   const ctxLine = getSessionContextLine()
   if (ctxLine) {
     doc.setFont('helvetica', 'normal')
@@ -317,12 +305,13 @@ async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
 // ── Section 2 — Bill identity ─────────────────────────────────────────────────
 
 /**
- * Bill number (courier bold brass) · session inline · title (bold, ≤2 lines)
+ * Bill number (helvetica bold brass) · session inline · title (bold, ≤2 lines)
  * Category · Chamber meta row.
+ * T151: bill number in helvetica (Courier looked like a terminal window).
  */
 function drawBillIdentity(doc, y, m, contentW, bill) {
-  // Bill number — courier bold brass (matches top-bills list in member PDF)
-  doc.setFont('courier', 'bold')
+  // Bill number — helvetica bold brass
+  doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
   doc.setTextColor(...P.accent)
   const label = billLabel(bill)
@@ -360,10 +349,56 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
   return titleBottom + 4
 }
 
+// ── Section 2b — WHO IS AFFECTED callout ──────────────────────────────────────
+
+/**
+ * T151: WHO IS AFFECTED surfaced immediately after the bill title — the
+ * single most important line for a C-suite reader deciding if this bill is
+ * their problem. Previously buried as a muted footnote inside the summary
+ * block; now a brass-accent callout inline with bill identity.
+ *
+ * Gracefully omitted when the AI summary has no AFFECTED/IMPACT section.
+ */
+function drawAffectedCallout(doc, y, m, contentW, bill) {
+  const sections    = structureSummary(bill.custom_summary || bill.ai_summary || '')
+  const affectedSec = sections.find(s => s.heading && /AFFECTED|IMPACT/i.test(s.heading))
+  if (!affectedSec?.body) return y
+
+  const pillH = 8
+
+  doc.setFillColor(...P.surface)
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.2)
+  doc.roundedRect(m, y, contentW, pillH, 1, 1, 'FD')
+
+  // Brass left accent
+  doc.setFillColor(...P.accent)
+  doc.rect(m, y, 2.5, pillH, 'F')
+
+  // "AFFECTS:" micro-label — font set before getTextWidth
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...P.accent)
+  doc.text('AFFECTS:', m + 5, y + 5.2)
+  const labW = doc.getTextWidth('AFFECTS:')
+
+  // Body text — font MUST be set before splitTextToSize (T148 discipline)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...P.primary)
+  const affW    = contentW - labW - 12
+  const affLines = doc.splitTextToSize(affectedSec.body, affW)
+  doc.text(affLines.slice(0, 1)[0] || '', m + 5 + labW + 3, y + 5.2)
+
+  return y + pillH + 3
+}
+
 // ── Section 3 — Status pill ───────────────────────────────────────────────────
 
 /**
- * Brass left-accent rounded pill: current stage · hearing date or action date.
+ * Brass left-accent rounded pill: current stage · cutoff days (if imminent).
+ * T151: hearing date removed — it now appears only in the committee card with
+ * a countdown ("Hearing May 30 (3 days)"). No more duplication.
  */
 function drawStatusPill(doc, y, m, contentW, bill) {
   const stageLine  = getStagePlainText(bill)
@@ -378,12 +413,8 @@ function drawStatusPill(doc, y, m, contentW, bill) {
   } else {
     const tail = []
     if (!interim) {
-      if (bill.hearing_date) {
-        try {
-          const h = new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          tail.push('Hearing ' + h)
-        } catch (e) {}
-      } else if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0) {
+      // T151: hearing date removed here — shown in committee card with countdown
+      if (bill.days_to_cutoff != null && bill.days_to_cutoff > 0) {
         tail.push(bill.days_to_cutoff + ' days to cutoff')
       }
     } else if (dateLbl) {
@@ -410,9 +441,8 @@ function drawStatusPill(doc, y, m, contentW, bill) {
 // ── Section 4 — Score block ───────────────────────────────────────────────────
 
 /**
- * Score circle (left) + TRAJECTORY SCORE label + tier + one-liner (right).
- * Circle pattern matches generate-member-pdf.js drawTopBills, scaled up for
- * the primary metric display role.
+ * Score circle (left) + label + tier + one-liner (right).
+ * T151: one-liner now leads with probability % ("84% historical pass rate —").
  */
 function drawScoreBlock(doc, y, m, contentW, bill) {
   const score    = bill.final_score || 0
@@ -421,13 +451,12 @@ function drawScoreBlock(doc, y, m, contentW, bill) {
   const oneLiner = getScoreOneLiner(bill, score)
   const boxH     = 20
 
-  // Outer surface box
   doc.setFillColor(...P.surface)
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
   doc.roundedRect(m, y, contentW, boxH, 2, 2, 'FD')
 
-  // Score circle — r=8, left-center
+  // Score circle — r=8, left-center; matches member PDF circle pattern (T148)
   const circleR = 8
   const cx = m + 4 + circleR
   const cy = y + boxH / 2
@@ -448,7 +477,7 @@ function drawScoreBlock(doc, y, m, contentW, bill) {
 
   // Right-side content
   const txtX = m + 4 + circleR * 2 + 5
-  const txtW = contentW - 4 - circleR * 2 - 5 - 4
+  const txtW  = contentW - 4 - circleR * 2 - 5 - 4
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
@@ -465,11 +494,50 @@ function drawScoreBlock(doc, y, m, contentW, bill) {
   return y + boxH + 4
 }
 
+// ── Section 4b — Recommendation field ────────────────────────────────────────
+
+/**
+ * T151: RECOMMENDATION line added — signals that this brief is an actionable
+ * document, not just an information dump. A lobbyist fills this in before
+ * handing the printed page to a C-suite executive (Monitor / Engage / Oppose).
+ * On digital PDFs it renders as a blank write-line.
+ */
+function drawRecommendation(doc, y, m, contentW) {
+  const rowH = 8
+
+  doc.setFillColor(...P.surface)
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.2)
+  doc.roundedRect(m, y, contentW, rowH, 1.5, 1.5, 'FD')
+
+  // Brass left accent
+  doc.setFillColor(...P.accent)
+  doc.rect(m, y, 2.5, rowH, 'F')
+
+  // Label — font set before getTextWidth
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7)
+  doc.setTextColor(...P.accent)
+  doc.text('RECOMMENDATION:', m + 5, y + 5.2)
+  const labW = doc.getTextWidth('RECOMMENDATION:')
+
+  // Write-line for lobbyist to complete on print
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.25)
+  doc.line(m + 5 + labW + 4, y + 5.8, m + contentW - 4, y + 5.8)
+
+  return y + rowH + 4
+}
+
 // ── Section 5 — Sponsor + Committee ──────────────────────────────────────────
 
 /**
- * Two compact cards side-by-side: Prime Sponsor (left) · Committee (right).
- * cardH = 16 (tightened from 22 in T32 design — saves 6mm).
+ * Two compact cards side-by-side.
+ * T151:
+ *   - "PRIME SPONSOR" → "SPONSOR"
+ *   - Tier labels translated to plain English (Majority Leadership / Senior
+ *     Member / Rank-and-file — not coded tier numbers)
+ *   - Hearing date adds countdown: "Hearing May 30 (3 days)" vs. "Hearing May 30"
  */
 function drawSponsorCommittee(doc, y, m, contentW, bill) {
   const colW  = (contentW - 5) / 2
@@ -485,29 +553,28 @@ function drawSponsorCommittee(doc, y, m, contentW, bill) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
-  doc.text('PRIME SPONSOR', m + 4, y + 4.5)
+  doc.text('SPONSOR', m + 4, y + 4.5)
 
   // Name — font MUST be set before splitTextToSize (T148)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9.5)
   doc.setTextColor(...P.primary)
-  const name     = bill.prime_sponsor || '—'
+  const name      = bill.prime_sponsor || '—'
   const nameLines = doc.splitTextToSize(name, colW - 14)
   doc.text(nameLines.slice(0, 1), m + 4, y + 9.5)
 
-  // Party character in color — appended after the name
+  // Party character — appended after name; font still bold/9.5 from above
   const partyChar = ((bill.prime_party || bill.sponsor_party || '')).charAt(0).toUpperCase()
   if (PARTY_COLOR[partyChar] && name !== '—') {
-    // font still set to bold/9.5 from above — getTextWidth uses current state
     const nameW = doc.getTextWidth(nameLines[0] || name)
     doc.setFontSize(9)
     doc.setTextColor(...PARTY_COLOR[partyChar])
     doc.text(' (' + partyChar + ')', m + 4 + nameW, y + 9.5)
   }
 
-  // District · tier · chair flag · bipartisan
+  // District · translated tier · chair flag · bipartisan
   const metaParts = [
-    bill.sponsor_district ? 'Dist. ' + bill.sponsor_district : null,
+    bill.sponsor_district ? 'District ' + bill.sponsor_district : null,
     SPONSOR_TIER_LABEL[bill.sponsor_tier] || null,
     (bill.sponsor_is_chair || bill.is_committee_chair) ? 'Committee Chair' : null,
     bill.bipartisan ? 'Bipartisan' : null,
@@ -539,12 +606,17 @@ function drawSponsorCommittee(doc, y, m, contentW, bill) {
   const cmteLines = doc.splitTextToSize(cmteName, colW - 8)
   doc.text(cmteLines.slice(0, 1), rightX + 4, y + 9.5)
 
-  // Chair + hearing date
+  // Chair + hearing date with countdown
   const cmteMeta = []
   if (bill.committee_chair) cmteMeta.push('Chair: ' + bill.committee_chair)
   if (bill.hearing_date) {
     try {
-      cmteMeta.push('Hearing ' + new Date(bill.hearing_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+      const hDate   = new Date(bill.hearing_date)
+      const daysOut = Math.ceil((hDate - new Date()) / 86400000)
+      const dateStr = hDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      // T151: add countdown so urgency is immediately legible
+      const suffix  = daysOut > 0 ? ' (' + daysOut + ' days)' : daysOut === 0 ? ' (today)' : ''
+      cmteMeta.push('Hearing ' + dateStr + suffix)
     } catch (e) {}
   }
   if (cmteMeta.length) {
@@ -560,84 +632,53 @@ function drawSponsorCommittee(doc, y, m, contentW, bill) {
 // ── Section 6 — What the bill does ───────────────────────────────────────────
 
 /**
- * Extracts EXECUTIVE SUMMARY (≤3 lines) + WHO IS AFFECTED (≤1 line) from
- * the structured AI summary. Other AI sections (KEY PROVISIONS, POLITICAL
- * OUTLOOK, etc.) are intentionally omitted — they create a wall of text that
- * lobbyists skip.
- *
- * "AI-GENERATED" attribution tag placed right-aligned on the section header
- * baseline, per Brand Guide v1.2 §14/§17.
+ * EXECUTIVE SUMMARY only (≤3 lines). WHO IS AFFECTED has been promoted to
+ * its own callout directly under the bill title (drawAffectedCallout above).
+ * AI attribution moved to footer disclaimer (T151).
  */
 function drawWhatItDoes(doc, y, m, contentW, bill, ph) {
   const sections = structureSummary(bill.custom_summary || bill.ai_summary || '')
-  if (!sections.length) return y
 
-  // Extract the two useful sections from the structured parse
+  // Extract executive summary — prefer labelled section, fall back to first body
   const execSec = sections.find(s => s.heading && /EXECUTIVE|SUMMARY/i.test(s.heading))
     || sections.find(s => !s.heading)
     || sections[0]
 
-  const affectedSec = sections.find(s =>
-    s.heading && /AFFECTED|IMPACT/i.test(s.heading)
-  )
+  if (!execSec?.body) return y
 
-  if (!execSec?.body && !affectedSec?.body) return y
-
-  y = checkPageBreak(doc, y, 24, ph)
-
-  // AI attribution — drawn at pre-advance y, right-aligned, same baseline as label
-  const aiLabel = bill.custom_summary ? 'AI-GENERATED · EDITED' : 'AI-GENERATED'
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(6)
-  doc.setTextColor(...P.muted)
-  doc.text(aiLabel, m + contentW, y, { align: 'right' })
-
+  y = checkPageBreak(doc, y, 20, ph)
   y = drawSectionLabel(doc, y, m, contentW, 'What the bill does')
 
+  // Executive summary body — font MUST be set before splitTextToSize (T148)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...P.primary)
+  const lines = doc.splitTextToSize(execSec.body, contentW)
   let cy = y
-
-  // EXECUTIVE SUMMARY — max 3 lines at 8.5pt; font MUST be set before wrapText (T148)
-  if (execSec?.body) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.primary)
-    const lines = doc.splitTextToSize(execSec.body, contentW)
-    lines.slice(0, 3).forEach(line => {
-      cy = checkPageBreak(doc, cy, 4.5, ph)
-      doc.text(line, m, cy)
-      cy += 4.3
-    })
-    cy += 1.5
-  }
-
-  // WHO IS AFFECTED — 1 line, muted; font set before splitTextToSize (T148)
-  if (affectedSec?.body) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(...P.muted)
-    const affLines = doc.splitTextToSize('Affects: ' + affectedSec.body, contentW)
-    doc.text(affLines.slice(0, 1), m, cy)
-    cy += 4.5
-  }
+  lines.slice(0, 3).forEach(line => {
+    cy = checkPageBreak(doc, cy, 4.5, ph)
+    doc.text(line, m, cy)
+    cy += 4.3
+  })
 
   return cy + 2
 }
 
-// ── Section 7 — Top X-Factors ─────────────────────────────────────────────────
+// ── Section 7 — Key Signals ───────────────────────────────────────────────────
 
 /**
- * Top 3 signals (2 positive + 1 negative) in a single horizontal chip row.
- * Triangles drawn via doc.triangle() — no Unicode glyph dependency.
- * Gracefully omitted when fewer than 2 factors are available.
+ * Top 3 signals in a single horizontal chip row.
+ * T151: renamed from "TOP X-FACTORS" to "KEY SIGNALS" — insider terminology
+ * removed; plain English for a C-suite reader.
  */
-function drawXFactors(doc, y, m, contentW, scoreFeatures, ph) {
+function drawKeySignals(doc, y, m, contentW, scoreFeatures, ph) {
   const positives = (scoreFeatures || []).filter(f => f.pos).sort((a, b) => b.d - a.d).slice(0, 2)
   const negatives = (scoreFeatures || []).filter(f => !f.pos).sort((a, b) => a.d - b.d).slice(0, 1)
   const top = [...positives, ...negatives].slice(0, 3)
   if (top.length < 2) return y
 
   y = checkPageBreak(doc, y, 16, ph)
-  y = drawSectionLabel(doc, y, m, contentW, 'Top X-Factors')
+  y = drawSectionLabel(doc, y, m, contentW, 'Key Signals')
 
   const chipH   = 7
   const chipGap = 3
@@ -662,7 +703,7 @@ function drawXFactors(doc, y, m, contentW, scoreFeatures, ph) {
       doc.triangle(triX, triY + 1.2, triX + 2, triY - 1, triX - 2, triY - 1, 'F')
     }
 
-    // Label + delta — font MUST be set before getTextWidth (T148 discipline)
+    // Label + delta — font MUST be set before getTextWidth (T148)
     const deltaPct = (f.d > 0 ? '+' : '') + Math.round(f.d * 100) + '%'
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
@@ -680,14 +721,9 @@ function drawXFactors(doc, y, m, contentW, scoreFeatures, ph) {
 
 // ── Section 8 — Floor votes (conditional) ────────────────────────────────────
 
-/**
- * Latest vote per chamber — compact 10mm rows with party split.
- * Skipped entirely when rollCalls is empty.
- */
 function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, ph) {
   if (!rollCalls || !rollCalls.length) return y
 
-  // Latest vote per chamber
   const byChamber = {}
   rollCalls.forEach(rc => {
     const ch   = rc.chamber || 'Unknown'
@@ -715,11 +751,9 @@ function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, ph) 
     doc.setLineWidth(0.2)
     doc.roundedRect(m, y, contentW, rowH, 1.5, 1.5, 'FD')
 
-    // Left accent bar — brass if passed, rust if failed
     doc.setFillColor(...(passed ? P.accent : P.danger))
     doc.rect(m, y, 2.5, rowH, 'F')
 
-    // Chamber + date (top-left)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
     doc.setTextColor(...P.primary)
@@ -728,19 +762,16 @@ function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, ph) 
     if (dateLbl === 'session dates TBD') dateLbl = ''
     doc.text((rc.chamber || '') + (dateLbl ? '  ·  ' + dateLbl : ''), m + 5, y + 4.2)
 
-    // Yea-Nay tally (bottom-left)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
     doc.setTextColor(...(passed ? P.accent : P.danger))
     doc.text((rc.yeas || 0) + '-' + (rc.nays || 0), m + 5, y + 8.5)
 
-    // Result label
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...P.muted)
     doc.text(passed ? 'Passed' : 'Failed', m + 28, y + 8.5)
 
-    // Party split (top-right)
     const pb = partyBucketsByRcId && rc.id ? partyBucketsByRcId[rc.id] : null
     if (pb) {
       const parts = []
@@ -804,14 +835,9 @@ function drawFiscalNote(doc, y, m, contentW, fiscalNote, bill, ph) {
 
 // ── Section 11 — Stage timeline (conditional, 3+ transitions only) ────────────
 
-/**
- * Compact dot-arrow row: "Introduced Jan 14  >  Out of committee Feb 3  >  ..."
- * Only rendered when the snapshot history has 3 or more distinct stage events.
- * Shown last (supporting detail, Tier 3) so it never bumps higher-signal content.
- */
 function drawTimeline(doc, y, m, contentW, snapshots, ph) {
   const events = buildBillTimeline(snapshots)
-  if (events.length < 3) return y   // Not worth a section with 1–2 points
+  if (events.length < 3) return y
 
   y = checkPageBreak(doc, y, 12, ph)
   y = drawSectionLabel(doc, y, m, contentW, 'Stage History')
@@ -822,13 +848,12 @@ function drawTimeline(doc, y, m, contentW, snapshots, ph) {
       return e.label + ' ' + d
     } catch { return e.label }
   })
-  const flowText = parts.join('  >  ')
 
   // Font MUST be set before splitTextToSize (T148 discipline)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(...P.primary)
-  const lines = doc.splitTextToSize(flowText, contentW)
+  const lines = doc.splitTextToSize(parts.join('  >  '), contentW)
   let cy = y
   lines.slice(0, 2).forEach(line => {
     cy = checkPageBreak(doc, cy, 4.5, ph)
@@ -840,12 +865,18 @@ function drawTimeline(doc, y, m, contentW, snapshots, ph) {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
+/**
+ * T151: footer simplified.
+ *   - "AI-generated content" disclosure moved here from the summary header
+ *   - "Vector | WA — Washington State legislative intelligence" tagline removed
+ *     (logo in the header is the brand presence — no need to repeat)
+ */
 function drawFooter(doc, ph, m, pw, bill, generatedAt) {
-  const fy   = ph - 13
+  const fy    = ph - 13
   const stamp = generatedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   const verifyPath = '/bill/' + (bill.bill_id || bill.id || '')
   const line1 = 'Generated ' + stamp + ' · Verify at ' + VECTOR_DOMAIN + verifyPath
-  const line2  = 'Not legal advice · Vector | WA — Washington State legislative intelligence'
+  const line2 = 'Not legal advice · Summary contains AI-generated content'
 
   doc.setDrawColor(...P.accent)
   doc.setLineWidth(0.4)
@@ -864,19 +895,19 @@ function drawFooter(doc, ph, m, pw, bill, generatedAt) {
  * Generate the Vector | WA single-bill public brief (US letter, one page).
  * All non-bill inputs are optional — sections degrade gracefully when absent.
  *
- * Signature is unchanged from T32 — call site in bill/[id]/page.js requires
+ * Signature unchanged from T32 — call site in bill/[id]/page.js requires
  * no modification. Legacy params (recentRollCall, partyBuckets, companion)
- * are retained for backwards compatibility; the T150 layout uses rollCalls
- * and partyBucketsByRcId exclusively.
+ * are retained for backwards compatibility; the T150/T151 layout does not
+ * use them.
  *
  * @param {Object} input
  * @param {Object} input.bill                   Bills row from Supabase.
  * @param {Array<{l,d,pos}>} [input.scoreFeatures]  latestSnap.xf_factors.
  * @param {Array}  [input.rollCalls]             Roll-call rows; latest per chamber used.
  * @param {Object} [input.partyBucketsByRcId]    Map id -> {yesD,yesR,noD,noR}.
- * @param {Object} [input.recentRollCall]        Legacy compat — not used in T150 layout.
- * @param {Object} [input.partyBuckets]          Legacy compat — not used in T150 layout.
- * @param {Array}  [input.recentAmendments]      Legacy compat — not used in T150 layout.
+ * @param {Object} [input.recentRollCall]        Legacy compat — not used.
+ * @param {Object} [input.partyBuckets]          Legacy compat — not used.
+ * @param {Array}  [input.recentAmendments]      Legacy compat — not used.
  * @param {Array}  [input.snapshots]             Stage history for timeline (Tier 3).
  * @param {Object} [input.companion]             Reserved for future companion enrichment.
  * @param {Object} [input.fiscalNote]            Fiscal note object.
@@ -885,20 +916,19 @@ function drawFooter(doc, ph, m, pw, bill, generatedAt) {
  */
 export async function generatePublicBriefPDF({
   bill,
-  scoreFeatures    = [],
-  rollCalls        = null,
+  scoreFeatures      = [],
+  rollCalls          = null,
   partyBucketsByRcId = null,
-  recentRollCall   = null,      // legacy compat
-  partyBuckets     = null,      // legacy compat
-  recentAmendments = [],        // legacy compat
-  snapshots        = null,
-  companion        = null,      // reserved
-  fiscalNote       = null,
-  generatedAt      = new Date(),
+  recentRollCall     = null,    // legacy compat
+  partyBuckets       = null,    // legacy compat
+  recentAmendments   = [],      // legacy compat
+  snapshots          = null,
+  companion          = null,    // reserved
+  fiscalNote         = null,
+  generatedAt        = new Date(),
 } = {}) {
   if (!bill) throw new Error('generatePublicBriefPDF: bill is required')
 
-  // US letter (215.9 × 279.4 mm) — consistent with generate-member-pdf.js
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' })
   const pw = doc.internal.pageSize.getWidth()
   const ph = doc.internal.pageSize.getHeight()
@@ -908,18 +938,20 @@ export async function generatePublicBriefPDF({
 
   // ── Render pipeline ─────────────────────────────────────────────────────
 
-  // Tier 1 — always visible, above the fold
+  // Tier 1 — above the fold; answers "is this my problem and will it pass?"
   y = await drawHeader(doc, y, m, pw, contentW, generatedAt)
   y = drawBillIdentity(doc, y, m, contentW, bill)
+  y = drawAffectedCallout(doc, y, m, contentW, bill)       // WHO IS AFFECTED under title
   y = drawStatusPill(doc, y, m, contentW, bill)
   y = drawScoreBlock(doc, y, m, contentW, bill)
+  y = drawRecommendation(doc, y, m, contentW)              // actionable field
 
-  // Tier 2 — body: context + committee + top signals
+  // Tier 2 — body: context, who's behind it, what it does
   y = drawSponsorCommittee(doc, y, m, contentW, bill)
   y = drawWhatItDoes(doc, y, m, contentW, bill, ph)
-  y = drawXFactors(doc, y, m, contentW, scoreFeatures, ph)
+  y = drawKeySignals(doc, y, m, contentW, scoreFeatures, ph)
 
-  // Tier 3 — supporting detail (conditional, each section self-guards)
+  // Tier 3 — supporting detail (each section self-guards with checkPageBreak)
   y = drawFloorVotes(doc, y, m, contentW, Array.isArray(rollCalls) ? rollCalls : [], partyBucketsByRcId || {}, ph)
   y = drawCompanion(doc, y, m, contentW, bill, ph)
   y = drawFiscalNote(doc, y, m, contentW, fiscalNote, bill, ph)
@@ -927,17 +959,15 @@ export async function generatePublicBriefPDF({
 
   // ────────────────────────────────────────────────────────────────────────
 
-  // Footer on every page
   const pageCount = doc.getNumberOfPages()
   for (let p = 1; p <= pageCount; p++) {
     doc.setPage(p)
     drawFooter(doc, ph, m, pw, bill, generatedAt)
   }
 
-  // Bill-specific filename
   const safeBill = ((bill.chamber === 'House' ? 'HB' : 'SB') + (bill.bill_number || '')).replace(/[^a-zA-Z0-9]/g, '_')
   const safeDate = generatedAt.toISOString().slice(0, 10).replace(/-/g, '')
-  const filename = 'Vector_WA_' + safeBill + '_brief_' + safeDate + '.pdf'
+  const filename  = 'Vector_WA_' + safeBill + '_brief_' + safeDate + '.pdf'
   doc.save(filename)
   return filename
 }
