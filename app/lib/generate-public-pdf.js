@@ -5,6 +5,7 @@
  * T151 (2026-05-27): C-suite refinements — affected callout, recommendation,
  *   probability-led score, hearing countdown, plain-English labels.
  * T152 (2026-05-27): Memo-style redesign — all UI card boxes removed.
+ * T153 (2026-05-27): UI/UX formatting audit — 14 fixes.
  *   Problems resolved:
  *   - Every section was a roundedRect card with a brass accent bar — looked
  *     like a mobile app screenshot, not a briefing document. All boxes gone.
@@ -187,13 +188,9 @@ function getSessionContextLine() {
     }
     return parts.join('  ·  ')
   }
-  let dayOfSession = null
-  try {
-    dayOfSession = Math.ceil((new Date() - new Date(biennium.start)) / 86400000) + 1
-  } catch (e) {}
+  // #13: Day N of session removed — not actionable; cutoff countdown is
   const cutoffs = getSessionCutoffs().filter(c => !c.passed).slice(0, 1)
   const parts = []
-  if (dayOfSession) parts.push('Day ' + dayOfSession + ' of session')
   if (cutoffs.length > 0) {
     const c = cutoffs[0]
     parts.push(c.label + ': ' + formatSessionDate(c.date) + ' (' + c.daysLeft + ' days)')
@@ -350,12 +347,12 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
 
   // Title — font MUST be set before splitTextToSize (T148 discipline)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(12)
   doc.setTextColor(...P.primary)
   const titleLines = doc.splitTextToSize(getBillTitle(bill), contentW)
   const shownLines = titleLines.slice(0, 2)
-  shownLines.forEach((line, i) => doc.text(line, m, y + 11 + i * 5))
-  const titleBottom = y + 11 + shownLines.length * 5
+  shownLines.forEach((line, i) => doc.text(line, m, y + 12.5 + i * 5.5))
+  const titleBottom = y + 12.5 + shownLines.length * 5.5
 
   // Category · chamber meta row
   const metaParts = [bill.category, bill.chamber].filter(Boolean)
@@ -367,7 +364,7 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
     doc.text(metaParts.join('  ·  '), m, cur + 3.5)
     cur = cur + 8
   } else {
-    cur = cur + 3
+    cur = cur + 6   // #6: was 3 — visually tight before Affects line
   }
 
   // Inline affects line — "Affects: [one sentence]"
@@ -386,9 +383,13 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...P.muted)
-    const affW    = contentW - labW - 3
+    const affW     = contentW - labW - 3
     const affLines = doc.splitTextToSize(affectedSec.body, affW)
-    doc.text((affLines[0] || '').trim(), m + labW + 2, cur)
+    // #5: append ellipsis if body was truncated to one line
+    const affText  = affLines.length > 1
+      ? (affLines[0] || '').trim().replace(/[.,;]?\s*$/, '') + '…'
+      : (affLines[0] || '').trim()
+    doc.text(affText, m + labW + 2, cur)
     cur = cur + 6
   }
 
@@ -435,27 +436,20 @@ function drawStatusAndScore(doc, y, m, contentW, bill) {
   doc.text(statusParts.join('  ·  '), m, y)
   y += 7
 
-  // ── Tier word + score annotation ─────────────────────────────────────────
+  // ── Tier word ─────────────────────────────────────────────────────────────
   const color   = getOutcomeColor(bill, P)
   const tierLbl = isTerminal
     ? (cl === 'LAW' ? 'SIGNED INTO LAW' : cl === 'DEAD' ? 'DID NOT ADVANCE' : 'PASSED CHAMBER')
     : ((getScoreTierLabel(score) || 'VERY LOW')).toUpperCase()
 
-  // Tier word — 13pt bold, tier color; font set before getTextWidth (T148)
+  // #1: 11pt (was 13pt) — title is now dominant at 12pt; color differentiates tier
+  // #10: raw score annotation removed — number is noise without scale context
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
+  doc.setFontSize(11)
   doc.setTextColor(...color)
   doc.text(tierLbl, m, y)
-  const tierW = doc.getTextWidth(tierLbl)
-
-  // Score annotation inline — suppressed for terminal states
-  if (!isTerminal) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(...P.muted)
-    doc.text('Score ' + score, m + tierW + 5, y)
-  }
-  y += 5
+  // #2: y += 8 (was 5) — 11pt descender is ~4mm; was colliding with one-liner
+  y += 8
 
   // ── One-liner ────────────────────────────────────────────────────────────
   const oneLiner = getScoreOneLiner(bill, score)
@@ -485,6 +479,14 @@ function drawSponsorCommittee(doc, y, m, contentW, bill) {
 
   const colW  = (contentW - 8) / 2
   const rightX = m + colW + 8
+
+  // #8: inline column sub-labels so first-time readers know which column is which
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6.5)
+  doc.setTextColor(...P.muted)
+  doc.text('SPONSOR', m, y)
+  doc.text('COMMITTEE', rightX, y)
+  y += 4
 
   // ── Left column — Sponsor ────────────────────────────────────────────────
 
@@ -563,7 +565,7 @@ function drawSponsorCommittee(doc, y, m, contentW, bill) {
     doc.text(cmteLines2[0] || cmteStr, rightX, y + 5)
   }
 
-  return y + 14
+  return y + 12   // sub-labels added 4mm above, so total block height stays ~same
 }
 
 // ── Section 5 — What the bill does ───────────────────────────────────────────
@@ -582,11 +584,18 @@ function drawWhatItDoes(doc, y, m, contentW, bill, ph) {
     || sections.find(s => !s.heading)
     || sections[0]
 
-  if (!execSec?.body) return y
-
   y = checkPageBreak(doc, y, 20, ph)
   y += 2
   y = drawSectionLabel(doc, y, m, contentW, 'What the bill does')
+
+  // #3: empty-state fallback — brief still looks intentional, not broken
+  if (!execSec?.body) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text('Summary not yet available — check vectorwa.com for updates.', m, y)
+    return y + 7
+  }
 
   // Font MUST be set before splitTextToSize (T148 discipline)
   doc.setFont('helvetica', 'normal')
@@ -613,11 +622,19 @@ function drawKeySignals(doc, y, m, contentW, scoreFeatures, ph) {
   const positives = (scoreFeatures || []).filter(f => f.pos).sort((a, b) => b.d - a.d).slice(0, 2)
   const negatives = (scoreFeatures || []).filter(f => !f.pos).sort((a, b) => a.d - b.d).slice(0, 1)
   const top = [...positives, ...negatives].slice(0, 3)
-  if (top.length < 2) return y
 
   y = checkPageBreak(doc, y, 14, ph)
   y += 2
   y = drawSectionLabel(doc, y, m, contentW, 'Key Signals')
+
+  // #3 + #4: show empty state when no signals; threshold was < 2 (suppressed lone signals)
+  if (top.length < 1) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text('Signals not yet computed for this bill.', m, y)
+    return y + 7
+  }
 
   const rowH = 5
   top.forEach(f => {
@@ -625,9 +642,10 @@ function drawKeySignals(doc, y, m, contentW, scoreFeatures, ph) {
     const deltaPct = (f.d > 0 ? '+' : '') + Math.round(f.d * 100) + '%'
 
     // Triangle indicator — drawn, not Unicode (CP1252-safe)
+    // #9: triCY = y-1.4 (mid cap-height for 8pt ~2.8mm); triR = 1.5 (was 1.8, top poked above cap line)
     const triCX = m + 3
-    const triCY = y - 1.5    // mid cap-height for 8pt text
-    const triR  = 1.8
+    const triCY = y - 1.4
+    const triR  = 1.5
     doc.setFillColor(...(isPos ? P.accent : P.danger))
     if (isPos) {
       // Up triangle: top point up, base down
@@ -662,7 +680,19 @@ function drawKeySignals(doc, y, m, contentW, scoreFeatures, ph) {
  * Now: "House  ·  62-36  ·  Passed  ·  April 14       D 53-0  R 9-36"
  */
 function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, ph) {
-  if (!rollCalls || !rollCalls.length) return y
+  // Floor votes section always renders header so the brief looks complete
+  y = checkPageBreak(doc, y, 14, ph)
+  y += 2
+  y = drawSectionLabel(doc, y, m, contentW, 'Floor Vote')
+
+  if (!rollCalls || !rollCalls.length) {
+    // #3: empty-state fallback — no silent disappearance
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text('No floor votes on record.', m, y)
+    return y + 7
+  }
 
   const byChamber = {}
   rollCalls.forEach(rc => {
@@ -678,10 +708,6 @@ function drawFloorVotes(doc, y, m, contentW, rollCalls, partyBucketsByRcId, ph) 
     if (k !== 'House' && k !== 'Senate') votes.push(byChamber[k])
   })
   if (!votes.length) return y
-
-  y = checkPageBreak(doc, y, 10 + votes.length * 6, ph)
-  y += 2
-  y = drawSectionLabel(doc, y, m, contentW, votes.length > 1 ? 'Floor Votes' : 'Floor Vote')
 
   votes.forEach(rc => {
     const passed = (rc.result || '').toLowerCase() === 'passed'
@@ -730,7 +756,11 @@ function drawCompanion(doc, y, m, contentW, bill, ph) {
   y += 2
   y = drawSectionLabel(doc, y, m, contentW, 'Companion Bill')
 
-  const parts = [bill.companion_bill]
+  // #12: type-safe — companion_bill may be a string or an object
+  const compLabel = typeof bill.companion_bill === 'string'
+    ? bill.companion_bill
+    : (bill.companion_bill?.label || bill.companion_bill?.bill_number || String(bill.companion_bill))
+  const parts = [compLabel]
   if (bill.companion_score != null) parts.push('Score ' + bill.companion_score)
   const stateLbl = companionStateLabel(bill.companion_state)
   if (stateLbl) parts.push(stateLbl)
@@ -843,10 +873,11 @@ function drawTimeline(doc, y, m, contentW, snapshots, ph) {
   })
 
   // Font MUST be set before splitTextToSize (T148 discipline)
+  // #7: use middle dot (CP1252 \xB7) consistent with rest of doc; > read as comparison operator
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7.5)
   doc.setTextColor(...P.primary)
-  const lines = doc.splitTextToSize(parts.join('  >  '), contentW)
+  const lines = doc.splitTextToSize(parts.join('  \xB7  '), contentW)
   lines.slice(0, 2).forEach(line => {
     y = checkPageBreak(doc, y, 4.5, ph)
     doc.text(line, m, y)
