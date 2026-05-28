@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.7',
+    date: '2026-05-27',
+    phase: 'alpha',
+    highlights: [
+      'Bill brief PDF rebuilt as a memo-style briefing document (T152): all bordered card boxes removed — the visual language is now a printed brief, not a mobile UI. The only section dividers are brass ALL-CAPS labels with a rule line.',
+      'Status and score merged into a single block: tier word (HIGH / MODERATE / LIMITED / VERY LOW) leads at 13pt in tier color with the raw score as inline annotation. Recommendation write-in field removed.',
+      'Fiscal note upgraded from a single word to a full intelligence block: impact level, state vs. local scope, strategic implication (e.g. "Priority legislation — double-referred to fiscal committees. 45% historical passage rate"), and upgrade history with date.',
+      'Key Signals section converted from chip boxes to text rows with directional triangle indicators and right-aligned delta percentages. Sponsor / Committee section converted to two-column text — no boxes.',
+    ],
+  },
+  {
     version: '5.5.6',
     date: '2026-05-27',
     phase: 'alpha',
