@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.5.9',
+    date: '2026-05-28',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist PDF full redesign (T154): 19 fixes across visual language, intelligence quality, and format. Box chrome entirely removed — card shells, score boxes, status pills, and session bar replaced with text-row memo grammar consistent with the bill brief.',
+      'Executive Summary rebuilt to name specific bills: stage changes since last brief, urgent hearings within 7 days, cutoff pressure, and portfolio health signal. Previously the section contained two dead code blocks and never referenced a bill by name.',
+      'Portfolio Overview table gains a NEXT column (upcoming hearings within 30 days), trend column (+N pts since last run), and correct outcome color coding. PASSED CHAMBER rows now render in Brass-Light instead of matching LAW (Brass) — the two outcomes are now visually distinct.',
+      'Bill cards on pages 2+ use a new drawBillLabel separator (bill number left, trajectory tier right, full-width rule) instead of rounded rectangles. Paper size corrected to US Letter; margin tightened to 16mm to match the bill brief.',
+    ],
+  },
+  {
     version: '5.5.8',
     date: '2026-05-27',
     phase: 'alpha',
