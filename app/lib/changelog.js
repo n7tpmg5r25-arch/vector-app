@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.6.0',
+    date: '2026-05-28',
+    phase: 'alpha',
+    highlights: [
+      'Methodology page redesigned for senior lobbyist / validity lens (T155): section order rebuilt so credibility evidence ("Why This Matters") appears before the data tables rather than after. The proof now follows the hook.',
+      'TL;DR card upgraded: 84% HIGH-tier pass rate now appears as a 36px Playfair Display headline stat, not buried in a sentence. Intro gains two sentences on Washington-specific session mechanics — 60-day calendar, committee chair gating power, and the Rules Committee kill switch.',
+      'Two calibration sections merged into one: combined 3-biennium engine truth is primary, most-recent-biennium check rendered as a sub-section below. Removed the "Engine Truth" jargon label. "How honest is this?" disclosure restructured with the key sentence pulled out as a visible callout.',
+      'X Factors grid changed from 2-column to single-column stack — the 2-col layout was breaking on 480px mobile with long label text. Political Dynamics signals each gain an "In practice:" callout and a new "What this model doesn\'t use" section explains absent signals (JLOB, whip counts, campaign finance). Signal Tiers section removed — redundant with calibration data that already defines tiers inline. Brass left-border accent added to all section labels. CTA button added at page bottom.',
+    ],
+  },
+  {
     version: '5.5.9',
     date: '2026-05-28',
     phase: 'alpha',
