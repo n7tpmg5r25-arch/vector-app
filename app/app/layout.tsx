@@ -1,5 +1,30 @@
 import './globals.css'
+import { Karla, Playfair_Display, DM_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+
+// T157 perf pass: self-host the three brand fonts via next/font instead of the
+// render-blocking @import that used to sit at the top of globals.css. next/font
+// downloads the files at build time, serves them same-origin, preloads them,
+// and exposes each as a CSS variable consumed by the --font-* tokens in
+// globals.css. display:'swap' keeps text visible during load (no FOIT).
+const karla = Karla({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-karla',
+  display: 'swap',
+})
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-playfair',
+  display: 'swap',
+})
+const dmMono = DM_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-dm-mono',
+  display: 'swap',
+})
 import RegisterSW from './components/RegisterSW'
 import Footer from './components/Footer'
 import SessionBanner from './components/SessionBanner'
@@ -49,7 +74,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${karla.variable} ${playfair.variable} ${dmMono.variable}`}>
       <head>
         {/* iOS Add-to-Home-Screen icon. iOS spec is PNG-only in practice -
             SVG support is technically there since iOS 14 but inconsistent

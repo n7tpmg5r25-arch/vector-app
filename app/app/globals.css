@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap');
+/* Fonts are loaded via next/font/google in app/layout.tsx (self-hosted,
+   preloaded, non-render-blocking). The previous @import of fonts.googleapis.com
+   was render-blocking and discovered late (browser had to parse this CSS before
+   it could even start fetching the font CSS, then the font files). next/font
+   exposes each family as a CSS variable (--font-karla / --font-playfair /
+   --font-dm-mono) which the --font-* tokens below reference. (Perf pass, T157.) */
 
 :root {
   /* ── VECTOR | WA DARK INTELLIGENCE THEME ─────────── */
@@ -49,10 +54,11 @@
   --radius:        10px;
   --radius-lg:     16px;
 
-  /* Fonts */
-  --font-display:  'Playfair Display', Georgia, serif;
-  --font-body:     'Karla', 'DM Sans', system-ui, sans-serif;
-  --font-mono:     'DM Mono', 'Courier New', monospace;
+  /* Fonts — primary families come from next/font (see layout.tsx); the
+     literal names are kept as fallbacks in case the variable is ever absent. */
+  --font-display:  var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --font-body:     var(--font-karla), 'Karla', 'DM Sans', system-ui, sans-serif;
+  --font-mono:     var(--font-dm-mono), 'DM Mono', 'Courier New', monospace;
 
   /* Legacy compat (green → forest mapping) */
   --green-dark:    #b8975a;
@@ -146,6 +152,23 @@ input, textarea { font-family: var(--font-body); }
 }
 @media (prefers-reduced-motion: reduce) {
   .vec-loader-arrow { animation: none; }
+}
+
+/* Skeleton shimmer (T157 perf pass) — used by HomeSkeleton and any future
+   loading placeholder. A brass-tinted sweep across a card-colored block so
+   the page paints structure instantly instead of a blank full-screen spinner. */
+@keyframes vecShimmer {
+  0%   { background-position: -480px 0; }
+  100% { background-position: 480px 0; }
+}
+.vec-skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 0%, var(--bg-surface) 50%, var(--bg-card) 100%);
+  background-size: 480px 100%;
+  border-radius: var(--radius);
+  animation: vecShimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-skeleton { animation: none; }
 }
 
 /* ── Thread 35 PRIMARY CTA POLISH ───────────────

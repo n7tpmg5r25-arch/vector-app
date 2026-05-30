@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '5.7.0',
+    date: '2026-05-29',
+    phase: 'alpha',
+    highlights: [
+      'The home dashboard now paints instantly with a structured loading state instead of a single full-screen spinner — you see the brand bar, session timeline, and card layout right away while the data fills in.',
+      'Cut the initial home load from three back-to-back database round-trips to one: the bill list, watchlist, totals, and session-outcome counts now load together rather than in sequence.',
+      'Sign-in status is read locally on first paint instead of waiting on a network check, so the dashboard starts loading its data sooner.',
+      'Removed a stack of redundant per-session lookups that ran on every home visit, and moved the score-change indicators off the critical path so they fill in just after the page appears.',
+      'Switched the three brand typefaces (Playfair Display, Karla, DM Mono) to self-hosted, preloaded fonts — faster first text render and no layout shift on load.',
+    ],
+  },
+  {
     version: '5.6.1',
     date: '2026-05-29',
     phase: 'alpha',
