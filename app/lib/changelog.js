@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.9.0',
+    date: '2026-05-30',
+    phase: 'alpha',
+    highlights: [
+      'Every bill now has a one-tap link to its official page on leg.wa.gov, right beside the AI summary — read the real legal text in a tap, instead of relying on the machine-written summary alone.',
+      'Bill pages now show the date of the bill’s last action, so you can see at a glance how current the status is.',
+      'The methodology page now states coverage and freshness plainly: every bill is tracked (not a sample), the model is calibrated on 8,062 historical bills, and data syncs from the Legislature daily.',
+    ],
+  },
+  {
     version: '5.8.3',
     date: '2026-05-30',
     phase: 'alpha',
