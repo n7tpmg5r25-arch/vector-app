@@ -29,6 +29,22 @@
 
 export const CHANGELOG = [
   {
+    version: '5.8.3',
+    date: '2026-05-30',
+    phase: 'alpha',
+    highlights: [
+      'Members page is significantly faster: the legislator stats list now loads about 3x quicker after a database tuning pass, and a member’s voting record loads with fewer round-trips.',
+    ],
+  },
+  {
+    version: '5.8.2',
+    date: '2026-05-30',
+    phase: 'alpha',
+    highlights: [
+      'The About page now names the person behind the project — Colin Foote, a registered Washington State lobbyist — with a direct statement of the tool’s nonpartisan purpose, so the predictions have an accountable author.',
+    ],
+  },
+  {
     version: '5.8.1',
     date: '2026-05-30',
     phase: 'alpha',

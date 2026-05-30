@@ -199,6 +199,31 @@ export default function AboutPage() {
           </div>
         </div>
 
+        {/* SECTION 4 — WHO'S BEHIND IT (Thread 162, 2026-05-30; trust audit #14).
+            A named, accountable author behind the predictions. Framed to address
+            the obvious conflict question (a registered lobbyist building a
+            "nonpartisan" scoring tool) head-on rather than leaving it unspoken.
+            TODO(Colin): add a public contact line if you want one — email,
+            LinkedIn, or your PDC lobbyist registration link. Left out for now so
+            no contact is published without your say-so. */}
+        <div>
+          <div style={EYEBROW}>4 &middot; Who&apos;s behind it</div>
+          <div style={CARD}>
+            <p style={{ marginTop: 0 }}>
+              Vector | WA is built and maintained by <span style={HIGHLIGHT}>Colin Foote</span>,
+              a registered Washington State lobbyist. It started as a personal tool for reading
+              where bills were headed in Olympia, and grew into the public site you&apos;re using now.
+            </p>
+            <p style={{ marginBottom: 0 }}>
+              A note on the obvious question: this is a <span style={HIGHLIGHT}>nonpartisan</span> tool.
+              The score measures a bill&apos;s trajectory &mdash; how likely it is to move and pass &mdash;
+              not whether it should. It takes no position on policy, party, or outcome. The data is the
+              public record, and the scoring is calibrated against past results and documented in full on
+              the methodology page. If you spot something wrong, corrections are welcome.
+            </p>
+          </div>
+        </div>
+
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',

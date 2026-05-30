@@ -308,22 +308,10 @@ function MembersContent() {
     if (!m?.name) { setVotesLoading(false); return }
 
     try {
-      // ── Step 1: resolve member_id via legislator_party_history (1 row). ──
-      const { data: roster, error: rosterErr } = await supabase
-        .from('legislator_party_history')
-        .select('member_id, party')
-        .eq('full_name', m.name)
-        .eq('agency', m.chamber)
-        .order('biennium', { ascending: false })
-        .limit(1)
-      if (rosterErr) console.warn('loadMemberVotes: roster lookup failed', rosterErr)
-      const rosterRow = roster && roster.length > 0 ? roster[0] : null
-      const memberId  = rosterRow?.member_id || null
-
-      // ── Step 2: most-recent 100 roll_calls in the legislator's chamber,
-      //           filtered to selectedSession via embedded bills!inner join.
-      //           Bill metadata comes back in the same response — no second
-      //           round-trip. ──
+      // ── Steps 1 & 2 are independent — run them in parallel (T163). Step 1
+      //    resolves member_id via legislator_party_history; Step 2 pulls the
+      //    most-recent 100 roll_calls in the chamber (bill metadata embedded
+      //    via bills!inner, no second round-trip). Previously sequential. ──
       const isAll = showAllSessions
       let rollsQ = supabase
         .from('roll_calls')
@@ -332,8 +320,22 @@ function MembersContent() {
         .order('vote_date', { ascending: false })
         .limit(100)
       if (!isAll) rollsQ = rollsQ.eq('bills.session', selectedSession)
-      const { data: rolls, error: rollsErr } = await rollsQ
-      if (rollsErr) console.warn('loadMemberVotes: roll_calls+bills lookup failed', rollsErr)
+
+      const [rosterRes, rollsRes] = await Promise.all([
+        supabase
+          .from('legislator_party_history')
+          .select('member_id, party')
+          .eq('full_name', m.name)
+          .eq('agency', m.chamber)
+          .order('biennium', { ascending: false })
+          .limit(1),
+        rollsQ,
+      ])
+      if (rosterRes.error) console.warn('loadMemberVotes: roster lookup failed', rosterRes.error)
+      if (rollsRes.error) console.warn('loadMemberVotes: roll_calls+bills lookup failed', rollsRes.error)
+      const rosterRow = rosterRes.data && rosterRes.data.length > 0 ? rosterRes.data[0] : null
+      const memberId  = rosterRow?.member_id || null
+      const rolls = rollsRes.data
       if (!rolls || rolls.length === 0) return
 
       // ── Step 3: this member's votes on JUST those 100 roll_calls. ──
