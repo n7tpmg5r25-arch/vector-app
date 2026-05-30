@@ -419,6 +419,7 @@ export default function BillDetailPage() {
   const [shared, setShared]     = useState(false)
   const [exporting, setExporting] = useState(false)  // Thread 12.3: PDF brief export
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
+  const [activeXf, setActiveXf] = useState(null) // T160 M3: tapped X-factor chip index (mobile tooltip reveal)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
   const [companionSnaps, setCompanionSnaps] = useState([]) // Phase 11.4: companion stage over last 30 days
   const [amendments, setAmendments] = useState([])
@@ -1953,21 +1954,49 @@ export default function BillDetailPage() {
                 // Match tooltip by prefix (handles dynamic labels like "Cutoff: 3d")
                 const tooltipKey = Object.keys(XF_TOOLTIPS).find(k => f.l.startsWith(k)) || f.l
                 const tooltip = XF_TOOLTIPS[tooltipKey] || ''
+                const isActive = activeXf === i
+                const toggle = () => setActiveXf(isActive ? null : i)
                 return (
-                  <div key={i} title={tooltip} style={{
+                  // T160 M3: chips are now tappable. The explanation lived only
+                  // in title= (hover-only, invisible on touch); tapping reveals
+                  // it in the panel below. title kept for desktop pointer hover.
+                  <div key={i} title={tooltip}
+                    role={tooltip ? 'button' : undefined}
+                    tabIndex={tooltip ? 0 : undefined}
+                    aria-expanded={tooltip ? isActive : undefined}
+                    onClick={tooltip ? toggle : undefined}
+                    onKeyDown={tooltip ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } } : undefined}
+                    style={{
                     padding: '5px 12px', borderRadius: 16,
                     fontSize: 11, fontWeight: 500,
                     background: f.pos ? 'rgba(184,151,90,0.08)' : 'var(--danger-pale)',
                     color: f.pos ? 'var(--teal)' : 'var(--danger)',
-                    border: `1px solid ${f.pos ? 'rgba(184,151,90,0.2)' : 'rgba(196,71,48,0.2)'}`,
+                    border: `1px solid ${isActive ? (f.pos ? 'var(--teal)' : 'var(--danger)') : (f.pos ? 'rgba(184,151,90,0.2)' : 'rgba(196,71,48,0.2)')}`,
                     boxShadow: f.pos ? '0 0 8px rgba(184,151,90,0.1)' : '0 0 8px rgba(196,71,48,0.1)',
-                    cursor: tooltip ? 'help' : 'default',
+                    cursor: tooltip ? 'pointer' : 'default',
                   }}>
                     {f.pos ? '▲' : '▼'} {f.l} {f.d > 0 ? '+' : ''}{Math.round(f.d * 100)}%
                   </div>
                 )
               })}
             </div>
+
+            {/* T160 M3: tap-to-reveal detail panel for the active X-factor. */}
+            {activeXf != null && displayFactors[activeXf] && (() => {
+              const f = displayFactors[activeXf]
+              const tooltipKey = Object.keys(XF_TOOLTIPS).find(k => f.l.startsWith(k)) || f.l
+              const tooltip = XF_TOOLTIPS[tooltipKey] || ''
+              if (!tooltip) return null
+              return (
+                <div style={{
+                  marginTop: 8, padding: '8px 12px',
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 8, fontSize: 11, lineHeight: 1.5, color: 'var(--text-mid)',
+                }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>{f.l}</strong> — {tooltip}
+                </div>
+              )
+            })()}
           </div>
         )}
 
