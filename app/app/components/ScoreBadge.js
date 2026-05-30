@@ -6,22 +6,22 @@ export default function ScoreBadge({ score, size = 'md', status }) {
   const isCarryOver = status === 'PASSED_CHAMBER'
   const hasOutcome = isDead || isLaw || isCarryOver
 
-  // Color tiers — Shorepine data viz palette (Sage / Deep Teal / Amber / Stone)
-  // 7R.1.4: Remapped from teal/gold to Shorepine palette
+  // Color tiers — Vector | WA functional palette (Brand Guide §02), now CSS
+  // tokens (T160) instead of duplicated hex. Sage / Deep Teal / Amber / Stone.
   const color = isDead ? 'var(--text-faint)'
-    : s >= 75 ? '#7aab6e'   /* Sage — strong/passed */
-    : s >= 60 ? '#3a7a8a'   /* Deep Teal — active */
-    : s >= 45 ? '#c47a30'   /* Amber — watch/pending */
-    : '#8a8070'              /* Stone — inactive */
+    : s >= 75 ? 'var(--sage)'        /* strong / passed */
+    : s >= 60 ? 'var(--deep-teal)'   /* active */
+    : s >= 45 ? 'var(--amber)'       /* watch / pending */
+    : 'var(--stone)'                 /* inactive */
 
   const glowColor = isDead ? 'transparent'
-    : s >= 75 ? 'rgba(122,171,110,0.4)'   /* Sage glow */
-    : s >= 60 ? 'rgba(58,122,138,0.3)'    /* Deep Teal glow */
-    : s >= 45 ? 'rgba(196,122,48,0.3)'    /* Amber glow */
+    : s >= 75 ? 'var(--sage-glow)'
+    : s >= 60 ? 'var(--deep-teal-glow)'
+    : s >= 45 ? 'var(--amber-glow)'
     : 'transparent'
 
   const borderColor = isDead ? 'var(--border)'
-    : isLaw ? 'rgba(122,171,110,0.6)'     /* Sage for LAW */
+    : isLaw ? 'rgba(122,171,110,0.6)'     /* Sage @60% — for LAW */
     : s >= 75 ? 'rgba(122,171,110,0.6)'
     : s >= 60 ? 'rgba(58,122,138,0.4)'
     : s >= 45 ? 'rgba(196,122,48,0.4)'
@@ -38,10 +38,17 @@ export default function ScoreBadge({ score, size = 'md', status }) {
 
   // 7Z.9: When bill has outcome, show label inside circle instead of score
   const outcomeLabel = isLaw ? 'LAW' : isCarryOver ? 'PASS' : isDead ? 'DEAD' : null
-  const outcomeColor = isLaw ? '#7aab6e' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)'
+  const outcomeColor = isLaw ? 'var(--sage)' : isCarryOver ? 'var(--gold)' : 'var(--text-faint)'
+
+  // T160 M3: the methodology text below lives in a `title` (hover-only, never
+  // shown on touch). Add role+aria-label so the number is announced with
+  // context to screen readers and the meaning isn't lost on mobile.
+  const ariaLabel = hasOutcome
+    ? `Outcome: ${isLaw ? 'signed into law' : isCarryOver ? 'passed a chamber' : 'dead'}`
+    : `Trajectory score ${s} of 99`
 
   return (
-    <div style={{ position: 'relative', flexShrink: 0 }} title="Nightly composite of 5 signals plus documented X factors, calibrated against past completed WA biennia. Probabilistic signal, not a prediction. See /disclaimers for the calibration cohort and full methodology.">
+    <div role="img" aria-label={ariaLabel} style={{ position: 'relative', flexShrink: 0 }} title="Nightly composite of 5 signals plus documented X factors, calibrated against past completed WA biennia. Probabilistic signal, not a prediction. See /disclaimers for the calibration cohort and full methodology.">
       <div style={{
         width: dim.width, height: dim.height,
         borderRadius: '50%',

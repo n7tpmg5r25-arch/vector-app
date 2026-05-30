@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.8.0',
+    date: '2026-05-30',
+    phase: 'alpha',
+    highlights: [
+      'Accessibility pass: form fields no longer trigger an iOS zoom-in when tapped, bottom-navigation labels are more legible, and tap targets across the app now meet the 44px touch minimum.',
+      'Motion now fully respects your device’s “reduce motion” setting — the pulsing score and status animations stop when you’ve asked your phone to minimize movement.',
+      'Score colors (Sage / Teal / Amber / Stone) are now defined in one place, keeping the look consistent everywhere a score appears.',
+      'Screen readers now announce a score with context (“Trajectory score 65 of 99”) instead of a bare number.',
+    ],
+  },
+  {
     version: '5.7.1',
     date: '2026-05-29',
     phase: 'alpha',

@@ -59,8 +59,8 @@ import VectorLoader from './VectorLoader'
 import { STAGE_SHORT } from '../../lib/stages'
 
 function deltaColor(delta) {
-  if (delta > 0) return '#7aab6e'
-  if (delta < 0) return '#c47a30'
+  if (delta > 0) return 'var(--sage)'
+  if (delta < 0) return 'var(--amber)'
   return 'var(--text-muted)'
 }
 
@@ -361,8 +361,8 @@ function InterimView({ snapshots, funnel, topCategories, visibleClosed, mostRece
           <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
             <FunnelStage label="Filed"             count={funnel.filed}           max={funnel.filed} color="var(--text-muted)" />
             <FunnelStage label="Passed committee"  count={funnel.committeePassed} max={funnel.filed} color="var(--gold)" />
-            <FunnelStage label="Passed a chamber"  count={funnel.chamberPassed}   max={funnel.filed} color="#c47a30" />
-            <FunnelStage label="Signed into law"   count={funnel.signed}          max={funnel.filed} color="#7aab6e" />
+            <FunnelStage label="Passed a chamber"  count={funnel.chamberPassed}   max={funnel.filed} color="var(--amber)" />
+            <FunnelStage label="Signed into law"   count={funnel.signed}          max={funnel.filed} color="var(--sage)" />
           </div>
 
           {topCategories.length > 0 && (
@@ -419,8 +419,8 @@ function SineDieBar({ stats, total }) {
   const passedPct = total ? (stats.passed / total) * 100 : 0
   const deadPct = total ? (stats.dead / total) * 100 : 0
 
-  const LAW_COLOR = '#7aab6e'
-  const PASSED_COLOR = '#c47a30'
+  const LAW_COLOR = 'var(--sage)'
+  const PASSED_COLOR = 'var(--amber)'
   const DEAD_COLOR = 'var(--text-faint)'
 
   const round = (n) => (n >= 0.5 && n < 1 ? 1 : Math.round(n))
@@ -524,7 +524,7 @@ function FunnelStage({ label, count, max, color }) {
 function CategoryRow({ category, total, passed, max }) {
   const width = max ? Math.max(2, (total / max) * 100) : 0
   const passRate = total ? Math.round((passed / total) * 100) : 0
-  const rateColor = passRate >= 30 ? '#7aab6e' : passRate >= 15 ? '#c47a30' : 'var(--text-muted)'
+  const rateColor = passRate >= 30 ? 'var(--sage)' : passRate >= 15 ? 'var(--amber)' : 'var(--text-muted)'
   return (
     <div style={{
       padding: '10px 14px',

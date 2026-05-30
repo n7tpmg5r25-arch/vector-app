@@ -286,7 +286,7 @@ function SearchContent() {
                 type="text" value={bulkTag} onChange={e => setBulkTag(e.target.value)}
                 placeholder="Tag (optional, e.g. Housing, Transit)"
                 aria-label="Tag for bulk-watched bills (optional)"
-                style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14, color: 'var(--text-primary)', outline: 'none' }}
+                style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 16, color: 'var(--text-primary)', outline: 'none' }}
                 onFocus={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.5)'}
                 onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
               />

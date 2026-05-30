@@ -157,9 +157,10 @@ function LoginPageInner() {
   }
 
   const inputStyle = {
+    // T160 H1: 16px floor prevents iOS focus-zoom on the login email / OTP field.
     width: '100%', padding: '12px 14px',
     background: 'var(--bg)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius)', fontSize: 15,
+    borderRadius: 'var(--radius)', fontSize: 16,
     color: 'var(--text-primary)', marginBottom: 12,
     outline: 'none', transition: 'border-color 0.2s',
   }
