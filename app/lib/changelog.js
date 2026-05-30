@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.7.1',
+    date: '2026-05-29',
+    phase: 'alpha',
+    highlights: [
+      'Repeat visits now load near-instantly: the app caches its own code and images on your device after the first visit instead of re-downloading them every time.',
+      'Faster behind-the-scenes data: added database indexes so the home dashboard’s bill and outcome queries return in milliseconds instead of seconds.',
+      'Trimmed the amount of code the app ships to your browser, and moved the servers closer to the data for lower latency.',
+    ],
+  },
+  {
     version: '5.7.0',
     date: '2026-05-29',
     phase: 'alpha',
