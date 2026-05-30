@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
-import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, getAllSessions, bienniumShortLabel } from '../lib/session-config'
+import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, bienniumShortLabel } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
 import VectorLoader from './components/VectorLoader'
+import HomeSkeleton from './components/HomeSkeleton'
 import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 function outlookLabel(avg) {
@@ -75,10 +76,26 @@ export default function HomePage() {
   const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   async function loadData() {
-    // Phase 6.4 perf: Step 1 — auth state comes from useViewer() hook (closure)
+    // T157 perf pass — single round-trip for everything needed to paint.
+    //
+    // Previously this ran THREE sequential network waves: the parallel batch
+    // below, THEN a separate totalBills count, THEN (during interim) three more
+    // count queries — each wave waiting on the last. They're all independent of
+    // each other, so they now go in one Promise.all. The only query that truly
+    // depends on the first wave's bill IDs is the trajectory-snapshot delta
+    // lookup, which is moved AFTER first paint (deltas are a decoration, not
+    // load-bearing) so the dashboard renders without waiting on it.
+    const interim = isInterimPeriod()
 
-    // Phase 6.4 perf: Step 2 — fire all independent queries in parallel
-    const [billsResult, wlResult, catsResult, syncResult] = await Promise.all([
+    // 7D.3: bill-only count helper (excludes resolutions / memorials).
+    const billCount = (extra) => {
+      let q = supabase.from('bills').select('bill_id', { count: 'exact', head: true })
+        .eq('session', SESSION).eq('legislation_type', 'bill')
+      if (extra) q = extra(q)
+      return q
+    }
+
+    const queries = [
       supabase
         .from('bills')
         .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date, confidence_label')
@@ -103,7 +120,17 @@ export default function HomePage() {
         .select('ran_at')
         .order('ran_at', { ascending: false })
         .limit(1),
-    ])
+      // 6K.2: total bill count for the stat strip (was its own sequential wave)
+      billCount(),
+      // 6B.1: interim outcome counts (were a third sequential wave). During an
+      // active session these resolve to null and the interim UI never reads them.
+      interim ? billCount(q => q.eq('confidence_label', 'LAW')) : Promise.resolve({ count: null }),
+      interim ? billCount(q => q.eq('confidence_label', 'PASSED_CHAMBER')) : Promise.resolve({ count: null }),
+      interim ? billCount(q => q.eq('confidence_label', 'DEAD')) : Promise.resolve({ count: null }),
+    ]
+
+    const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes] =
+      await Promise.all(queries)
 
     const bills = billsResult.data || []
     setTopBills(bills)
@@ -115,17 +142,9 @@ export default function HomePage() {
     const wl = (wlResult.data || []).filter(w => w.bills && w.bills.session === SESSION)
     setWatchlist(wl)
 
-    // 6K.2: Fetch total bill count for quick actions grid (7D.3: bills only, excludes resolutions/memorials)
-    const totalRes = await supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill')
     setTotalBills(totalRes.count || 0)
 
-    // 6B.1: Count session outcomes for interim display (7D.3: bills only)
-    if (isInterimPeriod()) {
-      const [lawRes, coRes, deadRes] = await Promise.all([
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'LAW'),
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'PASSED_CHAMBER'),
-        supabase.from('bills').select('bill_id', { count: 'exact', head: true }).eq('session', SESSION).eq('legislation_type', 'bill').eq('confidence_label', 'DEAD'),
-      ])
+    if (interim) {
       setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
     }
 
@@ -135,9 +154,13 @@ export default function HomePage() {
       setLastSyncAt(new Date(syncResult.data[0].ran_at))
     }
 
-    // Phase 6.4 perf: Step 3 — snapshots (depends on bill IDs from step 2)
-    // 6A.3: Skip delta computation during interim — scores are frozen, deltas are noise
-    if (!isInterimPeriod()) {
+    // Paint now — everything above is in hand. Snapshots run after.
+    setLoading(false)
+
+    // T157: deferred, off the critical path. Score deltas are a small "+N / -N"
+    // chip decoration; fetching them must not delay first paint.
+    // 6A.3: Skip delta computation during interim — scores are frozen, deltas are noise.
+    if (!interim) {
       const allBillIds = [
         ...bills.map(b => b.bill_id),
         ...wl.map(w => w.bill_id),
@@ -165,8 +188,6 @@ export default function HomePage() {
         }
       }
     }
-
-    setLoading(false)
   }
 
   // 6D.1: Discover which sessions have DB data.
@@ -174,19 +195,22 @@ export default function HomePage() {
   // decide whether 2027-2028 pre-filed bills exist yet. The session picker
   // was moved to SideDrawer (Thread 84) so this no longer drives a dropdown.
   async function loadSessions() {
-    // Thread 7 (G1): drive the candidate list off session-config.js's
-    // getAllSessions() instead of a hand-maintained literal array. Adds
-    // forward-rolls automatically when a new biennium opens prefiling.
-    const known = getAllSessions()
-    const found = []
-    for (const s of known) {
-      const { count } = await supabase
-        .from('bills')
-        .select('bill_id', { count: 'exact', head: true })
-        .eq('session', s)
-      if (count && count > 0) found.push(s)
+    // T157 perf pass — was a sequential loop firing one count query PER known
+    // session (3–4 round trips back-to-back) on every home mount. The only
+    // consumer of availableSessions is the pre-filing banner below, which just
+    // needs to know whether the NEXT biennium has pre-filed bills yet. So this
+    // is now a single existence check for that one session. (The wider
+    // multi-session list it used to build had no other reader.)
+    const next = nextBiennium.session
+    if (!next) return
+    const { count } = await supabase
+      .from('bills')
+      .select('bill_id', { count: 'exact', head: true })
+      .eq('session', next)
+      .limit(1)
+    if (count && count > 0) {
+      setAvailableSessions(prev => prev.includes(next) ? prev : [...prev, next])
     }
-    if (found.length > 0) setAvailableSessions(found)
   }
 
   async function handleRefresh() {
@@ -242,15 +266,14 @@ export default function HomePage() {
     if (!user) return <PublicHome />
   }
 
-  // Thread 75: show a centered loader during the initial data fetch so
-  // the dashboard never flashes empty watchlist / zero stat-strip values
-  // while queries are in flight. All hooks have already been called above
-  // so this early return is safe (no Rules-of-Hooks violation).
-  if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '80px 20px' }}>
-      <VectorLoader label="Loading intelligence…" />
-    </div>
-  )
+  // T157 perf pass: render the page chrome + structural shimmer placeholders
+  // during the initial fetch instead of a blank full-screen spinner. The old
+  // VectorLoader return left the viewport empty-but-for-a-spinner for the whole
+  // 7–10s load, which read as "broken" to first-time visitors (lobbyist trust
+  // audit #1). HomeSkeleton paints the brand bar + countdown + card structure
+  // immediately. All hooks have already been called above, so this early
+  // return is safe (no Rules-of-Hooks violation).
+  if (loading) return <HomeSkeleton />
 
   return (
     <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)' }}>

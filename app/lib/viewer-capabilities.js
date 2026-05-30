@@ -164,10 +164,16 @@ export function useViewer() {
   useEffect(() => {
     let mounted = true
 
-    // Initial fetch
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
+    // Initial gate (T157 perf): use getSession() — it reads the JWT straight
+    // from local storage with NO network round-trip, so the page can start
+    // loading data immediately. getUser() (the previous call) validated the
+    // token against the Supabase Auth server on every mount, putting a network
+    // hop on the critical path before any data query could fire. The
+    // onAuthStateChange subscription below still keeps the viewer live on
+    // login / logout / token refresh, so correctness is unchanged.
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return
-      setUser(u || null)
+      setUser(session?.user || null)
       setLoading(false)
     })
 
