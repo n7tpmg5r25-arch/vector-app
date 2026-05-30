@@ -1,10 +1,18 @@
 /**
- * Shorepine-branded HTML email template for Vector | WA
+ * Vector | WA HTML email template
  * Phase 9: Alerting & Notifications
  *
  * Shared by send-alerts and weekly-digest edge functions.
- * Follows Shorepine Government Relations brand guide v4.6 — email uses Shorepine firm palette
- * (Forest + Brass + Parchment), NOT the dark Vector | WA app palette.
+ * Vector | WA is the only brand (Brand Guide v1.2) — there is no firm
+ * attribution. Email uses a light, print-friendly palette (cream + brass +
+ * a deep accent) for deliverability/readability, NOT the dark app palette.
+ *
+ * NOTE (T166): the firm-name attribution ("Shorepine Government Relations")
+ * was removed from the header + footer here. The deep-green accent palette is
+ * a separate, deliberate redesign decision tracked in
+ * ALERTS_ACTIVATION_PLAN — left as-is for now so this change is a clean,
+ * low-risk copy fix. Re-inline this file into send-alerts + weekly-digest and
+ * redeploy before alerts are activated (per CLAUDE.md edge-function rule).
  */
 
 // ── Brand colors (brand guide v1.1 §14 — print palette) ──────────
@@ -55,7 +63,7 @@ export function wrapEmail(subject: string, bodyHtml: string, unsubscribeUrl?: st
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="font-size:18px; font-weight:700; color:${COLORS.brass}; letter-spacing:2px;">VECTOR | WA</td>
-              <td align="right" style="font-size:12px; color:${COLORS.brassLight};">Shorepine Government Relations</td>
+              <td align="right" style="font-size:12px; color:${COLORS.brassLight};">Legislative intelligence · Olympia, WA</td>
             </tr>
           </table>
         </td></tr>
@@ -68,8 +76,8 @@ export function wrapEmail(subject: string, bodyHtml: string, unsubscribeUrl?: st
         <!-- Footer -->
         <tr><td style="background-color:${COLORS.parchment}; padding:20px 28px; border:1px solid ${COLORS.cardBorder}; border-top:none; border-radius:0 0 8px 8px;">
           <p style="margin:0 0 8px; font-size:12px; color:${COLORS.slate};">
-            Shorepine Government Relations &middot; Olympia, WA<br>
-            Vector | WA &middot; legislative intelligence for Washington State
+            Vector | WA &middot; Olympia, WA<br>
+            Legislative intelligence for Washington State
           </p>
           ${unsubscribeUrl
             ? `<p style="margin:0; font-size:11px; color:${COLORS.mutedText};"><a href="${unsubscribeUrl}" style="color:${COLORS.mutedText}; text-decoration:underline;">Manage notification preferences</a></p>`
