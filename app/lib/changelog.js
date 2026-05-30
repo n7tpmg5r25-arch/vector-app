@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.6.1',
+    date: '2026-05-29',
+    phase: 'alpha',
+    highlights: [
+      'Bill detail trust fixes (T156): three lobbyist-identified credibility issues addressed. "No vote yet" on Floor Margin now shows "—" for signed, passed-chamber, and dead bills — the session is over and the absence of stored margin data is a gap, not evidence a vote never happened.',
+      'Negative X-factor chips (e.g. "Minority Only −10%") are now suppressed on bills that became law. They were scoring penalties applied during session and are retroactively misleading on signed legislation — a bill that passed 97-0 should not display a minority-sponsorship penalty badge. DEAD and PASSED CHAMBER bills retain all factors since they help explain why a bill stalled.',
+      'AI summary section redesigned for trust: badge renamed from "AI-GENERATED" (alarming) to "AI SUMMARY" (neutral); disclaimer moved above the summary text instead of buried 300 words below the fold; reviewed summaries show "REVIEWED" badge in green. The EDIT button is now gated on a separate canEditBillSummary capability rather than canEditNotes, since summary edits update the global bills table for all users.',
+    ],
+  },
+  {
     version: '5.6.0',
     date: '2026-05-28',
     phase: 'alpha',
