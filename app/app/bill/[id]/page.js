@@ -774,13 +774,6 @@ export default function BillDetailPage() {
   // X Factors from latest snapshot
   const xfFactors = (latestSnap?.xf_factors) || []
 
-  // T156: For LAW bills, suppress negative X-factors from display. They were
-  // scoring penalties applied during session and are retroactively misleading
-  // on signed legislation — e.g. "Minority Only -10%" on a bill that passed 97-0
-  // after gaining broad support. Positive factors are kept (they explain the win).
-  // DEAD/PASSED_CHAMBER keep all factors since they help explain why the bill stalled.
-  const displayFactors = confLabel === 'LAW' ? xfFactors.filter(f => f.pos) : xfFactors
-
   // Signal scores from latest snapshot
   const sig = latestSnap || {}
   const baseTotal = (sig.committee_score || 0) + (sig.sponsor_score || 0) + (sig.momentum_score || 0) + (sig.historical_score || 0) + (sig.fiscal_score || 0)
@@ -798,6 +791,11 @@ export default function BillDetailPage() {
 
   // Confidence label styling (4 active tiers + 3 interim states)
   const confLabel = bill.confidence_label || 'VERY LOW'
+
+  // T156: For LAW bills, suppress negative X-factors. They were scoring penalties
+  // applied during session and are retroactively misleading on signed legislation.
+  // Must be defined after confLabel. DEAD/PASSED_CHAMBER keep all factors.
+  const displayFactors = confLabel === 'LAW' ? xfFactors.filter(f => f.pos) : xfFactors
   // 6L.2: VERY HIGH renamed to HIGH for consistency with signal_tier
   const confColor = confLabel === 'HIGH' ? 'var(--teal)'
     : confLabel === 'MODERATE' ? 'var(--gold)'
