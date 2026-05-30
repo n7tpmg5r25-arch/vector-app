@@ -53,8 +53,8 @@ const STATE = {
   FALLBACK: 'fallback',
 }
 
-// Sage success token — mirrors ScoreBadge HIGH tier hex per Brand Guide §02.
-const SAGE = '#7aab6e'
+// Sage success token — Brand Guide §02 functional palette (now a CSS token).
+const SAGE = 'var(--sage)'
 
 export default function InstallPrompt() {
   const [state, setState] = useState(STATE.DETECTING)

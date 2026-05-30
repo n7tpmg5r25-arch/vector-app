@@ -35,6 +35,17 @@
   /* Senate accent — warm copper, distinct from House brass */
   --senate-accent: #c87941;
 
+  /* Functional palette — Brand Guide v1.2 §02. Single source of truth for the
+     score / data-viz tiers (T160). Previously these four hex values were
+     copy-pasted across ScoreBadge, methodology, BillsMovingWidget, InstallPrompt. */
+  --sage:        #7aab6e;  /* strong / passed */
+  --deep-teal:   #3a7a8a;  /* active */
+  --amber:       #c47a30;  /* watch / pending */
+  --stone:       #8a8070;  /* inactive */
+  --sage-glow:      rgba(122,171,110,0.4);
+  --deep-teal-glow: rgba(58,122,138,0.3);
+  --amber-glow:     rgba(196,122,48,0.3);
+
   /* Text (warm-shifted) */
   --text-primary:  #e8e9ec;
   --text-mid:      #a8acb4;
@@ -105,7 +116,10 @@ body {
 
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: var(--font-body); }
-input, textarea { font-family: var(--font-body); }
+/* T160 H1: 16px floor on form controls prevents iOS Safari from auto-zooming
+   the viewport on focus (and never zooming back). Scale visual size with
+   padding, never with a sub-16px font. */
+input, select, textarea { font-family: var(--font-body); font-size: 16px; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
@@ -169,6 +183,30 @@ input, textarea { font-family: var(--font-body); }
 }
 @media (prefers-reduced-motion: reduce) {
   .vec-skeleton { animation: none; }
+}
+
+/* T160 M2: shared minimum tap target. Apply to icon-only buttons, nav items,
+   chevrons, and chip controls so touch targets meet the 44px iOS/WCAG floor
+   without per-element padding hacks. Wrap the visual content; the icon/text
+   inside keeps its own size. */
+.vec-tap {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* T160 M4: global reduced-motion safety net. Per-component gating covered the
+   home/search/bill surfaces; this catches the always-on CSS animations
+   (scoreGlow, dotPulse, glowPulse) and any future motion in one place. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Thread 35 PRIMARY CTA POLISH ───────────────

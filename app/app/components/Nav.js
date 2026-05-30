@@ -147,24 +147,28 @@ export default function Nav() {
             onClick={() => router.push(path)}
             aria-current={active ? 'page' : undefined}
             style={{
+              // T160 M2: 44px tap floor (was ~42px). T160 H2: inactive opacity
+              // 0.5 → 0.7 so the four un-opened tab labels stay legible.
               display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 3,
+              alignItems: 'center', justifyContent: 'center', gap: 3,
               background: 'none', border: 'none',
               padding: '4px 8px',
               transition: 'opacity 0.15s',
-              minWidth: 52,
-              opacity: active ? 1 : 0.5,
+              minWidth: 52, minHeight: 44,
+              opacity: active ? 1 : 0.7,
               filter: active ? 'drop-shadow(0 0 6px rgba(184,151,90,0.3))' : 'none',
             }}
           >
             {icon(active)}
             <span
               style={{
-                fontSize: 9,
+                // T160 H2: 9px → 10px and --text-muted → --text-mid for inactive
+                // labels to clear WCAG AA contrast on the dark bar.
+                fontSize: 10,
                 letterSpacing: '0.03em',
                 fontFamily: 'var(--font-body)',
                 fontWeight: active ? 600 : 400,
-                color: active ? 'var(--teal)' : 'var(--text-muted)',
+                color: active ? 'var(--teal)' : 'var(--text-mid)',
               }}
             >{label}</span>
           </button>

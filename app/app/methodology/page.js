@@ -118,10 +118,10 @@ const COMBINED_3B = [
 
 // Thread 67 (2026-05-03) — TIER_COLOR canonicalized to ScoreBadge.js (line 12-15).
 const TIER_COLOR = {
-  'HIGH':     '#7aab6e',  // Sage — strong/passed
-  'MODERATE': '#3a7a8a',  // Deep Teal — active
-  'LOW':      '#c47a30',  // Amber — watch/pending
-  'VERY LOW': '#8a8070',  // Stone — inactive
+  'HIGH':     'var(--sage)',  // Sage — strong/passed
+  'MODERATE': 'var(--deep-teal)',  // Deep Teal — active
+  'LOW':      'var(--amber)',  // Amber — watch/pending
+  'VERY LOW': 'var(--stone)',  // Stone — inactive
 }
 
 // T155: Shared section label style — brass left-border accent
@@ -690,7 +690,7 @@ export default function MethodologyPage() {
             how far it advanced:
             <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div>
-                <span style={{ color: '#7aab6e', fontWeight: 600 }}>Signed into Law</span> &mdash; reached the
+                <span style={{ color: 'var(--sage)', fontWeight: 600 }}>Signed into Law</span> &mdash; reached the
                 governor&apos;s desk and was signed (stage 6). Pass probability stays at 100%.
               </div>
               <div>
