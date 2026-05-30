@@ -1389,6 +1389,25 @@ export default function BillDetailPage() {
               )}
             </div>
 
+            {/* T-2/T-3/T-9 (T165 trust bundle): one-tap link to the OFFICIAL bill
+                on leg.wa.gov — the "trust but verify" escape hatch next to the AI
+                summary — plus the bill's last-action date for freshness. Always
+                visible (reviewed + unreviewed) so a lobbyist can verify the
+                source and recency before relying on anything here. */}
+            {!editingSummary && (
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 12px', marginBottom: 10 }}>
+                <a href={legUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--teal)', textDecoration: 'none' }}>
+                  Read the official bill text on leg.wa.gov →
+                </a>
+                {bill.last_action_date && (
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)' }}>
+                    Last action {new Date(bill.last_action_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* T156: Disclaimer above the fold — previously buried below ~300 words.
                 Only shown for unreviewed AI summaries; reviewed ones don't need it. */}
             {!bill.custom_summary && !editingSummary && (

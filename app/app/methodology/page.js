@@ -250,6 +250,24 @@ export default function MethodologyPage() {
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+        {/* T-6 (T165 trust bundle): plain coverage + freshness statement so a
+            professional never has to wonder what's tracked or how current it is. */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: '14px 16px',
+          fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6,
+        }}>
+          <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
+            Coverage &amp; freshness
+          </div>
+          Vector | WA tracks <strong style={{ color: 'var(--text-primary)' }}>every bill</strong> introduced
+          in the Washington State Legislature each biennium &mdash; not a sample. The trajectory model is
+          calibrated on <strong style={{ color: 'var(--text-primary)' }}>8,062 historical bills</strong>{' '}
+          (2,155 became law) across three biennia. Bill status, votes, committee actions, and sponsors sync
+          from the Legislature&apos;s official record on a daily schedule; the latest sync time is shown in
+          the footer of every page.
+        </div>
+
         {/* 1 — TL;DR: upgraded with big stat */}
         <div style={{
           background: 'rgba(184,151,90,0.05)',
