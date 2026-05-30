@@ -1212,7 +1212,7 @@ function MembersContent() {
             style={{
               width: '100%', padding: '9px 12px 9px 32px',
               background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 8, fontSize: 13,
+              borderRadius: 8, fontSize: 16, // T160 H1: 16 floor prevents iOS focus-zoom
               color: 'var(--text-primary)', outline: 'none',
             }}
           />

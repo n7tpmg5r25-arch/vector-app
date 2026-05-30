@@ -829,7 +829,7 @@ export default function WatchlistPage() {
                   style={{
                     width: '100%', padding: '6px 10px', background: 'transparent',
                     border: '1px solid var(--border)', borderRadius: 6,
-                    fontSize: 12, color: 'var(--text-primary)', outline: 'none',
+                    fontSize: 16, color: 'var(--text-primary)', outline: 'none', // T160 H1: iOS zoom floor
                     resize: 'vertical', lineHeight: 1.5,
                   }}
                 />

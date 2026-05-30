@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.8.1',
+    date: '2026-05-30',
+    phase: 'alpha',
+    highlights: [
+      'Bill detail: the score’s “X factor” chips are now tappable — tap any factor to read what it means and how it moves the score, instead of the explanation being hidden behind a desktop-only hover.',
+      'Finished the input-zoom fix on the remaining search and note fields (members search, watchlist notes), so no form field zooms the screen on iPhone.',
+    ],
+  },
+  {
     version: '5.8.0',
     date: '2026-05-30',
     phase: 'alpha',
