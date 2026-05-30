@@ -57,6 +57,7 @@ export function getViewerCapabilities(user) {
       canSave: false,         // save to watchlist
       canFollow: false,       // follow a committee
       canEditNotes: false,    // add / edit bill notes
+      canEditBillSummary: false, // edit the global AI bill summary (admin-only)
       canExport: false,       // PDF / leave-behind export
       canSeeAlerts: false,    // alert / digest UI
       canSeeAdmin: false,     // admin surfaces
@@ -85,6 +86,7 @@ export function getViewerCapabilities(user) {
       canSave: false,         // read-only v1
       canFollow: false,       // alerts deferred to 13b.x
       canEditNotes: false,    // no write surfaces for clients in v1
+      canEditBillSummary: false, // edit the global AI bill summary (admin-only)
       canExport: false,       // PDF briefing deferred to 13b.x
       canSeeAlerts: false,    // email alerts deferred to 13b.x
       canSeeAdmin: false,
@@ -114,6 +116,11 @@ export function getViewerCapabilities(user) {
     canSave: true,
     canFollow: true,
     canEditNotes: true,
+    // T156: bill summary edits update the global bills.custom_summary column —
+    // visible to all users. Gate separately from canEditNotes (private notes).
+    // Currently true for owner (Colin) only; set false here when multi-user
+    // registered accounts go live and move to an explicit admin check.
+    canEditBillSummary: true,
     canExport: true,
     canSeeAlerts: true,
     canSeeAdmin: false, // admin routes still do their own UID check
