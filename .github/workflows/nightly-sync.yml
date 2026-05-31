@@ -43,6 +43,34 @@ jobs:
           SINE_DIE: '2026-03-12'
         run: node app/lib/sync-v2.js
 
+      # T169: alert detection + delivery, year-round on the nightly sync.
+      # midday-sync.yml already runs this, but only during active session; the
+      # nightly job runs every day, so this also catches off-session changes
+      # (e.g. governor signings in the April–May post-session window) and gives
+      # a daily alert floor. Canonical detector: app/lib/detect-alerts.js.
+      - name: Run alert detection
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-alerts.js
+
+      - name: Send alert emails (if events pending)
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Checking for pending alert events..."
+          RESULT=$(curl -s -w "\n%{http_code}" \
+            "${SUPABASE_URL}/functions/v1/send-alerts" \
+            -H "Content-Type: application/json" \
+            -H "x-function-secret: ${FUNCTION_SECRET}" \
+            -d '{"type": "event-batch"}')
+          HTTP_CODE=$(echo "$RESULT" | tail -1)
+          BODY=$(echo "$RESULT" | head -n -1)
+          echo "send-alerts: HTTP $HTTP_CODE — $BODY"
+
       - name: Summarize bills with AI
         if: success()
         env:
