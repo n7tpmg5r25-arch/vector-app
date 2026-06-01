@@ -77,6 +77,16 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node app/lib/detect-alerts.js
 
+      # R2: radar detection (term-centric new-bill matches), session-gated like
+      # the rest of this job. Runs after alert detection and before send-alerts
+      # so radar_match events ride the same email pass.
+      - name: Run radar detection
+        if: steps.session_check.outputs.active == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-radar.js
+
       - name: Send alert emails (if events pending)
         if: steps.session_check.outputs.active == 'true'
         env:
