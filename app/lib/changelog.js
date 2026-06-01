@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.10.0',
+    date: '2026-05-31',
+    phase: 'alpha',
+    highlights: [
+      'Radar — a new way to catch brand-new bills the day they are introduced — is now running inside the alert pipeline. When a freshly filed bill matches one of your saved watch terms (an issue, a client, or a place), Vector | WA detects it on the next sync and folds it into your alert email, grouped by term.',
+      'This release ships the detection engine and email delivery behind Radar; the screen for creating and managing your own terms arrives in the next update.',
+    ],
+  },
+  {
     version: '5.9.0',
     date: '2026-05-30',
     phase: 'alpha',

@@ -55,6 +55,17 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node app/lib/detect-alerts.js
 
+      # R2: radar detection (term-centric new-bill matches). Runs after the
+      # bill-centric alert detector and before send-alerts, so radar_match
+      # events created here go out in the same email pass. Year-round on the
+      # nightly job to catch pre-filing inserts (Dec 1 flood) and off-session.
+      - name: Run radar detection
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-radar.js
+
       - name: Send alert emails (if events pending)
         if: success()
         env:
