@@ -26,6 +26,24 @@ const NAV = [
     ),
   },
   {
+    // Radar (Thread R3) — the discovery layer that feeds the watchlist.
+    // Placed right after Watchlist since the two are the personal-workflow
+    // pair: Radar surfaces a brand-new bill, Watchlist tracks it. Brass
+    // active state matches Watchlist's --gold accent (personal tier), not
+    // the --teal data-surface accent used by Search / Committees / Members.
+    // Concentric-rings glyph reads as "radar / scanning."
+    path: '/radar', label: 'Radar',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active ? 'var(--gold)' : 'var(--text-muted)'} strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="5"/>
+        <circle cx="12" cy="12" r="1.2" fill={active ? 'var(--gold)' : 'var(--text-muted)'} stroke="none"/>
+      </svg>
+    ),
+  },
+  {
     path: '/search', label: 'Search',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"

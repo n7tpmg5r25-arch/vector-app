@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [notifEmail, setNotifEmail] = useState('')
   const [digestEnabled, setDigestEnabled] = useState(true)
   const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const [radarEnabled, setRadarEnabled] = useState(true)
   const [digestDay, setDigestDay] = useState('monday')
   const [notifSaving, setNotifSaving] = useState(false)
   const [notifSaved, setNotifSaved] = useState(false)
@@ -53,6 +54,7 @@ export default function SettingsPage() {
           setNotifEmail(data.email || '')
           setDigestEnabled(data.digest_enabled)
           setAlertsEnabled(data.alerts_enabled)
+          setRadarEnabled(data.radar_enabled !== false)
           setDigestDay(data.digest_day || 'monday')
         } else {
           // Default to user's auth email
@@ -78,6 +80,7 @@ export default function SettingsPage() {
       email: notifEmail.trim(),
       digest_enabled: digestEnabled,
       alerts_enabled: alertsEnabled,
+      radar_enabled: radarEnabled,
       digest_day: digestDay,
       updated_at: new Date().toISOString(),
     }
@@ -258,7 +261,7 @@ export default function SettingsPage() {
               {/* Per-event alerts toggle */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '14px 16px',
+                padding: '14px 16px', borderBottom: '1px solid var(--border)',
               }}>
                 <div>
                   <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>Per-event alerts</div>
@@ -266,6 +269,7 @@ export default function SettingsPage() {
                 </div>
                 <button
                   onClick={() => setAlertsEnabled(!alertsEnabled)}
+                  role="switch" aria-checked={alertsEnabled} aria-label="Per-event alerts"
                   style={{
                     width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
                     background: alertsEnabled ? 'var(--teal)' : 'var(--border)',
@@ -277,6 +281,38 @@ export default function SettingsPage() {
                     background: 'white',
                     position: 'absolute', top: 3,
                     left: alertsEnabled ? 23 : 3,
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+
+              {/* Radar alerts toggle (Thread R3) — independent global switch for
+                  Radar term-match emails. Off keeps the Radar feed live (matches
+                  still log) but stops the emails. Manage terms on the Radar tab. */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '14px 16px',
+              }}>
+                <div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>Radar alerts</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    New bills matching your <Link href="/radar" style={{ color: 'var(--teal)', textDecoration: 'none' }}>Radar terms</Link>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setRadarEnabled(!radarEnabled)}
+                  role="switch" aria-checked={radarEnabled} aria-label="Radar alerts"
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: radarEnabled ? 'var(--teal)' : 'var(--border)',
+                    position: 'relative', transition: 'background 0.2s',
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 9,
+                    background: 'white',
+                    position: 'absolute', top: 3,
+                    left: radarEnabled ? 23 : 3,
                     transition: 'left 0.2s',
                   }} />
                 </button>
