@@ -115,6 +115,28 @@ async function detectRadar() {
     }
   }
 
+  // 2b. Per-user global Radar switch (Thread R3). When a user has
+  // notification_preferences.radar_enabled = false, we still write the
+  // radar_matches ledger (so their Radar feed stays live) but suppress the
+  // immediate alert_events insert below — no Radar email goes out. A missing
+  // prefs row defaults to enabled (matches the column default), so detection
+  // is never silently dropped for users who haven't opened Settings yet.
+  const radarDisabled = new Set();
+  const termUserIds = [...new Set(terms.map(t => t.user_id))];
+  if (termUserIds.length > 0) {
+    const { data: prefs, error: pErr } = await supabase
+      .from('notification_preferences')
+      .select('user_id, radar_enabled')
+      .in('user_id', termUserIds);
+    if (pErr) {
+      console.warn('  [radar_enabled lookup failed, defaulting to enabled]:', pErr.message);
+    } else {
+      for (const p of prefs || []) {
+        if (p.radar_enabled === false) radarDisabled.add(p.user_id);
+      }
+    }
+  }
+
   let totalLedger = 0;
   let totalAlerts = 0;
 
@@ -210,7 +232,9 @@ async function detectRadar() {
     totalLedger += fresh.length;
 
     // 3d. Immediate cadence → alert_events, bounded by daily_cap.
-    if (term.cadence === 'immediate') {
+    // Skip the email path entirely when the owner has Radar turned off in
+    // Settings — the ledger rows above already captured the matches for the feed.
+    if (term.cadence === 'immediate' && !radarDisabled.has(term.user_id)) {
       const cap = Number.isFinite(term.daily_cap) ? term.daily_cap : 25;
 
       // How many immediate alerts has this term already fired today?
@@ -277,7 +301,8 @@ async function detectRadar() {
       );
       void billMeta;
     } else {
-      console.log(`  term ${term.id} "${term.label}": ${fresh.length} new match(es), digest cadence (ledger only).`);
+      const why = radarDisabled.has(term.user_id) ? 'Radar off in Settings' : 'digest cadence';
+      console.log(`  term ${term.id} "${term.label}": ${fresh.length} new match(es), ledger only (${why}).`);
     }
 
     // 3e. Advance the watermark only after a fully successful pass.

@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '5.11.0',
+    date: '2026-05-31',
+    phase: 'alpha',
+    highlights: [
+      'Radar now has its own screen. A new Radar tab lets you create and manage watch terms — name a term, point it at an issue, a client, or a place, and choose whether matches arrive by email right away or just collect in the feed.',
+      'Each term can be matched against bill titles only or titles plus summaries, assigned to a client, and switched on or off without deleting it.',
+      'When a brand-new bill matches a term, it lands in your Radar feed, where one tap adds it to your watchlist and another opens the full bill.',
+      'Search gained a "Save as Radar term" button, so any keyword search you run can become a standing watch for future bills in one step.',
+      'A Radar alerts switch in Settings turns the term-match emails on or off on its own, separate from your per-bill alerts.',
+    ],
+  },
+  {
     version: '5.10.0',
     date: '2026-05-31',
     phase: 'alpha',

@@ -341,6 +341,30 @@ function SearchContent() {
           />
         </div>
 
+        {/* Save as Radar term — appears once a signed-in user has typed a query.
+            Deep-links to /radar?new=1&q=<query>, which opens the Radar create
+            form pre-filled. Turns a one-off search into a standing watch for
+            brand-new bills on the same terms. (Radar is registered-tier, so the
+            CTA is gated on `user`.) */}
+        {user && query.trim().length >= 2 && (
+          <Link
+            href={`/radar?new=1&q=${encodeURIComponent(query.trim())}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginBottom: 8, padding: '7px 12px', borderRadius: 8,
+              background: 'transparent', color: 'var(--teal)',
+              border: '1px solid var(--teal)', textDecoration: 'none',
+              fontSize: 11, fontWeight: 600, alignSelf: 'flex-start',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <circle cx="12" cy="12" r="4"/>
+            </svg>
+            Save as Radar term
+          </Link>
+        )}
+
         {/* Row 3: Filter controls — horizontally scrollable so they never wrap */}
         <div style={{
           display: 'flex', gap: 6, alignItems: 'center',
