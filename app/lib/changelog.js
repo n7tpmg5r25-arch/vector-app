@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.12.0',
+    date: '2026-06-01',
+    phase: 'alpha',
+    highlights: [
+      'Radar now watches bills you already know about, not just brand-new ones. When a bill that matches one of your terms gets a substitute, picks up an amendment, or has its summary rewritten, Radar catches the change on the next sync and flags it.',
+      'These material-change alerts arrive in the same Radar email, in their own section, and show up in your Radar feed tagged "Language changed" so you can tell them apart from new-bill matches at a glance.',
+      'Change alerts tell you the language moved and point you to the latest version — quoting the new text itself arrives in a later update.',
+    ],
+  },
+  {
     version: '5.11.0',
     date: '2026-05-31',
     phase: 'alpha',
