@@ -164,23 +164,40 @@ function SingleVoteSplitBar({ rc, buckets }) {
         )}
       </div>
 
-      {/* Row 3 — Partisan detail (smaller + dimmer than the headline) */}
-      <div style={{
-        marginTop: 4, fontSize: 11, fontFamily: 'var(--font-mono)',
-        color: 'var(--text-faint)',
-      }}>
-        {buckets.yesD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.yesD}D</span>}
-        {buckets.yesD > 0 && buckets.yesR > 0 && <span> · </span>}
-        {buckets.yesR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.yesR}R</span>}
-        {buckets.yesU > 0 && <span style={{ marginLeft: 4 }}>· {buckets.yesU}?</span>}
-        <span style={{ marginLeft: 6 }}>Yes</span>
-        <span style={{ margin: '0 8px' }}>/</span>
-        {buckets.noD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.noD}D</span>}
-        {buckets.noD > 0 && buckets.noR > 0 && <span> · </span>}
-        {buckets.noR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.noR}R</span>}
-        {buckets.noU > 0 && <span style={{ marginLeft: 4 }}>· {buckets.noU}?</span>}
-        <span style={{ marginLeft: 6 }}>No</span>
-      </div>
+      {/* Row 3 — Partisan detail (smaller + dimmer than the headline).
+          ER2/F3 (2026-06-01): only render when at least one vote is
+          party-mapped. A roll call with zero enriched member_votes used to
+          dump the full count into yesU/noU and print a bare "48?", which reads
+          as data corruption — the Row 2 headline (48Y / 0N · Passed) already
+          carries the count cleanly, so we suppress this row entirely instead.
+          When party data is partial, unknown votes are shown as a labeled
+          "N unmapped" token (never a bare "?"), matching VoteHistoryTable,
+          which omits unknowns from its inline split. */}
+      {(buckets.yesD + buckets.yesR + buckets.noD + buckets.noR) > 0 && (
+        <>
+          <div style={{
+            marginTop: 4, fontSize: 11, fontFamily: 'var(--font-mono)',
+            color: 'var(--text-faint)',
+          }}>
+            {buckets.yesD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.yesD}D</span>}
+            {buckets.yesD > 0 && buckets.yesR > 0 && <span> · </span>}
+            {buckets.yesR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.yesR}R</span>}
+            {buckets.yesU > 0 && <span style={{ marginLeft: 4 }}>· {buckets.yesU} unmapped</span>}
+            <span style={{ marginLeft: 6 }}>Yes</span>
+            <span style={{ margin: '0 8px' }}>/</span>
+            {buckets.noD > 0 && <span style={{ color: '#4d9aff', fontWeight: 600 }}>{buckets.noD}D</span>}
+            {buckets.noD > 0 && buckets.noR > 0 && <span> · </span>}
+            {buckets.noR > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{buckets.noR}R</span>}
+            {buckets.noU > 0 && <span style={{ marginLeft: 4 }}>· {buckets.noU} unmapped</span>}
+            <span style={{ marginLeft: 6 }}>No</span>
+          </div>
+          {(buckets.yesU > 0 || buckets.noU > 0) && (
+            <div style={{ marginTop: 3, fontSize: 9, color: 'var(--text-faint)', opacity: 0.7, letterSpacing: '0.02em' }}>
+              Unmapped = party not yet matched to the roll-call record.
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

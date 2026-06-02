@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.15.0',
+    date: '2026-06-01',
+    phase: 'alpha',
+    highlights: [
+      'The trajectory score now shows clean arithmetic. When a score is capped at 99 or rounded, the bill page no longer prints an equation that appears not to add up — it shows the final score with a "capped at 99" or "≈ rounded" note, and the full base × momentum math stays in the score info panel.',
+      'AI summaries no longer invent or rename Washington places. A new guardrail blocks fabricated installation and agency names — for example, the one bill that read "Spokane Air Force Base" now correctly references Fairchild AFB.',
+      'Floor-vote breakdowns read cleanly when party data is incomplete. A roll call with no party-matched votes no longer shows a bare "48?"; partial data is now labeled "N unmapped" with a short explanation, matching the roll-call history view.',
+    ],
+  },
+  {
     version: '5.14.0',
     date: '2026-06-01',
     phase: 'alpha',
