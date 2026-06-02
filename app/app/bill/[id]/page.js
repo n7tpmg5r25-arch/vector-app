@@ -780,6 +780,19 @@ export default function BillDetailPage() {
   const baseTotal = (sig.committee_score || 0) + (sig.sponsor_score || 0) + (sig.momentum_score || 0) + (sig.historical_score || 0) + (sig.fiscal_score || 0)
   const xfMult = bill.xf_multiplier || sig.xf_multiplier || 1
 
+  // ER2 / F2 (2026-06-01): the inline "BASE × mult = score" one-liner can show
+  // arithmetic the 99-cap and rounding break — e.g. BASE 87 × 1.20 renders
+  // "= 99" even though 87 × 1.20 = 104.4. A numerate lobbyist reads that as a
+  // broken pipeline. So we only render the literal equation when it actually
+  // reconciles; otherwise we show the dominant score alone with a small
+  // capped/≈ affordance and keep the true math in the info panel below.
+  // Display-only — scoreBill() is frozen (G5) and untouched.
+  const xfApplied = Boolean(xfMult && xfMult !== 1)
+  const rawCombined = baseTotal * Number(xfMult)
+  const scoreIsCapped = score >= 99 && rawCombined > 99
+  const equationReconciles = xfApplied && baseTotal > 0 && !scoreIsCapped && Math.round(rawCombined) === score
+  const scoreAffordance = scoreIsCapped ? 'capped at 99' : '≈ rounded'
+
   const floorMargin = bill.avg_floor_margin ? Math.round(bill.avg_floor_margin * 100) : null
 
   // Build leg.wa.gov link
@@ -1012,13 +1025,19 @@ export default function BillDetailPage() {
             {/* Thread 91: formula prefix 13px muted, result 32px brass dominant.
                 Impeccable audit fix (2026-05-23): 32px score now always visible —
                 previously only rendered inside the xfMult !== 1 branch, leaving
-                no dominant number on bills without a multiplier. Formula prefix
-                still only shows when a multiplier is applied. */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-              {xfMult && xfMult !== 1 ? (
+                no dominant number on bills without a multiplier. ER2/F2
+                (2026-06-01): the prefix now shows only when the equation
+                reconciles (see equationReconciles above), not merely when a
+                multiplier exists. */}
+            {/* ER2/F2: equation only when BASE × mult actually reconciles to the
+                displayed (capped + rounded) score. Otherwise the score stands
+                alone with a capped/≈ affordance; the honest math lives in the
+                info panel below. */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+              {equationReconciles ? (
                 <>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-muted)' }}>
-                    BASE {baseTotal || bill.trajectory_score || '—'}
+                    BASE {baseTotal}
                   </span>
                   <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>×</span>
                   {/* Thread 91: momentum multiplier info chip */}
@@ -1041,6 +1060,21 @@ export default function BillDetailPage() {
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 700, color: 'var(--brass)' }}>
                 {score}
               </span>
+              {xfApplied && !equationReconciles && baseTotal > 0 && (
+                <span
+                  title={scoreIsCapped
+                    ? `Capped at 99. Raw trajectory math: BASE ${baseTotal} × ${Number(xfMult).toFixed(2)} = ${rawCombined.toFixed(1)} (100 is reserved for bills signed into law).`
+                    : `Rounded for display. Raw trajectory math: BASE ${baseTotal} × ${Number(xfMult).toFixed(2)} = ${rawCombined.toFixed(1)}.`}
+                  style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-faint)',
+                    letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'help',
+                    border: '1px solid var(--border)', borderRadius: 5, padding: '2px 6px',
+                    alignSelf: 'center', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {scoreAffordance}
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {['LAW', 'PASSED_CHAMBER', 'DEAD'].includes(confLabel)
