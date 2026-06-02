@@ -218,6 +218,8 @@ export default function WatchlistPage() {
   const highScoreCount = watched.filter(d => (d.bills?.final_score || 0) >= 50).length
   const atRiskCount = watched.filter(d => !d.bills?.confidence_label && ((d.bills?.final_score || 0) < 25 || d.bills?.stalled)).length
   const passedCount = watched.filter(d => d.bills?.confidence_label === 'LAW').length
+  // ER3 F4: carry-over bucket so the interim strip reconciles (Tracked = Law + Passed Chamber + Dead)
+  const passedChamberCount = watched.filter(d => d.bills?.confidence_label === 'PASSED_CHAMBER').length
   const deadCount = watched.filter(d => d.bills?.confidence_label === 'DEAD').length
 
   /* ── PDF Export handler ── */
@@ -414,23 +416,30 @@ export default function WatchlistPage() {
           </div>
         </div>
 
-        {/* Thread 96: KPI card strip — 3-col card grid matching home page personal zone */}
-        {watched.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
-            {(isInterimPeriod() ? [
-              { label: 'Tracked',    value: watched.length, color: 'var(--teal)' },
-              { label: 'Passed',     value: passedCount, color: passedCount > 0 ? 'var(--teal)' : 'var(--text-muted)' },
-              { label: 'Dead',       value: deadCount, color: 'var(--text-muted)' },
-            ] : [
-              { label: 'Tracked',    value: watched.length, color: 'var(--teal)' },
-              { label: 'High Score', value: highScoreCount, color: highScoreCount > 0 ? 'var(--teal-bright)' : 'var(--text-muted)' },
-              { label: 'At Risk',    value: atRiskCount, color: atRiskCount > 0 ? 'var(--danger)' : 'var(--text-muted)' },
-            ]).map(({ label, value, color }) => (
+        {/* Thread 96: KPI card strip — card grid matching home page personal zone.
+            ER3 F4: interim strip now carries the Passed Chamber (carry-over) bucket so
+            Tracked = Signed into law + Passed Chamber + Dead reconciles at a glance, and
+            uses the functional palette (Sage = law, Deep Teal = passed chamber, Stone = dead). */}
+        {watched.length > 0 && (() => {
+          const kpiCards = isInterimPeriod() ? [
+            { label: 'Tracked',         value: watched.length,      color: 'var(--teal)',      glow: 'rgba(184,151,90,0.3)' },
+            { label: 'Signed into law', value: passedCount,         color: passedCount > 0 ? 'var(--sage)' : 'var(--text-muted)',          glow: 'var(--sage-glow)' },
+            { label: 'Passed Chamber',  value: passedChamberCount,  color: passedChamberCount > 0 ? 'var(--deep-teal)' : 'var(--text-muted)', glow: 'var(--deep-teal-glow)' },
+            { label: 'Dead',            value: deadCount,           color: 'var(--text-muted)', glow: 'transparent' },
+          ] : [
+            { label: 'Tracked',    value: watched.length, color: 'var(--teal)',        glow: 'rgba(184,151,90,0.3)' },
+            { label: 'High Score', value: highScoreCount, color: highScoreCount > 0 ? 'var(--teal-bright)' : 'var(--text-muted)', glow: 'rgba(184,151,90,0.3)' },
+            { label: 'At Risk',    value: atRiskCount,    color: atRiskCount > 0 ? 'var(--danger)' : 'var(--text-muted)',        glow: 'rgba(196,71,48,0.3)' },
+          ]
+          const kpiCols = kpiCards.length === 4 ? '1fr 1fr' : '1fr 1fr 1fr'
+          return (
+          <div style={{ display: 'grid', gridTemplateColumns: kpiCols, gap: 8, marginBottom: 12 }}>
+            {kpiCards.map(({ label, value, color, glow }) => (
               <div key={label} style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
                 borderRadius: 'var(--radius)', padding: '10px 12px', textAlign: 'center',
               }}>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: color === 'var(--teal)' ? '0 0 12px rgba(184,151,90,0.3)' : color === 'var(--danger)' ? '0 0 12px rgba(196,71,48,0.3)' : 'transparent' }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color, lineHeight: 1, textShadow: (value > 0 && glow !== 'transparent') ? `0 0 12px ${glow}` : 'transparent' }}>
                   {value}
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4 }}>
@@ -439,7 +448,8 @@ export default function WatchlistPage() {
               </div>
             ))}
           </div>
-        )}
+          )
+        })()}
 
         {tags.length > 0 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>

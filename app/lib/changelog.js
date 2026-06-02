@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.16.0',
+    date: '2026-06-02',
+    phase: 'alpha',
+    highlights: [
+      'Your watchlist outcome counts now add up. The summary strip adds a "Passed Chamber" card alongside "Signed into law" and "Dead," so the three outcomes reconcile to the number of bills you track — carry-over bills no longer disappear from the math.',
+      'Outcome states are now easy to tell apart at a glance. Law, passed-chamber, and dead are shown as distinct color-coded badges — a green check for signed into law, a teal arrow for passed chamber, a stone cross for dead — instead of two near-identical gold tones.',
+      'The home dashboard no longer shows the "Signed into Law" total twice. The duplicate slot now carries a more useful biennium stat: the number of bipartisan bills.',
+    ],
+  },
+  {
     version: '5.15.0',
     date: '2026-06-01',
     phase: 'alpha',
