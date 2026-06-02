@@ -36,11 +36,19 @@ import VectorLoader from '../components/VectorLoader'
 const SCOPES = [
   { value: 'all', label: 'Title + summaries' },
   { value: 'title', label: 'Title only' },
+  { value: 'fulltext', label: 'Full bill text' },
 ]
 const CADENCES = [
   { value: 'immediate', label: 'Email right away' },
   { value: 'digest', label: 'Feed only' },
 ]
+
+// 3-way scope label, used on term cards.
+const SCOPE_LABEL = {
+  title: 'Title only',
+  all: 'Title + summaries',
+  fulltext: 'Full bill text',
+}
 
 const REASON_LABEL = {
   new_bill: 'New bill',
@@ -95,7 +103,7 @@ function RadarContent() {
       supabase
         .from('radar_matches')
         .select(`
-          id, term_id, bill_id, match_reason, detected_at, seen_at,
+          id, term_id, bill_id, match_reason, snippet, detected_at, seen_at,
           bills ( bill_id, bill_number, title, chamber, final_score, confidence_label )
         `)
         .order('detected_at', { ascending: false })
@@ -369,6 +377,11 @@ function RadarContent() {
                 Match against
               </label>
               <SegToggle options={SCOPES} value={fScope} onChange={setFScope} />
+              {fScope === 'fulltext' && (
+                <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, lineHeight: 1.5 }}>
+                  Searches the complete bill text once Vector has archived it — including language buried below the summary. Coverage builds up over the first couple weeks of a session.
+                </div>
+              )}
             </div>
 
             {/* Cadence */}
@@ -440,7 +453,7 @@ function RadarContent() {
                               {term.query}
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-                              <MetaChip>{term.match_scope === 'title' ? 'Title only' : 'Title + summaries'}</MetaChip>
+                              <MetaChip>{SCOPE_LABEL[term.match_scope] || 'Title + summaries'}</MetaChip>
                               <MetaChip>{term.cadence === 'immediate' ? 'Email right away' : 'Feed only'}</MetaChip>
                               {countByTerm[term.id] > 0 && (
                                 <span style={{
@@ -539,6 +552,18 @@ function RadarContent() {
                       {termLabel && (
                         <div style={{ fontSize: 10, color: 'var(--text-faint)' }}>
                           matched <span style={{ color: 'var(--text-muted)' }}>{termLabel}</span>
+                        </div>
+                      )}
+
+                      {m.snippet && (
+                        <div style={{
+                          fontSize: 12, color: 'var(--text-mid)', fontStyle: 'italic', lineHeight: 1.5,
+                          marginTop: 7, padding: '7px 10px',
+                          background: 'var(--bg-surface)', borderLeft: '3px solid var(--gold)',
+                          borderRadius: 4,
+                          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                        }}>
+                          &ldquo;{m.snippet}&rdquo;
                         </div>
                       )}
 

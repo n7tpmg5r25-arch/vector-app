@@ -36,6 +36,27 @@
  *   moved bills. THE FIRST RUN SEEDS radar_bill_state SILENTLY (no prior state
  *   = no material-change alerts) so existing substitutes/amendments don't flood.
  *
+ * Phase 3b triggers (Thread R6): NEW LANGUAGE diff + FULLTEXT scope.
+ *   Phases 1–2 match against title / summary / ai_summary only. R5 began
+ *   archiving the real bill text into bill_text_versions; R6 turns that archive
+ *   into language intelligence:
+ *     • NEW LANGUAGE — for bills with >= 2 archived text versions, diff the two
+ *       most recent (added lines only) and re-run each enabled non-title term
+ *       against just the ADDED text. A hit writes
+ *       radar_matches(match_reason='new_language', snippet=<bounded excerpt>) +
+ *       (immediate) alert_events, so the email can QUOTE the language that
+ *       literally changed — not just say that it changed.
+ *     • FULLTEXT scope — a term whose match_scope='fulltext' is matched against
+ *       the latest archived bill_text_versions.text (its own tsvector + GIN
+ *       index) rather than title/summary. These terms are handled ONLY in the
+ *       fulltext pass (skipped in the new-bill + material passes) and fire as
+ *       match_reason='new_bill'.
+ *   Both passes reuse emitMatches() for dedup / cap / backfill. The
+ *   radar_matches UNIQUE (term, bill, reason) constraint means a given
+ *   (term, bill) fires at most once per reason (so new_language fires once per
+ *   bill per term — the first added-language match; later re-amendments of the
+ *   same bill into the same term are not re-fired).
+ *
  * Writes ONLY to radar_matches + alert_events + radar_bill_state. Never touches
  * sync, scoring, or the bills write-path. Dedup via the radar_matches UNIQUE
  * (term_id, bill_id, match_reason) constraint keeps re-runs idempotent — a
@@ -86,6 +107,16 @@ const MATCH_FETCH_LIMIT = 500;
 // Page size for reading/writing radar_bill_state (Supabase 1000-row cap on
 // reads; batched writes stay well under any payload limit).
 const STATE_PAGE = 1000;
+
+// R6: max multi-version bills diffed per run (newest-change-first). Early in a
+// session almost no bill has 2 versions; dedup makes any re-diff a no-op, so a
+// modest cap is safe. Override via env.
+const TEXT_PAIR_LIMIT = Math.max(1, parseInt(process.env.RADAR_TEXT_PAIR_LIMIT || '200', 10) || 200);
+
+// R6: minimum added-text length to bother matching (skips trivial reformatting
+// noise) and the bounded length of the quoted snippet stored + emailed.
+const MIN_ADDED_CHARS = 40;
+const SNIPPET_MAX = 280;
 
 function startOfUtcTodayISO() {
   const d = new Date();
@@ -158,8 +189,11 @@ async function detectRadar() {
   let totalLedger = 0;
   let totalAlerts = 0;
 
-  // 3. Per-term detection
+  // 3. Per-term detection (new-bill pass). 'fulltext'-scope terms are matched
+  //    against archived bill text in the dedicated fulltext pass below, so they
+  //    are skipped here — their last_checked_at is advanced there instead.
   for (const term of terms) {
+    if (term.match_scope === 'fulltext') continue;
     const runStamp = new Date().toISOString();
     const clientLabel = term.client_id ? (clientLabels.get(term.client_id) || null) : null;
     const titleOnly = term.match_scope === 'title';
@@ -334,6 +368,18 @@ async function detectRadar() {
   totalLedger += mat.ledger;
   totalAlerts += mat.alerts;
 
+  // 5. New-language pass (Phase 3b / Thread R6). Diffs the two most recent
+  //    archived text versions and matches the ADDED language per non-title term.
+  const lang = await detectNewLanguage(terms, clientLabels, radarDisabled);
+  totalLedger += lang.ledger;
+  totalAlerts += lang.alerts;
+
+  // 6. Fulltext-scope pass (Phase 3b / Thread R6). Matches 'fulltext' terms
+  //    against the latest archived bill text.
+  const ft = await detectFulltext(terms, clientLabels, radarDisabled);
+  totalLedger += ft.ledger;
+  totalAlerts += ft.alerts;
+
   const duration = Date.now() - start;
   console.log(`Radar detection complete: ${totalLedger} ledger row(s), ${totalAlerts} immediate alert(s) in ${duration}ms.`);
 }
@@ -446,6 +492,7 @@ async function detectMaterialChanges(terms, clientLabels, radarDisabled) {
   const kindById = new Map(changed.map(c => [c.bill_id, c.kinds]));
 
   for (const term of terms) {
+    if (term.match_scope === 'fulltext') continue; // fulltext terms re-evaluate latest text every run in their own pass
     const clientLabel = term.client_id ? (clientLabels.get(term.client_id) || null) : null;
     const titleOnly = term.match_scope === 'title';
 
@@ -488,7 +535,7 @@ async function detectMaterialChanges(terms, clientLabels, radarDisabled) {
 // Mirrors the new-bill insert/dedup/cap/backfill logic so the two passes stay
 // consistent; the per-term daily_cap is shared across reasons because the
 // firedToday count below is reason-agnostic.
-async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kindById }) {
+async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kindById, snippetById }) {
   let ledger = 0;
   let alerts = 0;
 
@@ -515,6 +562,7 @@ async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kin
     user_id: term.user_id,
     bill_id: h.bill_id,
     match_reason: reason,
+    snippet: snippetById ? (snippetById.get(h.bill_id) || null) : null,
   }));
   const { error: insErr } = await supabase
     .from('radar_matches')
@@ -569,6 +617,7 @@ async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kin
           bill_title: h.title,
           match_reason: reason,
           change_kinds: kindById ? (kindById.get(h.bill_id) || []) : undefined,
+          snippet: snippetById ? (snippetById.get(h.bill_id) || null) : undefined,
         },
       });
     }
@@ -602,6 +651,152 @@ async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kin
   } else {
     const why = radarDisabled.has(term.user_id) ? 'Radar off in Settings' : 'digest cadence';
     console.log(`  term ${term.id} "${term.label}": ${fresh.length} ${reason} match(es), ledger only (${why}).`);
+  }
+
+  return { ledger, alerts };
+}
+
+// ── New-language pass (Phase 3b / R6) ──────────────────────
+// Diff the two most recent archived text versions of each changed bill (added
+// lines only), then re-run each enabled non-title term against just that ADDED
+// text. A match fires radar_matches(match_reason='new_language', snippet=...)
+// so the alert can quote the language that literally changed.
+
+// Set-based line diff: lines present in the new text but not the previous one.
+// WA legislative text is one provision per line after htmlToText normalization,
+// so line presence is a good proxy for "newly added language" without a full
+// LCS. Whole-bill reflows (rare) just surface more added lines — bounded below.
+function addedText(newText, prevText) {
+  const prev = new Set(String(prevText || '').split('\n'));
+  const out = [];
+  for (const line of String(newText || '').split('\n')) {
+    const l = line.trim();
+    if (l && !prev.has(line)) out.push(l);
+  }
+  return out.join('\n');
+}
+
+// Bounded, word-safe excerpt for the ledger + email quote.
+function boundedSnippet(text, max = SNIPPET_MAX) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > max * 0.6 ? cut.slice(0, sp) : cut).trim() + '…';
+}
+
+async function detectNewLanguage(terms, clientLabels, radarDisabled) {
+  let ledger = 0;
+  let alerts = 0;
+
+  // Title-only terms care only about the title, so they sit out the body diff.
+  const eligible = terms.filter(t => t.match_scope !== 'title');
+  if (eligible.length === 0) return { ledger, alerts };
+
+  const { data: pairs, error: pErr } = await supabase.rpc('radar_bill_text_pairs', {
+    p_session: CURRENT_SESSION,
+    p_limit: TEXT_PAIR_LIMIT,
+  });
+  if (pErr) {
+    console.warn('  [new-language pairs fetch failed]:', pErr.message);
+    return { ledger, alerts };
+  }
+  if (!pairs || pairs.length === 0) {
+    console.log('  New-language pass: no bills with 2+ text versions yet.');
+    return { ledger, alerts };
+  }
+
+  // Pre-compute added text once per changed bill (independent of term).
+  const changedBills = [];
+  for (const p of pairs) {
+    const added = addedText(p.new_text, p.prev_text);
+    if (added.length >= MIN_ADDED_CHARS) {
+      changedBills.push({ bill_id: p.bill_id, bill_number: p.bill_number, title: p.title, added });
+    }
+  }
+  if (changedBills.length === 0) {
+    console.log(`  New-language pass: ${pairs.length} multi-version bill(s), none with material added text.`);
+    return { ledger, alerts };
+  }
+
+  console.log(`  New-language pass: ${changedBills.length} bill(s) with added language — matching against ${eligible.length} term(s).`);
+
+  for (const term of eligible) {
+    const clientLabel = term.client_id ? (clientLabels.get(term.client_id) || null) : null;
+    const hits = [];
+    const snippetById = new Map();
+
+    for (const b of changedBills) {
+      const { data: isMatch, error: mErr } = await supabase.rpc('radar_text_matches', {
+        p_query: term.query,
+        p_text: b.added,
+      });
+      if (mErr) {
+        console.warn(`  [term ${term.id} "${term.label}" new-language match failed on ${b.bill_id}]: ${mErr.message}`);
+        continue;
+      }
+      if (isMatch === true) {
+        hits.push({ bill_id: b.bill_id, bill_number: b.bill_number, title: b.title });
+        snippetById.set(b.bill_id, boundedSnippet(b.added));
+      }
+    }
+    if (hits.length === 0) continue;
+
+    const res = await emitMatches({
+      term,
+      hits,
+      reason: 'new_language',
+      clientLabel,
+      radarDisabled,
+      snippetById,
+    });
+    ledger += res.ledger;
+    alerts += res.alerts;
+  }
+
+  return { ledger, alerts };
+}
+
+// ── Fulltext-scope pass (Phase 3b / R6) ────────────────────
+// Terms whose match_scope='fulltext' are matched against the LATEST archived
+// bill text (not title/summary). Re-evaluated every run; the (term, bill,
+// 'new_bill') dedup means each matching bill fires at most once per term.
+async function detectFulltext(terms, clientLabels, radarDisabled) {
+  let ledger = 0;
+  let alerts = 0;
+
+  const ftTerms = terms.filter(t => t.match_scope === 'fulltext');
+  if (ftTerms.length === 0) return { ledger, alerts };
+
+  for (const term of ftTerms) {
+    const clientLabel = term.client_id ? (clientLabels.get(term.client_id) || null) : null;
+
+    const { data: hits, error: mErr } = await supabase.rpc('radar_match_fulltext', {
+      p_query: term.query,
+      p_session: CURRENT_SESSION,
+      p_limit: MATCH_FETCH_LIMIT,
+    });
+    if (mErr) {
+      console.warn(`  [term ${term.id} "${term.label}" fulltext match failed]: ${mErr.message}`);
+      // Do not advance last_checked_at on failure — retry next run.
+      continue;
+    }
+
+    if (hits && hits.length > 0) {
+      const res = await emitMatches({
+        term,
+        hits,
+        reason: 'new_bill',
+        clientLabel,
+        radarDisabled,
+      });
+      ledger += res.ledger;
+      alerts += res.alerts;
+    } else {
+      console.log(`  term ${term.id} "${term.label}": fulltext scope, no current-text matches.`);
+    }
+
+    await advanceLastChecked(term.id, new Date().toISOString());
   }
 
   return { ledger, alerts };

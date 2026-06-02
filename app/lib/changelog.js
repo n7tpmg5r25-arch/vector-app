@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.14.0',
+    date: '2026-06-01',
+    phase: 'alpha',
+    highlights: [
+      'Radar now reads the actual bill text. When a bill you watch is substituted or amended, Radar compares the new version against the previous one and tells you exactly what language was added — and quotes it, both in the alert email and in your Radar feed.',
+      'New "Full bill text" match option: point a term at the complete bill rather than just the title and summary, so it catches language buried deep in the bill that a summary would never surface.',
+      'New-language matches arrive in the same Radar email in their own section, tagged "New language" in the feed, so they stay distinct from new-bill and change alerts.',
+      'This completes Radar — it now watches for brand-new bills, flags when a watched bill materially changes, and surfaces the specific new wording.',
+    ],
+  },
+  {
     version: '5.13.0',
     date: '2026-06-01',
     phase: 'alpha',
