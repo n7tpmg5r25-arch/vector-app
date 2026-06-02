@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.13.0',
+    date: '2026-06-01',
+    phase: 'alpha',
+    highlights: [
+      'Vector now archives the full text of every current-session bill, capturing the latest official version each time a bill is substituted, amended into a new draft, or enacted.',
+      'This runs quietly in the background once a day and builds up over about two weeks, with no change to your alerts or Radar matches yet.',
+      'It lays the groundwork for an upcoming update that will show you the exact language that changed in a bill, not just that it changed.',
+    ],
+  },
+  {
     version: '5.12.0',
     date: '2026-06-01',
     phase: 'alpha',
