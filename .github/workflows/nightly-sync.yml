@@ -66,6 +66,27 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node app/lib/detect-radar.js
 
+      # R5: bill-text ingestion (Radar Phase 3a). Archives the current
+      # authoritative full text of each current-session bill into
+      # bill_text_versions, bounded to RADAR_TEXT_MAX bills/run so WA Leg API
+      # volume + run time stay capped. Nightly ONLY (not midday) to hold this
+      # to one pass per day. Self-throttling round-robin: never-ingested bills
+      # first, then least-recently-confirmed, so the full set backfills over
+      # ~11 nights and then steadily re-confirms. Entirely additive — a failed
+      # fetch logs and skips, and the script exits 0 even on a thrown error so
+      # it can never fail the sync. Groundwork for R6 true diffing; no
+      # user-facing behavior change yet.
+      - name: Ingest bill text (Radar Phase 3a)
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          RADAR_TEXT_MAX: '300'
+        run: node app/lib/sync-bill-text.js
+
       - name: Send alert emails (if events pending)
         if: success()
         env:
