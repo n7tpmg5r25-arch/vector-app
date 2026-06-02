@@ -66,6 +66,8 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false)
   // 6B.1: Session outcome counts for interim display
   const [outcomeCounts, setOutcomeCounts] = useState({ law: 0, carryOver: 0, dead: 0 })
+  // ER3 F6: strategic interim macro-metric replacing the duplicate "Signed into Law" stat
+  const [bipartisanCount, setBipartisanCount] = useState(0)
   const [totalBills, setTotalBills] = useState(0)
 
   const daysToPreFiling = daysUntil(nextBiennium.prefilingOpens || nextBiennium.start)
@@ -127,9 +129,11 @@ export default function HomePage() {
       interim ? billCount(q => q.eq('confidence_label', 'LAW')) : Promise.resolve({ count: null }),
       interim ? billCount(q => q.eq('confidence_label', 'PASSED_CHAMBER')) : Promise.resolve({ count: null }),
       interim ? billCount(q => q.eq('confidence_label', 'DEAD')) : Promise.resolve({ count: null }),
+      // ER3 F6: bipartisan bill count for the interim stat strip (cheap head-count).
+      interim ? billCount(q => q.eq('bipartisan', true)) : Promise.resolve({ count: null }),
     ]
 
-    const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes] =
+    const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes, bipartisanRes] =
       await Promise.all(queries)
 
     const bills = billsResult.data || []
@@ -146,6 +150,7 @@ export default function HomePage() {
 
     if (interim) {
       setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
+      setBipartisanCount(bipartisanRes.count || 0)
     }
 
     setCategories((catsResult.data || []).filter(c => c.category && c.category !== 'Other'))
@@ -442,13 +447,15 @@ export default function HomePage() {
                 borderRadius: 20, padding: '5px 14px',
                 fontSize: 12, fontFamily: 'var(--font-mono)',
               }}>
-                <span style={{ color: 'var(--teal)', fontWeight: 600 }}>{interimWatchCounts.law} passed</span>
+                {/* ER3 F5: functional palette (Sage / Deep Teal / Stone) so law vs passed-chamber
+                    are distinguishable — was two near-identical brass tones (--teal / --gold). */}
+                <span style={{ color: 'var(--sage)', fontWeight: 600 }}>{interimWatchCounts.law} signed into law</span>
                 <span style={{ color: 'var(--text-faint)' }}>·</span>
                 {interimWatchCounts.carry > 0 && (<>
-                  <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{interimWatchCounts.carry} passed chamber</span>
+                  <span style={{ color: 'var(--deep-teal)', fontWeight: 600 }}>{interimWatchCounts.carry} passed chamber</span>
                   <span style={{ color: 'var(--text-faint)' }}>·</span>
                 </>)}
-                <span style={{ color: 'var(--text-muted)' }}>{interimWatchCounts.dead} dead</span>
+                <span style={{ color: 'var(--stone)' }}>{interimWatchCounts.dead} dead</span>
               </div>
             </div>
           ) : outlook && watchlist.length >= 5 ? (
@@ -693,9 +700,11 @@ export default function HomePage() {
 
             {/* Outcome stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+              {/* ER3 F5: functional-palette outcome colors (Sage / Deep Teal / Stone) replace
+                  the two near-identical brass tones (--teal / --gold) that read as one color. */}
               {[
-                { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--teal)', glow: 'rgba(184,151,90,0.3)' },
-                { label: 'Passed Chamber', value: outcomeCounts.carryOver, color: 'var(--gold)', glow: 'rgba(184,151,90,0.3)' },
+                { label: 'Signed into Law', value: outcomeCounts.law, color: 'var(--sage)', glow: 'var(--sage-glow)' },
+                { label: 'Passed Chamber', value: outcomeCounts.carryOver, color: 'var(--deep-teal)', glow: 'var(--deep-teal-glow)' },
                 { label: 'Dead', value: outcomeCounts.dead, color: 'var(--text-muted)', glow: 'transparent' },
               ].map(({ label, value, color, glow }) => (
                 <div key={label} style={{
@@ -725,11 +734,26 @@ export default function HomePage() {
                   <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
                     Your Watchlist Outcomes
                   </div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
-                    {wlLaw > 0 && <span style={{ color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlLaw} passed</span>}
-                    {wlCarry > 0 && <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{wlCarry} passed chamber</span>}
-                    {wlDead > 0 && <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{wlDead} dead</span>}
-                    {wlLaw === 0 && wlCarry === 0 && wlDead === 0 && <span style={{ color: 'var(--text-faint)' }}>No outcomes yet</span>}
+                  {/* ER3 F5: distinct indicator badges on the functional palette —
+                      Sage check = law, Deep-Teal arrow = passed chamber, Stone cross = dead.
+                      Replaces the two near-identical brass mono spans + raw-text squish. */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                      wlLaw   > 0 && { key: 'law',   value: wlLaw,   label: 'Signed into law', color: 'var(--sage)',      bg: 'rgba(122,171,110,0.12)', border: 'rgba(122,171,110,0.3)', icon: <polyline points="20 6 9 17 4 12"/> },
+                      wlCarry > 0 && { key: 'carry', value: wlCarry, label: 'Passed Chamber',  color: 'var(--deep-teal)', bg: 'rgba(58,122,138,0.12)',  border: 'rgba(58,122,138,0.3)', icon: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></> },
+                      wlDead  > 0 && { key: 'dead',  value: wlDead,  label: 'Dead',            color: 'var(--stone)',     bg: 'rgba(138,128,112,0.12)', border: 'rgba(138,128,112,0.3)', icon: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></> },
+                    ].filter(Boolean).map(({ key, value, label, color, bg, border, icon }) => (
+                      <span key={key} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        padding: '4px 10px', borderRadius: 14,
+                        background: bg, border: `1px solid ${border}`,
+                      }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
+                        <span style={{ color, fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12 }}>{value}</span>
+                        <span style={{ color: 'var(--text-mid)', fontSize: 11 }}>{label}</span>
+                      </span>
+                    ))}
+                    {wlLaw === 0 && wlCarry === 0 && wlDead === 0 && <span style={{ color: 'var(--text-faint)', fontSize: 12 }}>No outcomes yet</span>}
                   </div>
                 </div>
               )
@@ -904,7 +928,9 @@ export default function HomePage() {
             { label: `Bills (${bienniumShortLabel(SESSION)})`, value: totalBills.toLocaleString(), color: 'var(--teal)' },
             { label: 'Tracked', value: watchlist.length.toLocaleString(), color: 'var(--gold)' },
             isInterimPeriod()
-              ? { label: 'Signed into Law', value: outcomeCounts.law.toLocaleString(), color: 'var(--teal-bright)' }
+              // ER3 F6: "Signed into Law" already owns a card in the Session Outcomes tile above;
+              // this slot now carries a non-duplicate strategic stat (bipartisan breadth this biennium).
+              ? { label: 'Bipartisan', value: bipartisanCount.toLocaleString(), color: 'var(--teal-bright)' }
               : { label: 'Top Score', value: topBills[0]?.final_score != null ? String(topBills[0].final_score) : '—', color: 'var(--teal-bright)' },
           ].map(({ label, value, color }, i, arr) => (
             <div
