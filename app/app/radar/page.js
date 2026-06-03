@@ -67,6 +67,89 @@ function relativeDate(iso) {
   return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+// ── F9: visual token query builder ─────────────────────────
+// A radar `query` is a websearch_to_tsquery string (space = AND, OR = either,
+// "quotes" = phrase, -word = exclude). Raw boolean is power-user friction, so
+// the form offers a token/pill builder for the common case and compiles its
+// tokens back to the SAME websearch string the backend already expects — the
+// detector / RPCs are untouched. A "raw query" escape hatch stays for anyone
+// who wants true boolean (OR, grouping).
+//
+// Token shape: { type: 'contains' | 'phrase' | 'exclude', value: string }.
+//   contains → a single bare word (required)         → `word`
+//   phrase   → an exact multi-word phrase (required) → `"a b c"`
+//   exclude  → a word or phrase to omit              → `-word` / `-"a b"`
+const TOKEN_META = {
+  contains: { label: 'Contains', color: 'var(--text-mid)' },
+  phrase:   { label: 'Exact phrase', color: 'var(--teal)' },
+  exclude:  { label: 'Exclude', color: 'var(--text-muted)' },
+}
+
+// Compile tokens → the websearch_to_tsquery string the backend stores/runs.
+function compileTokens(tokens) {
+  return (tokens || [])
+    .map(t => {
+      const v = String(t.value || '').trim()
+      if (!v) return ''
+      if (t.type === 'phrase') return `"${v}"`
+      if (t.type === 'exclude') return v.includes(' ') ? `-"${v}"` : `-${v}`
+      return v // contains — kept to a single word on entry, so never quoted
+    })
+    .filter(Boolean)
+    .join(' ')
+}
+
+// Parse a stored query into builder tokens. Returns { tokens, raw }: raw=true
+// means the query uses boolean/grouping the chip builder can't faithfully
+// represent (OR, parens, FTS operators) so the caller should stay in raw mode.
+// We ALSO fall back to raw when compileTokens(tokens) !== the original — that
+// guarantees opening an existing term in the builder never silently rewrites a
+// power user's query.
+function parseQueryToTokens(q) {
+  const s = String(q || '').trim()
+  if (!s) return { tokens: [], raw: false }
+  if (/\bOR\b/i.test(s) || /[():|&!*]/.test(s)) return { tokens: [], raw: true }
+  const tokens = []
+  const re = /(-?)"([^"]*)"|(-?)(\S+)/g
+  let m
+  while ((m = re.exec(s)) !== null) {
+    if (m[2] !== undefined) {
+      const val = m[2].trim()
+      if (val) tokens.push({ type: m[1] === '-' ? 'exclude' : 'phrase', value: val })
+    } else {
+      const val = m[4].trim()
+      if (val) tokens.push({ type: m[3] === '-' ? 'exclude' : 'contains', value: val })
+    }
+  }
+  if (compileTokens(tokens) !== s) return { tokens: [], raw: true }
+  return { tokens, raw: false }
+}
+
+// Parse one free-text entry from the add-input into one or more tokens.
+//   leading -          → exclude (rest may be a "quoted phrase" or a word)
+//   "wrapped in quotes" → phrase
+//   bare multi-word    → split into one `contains` token per word (AND)
+//   bare single word   → contains
+function parseEntry(text) {
+  let t = String(text || '').trim()
+  if (!t) return []
+  if (t.startsWith('-')) {
+    let rest = t.slice(1).trim()
+    const qm = rest.match(/^"(.*)"$/)
+    if (qm) rest = qm[1].trim()
+    return rest ? [{ type: 'exclude', value: rest }] : []
+  }
+  const qm = t.match(/^"(.*)"$/)
+  if (qm) {
+    const v = qm[1].trim()
+    return v ? [{ type: 'phrase', value: v }] : []
+  }
+  if (t.includes(' ')) {
+    return t.split(/\s+/).filter(Boolean).map(w => ({ type: 'contains', value: w }))
+  }
+  return [{ type: 'contains', value: t }]
+}
+
 function RadarContent() {
   const searchParams = useSearchParams()
   const supabase = createBrowserClient()
@@ -89,6 +172,16 @@ function RadarContent() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+
+  // F9 token builder: rawMode toggles between the pill builder and the raw
+  // websearch text input. builderTokens holds the chips; tokenDraft is the
+  // in-progress add-input text.
+  const [rawMode, setRawMode] = useState(false)
+  const [builderTokens, setBuilderTokens] = useState([])
+  const [tokenDraft, setTokenDraft] = useState('')
+
+  // F11: collapsed label-group cards, keyed `${clientKey}::${label}`.
+  const [collapsed, setCollapsed] = useState(() => new Set())
 
   const loadAll = useCallback(async () => {
     if (!user) return
@@ -128,7 +221,11 @@ function RadarContent() {
   useEffect(() => {
     if (searchParams?.get('new') === '1') {
       const q = searchParams.get('q') || ''
+      const { tokens, raw } = parseQueryToTokens(q)
       setFQuery(q)
+      setBuilderTokens(tokens)
+      setRawMode(raw)
+      setTokenDraft('')
       setFLabel(q ? q.replace(/["'-]/g, '').trim().slice(0, 60) : '')
       setShowForm(true)
     }
@@ -143,13 +240,20 @@ function RadarContent() {
     setFScope('all')
     setFCadence('immediate')
     setFormError('')
+    setRawMode(false)
+    setBuilderTokens([])
+    setTokenDraft('')
   }
 
   function startEdit(term) {
+    const { tokens, raw } = parseQueryToTokens(term.query)
     setEditingId(term.id)
     setFLabel(term.label)
     setFClient(term.client_id || '')
     setFQuery(term.query)
+    setBuilderTokens(tokens)
+    setRawMode(raw)
+    setTokenDraft('')
     setFScope(term.match_scope)
     setFCadence(term.cadence)
     setFormError('')
@@ -157,12 +261,66 @@ function RadarContent() {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  // F11: open the form pre-filled to add another alias query under an existing
+  // label (same label + client), so a multi-alias issue grows from its card.
+  function startAddAlias(label, clientId) {
+    resetForm()
+    setFLabel(label)
+    setFClient(clientId || '')
+    setShowForm(true)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // F9 token-builder mutators.
+  function addTokensFromDraft() {
+    const parsed = parseEntry(tokenDraft)
+    if (parsed.length === 0) { setTokenDraft(''); return }
+    setBuilderTokens(prev => {
+      const next = [...prev]
+      for (const tok of parsed) {
+        if (!next.some(e => e.type === tok.type && e.value.toLowerCase() === tok.value.toLowerCase())) {
+          next.push(tok)
+        }
+      }
+      return next
+    })
+    setTokenDraft('')
+    setFormError('')
+  }
+  function removeToken(idx) {
+    setBuilderTokens(prev => prev.filter((_, i) => i !== idx))
+  }
+  function switchToRaw() {
+    setFQuery(compileTokens(builderTokens))
+    setRawMode(true)
+  }
+  function switchToBuilder() {
+    const { tokens, raw } = parseQueryToTokens(fQuery)
+    if (raw) {
+      setFormError('That query uses OR or grouping the builder can’t show — edit it as raw text.')
+      return
+    }
+    setBuilderTokens(tokens)
+    setRawMode(false)
+    setFormError('')
+  }
+  function toggleCollapse(key) {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
   async function submitTerm() {
     if (!user) return
     const label = fLabel.trim()
-    const query = fQuery.trim()
+    // In builder mode the compiled chips are the source of truth; in raw mode
+    // it's the text input. Either way the stored value is a plain
+    // websearch_to_tsquery string — the backend never sees the builder.
+    const query = (rawMode ? fQuery : compileTokens(builderTokens)).trim()
     if (!label || !query) {
-      setFormError('Give the term a name and something to watch for.')
+      setFormError(label ? 'Add at least one word to watch for.' : 'Give the term a name and something to watch for.')
       return
     }
     setSaving(true)
@@ -255,6 +413,25 @@ function RadarContent() {
   }
   // Clients first (alpha), General last.
   groups.sort((a, b) => (a.key === '__none__' ? 1 : b.key === '__none__' ? -1 : a.label.localeCompare(b.label)))
+
+  // F11: within each client group, sub-group terms by label so multiple alias
+  // queries for one issue (e.g. "RTC" → "ocla", "Office of Civil Legal Aid")
+  // collapse into a single card instead of N look-alike cards. matchCount is
+  // summed across the label's aliases.
+  for (const g of groups) {
+    const byLabel = new Map()
+    g.labelSubs = []
+    for (const t of g.terms) {
+      if (!byLabel.has(t.label)) {
+        const sub = { label: t.label, terms: [], matchCount: 0 }
+        byLabel.set(t.label, sub)
+        g.labelSubs.push(sub)
+      }
+      const sub = byLabel.get(t.label)
+      sub.terms.push(t)
+      sub.matchCount += countByTerm[t.id] || 0
+    }
+  }
 
   const clientOptions = [{ value: '', label: 'General (no client)' }, ...clients.map(c => ({ value: c.id, label: c.name }))]
 
@@ -351,24 +528,96 @@ function RadarContent() {
               />
             </div>
 
-            {/* Query */}
+            {/* Query — F9 token builder (default) + raw escape hatch */}
             <div>
-              <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                Watch for
-              </label>
-              <input
-                type="text" value={fQuery} onChange={e => setFQuery(e.target.value)}
-                placeholder={'"cap and invest" OR carbon -commemorative'}
-                aria-label="Search terms to watch for"
-                style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
-                onFocus={focusBorder} onBlur={blurBorder}
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, lineHeight: 1.5 }}>
-                A space means <strong style={{ color: 'var(--text-muted)' }}>and</strong>. Use{' '}
-                <strong style={{ color: 'var(--text-muted)' }}>OR</strong> for either,{' '}
-                <strong style={{ color: 'var(--text-muted)' }}>&quot;quotes&quot;</strong> for an exact phrase, and{' '}
-                <strong style={{ color: 'var(--text-muted)' }}>-word</strong> to exclude.
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Watch for
+                </label>
+                <button
+                  type="button"
+                  onClick={() => (rawMode ? switchToBuilder() : switchToRaw())}
+                  className="vec-tap"
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
+                    fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em',
+                    color: 'var(--teal)', textTransform: 'uppercase',
+                  }}
+                >
+                  {rawMode ? 'Use builder' : 'Use raw query'}
+                </button>
               </div>
+
+              {rawMode ? (
+                <>
+                  <input
+                    type="text" value={fQuery} onChange={e => setFQuery(e.target.value)}
+                    placeholder={'"cap and invest" OR carbon -commemorative'}
+                    aria-label="Raw search query"
+                    style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                    onFocus={focusBorder} onBlur={blurBorder}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, lineHeight: 1.5 }}>
+                    A space means <strong style={{ color: 'var(--text-muted)' }}>and</strong>. Use{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>OR</strong> for either,{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>&quot;quotes&quot;</strong> for an exact phrase, and{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>-word</strong> to exclude.
+                  </div>
+                </>
+              ) : (
+                <>
+                  {builderTokens.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                      {builderTokens.map((t, i) => {
+                        const meta = TOKEN_META[t.type] || TOKEN_META.contains
+                        return (
+                          <span key={`${t.type}-${t.value}-${i}`} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                            borderRadius: 14, padding: '4px 6px 4px 10px', maxWidth: '100%',
+                          }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.04em', color: meta.color, textTransform: 'uppercase', flexShrink: 0 }}>
+                              {meta.label}
+                            </span>
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {t.value}
+                            </span>
+                            <button
+                              type="button" onClick={() => removeToken(i)}
+                              aria-label={`Remove ${meta.label} ${t.value}`}
+                              style={{
+                                flexShrink: 0, width: 18, height: 18, borderRadius: 9, border: 'none',
+                                background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: 1,
+                              }}
+                            >×</button>
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <input
+                    type="text" value={tokenDraft}
+                    onChange={e => setTokenDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTokensFromDraft() } }}
+                    onBlur={(e) => { blurBorder(e); addTokensFromDraft() }}
+                    onFocus={focusBorder}
+                    placeholder={'Add a word, "exact phrase", or -exclude'}
+                    aria-label="Add a word, exact phrase, or exclusion"
+                    style={inputStyle}
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, lineHeight: 1.5 }}>
+                    Type a word to require it, wrap an{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>&quot;exact phrase&quot;</strong> in quotes, or prefix{' '}
+                    <strong style={{ color: 'var(--text-muted)' }}>-</strong> to exclude. Press Enter to add each one.
+                  </div>
+                  {builderTokens.length > 0 && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', marginTop: 8, wordBreak: 'break-word' }}>
+                      <span style={{ color: 'var(--text-faint)' }}>matches: </span>{compileTokens(builderTokens)}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Match scope */}
@@ -437,69 +686,137 @@ function RadarContent() {
                     {g.label}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {g.terms.map(term => (
-                      <div key={term.id} style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)', padding: '12px 14px',
-                        opacity: term.enabled ? 1 : 0.6,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>
-                              {term.label}
-                            </div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', wordBreak: 'break-word', marginBottom: 5 }}>
-                              {term.query}
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-                              <MetaChip>{SCOPE_LABEL[term.match_scope] || 'Title + summaries'}</MetaChip>
-                              <MetaChip>{term.cadence === 'immediate' ? 'Email right away' : 'Feed only'}</MetaChip>
-                              {countByTerm[term.id] > 0 && (
-                                <span style={{
-                                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-                                  color: 'var(--gold)', background: 'var(--gold-pale)',
-                                  border: '1px solid rgba(212,180,122,0.25)', borderRadius: 10,
-                                  padding: '2px 8px',
-                                }}>
-                                  {countByTerm[term.id]} match{countByTerm[term.id] !== 1 ? 'es' : ''}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Enable toggle */}
+                    {g.labelSubs.map(sub => {
+                      const groupKey = `${g.key}::${sub.label}`
+                      const isOpen = !collapsed.has(groupKey)
+                      const anyEnabled = sub.terms.some(t => t.enabled)
+                      const clientIdForAdd = g.key === '__none__' ? '' : g.key
+                      return (
+                        <div key={groupKey} style={{
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          opacity: anyEnabled ? 1 : 0.6,
+                          overflow: 'hidden',
+                        }}>
+                          {/* Label header — tap to collapse/expand */}
                           <button
-                            onClick={() => toggleEnabled(term)}
-                            role="switch" aria-checked={term.enabled}
-                            aria-label={term.enabled ? `Disable ${term.label}` : `Enable ${term.label}`}
+                            onClick={() => toggleCollapse(groupKey)}
+                            aria-expanded={isOpen}
+                            className="vec-tap"
                             style={{
-                              flexShrink: 0, width: 44, height: 24, borderRadius: 12, border: 'none',
-                              cursor: 'pointer', position: 'relative', marginTop: 2,
-                              background: term.enabled ? 'var(--teal)' : 'var(--border)', transition: 'background 0.2s',
+                              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              gap: 10, padding: '12px 14px', background: 'transparent', border: 'none',
+                              cursor: 'pointer', textAlign: 'left',
                             }}
                           >
-                            <span style={{
-                              position: 'absolute', top: 3, left: term.enabled ? 23 : 3,
-                              width: 18, height: 18, borderRadius: 9, background: '#fff', transition: 'left 0.2s',
-                            }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                                style={{ flexShrink: 0, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                                <path d="M9 18l6-6-6-6" />
+                              </svg>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {sub.label}
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-faint)', flexShrink: 0 }}>
+                                {sub.terms.length} watch{sub.terms.length !== 1 ? 'es' : ''}
+                              </span>
+                            </div>
+                            {sub.matchCount > 0 && (
+                              <span style={{
+                                flexShrink: 0,
+                                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+                                color: 'var(--gold)', background: 'var(--gold-pale)',
+                                border: '1px solid rgba(212,180,122,0.25)', borderRadius: 10,
+                                padding: '2px 8px',
+                              }}>
+                                {sub.matchCount} match{sub.matchCount !== 1 ? 'es' : ''}
+                              </span>
+                            )}
                           </button>
-                        </div>
 
-                        {/* Row actions */}
-                        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                          <button onClick={() => startEdit(term)} className="vec-tap" style={rowActionStyle}>Edit</button>
-                          {confirmDelete === term.id ? (
-                            <>
-                              <button onClick={() => deleteTerm(term)} className="vec-tap" style={{ ...rowActionStyle, color: 'var(--danger)', borderColor: 'rgba(196,71,48,0.4)' }}>Confirm delete</button>
-                              <button onClick={() => setConfirmDelete(null)} className="vec-tap" style={rowActionStyle}>Keep</button>
-                            </>
-                          ) : (
-                            <button onClick={() => setConfirmDelete(term.id)} className="vec-tap" style={rowActionStyle}>Delete</button>
+                          {/* Alias rows */}
+                          {isOpen && (
+                            <div style={{ borderTop: '1px solid var(--border)' }}>
+                              {sub.terms.map(term => (
+                                <div key={term.id} style={{
+                                  padding: '11px 14px', borderBottom: '1px solid var(--border)',
+                                  opacity: term.enabled ? 1 : 0.55,
+                                }}>
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-word', marginBottom: 5 }}>
+                                        {term.query}
+                                      </div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+                                        <MetaChip>{SCOPE_LABEL[term.match_scope] || 'Title + summaries'}</MetaChip>
+                                        <MetaChip>{term.cadence === 'immediate' ? 'Email right away' : 'Feed only'}</MetaChip>
+                                        {countByTerm[term.id] > 0 && (
+                                          <span style={{
+                                            fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+                                            color: 'var(--gold)', background: 'var(--gold-pale)',
+                                            border: '1px solid rgba(212,180,122,0.25)', borderRadius: 10,
+                                            padding: '2px 8px',
+                                          }}>
+                                            {countByTerm[term.id]}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Enable toggle */}
+                                    <button
+                                      onClick={() => toggleEnabled(term)}
+                                      role="switch" aria-checked={term.enabled}
+                                      aria-label={term.enabled ? `Disable ${sub.label}: ${term.query}` : `Enable ${sub.label}: ${term.query}`}
+                                      style={{
+                                        flexShrink: 0, width: 44, height: 24, borderRadius: 12, border: 'none',
+                                        cursor: 'pointer', position: 'relative', marginTop: 2,
+                                        background: term.enabled ? 'var(--teal)' : 'var(--border)', transition: 'background 0.2s',
+                                      }}
+                                    >
+                                      <span style={{
+                                        position: 'absolute', top: 3, left: term.enabled ? 23 : 3,
+                                        width: 18, height: 18, borderRadius: 9, background: '#fff', transition: 'left 0.2s',
+                                      }} />
+                                    </button>
+                                  </div>
+
+                                  {/* Row actions */}
+                                  <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                                    <button onClick={() => startEdit(term)} className="vec-tap" style={rowActionStyle}>Edit</button>
+                                    {confirmDelete === term.id ? (
+                                      <>
+                                        <button onClick={() => deleteTerm(term)} className="vec-tap" style={{ ...rowActionStyle, color: 'var(--danger)', borderColor: 'rgba(196,71,48,0.4)' }}>Confirm delete</button>
+                                        <button onClick={() => setConfirmDelete(null)} className="vec-tap" style={rowActionStyle}>Keep</button>
+                                      </>
+                                    ) : (
+                                      <button onClick={() => setConfirmDelete(term.id)} className="vec-tap" style={rowActionStyle}>Delete</button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Add another alias under this label */}
+                              <button
+                                onClick={() => startAddAlias(sub.label, clientIdForAdd)}
+                                className="vec-tap"
+                                style={{
+                                  width: '100%', display: 'inline-flex', alignItems: 'center', gap: 6,
+                                  padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer',
+                                  color: 'var(--teal)', fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-body)',
+                                }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 5v14M5 12h14" />
+                                </svg>
+                                Add another query to {sub.label}
+                              </button>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -511,9 +828,28 @@ function RadarContent() {
         <div>
           <SectionLabel>Matches{matches.length > 0 ? ` · ${matches.length}` : ''}</SectionLabel>
           {matches.length === 0 ? (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '14px 2px', lineHeight: 1.5 }}>
-              No matches yet. When a newly introduced bill hits one of your terms, it shows up here.
-            </div>
+            terms.length > 0 ? (
+              // F9: reassurance, not an error. A new term has nothing to report
+              // until a matching bill is introduced — Radar only watches forward.
+              <div style={{
+                fontSize: 13, color: 'var(--text-mid)', lineHeight: 1.55,
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)', padding: '14px 16px',
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <div>
+                  <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>No matches yet — that&rsquo;s expected.</div>
+                  Radar watches going forward and surfaces a bill the day it&rsquo;s introduced or its language changes. Your {terms.length === 1 ? 'term has' : 'terms have'} nothing to report until the next matching bill moves. For bills already on the books, use <Link href="/search" style={{ color: 'var(--teal)' }}>Search</Link>.
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '14px 2px', lineHeight: 1.5 }}>
+                No matches yet. When a newly introduced bill hits one of your terms, it shows up here.
+              </div>
+            )
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {matches.map(m => {

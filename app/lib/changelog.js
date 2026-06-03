@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.18.0',
+    date: '2026-06-02',
+    phase: 'alpha',
+    highlights: [
+      'Building a Radar term is now point-and-click. Type a word to require it, wrap an "exact phrase" in quotes, or prefix a minus to exclude — each becomes a labeled chip, and a live preview shows exactly what Radar will match. A "Use raw query" toggle stays for anyone who wants full boolean (OR, grouping). The underlying search is unchanged, so existing terms keep matching exactly as before.',
+      'Radar terms now group by name. Several queries saved under one name — say five phrasings of a single issue — collapse into one card you can expand, instead of five look-alike rows, and you can add another phrasing straight from the card.',
+      'One issue, one alert. When a bill matches two phrasings of the same Radar term, the email lists it once instead of repeating it — while the match feed still shows every phrasing that caught it.',
+    ],
+  },
+  {
     version: '5.17.0',
     date: '2026-06-02',
     phase: 'alpha',
