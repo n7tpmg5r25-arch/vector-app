@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.19.0',
+    date: '2026-06-02',
+    phase: 'alpha',
+    highlights: [
+      'The AI-summary note is now one clear line instead of repeated labels. Each plain-English summary reads "AI-drafted from the bill’s official text, linked to the WA Legislature record above," with a single "Report a discrepancy" link if anything looks off — so the source and the way to flag it are obvious without the heavy disclaimer stacking.',
+      'High-density screens hold up under the longest bill titles and large-text settings. The home category rows, the "where the bills end up" funnel, and the activity cards now trim over-long labels cleanly instead of wrapping or colliding at the phone width.',
+    ],
+  },
+  {
     version: '5.18.0',
     date: '2026-06-02',
     phase: 'alpha',
