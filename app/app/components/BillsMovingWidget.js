@@ -493,7 +493,9 @@ function FunnelStage({ label, count, max, color }) {
         gap: 12,
         marginBottom: 4,
       }}>
-        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
+        {/* ER6 F12: defensive truncation — funnel labels are short today but
+            iOS Larger Text + any future relabel shouldn't push the count off-row. */}
+        <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {label}
         </span>
         <span style={{
@@ -540,18 +542,21 @@ function CategoryRow({ category, total, passed, max }) {
         gap: 12,
         marginBottom: 4,
       }}>
+        {/* ER6 F12: ellipsis + flex:1 so a long category never collides with the
+            volume/pass-rate stat (which is pinned via flexShrink:0). */}
         <span style={{
           fontSize: 13,
           color: 'var(--text-primary)',
           fontWeight: 500,
+          flex: 1,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           minWidth: 0,
-        }}>
+        }} title={category}>
           {category}
         </span>
-        <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', flexShrink: 0, whiteSpace: 'nowrap' }}>
           <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{total.toLocaleString()}</span>
           <span style={{ color: 'var(--text-muted)', margin: '0 6px' }}>{'\u00b7'}</span>
           <span style={{ color: rateColor, fontWeight: 500 }}>

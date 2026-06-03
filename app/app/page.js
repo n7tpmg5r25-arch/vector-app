@@ -887,9 +887,13 @@ export default function HomePage() {
                   }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
                   onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500 }}>{cat.category}</span>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    {/* ER6 F12: long category names (e.g. "Criminal Justice & Public
+                        Safety") + the bills/avg-score group could collide or wrap at
+                        the 480px column under iOS Larger Text. Truncate the label with
+                        an ellipsis and pin the stat group so it never gets squeezed. */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cat.category}>{cat.category}</span>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                         <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
                           {cat.total_bills} bills
                         </span>
