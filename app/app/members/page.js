@@ -15,8 +15,9 @@ import VoteHistoryTable from '../components/VoteHistoryTable'
 import VotingRecordHeader from '../components/VotingRecordHeader'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
-import { ArrowUpRight, Printer, Phone, Mail } from 'lucide-react'
+import { ArrowUpRight, Printer, Phone, Mail, Share } from 'lucide-react'
 import MemberBioSection from '../components/MemberBioSection'
+import { sharePdf, canSharePdfFiles } from '../../lib/share-pdf'
 
 // Thread 22: procedural shelves to filter out of the "Top committees"
 // readout on the Overview tab. Mirrors the same filter pattern used in
@@ -84,6 +85,9 @@ function MembersContent() {
   const [hasActiveSignal, setHasActiveSignal] = useState(false)
   // Thread 112: PDF card generation state
   const [pdfLoading, setPdfLoading] = useState(false)
+  // ER4 (F8): device can share a PDF file via the share sheet → drives label
+  const [canShare, setCanShare] = useState(false)
+  useEffect(() => { setCanShare(canSharePdfFiles()) }, [])
   // Thread 113: biographical data from legislator_bios table
   const [memberBio, setMemberBio] = useState(null)
   // T135: distinguish "bio still loading" from "bio loaded but empty"
@@ -665,7 +669,9 @@ function MembersContent() {
                       setPdfLoading(true)
                       try {
                         const { generateMemberPdf } = await import('../../lib/generate-member-pdf')
-                        await generateMemberPdf(
+                        // ER4 (F8): return the bytes, then share-sheet (with
+                        // download fallback) so a member brief can be texted.
+                        const { blob, filename } = await generateMemberPdf(
                           selectedMember,
                           memberBills,
                           selectedSession,
@@ -675,10 +681,15 @@ function MembersContent() {
                             elections:          memberElections   || [],
                             memberVotes:        memberVotes       || [],
                             partyBucketsByRcId: partyBucketsByRcId || {},
+                            output:             'blob',
                           }
                         )
+                        await sharePdf(blob, filename, {
+                          title: `${selectedMember.name} — Vector | WA member brief`,
+                          text:  `${selectedMember.name}${selectedMember.party ? ` (${selectedMember.party})` : ''} — Vector | WA`,
+                        })
                       } catch (err) {
-                        console.error('[Print Card] PDF generation failed:', err)
+                        console.error('[Member PDF] generation failed:', err)
                       } finally {
                         setPdfLoading(false)
                       }
@@ -694,8 +705,8 @@ function MembersContent() {
                       marginLeft: 'auto',
                     }}
                   >
-                    <Printer size={9} aria-hidden="true" />
-                    {pdfLoading ? 'Generating…' : 'Print Card'}
+                    {canShare ? <Share size={9} aria-hidden="true" /> : <Printer size={9} aria-hidden="true" />}
+                    {pdfLoading ? 'Generating…' : (canShare ? 'Share PDF' : 'Export PDF')}
                   </button>
                 </div>
               </div>

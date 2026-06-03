@@ -19,7 +19,8 @@ import PartyMicrobar from '../../components/PartyMicrobar'
 import { isFinalPassage, bucketMemberVotes, padBucketsToReported, characterize } from '../../../lib/vote-helpers'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
 import VectorLoader from '../../components/VectorLoader'
-import { Check, ArrowUpRight, FileText, Bookmark, Loader2 } from 'lucide-react'
+import { Check, ArrowUpRight, FileText, Bookmark, Loader2, Share } from 'lucide-react'
+import { sharePdf, canSharePdfFiles } from '../../../lib/share-pdf'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -418,6 +419,8 @@ export default function BillDetailPage() {
   const [tag, setTag] = useState('')
   const [shared, setShared]     = useState(false)
   const [exporting, setExporting] = useState(false)  // Thread 12.3: PDF brief export
+  const [canShare, setCanShare] = useState(false)  // ER4 (F8): device can share a PDF file via the share sheet
+  useEffect(() => { setCanShare(canSharePdfFiles()) }, [])
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
   const [activeXf, setActiveXf] = useState(null) // T160 M3: tapped X-factor chip index (mobile tooltip reveal)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
@@ -687,7 +690,10 @@ export default function BillDetailPage() {
     setExporting(true)
     try {
       const { generatePublicBriefPDF } = await import('../../../lib/generate-public-pdf')
-      await generatePublicBriefPDF({
+      // ER4 (F8): get the finished bytes back instead of an immediate download,
+      // then hand them to the share sheet (texts a brief to a client/staffer)
+      // with a download fallback baked into sharePdf().
+      const { blob, filename } = await generatePublicBriefPDF({
         bill,
         scoreFeatures:      latestSnap?.xf_factors || [],
         rollCalls:          rollCalls || [],
@@ -696,6 +702,12 @@ export default function BillDetailPage() {
         snapshots:          snapshots || [],
         fiscalNote:         (fiscalHistory && fiscalHistory.length > 0) ? fiscalHistory[0] : null,
         generatedAt:        new Date(),
+        output:             'blob',
+      })
+      const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
+      await sharePdf(blob, filename, {
+        title: `${prefix} ${bill.bill_number} — Vector | WA brief`,
+        text:  `${prefix} ${bill.bill_number}: ${bill.title || ''}`.trim(),
       })
     } catch (err) {
       console.error('Public PDF export failed:', err)
@@ -938,8 +950,10 @@ export default function BillDetailPage() {
             }}
           >
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {exporting ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} aria-hidden="true" />}
-              {exporting ? 'Generating' : 'Print Brief'}
+              {exporting
+                ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} />
+                : (canShare ? <Share size={14} aria-hidden="true" /> : <FileText size={14} aria-hidden="true" />)}
+              {exporting ? 'Generating' : (canShare ? 'Share PDF' : 'Export PDF')}
             </span>
           </button>
           {capabilities.canSave && (
@@ -2310,57 +2324,25 @@ export default function BillDetailPage() {
           {tab === 'trajectory' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* Score formula already shown in the top score block above the sparkline.
-                  No duplication here — score history + component bars carry the tab. */}
+                  No duplication here — the current score + score history carry the tab. */}
 
-              {/* Current score + Score components */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '12px',
-                }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Current Score</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(184,151,90,0.3)' }}>
-                      {score}
+              {/* Current score — owns the card (ER4 F7: removed redundant unlabeled
+                  "Score Components" mini bar chart; the Score Breakdown tab carries
+                  the labeled, magnitude-bearing component bars). */}
+              <div style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)', padding: '12px',
+              }}>
+                <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Current Score</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 12px rgba(184,151,90,0.3)' }}>
+                    {score}
+                  </span>
+                  {sparkScores.length > 1 && (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: score > sparkScores[0] ? 'var(--teal)' : 'var(--danger)' }}>
+                      {score > sparkScores[0] ? '+' : ''}{score - sparkScores[0]}
                     </span>
-                    {sparkScores.length > 1 && (
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: score > sparkScores[0] ? 'var(--teal)' : 'var(--danger)' }}>
-                        {score > sparkScores[0] ? '+' : ''}{score - sparkScores[0]}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '12px',
-                }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Score Components</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 32 }}>
-                    {[
-                      sig.committee_score || 0,
-                      sig.sponsor_score || 0,
-                      sig.momentum_score || 0,
-                      sig.historical_score || 0,
-                      sig.fiscal_score || 0,
-                    ].map((val, i) => {
-                      const maxH = 32
-                      const maxVal = [25, 20, 20, 20, 15][i]
-                      const h = maxVal > 0 ? Math.max(2, (val / maxVal) * maxH) : 2
-                      const colors = ['var(--teal)', 'var(--teal-mid)', 'var(--gold)', 'var(--teal-dim)', 'var(--text-muted)']
-                      return (
-                        <div key={i} style={{
-                          flex: 1, height: h,
-                          background: colors[i],
-                          borderRadius: '2px 2px 0 0',
-                          boxShadow: val > 0 ? `0 0 6px ${colors[i]}40` : 'none',
-                          transition: 'height 0.6s ease',
-                        }}/>
-                      )
-                    })}
-                  </div>
-                  <div style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', marginTop: 3, textAlign: 'center' }}>
-                    Committee · Sponsor · Momentum · Historical · Fiscal
-                  </div>
+                  )}
                 </div>
               </div>
 
