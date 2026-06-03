@@ -124,6 +124,50 @@ function startOfUtcTodayISO() {
   return d.toISOString();
 }
 
+// ── Label-level alert dedup (Thread ER5 / F11) ─────────────
+// A user can keep several radar terms that are aliases of one issue, all
+// sharing the same `label` (e.g. label "RTC" across queries "ocla", "Office of
+// Civil Legal Aid", "Right To Counsel"). Each alias correctly writes its OWN
+// radar_matches ledger row (the Radar feed shows per-alias matches), but a bill
+// matching two aliases of the SAME label must EMAIL only once — otherwise the
+// alert lists the same bill under two near-identical term cards.
+//
+// We dedup the alert_events (the email), never the ledger, keyed on
+// (user_id, normalized label, match_reason, bill_id):
+//   • emailedLabelKeys — a run-scoped Set catches two aliases firing in the
+//     same sync run.
+//   • siblingEmailedBills() — a ledger check catches an alias that already
+//     emailed this bill (same reason) on a PRIOR run.
+// Distinct labels never collide (label is in the key) and distinct reasons
+// (new_bill / material_change / new_language) stay separate alerts.
+function labelKeyOf(term) {
+  return `${term.user_id}::${String(term.label || '').trim().toLowerCase()}`;
+}
+
+// Bill ids that a SIBLING term (same user+label, different term id) has already
+// emailed for this reason on a prior run.
+async function siblingEmailedBills(siblingIds, selfId, reason, billIds) {
+  const out = new Set();
+  const others = (siblingIds || []).filter(id => id !== selfId);
+  if (others.length === 0 || !billIds || billIds.length === 0) return out;
+  for (let i = 0; i < billIds.length; i += 500) {
+    const batch = billIds.slice(i, i + 500);
+    const { data, error } = await supabase
+      .from('radar_matches')
+      .select('bill_id')
+      .in('term_id', others)
+      .eq('match_reason', reason)
+      .not('alert_event_id', 'is', null)
+      .in('bill_id', batch);
+    if (error) {
+      console.warn(`  [label-dedup sibling read failed]: ${error.message}`);
+      continue;
+    }
+    for (const r of data || []) out.add(r.bill_id);
+  }
+  return out;
+}
+
 // ── Main ───────────────────────────────────────────────────
 
 async function detectRadar() {
@@ -188,6 +232,19 @@ async function detectRadar() {
 
   let totalLedger = 0;
   let totalAlerts = 0;
+
+  // 2c. Label-dedup scaffolding (ER5 / F11). siblingTermIds maps a label key to
+  // every enabled term sharing it; emailedLabelKeys tracks (labelKey, reason,
+  // bill) combos already emailed within THIS run. Both feed the alert build so
+  // sibling aliases of one label don't double-email a bill. Ledger writes are
+  // unaffected.
+  const siblingTermIds = new Map();
+  for (const t of terms) {
+    const k = labelKeyOf(t);
+    if (!siblingTermIds.has(k)) siblingTermIds.set(k, []);
+    siblingTermIds.get(k).push(t.id);
+  }
+  const emailedLabelKeys = new Set();
 
   // 3. Per-term detection (new-bill pass). 'fulltext'-scope terms are matched
   //    against archived bill text in the dedicated fulltext pass below, so they
@@ -297,8 +354,19 @@ async function detectRadar() {
         .not('alert_event_id', 'is', null)
         .gte('detected_at', startOfUtcTodayISO());
 
+      // F11: drop bills already emailed for this (label, new_bill) — earlier in
+      // this run or on a prior run — so sibling aliases of one label don't
+      // double-email a bill. Ledger rows above are untouched.
+      const labelKey = labelKeyOf(term);
+      const siblings = siblingTermIds.get(labelKey) || [];
+      const priorEmailed = await siblingEmailedBills(siblings, term.id, 'new_bill', fresh.map(b => b.bill_id));
+      const labelFresh = fresh.filter(b => {
+        const k = `${labelKey}::new_bill::${b.bill_id}`;
+        return !emailedLabelKeys.has(k) && !priorEmailed.has(b.bill_id);
+      });
+
       const remaining = Math.max(0, cap - (firedToday || 0));
-      const toAlert = fresh.slice(0, remaining);
+      const toAlert = labelFresh.slice(0, remaining);
       const billMeta = new Map(fresh.map(b => [b.bill_id, b]));
 
       // Build alert rows only for ledger rows that don't yet have an event.
@@ -306,6 +374,7 @@ async function detectRadar() {
       for (const b of toAlert) {
         const ledger = ledgerById.get(b.bill_id);
         if (!ledger || ledger.alert_event_id) continue; // already alerted
+        emailedLabelKeys.add(`${labelKey}::new_bill::${b.bill_id}`);
         alertRows.push({
           bill_id: b.bill_id, // alert_events.bill_id is NOT NULL — always set
           user_id: term.user_id,
@@ -346,10 +415,13 @@ async function detectRadar() {
         }
       }
 
-      const overflow = fresh.length - toAlert.length;
+      const labelDeduped = fresh.length - labelFresh.length;
+      const overflow = labelFresh.length - toAlert.length;
       console.log(
         `  term ${term.id} "${term.label}": ${fresh.length} new match(es), ` +
-        `${alertRows.length} emailed${overflow > 0 ? `, ${overflow} ledger-only (daily cap ${cap})` : ''}.`
+        `${alertRows.length} emailed` +
+        `${labelDeduped > 0 ? `, ${labelDeduped} label-deduped` : ''}` +
+        `${overflow > 0 ? `, ${overflow} ledger-only (daily cap ${cap})` : ''}.`
       );
       void billMeta;
     } else {
@@ -364,19 +436,20 @@ async function detectRadar() {
   // 4. Material-change pass (Phase 2 / Thread R4). Re-matches bills that were
   //    substituted / amended / re-summarized after introduction. Seeds
   //    radar_bill_state silently on the first run (no alert flood).
-  const mat = await detectMaterialChanges(terms, clientLabels, radarDisabled);
+  const dedup = { siblingTermIds, emailedLabelKeys };
+  const mat = await detectMaterialChanges(terms, clientLabels, radarDisabled, dedup);
   totalLedger += mat.ledger;
   totalAlerts += mat.alerts;
 
   // 5. New-language pass (Phase 3b / Thread R6). Diffs the two most recent
   //    archived text versions and matches the ADDED language per non-title term.
-  const lang = await detectNewLanguage(terms, clientLabels, radarDisabled);
+  const lang = await detectNewLanguage(terms, clientLabels, radarDisabled, dedup);
   totalLedger += lang.ledger;
   totalAlerts += lang.alerts;
 
   // 6. Fulltext-scope pass (Phase 3b / Thread R6). Matches 'fulltext' terms
   //    against the latest archived bill text.
-  const ft = await detectFulltext(terms, clientLabels, radarDisabled);
+  const ft = await detectFulltext(terms, clientLabels, radarDisabled, dedup);
   totalLedger += ft.ledger;
   totalAlerts += ft.alerts;
 
@@ -428,7 +501,7 @@ async function upsertBillState(rows) {
   }
 }
 
-async function detectMaterialChanges(terms, clientLabels, radarDisabled) {
+async function detectMaterialChanges(terms, clientLabels, radarDisabled, dedup) {
   let ledger = 0;
   let alerts = 0;
 
@@ -519,6 +592,8 @@ async function detectMaterialChanges(terms, clientLabels, radarDisabled) {
       clientLabel,
       radarDisabled,
       kindById,
+      siblingIds: dedup?.siblingTermIds?.get(labelKeyOf(term)) || [],
+      emailedLabelKeys: dedup?.emailedLabelKeys,
     });
     ledger += res.ledger;
     alerts += res.alerts;
@@ -535,7 +610,7 @@ async function detectMaterialChanges(terms, clientLabels, radarDisabled) {
 // Mirrors the new-bill insert/dedup/cap/backfill logic so the two passes stay
 // consistent; the per-term daily_cap is shared across reasons because the
 // firedToday count below is reason-agnostic.
-async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kindById, snippetById }) {
+async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kindById, snippetById, siblingIds, emailedLabelKeys }) {
   let ledger = 0;
   let alerts = 0;
 
@@ -597,13 +672,25 @@ async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kin
       .not('alert_event_id', 'is', null)
       .gte('detected_at', startOfUtcTodayISO());
 
+    // F11: drop bills already emailed for this (label, reason) so sibling
+    // aliases of one label don't double-email. Ledger rows are untouched.
+    const labelKey = labelKeyOf(term);
+    const priorEmailed = await siblingEmailedBills(siblingIds, term.id, reason, fresh.map(h => h.bill_id));
+    const labelFresh = emailedLabelKeys
+      ? fresh.filter(h => {
+          const k = `${labelKey}::${reason}::${h.bill_id}`;
+          return !emailedLabelKeys.has(k) && !priorEmailed.has(h.bill_id);
+        })
+      : fresh.filter(h => !priorEmailed.has(h.bill_id));
+
     const remaining = Math.max(0, cap - (firedToday || 0));
-    const toAlert = fresh.slice(0, remaining);
+    const toAlert = labelFresh.slice(0, remaining);
 
     const alertRows = [];
     for (const h of toAlert) {
       const led = ledgerById.get(h.bill_id);
       if (!led || led.alert_event_id) continue;
+      if (emailedLabelKeys) emailedLabelKeys.add(`${labelKey}::${reason}::${h.bill_id}`);
       alertRows.push({
         bill_id: h.bill_id,
         user_id: term.user_id,
@@ -643,10 +730,13 @@ async function emitMatches({ term, hits, reason, clientLabel, radarDisabled, kin
       }
     }
 
-    const overflow = fresh.length - toAlert.length;
+    const labelDeduped = fresh.length - labelFresh.length;
+    const overflow = labelFresh.length - toAlert.length;
     console.log(
       `  term ${term.id} "${term.label}": ${fresh.length} ${reason} match(es), ` +
-      `${alerts} emailed${overflow > 0 ? `, ${overflow} ledger-only (daily cap ${cap})` : ''}.`
+      `${alerts} emailed` +
+      `${labelDeduped > 0 ? `, ${labelDeduped} label-deduped` : ''}` +
+      `${overflow > 0 ? `, ${overflow} ledger-only (daily cap ${cap})` : ''}.`
     );
   } else {
     const why = radarDisabled.has(term.user_id) ? 'Radar off in Settings' : 'digest cadence';
@@ -685,7 +775,7 @@ function boundedSnippet(text, max = SNIPPET_MAX) {
   return (sp > max * 0.6 ? cut.slice(0, sp) : cut).trim() + '…';
 }
 
-async function detectNewLanguage(terms, clientLabels, radarDisabled) {
+async function detectNewLanguage(terms, clientLabels, radarDisabled, dedup) {
   let ledger = 0;
   let alerts = 0;
 
@@ -749,6 +839,8 @@ async function detectNewLanguage(terms, clientLabels, radarDisabled) {
       clientLabel,
       radarDisabled,
       snippetById,
+      siblingIds: dedup?.siblingTermIds?.get(labelKeyOf(term)) || [],
+      emailedLabelKeys: dedup?.emailedLabelKeys,
     });
     ledger += res.ledger;
     alerts += res.alerts;
@@ -761,7 +853,7 @@ async function detectNewLanguage(terms, clientLabels, radarDisabled) {
 // Terms whose match_scope='fulltext' are matched against the LATEST archived
 // bill text (not title/summary). Re-evaluated every run; the (term, bill,
 // 'new_bill') dedup means each matching bill fires at most once per term.
-async function detectFulltext(terms, clientLabels, radarDisabled) {
+async function detectFulltext(terms, clientLabels, radarDisabled, dedup) {
   let ledger = 0;
   let alerts = 0;
 
@@ -789,6 +881,8 @@ async function detectFulltext(terms, clientLabels, radarDisabled) {
         reason: 'new_bill',
         clientLabel,
         radarDisabled,
+        siblingIds: dedup?.siblingTermIds?.get(labelKeyOf(term)) || [],
+        emailedLabelKeys: dedup?.emailedLabelKeys,
       });
       ledger += res.ledger;
       alerts += res.alerts;
