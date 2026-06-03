@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.17.0',
+    date: '2026-06-02',
+    phase: 'alpha',
+    highlights: [
+      'You can now send a brief straight from your phone. The bill and member PDF buttons are relabeled "Share PDF" and open the iOS/Android share sheet, so a one-page brief can be texted or AirDropped to a client or staffer on the spot. On desktop the same button reads "Export PDF" and downloads the file as before.',
+      'The Trajectory tab is cleaner. The small unlabeled bar graphic — which had no scale and repeated what the Score Breakdown tab already shows with labeled bars — is gone, leaving the score and its change to anchor the card.',
+    ],
+  },
+  {
     version: '5.16.0',
     date: '2026-06-02',
     phase: 'alpha',

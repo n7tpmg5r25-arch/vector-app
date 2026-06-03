@@ -817,6 +817,7 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
     elections          = [],
     memberVotes        = [],
     partyBucketsByRcId = {},
+    output             = 'save',  // ER4 (F8): 'save' = download (default); 'blob' = return bytes for share sheet
   } = extras
 
   const votingStats = computeVotingStats(memberVotes, partyBucketsByRcId, member.party)
@@ -876,5 +877,9 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
 
   const lastName    = (member.name || 'member').split(' ').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
   const sessionSlug = (session || 'wa').replace('/', '-').replace(/\s/g, '-')
-  doc.save(`${lastName}-member-brief-${sessionSlug}.pdf`)
+  const filename    = `${lastName}-member-brief-${sessionSlug}.pdf`
+  // ER4 (F8): additive output option — rendering unchanged, delivery only.
+  if (output === 'blob') return { blob: doc.output('blob'), filename }
+  doc.save(filename)
+  return filename
 }

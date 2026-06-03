@@ -942,6 +942,7 @@ export async function generatePublicBriefPDF({
   companion          = null,    // reserved
   fiscalNote         = null,
   generatedAt        = new Date(),
+  output             = 'save',  // ER4 (F8): 'save' = download (default); 'blob' = return bytes for share sheet
 } = {}) {
   if (!bill) throw new Error('generatePublicBriefPDF: bill is required')
 
@@ -989,6 +990,10 @@ export async function generatePublicBriefPDF({
   const safeBill = ((bill.chamber === 'House' ? 'HB' : 'SB') + (bill.bill_number || '')).replace(/[^a-zA-Z0-9]/g, '_')
   const safeDate = generatedAt.toISOString().slice(0, 10).replace(/-/g, '')
   const filename  = 'Vector_WA_' + safeBill + '_brief_' + safeDate + '.pdf'
+  // ER4 (F8): additive output option. Rendering above is unchanged; this only
+  // chooses delivery — return the finished bytes as a Blob for the share sheet,
+  // or save() to download (default, byte-for-byte the legacy behavior).
+  if (output === 'blob') return { blob: doc.output('blob'), filename }
   doc.save(filename)
   return filename
 }
