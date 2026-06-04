@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.21.0',
+    date: '2026-06-03',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist bills on the home dashboard now show the correct chamber. A House bill you were tracking — for example HB 1073 — was being labeled “SB 1073” on the home cards because the bill’s chamber wasn’t being read there; the prefix now resolves correctly on every card that shows a bill number.',
+      'The member directory heatmap now answers three questions instead of one. A new lens switch colors every legislator by Power (who controls a bill’s fate — leadership, committee chairs, and seats on the gatekeeper committees like Rules and the budget committees), Movability (who holds a competitive seat and is most open to constituent pressure, read from their last election margin), or Effectiveness (the existing track-record composite). Each lens carries its own plain-English legend.',
+      'The member list’s headline number is now labeled. The bold figure beside each legislator is their average bill trajectory score; it now carries an “Avg Score” heading and a one-tap explanation, so it is no longer an unlabeled number.',
+    ],
+  },
+  {
     version: '5.20.0',
     date: '2026-06-03',
     phase: 'alpha',

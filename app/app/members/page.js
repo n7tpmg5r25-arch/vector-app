@@ -79,6 +79,14 @@ function MembersContent() {
   const [selectedSession, setSession] = useSession()
   const [showAllSessions, setShowAllSessions] = useState(false)
   const [viewMode, setViewMode]             = useState('list') // 'list' | 'heatmap'
+  // ER-B2: heatmap lens — what the cell color + number encode. Lobbyist-first
+  // default is 'power' (who controls a bill's fate), then 'movability'
+  // (electorally vulnerable = responsive to constituent pressure), then the
+  // existing 'effectiveness' composite. Display-only; no scoring engine change.
+  const [heatLens, setHeatLens]             = useState('power') // 'power' | 'movability' | 'effectiveness'
+  // ER-B2 (A6): explainer toggle for the List view's right-hand number, which
+  // was an unlabeled "avg" — the member's average bill trajectory score.
+  const [listLegendOpen, setListLegendOpen] = useState(false)
   // Thread 69 (2026-05-04): true when the selected biennium has enough roll-call
   // data to derive "currently seated" reliably — drives the "active legislators"
   // label vs. the historical "legislators served" label for past biennia.
@@ -238,6 +246,31 @@ function MembersContent() {
           const { avg_score_weighted_sum: _, ...rest } = m
           return rest
         }).sort((a, b) => b.bill_count - a.bill_count)
+      }
+
+      // ER-B2: enrich with latest electoral margin for the heatmap "Movability"
+      // lens. One batch round trip to legislator_elections (small table, ≤147
+      // ids); most-recent election per member wins. unopposed → treated as a
+      // maximally safe seat (margin 100). Members with no election record (newly
+      // appointed) get margin_pct = null and are rendered neutral. Display-only.
+      const memberIds = list.map(m => m.member_id).filter(Boolean)
+      if (memberIds.length) {
+        const { data: elec } = await supabase
+          .from('legislator_elections')
+          .select('member_id, election_year, margin_pct, unopposed')
+          .in('member_id', memberIds)
+          .order('election_year', { ascending: false })
+        const latestByMember = {}
+        for (const e of (elec || [])) {
+          if (e.member_id in latestByMember) continue // first seen = most recent
+          latestByMember[e.member_id] = e
+        }
+        list.forEach(m => {
+          const e = m.member_id ? latestByMember[m.member_id] : null
+          if (!e) { m.margin_pct = null; m.unopposed = false; return }
+          m.unopposed = !!e.unopposed
+          m.margin_pct = e.unopposed ? 100 : (e.margin_pct ?? null)
+        })
       }
 
       setMembers(list)
@@ -541,6 +574,70 @@ function MembersContent() {
       avgNorm       * COMPOSITE_WEIGHTS.avgTrajectory
     if (m.bill_count < LOW_VOLUME_THRESHOLD) score *= LOW_VOLUME_PENALTY
     return Math.round(Math.min(score, 100))
+  }
+
+  // ── ER-B2: HEATMAP LENSES ─────────────────────────────────
+  // The heatmap can color members by three lobbyist-grade questions. Each lens
+  // returns a 0–100 metric (higher = "more of this lens"), a color ramp, and an
+  // explainer. All display-only; none touch the frozen bill scorer.
+  const CHOKEPOINT_COMMITTEES = ['Rules', 'Appropriations', 'Ways & Means', 'Ways and Means', 'Transportation', 'Finance', 'Capital Budget']
+  function computePower(m) {
+    let p = POSITION_TIER_SCORES[m.tier] || POSITION_TIER_SCORES[3]
+    if (m.is_chair) p += CHAIR_BONUS
+    const onChoke = (m.committees || []).filter(c =>
+      CHOKEPOINT_COMMITTEES.some(k => String(c).toLowerCase().includes(k.toLowerCase()))
+    ).length
+    p += Math.min(onChoke * 8, 24)
+    return Math.round(Math.min(p, 100))
+  }
+  function computeMovability(m) {
+    if (m.margin_pct == null) return null
+    return Math.round(Math.max(0, Math.min(100, 100 - m.margin_pct * 2)))
+  }
+  function powerColor(score) {
+    if (score >= 80) return { bg: 'rgba(184,151,90,0.62)', text: '#f0dcae', label: 'Leadership / Chair' }
+    if (score >= 55) return { bg: 'rgba(184,151,90,0.42)', text: '#e6cf9c', label: 'High influence' }
+    if (score >= 35) return { bg: 'rgba(184,151,90,0.24)', text: '#cdb888', label: 'Some influence' }
+    return { bg: 'rgba(138,128,112,0.22)', text: '#9a9484', label: 'Rank-and-file' }
+  }
+  function movabilityColor(score) {
+    if (score == null) return { bg: 'rgba(108,112,120,0.18)', text: '#8a8e96', label: 'No race data' }
+    if (score >= 70) return { bg: 'rgba(176,74,48,0.55)', text: '#f0b9a4', label: 'Toss-up' }
+    if (score >= 45) return { bg: 'rgba(196,122,48,0.45)', text: '#e9c79a', label: 'Competitive' }
+    if (score >= 20) return { bg: 'rgba(196,122,48,0.22)', text: '#cbb084', label: 'Lean / likely' }
+    return { bg: 'rgba(138,128,112,0.22)', text: '#9a9484', label: 'Safe seat' }
+  }
+  const HEAT_LENSES = {
+    power: {
+      key: 'power', label: 'Power', eyebrow: 'WHO CONTROLS THE BILL',
+      metric: computePower, color: powerColor,
+      scale: [
+        { label: 'Lead/Chair', score: 85 }, { label: 'High', score: 60 },
+        { label: 'Some', score: 40 }, { label: 'Rank-file', score: 15 },
+      ],
+      title: 'How influence is scored',
+      explainer: 'A 0–100 read on a member’s ability to advance or kill a bill: leadership rank and committee-chair agenda control, plus seats on the gatekeeper committees (Rules, Appropriations / Ways & Means, Transportation). These are the people to lobby first — they decide what gets a hearing and what reaches the floor.',
+    },
+    movability: {
+      key: 'movability', label: 'Movability', eyebrow: 'WHO’S PERSUADABLE',
+      metric: computeMovability, color: movabilityColor,
+      scale: [
+        { label: 'Toss-up', score: 80 }, { label: 'Compet.', score: 55 },
+        { label: 'Lean', score: 30 }, { label: 'Safe', score: 5 },
+      ],
+      title: 'How movability is scored',
+      explainer: 'Inverts each member’s most recent election margin: a narrow win means the seat is competitive and the member is responsive to constituent pressure; a blowout or unopposed race means a safe seat that rarely moves. Use it to aim a grassroots or grasstops campaign at the members who can actually be swung.',
+    },
+    effectiveness: {
+      key: 'effectiveness', label: 'Effectiveness', eyebrow: 'WHO MOVES POLICY',
+      metric: computeEffectiveness, color: effColor,
+      scale: [
+        { label: '55+', score: 60 }, { label: '35–54', score: 40 },
+        { label: '18–34', score: 25 }, { label: '<18', score: 10 },
+      ],
+      title: 'How the score is built',
+      explainer: 'A composite weighted across four signals: Position Power (25% — sponsor tier + chair bonus), Committee Pass Rate (30% — % of sponsored bills clearing committee, the hardest chokepoint), Law Rate (25% — % signed into law), and Avg Trajectory (20% — mean bill quality). Members under 3 sponsored bills get a 40% volume penalty so a single lucky bill can’t dominate the leaderboard.',
+    },
   }
 
   // Map success score 0–100 to Vector palette (dark bg-friendly)
@@ -1260,13 +1357,44 @@ function MembersContent() {
           {loading ? (
             <VectorLoader label="Loading members" />
           ) : (() => {
-            const withEff = filtered.map(m => ({ ...m, effectiveness: computeEffectiveness(m) }))
-              .sort((a, b) => b.effectiveness - a.effectiveness)
-            const houseMembers = chamber === 'Senate' ? [] : withEff.filter(m => m.chamber === 'House')
-            const senateMembers = chamber === 'House' ? [] : withEff.filter(m => m.chamber === 'Senate')
+            const lens = HEAT_LENSES[heatLens]
+            const withMetric = filtered.map(m => ({ ...m, _metric: lens.metric(m) }))
+              .sort((a, b) => {
+                const av = a._metric == null ? -1 : a._metric
+                const bv = b._metric == null ? -1 : b._metric
+                return bv - av
+              })
+            const houseMembers = chamber === 'Senate' ? [] : withMetric.filter(m => m.chamber === 'House')
+            const senateMembers = chamber === 'House' ? [] : withMetric.filter(m => m.chamber === 'Senate')
+
+            // Lens-appropriate secondary detail for the Top-5 rows.
+            const lensDetail = (m) => {
+              if (heatLens === 'movability') {
+                if (m.margin_pct == null) return 'no race data'
+                if (m.unopposed) return 'unopposed'
+                return `won by ${m.margin_pct} pts`
+              }
+              if (heatLens === 'power') {
+                return m.is_chair ? 'committee chair' : (TIER_LABELS[m.tier]?.text || 'Member').toLowerCase()
+              }
+              return `${m.laws_passed}L · ${m.committee_passes}C · ${m.bill_count}B`
+            }
+
+            // Lens-aware distribution for the summary strip: group by the active
+            // lens's color-ramp label (sorted high→low because withMetric is).
+            const summaryBuckets = (() => {
+              const seen = new Map()
+              withMetric.forEach(m => {
+                const c = lens.color(m._metric)
+                const cur = seen.get(c.label) || { label: c.label, count: 0, color: c.text }
+                cur.count++
+                seen.set(c.label, cur)
+              })
+              return Array.from(seen.values())
+            })()
 
             const renderCell = (m) => {
-              const { bg, text } = effColor(m.effectiveness)
+              const { bg, text } = lens.color(m._metric)
               const initials = m.name.split(' ').map(n => n[0]).slice(-2).join('')
               const isActive = popover && popover.name === m.name
               return (
@@ -1324,7 +1452,7 @@ function MembersContent() {
                     fontSize: 11, fontWeight: 700, color: 'var(--text-primary)',
                     background: 'rgba(14,16,20,0.92)', borderRadius: '4px 0 4px 0',
                     padding: '2px 4px', lineHeight: 1,
-                  }}>{m.effectiveness}</div>
+                  }}>{m._metric == null ? '—' : m._metric}</div>
                 </div>
               )
             }
@@ -1339,7 +1467,7 @@ function MembersContent() {
                     Top {label}
                   </div>
                   {top.map((m, i) => {
-                    const { bg, text } = effColor(m.effectiveness)
+                    const { text } = lens.color(m._metric)
                     return (
                       <div key={m.name} onClick={() => selectMember(m)} style={{
                         display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
@@ -1355,8 +1483,8 @@ function MembersContent() {
                           {m.name}
                           {m.is_chair && <span style={{ fontSize: 9, marginLeft: 5, padding: '1px 4px', background: 'var(--gold-pale)', color: 'var(--gold)', borderRadius: 4, verticalAlign: 'middle' }}>CHAIR</span>}
                         </span>
-                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: text, fontWeight: 700 }}>{m.effectiveness}</span>
-                        <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>{m.laws_passed}L · {m.committee_passes}C · {m.bill_count}B</span>
+                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: text, fontWeight: 700 }}>{m._metric == null ? '—' : m._metric}</span>
+                        <span style={{ fontSize: 9, color: 'var(--text-faint)' }}>{lensDetail(m)}</span>
                       </div>
                     )
                   })}
@@ -1384,14 +1512,38 @@ function MembersContent() {
 
             return (
               <>
-                {/* Legend */}
+                {/* ER-B2: Lens selector — what the heatmap color + number mean. */}
+                <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                  {Object.values(HEAT_LENSES).map(L => {
+                    const active = heatLens === L.key
+                    return (
+                      <button
+                        key={L.key}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setHeatLens(L.key); setLegendOpen(false) }}
+                        aria-pressed={active}
+                        style={{
+                          padding: '6px 12px', minHeight: 32, borderRadius: 999,
+                          fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          fontFamily: 'var(--font-body)',
+                          background: active ? 'var(--bg-surface)' : 'transparent',
+                          color: active ? 'var(--teal)' : 'var(--text-muted)',
+                          border: `1px solid ${active ? 'rgba(184,151,90,0.35)' : 'var(--border)'}`,
+                          transition: 'color 0.15s, border-color 0.15s, background 0.15s',
+                        }}
+                      >{L.label}</button>
+                    )
+                  })}
+                </div>
+
+                {/* Legend (lens-aware) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>LEGISLATIVE SUCCESS</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.05em' }}>{lens.eyebrow}</span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setLegendOpen(o => !o) }}
                     aria-expanded={legendOpen}
-                    aria-label="What is the legislative success score?"
+                    aria-label={`What does the ${lens.label} lens measure?`}
                     style={{ padding: 15, margin: -15, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'none', border: 'none' }}
                   >
                     <span style={{
@@ -1404,17 +1556,15 @@ function MembersContent() {
                       fontFamily: 'inherit', flexShrink: 0, pointerEvents: 'none',
                     }}>?</span>
                   </button>
-                  {[
-                    { label: '55+', ...effColor(60) },
-                    { label: '35–54', ...effColor(40) },
-                    { label: '18–34', ...effColor(25) },
-                    { label: '<18', ...effColor(10) },
-                  ].map(l => (
-                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                      <div style={{ width: 11, height: 11, borderRadius: 2, background: l.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
-                      <span style={{ fontSize: 11, color: l.text }}>{l.label}</span>
-                    </div>
-                  ))}
+                  {lens.scale.map(s => {
+                    const c = lens.color(s.score)
+                    return (
+                      <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                        <div style={{ width: 11, height: 11, borderRadius: 2, background: c.bg, border: '1px solid rgba(255,255,255,0.06)' }}/>
+                        <span style={{ fontSize: 11, color: c.text }}>{s.label}</span>
+                      </div>
+                    )
+                  })}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                     <div style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--gold)' }}/>
                     <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Chair</span>
@@ -1432,9 +1582,9 @@ function MembersContent() {
                     }}
                   >
                     <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
-                      How the score is built
+                      {lens.title}
                     </div>
-                    A composite weighted across four signals: <b>Position Power</b> (25% — sponsor tier + chair bonus), <b>Committee Pass Rate</b> (30% — % of sponsored bills clearing committee, the hardest chokepoint), <b>Law Rate</b> (25% — % signed into law), and <b>Avg Trajectory</b> (20% — mean bill quality). Members under 3 sponsored bills get a 40% volume penalty so a single lucky bill can't dominate the leaderboard.
+                    {lens.explainer}
                   </div>
                 )}
                 <div style={{ fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', marginBottom: 14, opacity: 0.7 }}>
@@ -1469,12 +1619,7 @@ function MembersContent() {
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', display: 'flex', justifyContent: 'center', gap: 24,
                 }}>
-                  {[
-                    { label: 'High (55+)', count: withEff.filter(m => m.effectiveness >= 55).length, color: 'rgba(122,171,110,0.9)' },
-                    { label: 'Moderate', count: withEff.filter(m => m.effectiveness >= 35 && m.effectiveness < 55).length, color: 'rgba(58,122,138,0.9)' },
-                    { label: 'Low', count: withEff.filter(m => m.effectiveness >= 18 && m.effectiveness < 35).length, color: 'rgba(196,122,48,0.9)' },
-                    { label: 'Very Low', count: withEff.filter(m => m.effectiveness < 18).length, color: 'rgba(138,128,112,0.7)' },
-                  ].map(s => (
+                  {summaryBuckets.map(s => (
                     <div key={s.label} style={{ textAlign: 'center' }}>
                       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: s.color }}>{s.count}</div>
                       <div style={{ fontSize: 9, color: 'var(--text-faint)', marginTop: 2 }}>{s.label}</div>
@@ -1488,7 +1633,9 @@ function MembersContent() {
           {/* ── POPOVER (appears above tapped cell) ── */}
           {popover && (() => {
             const m = popover.member
-            const { bg, text, label: tierLbl } = effColor(m.effectiveness)
+            const lens = HEAT_LENSES[heatLens]
+            const metricVal = lens.metric(m)
+            const { bg, text, label: tierLbl } = lens.color(metricVal)
             const tierInfo = tierLabel(m.tier)
             return (
               <div style={{
@@ -1510,7 +1657,7 @@ function MembersContent() {
                   <div style={{
                     fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-mono)',
                     color: text, lineHeight: 1,
-                  }}>{m.effectiveness}</div>
+                  }}>{metricVal == null ? '—' : metricVal}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 6, background: bg, color: text }}>{tierLbl}</span>
@@ -1542,6 +1689,40 @@ function MembersContent() {
 
       {/* ── LIST VIEW ──────────────────────────────── */}
       {viewMode === 'list' && <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* ER-B2 (A6): label the right-hand metric — it was a bare "avg". */}
+        {!loading && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, padding: '0 2px 2px', marginBottom: 2 }}>
+            <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>Avg Score</span>
+            <button
+              type="button"
+              onClick={() => setListLegendOpen(o => !o)}
+              aria-expanded={listLegendOpen}
+              aria-label="What is Avg Score?"
+              style={{ padding: 12, margin: -12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: 'none', border: 'none' }}
+            >
+              <span style={{
+                width: 14, height: 14, borderRadius: '50%',
+                background: listLegendOpen ? 'var(--bg-surface)' : 'transparent',
+                border: '1px solid var(--border)', color: 'var(--text-muted)',
+                fontSize: 9, fontWeight: 700, lineHeight: 1, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, pointerEvents: 'none',
+              }}>?</span>
+            </button>
+          </div>
+        )}
+        {!loading && listLegendOpen && (
+          <div style={{
+            margin: '0 0 8px', background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '10px 12px',
+            fontSize: 11, lineHeight: 1.5, color: 'var(--text-mid)',
+          }}>
+            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>
+              What “Avg Score” means
+            </div>
+            The average Vector trajectory score (0–99) across this member’s sponsored bills this biennium — higher means their bills tend to score better. It’s a simple average, not the blended <b>Effectiveness</b> rank you’ll find under the Heatmap view.
+          </div>
+        )}
         {loading ? (
           <VectorLoader label="Loading members" />
         ) : filtered.map((member, idx) => {
