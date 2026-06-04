@@ -384,13 +384,18 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
     doc.setFontSize(7.5)
     doc.setTextColor(...P.muted)
     const affW     = contentW - labW - 3
-    const affLines = doc.splitTextToSize(affectedSec.body, affW)
-    // #5: append ellipsis if body was truncated to one line
-    const affText  = affLines.length > 1
-      ? (affLines[0] || '').trim().replace(/[.,;]?\s*$/, '') + '…'
-      : (affLines[0] || '').trim()
-    doc.text(affText, m + labW + 2, cur)
-    cur = cur + 6
+    // A4 (ER-B3): wrap the Affects body to up to 3 lines instead of clipping to
+    // one. A printed brief must carry the full "who's affected" line; the T153
+    // one-line clip hid content (and once hid a hallucination). Title rows
+    // elsewhere stay uniform-truncated -- this prose block wraps with a hanging
+    // indent under the label.
+    const affAll   = doc.splitTextToSize(affectedSec.body, affW)
+    const affLines = affAll.slice(0, 3)
+    if (affAll.length > 3) {
+      affLines[2] = (affLines[2] || '').trim().replace(/[.,;]?\s*$/, '') + '…'
+    }
+    affLines.forEach((line, i) => doc.text(String(line).trim(), m + labW + 2, cur + i * 4))
+    cur = cur + 6 + (affLines.length - 1) * 4
   }
 
   return cur + 2

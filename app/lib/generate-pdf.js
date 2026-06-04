@@ -787,12 +787,16 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...P.muted)
-    const affLines = doc.splitTextToSize(affectedSec.body, contentW - labW - 3)
-    const affText = affLines.length > 1
-      ? (affLines[0] || '').trim().replace(/[.,;]?\s*$/, '') + '\x85'
-      : (affLines[0] || '').trim()
-    doc.text(affText, m + labW + 2, y)
-    y += 5.5
+    // A4 (ER-B3): wrap the Affects body to up to 3 lines instead of clipping to
+    // one. A printed brief must carry the full "who's affected" line. Continuation
+    // lines hang-indent under the label; uniform row-title truncation stays elsewhere.
+    const affAll = doc.splitTextToSize(affectedSec.body, contentW - labW - 3)
+    const affLines = affAll.slice(0, 3)
+    if (affAll.length > 3) {
+      affLines[2] = (affLines[2] || '').trim().replace(/[.,;]?\s*$/, '') + '\x85'
+    }
+    affLines.forEach((line, i) => doc.text(String(line).trim(), m + labW + 2, y + i * 4))
+    y += 5.5 + (affLines.length - 1) * 4
   } else {
     y += 2
   }
