@@ -8,6 +8,7 @@ import { isAdmin } from '../../../../../lib/admin'
 import { PORTAL, FONT_DISPLAY, FONT_BODY } from '../../../../../lib/portal-palette'
 import { getCurrentSession, formatSessionDate, isPostBienniumClose, getCurrentBiennium, getNextBiennium } from '../../../../../lib/session-config'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../../../lib/wsl-amendment-codes'
+import { parseSummarySections, stripInlineBold } from '../../../../../lib/summary-format'
 import SignOutButton from '../../SignOutButton'
 
 /**
@@ -93,12 +94,15 @@ function formatStageLine(bill) {
   return `Introduced in ${chamber}`
 }
 
-// Strip markdown headers + collapse whitespace for clean display.
+// Strip markdown headers + inline bold, collapse to one clean paragraph.
+// ER-B1: shared parser drops both header dialects ("#"/"##" and "**HEADER**")
+// and the leading "# BILL BRIEF:" line; stripInlineBold clears literal "**".
 function cleanSummary(raw) {
   if (!raw) return ''
-  return String(raw)
-    .split('\n')
-    .filter(line => !line.trim().startsWith('#'))
+  return parseSummarySections(raw)
+    .flatMap(sec => sec.lines)
+    .map(line => stripInlineBold(line).trim())
+    .filter(Boolean)
     .join(' ')
     .replace(/\s{2,}/g, ' ')
     .trim()

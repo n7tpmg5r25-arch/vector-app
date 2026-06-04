@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.20.0',
+    date: '2026-06-03',
+    phase: 'alpha',
+    highlights: [
+      'Bill summaries now render cleanly regardless of how they were generated. About a third of the catalog used "#"-style markdown headings that previously showed as raw "# BILL BRIEF" and "## EXECUTIVE SUMMARY" lines on the page; one shared parser now formats both heading styles the same way and drops the redundant title line, on both the public bill page and the team briefing view.',
+      'Corrected two summaries that named a place that does not exist. A military child care bill referenced a fictional "Fairchild Space and Missile Center" (it is Fairchild Air Force Base, near Spokane), and a paid-military-leave bill had been described with the wrong bill’s text. Both were regenerated against the official WA Legislature record under the proper-noun accuracy guardrail.',
+    ],
+  },
+  {
     version: '5.19.0',
     date: '2026-06-02',
     phase: 'alpha',

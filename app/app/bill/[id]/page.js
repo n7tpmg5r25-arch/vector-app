@@ -18,6 +18,7 @@ import VoteSplitBar from '../../components/VoteSplitBar'
 import PartyMicrobar from '../../components/PartyMicrobar'
 import { isFinalPassage, bucketMemberVotes, padBucketsToReported, characterize } from '../../../lib/vote-helpers'
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
+import { parseSummarySections, splitInlineBold } from '../../../lib/summary-format'
 import VectorLoader from '../../components/VectorLoader'
 import { Check, ArrowUpRight, FileText, Bookmark, Loader2, Share } from 'lucide-react'
 import { sharePdf, canSharePdfFiles } from '../../../lib/share-pdf'
@@ -1559,24 +1560,15 @@ export default function BillDetailPage() {
                   const MAX_CONTENT = 2 // non-blank lines shown before "Show more"
 
                   // Parse raw text into sections: [{ header: string|null, lines: string[] }]
-                  const raw = (bill.custom_summary || bill.ai_summary || '').split('\n')
-                  const sections = []
-                  let cur = { header: null, lines: [] }
-                  for (const line of raw) {
-                    const m = line.trim().match(/^\*\*(.+?)\*\*$/)
-                    if (m) {
-                      if (cur.header !== null || cur.lines.some(l => l.trim())) sections.push(cur)
-                      cur = { header: m[1], lines: [] }
-                    } else {
-                      cur.lines.push(line)
-                    }
-                  }
-                  if (cur.header !== null || cur.lines.some(l => l.trim())) sections.push(cur)
+                  // ER-B1: shared parser also handles ATX "#"/"##" headers (~36%
+                  // of the catalog) and strips a leading "# BILL BRIEF:" title line,
+                  // so "#"-format summaries no longer leak raw markup on screen.
+                  const sections = parseSummarySections(bill.custom_summary || bill.ai_summary || '')
 
                   const renderLine = (line, i) => {
                     const t = line.trim()
                     if (!t) return <div key={i} style={{ height: 6 }} />
-                    const parts = t.split(/\*\*(.+?)\*\*/)
+                    const parts = splitInlineBold(t)
                     return (
                       <p key={i} style={{ margin: '0 0 4px 0' }}>
                         {parts.map((part, j) =>
