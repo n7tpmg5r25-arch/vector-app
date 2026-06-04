@@ -2455,6 +2455,38 @@ export default function BillDetailPage() {
                 </div>
               ))}
 
+              {/* A5 (ER-B3): reconciliation footer bridges the five component
+                  bars to the displayed score. The bars sum to a 0-100 base; the
+                  score is that base x the X-factor multiplier, capped at 99 (100
+                  is reserved for signed bills). Without it an analyst sums the
+                  bars to ~55, sees a 99, and the tab reads as arbitrary. Mirrors
+                  the L1120 info-panel copy. Display-only -- scoreBill() frozen (G5). */}
+              {latestSnap && baseTotal > 0 && (
+                <div style={{
+                  padding: '10px 14px', background: 'var(--bg-card)',
+                  border: '1px dashed var(--border)', borderRadius: 'var(--radius)',
+                  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-mid)',
+                  lineHeight: 1.6, display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 2,
+                }}>
+                  <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 10 }}>Base</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>{baseTotal}</span>
+                  {xfApplied && (
+                    <>
+                      <span style={{ color: 'var(--text-muted)' }}>&times;</span>
+                      <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{Number(xfMult).toFixed(2)}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(X-factors)</span>
+                    </>
+                  )}
+                  <span style={{ color: 'var(--text-muted)' }}>&rarr;</span>
+                  <span style={{ color: scoreColor, fontWeight: 700 }}>{score}</span>
+                  {scoreIsCapped ? (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(capped at 99; 100 reserved for signed)</span>
+                  ) : !equationReconciles ? (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(&asymp; rounded)</span>
+                  ) : null}
+                </div>
+              )}
+
               {latestSnap ? (
                 <div style={{ padding: '12px 14px', background: 'var(--teal-pale)', border: '1px solid rgba(184,151,90,0.15)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--teal)', lineHeight: 1.5 }}>
                   {bill.pulled_from_rules

@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.22.0',
+    date: '2026-06-04',
+    phase: 'alpha',
+    highlights: [
+      'The score breakdown now shows its own math. The Score Breakdown tab on a bill lists five component bars that add up to a 0–100 base, but never showed how that base becomes the final score; a new footer spells it out — base total × the X-factor multiplier, then capped at 99 (100 is reserved for bills signed into law) — so the tab reconciles with the score shown at the top of the bill.',
+      'Downloaded bill briefs no longer cut off the affected-parties line. On both the single-bill brief and the watchlist brief, the “Affects:” line under the title used to truncate with an ellipsis after one line; it now wraps to as many as three lines so the full description prints, while bill-title rows still truncate to stay aligned.',
+    ],
+  },
+  {
     version: '5.21.0',
     date: '2026-06-03',
     phase: 'alpha',
