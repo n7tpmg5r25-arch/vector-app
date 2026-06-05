@@ -467,25 +467,33 @@ export default function WatchlistPage() {
         )}
 
         {watched.length > 1 && (
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A\u2013Z']].map(([val, label]) => (
-              <button key={val} onClick={() => setSortBy(val)} style={{
-                padding: '3px 10px', borderRadius: 12, fontSize: 10,
-                background: sortBy === val ? 'var(--bg-surface)' : 'transparent',
-                color: sortBy === val ? 'var(--text-primary)' : 'var(--text-faint)',
-                border: `1px solid ${sortBy === val ? 'var(--border)' : 'transparent'}`,
-                cursor: 'pointer',
-              }}>{label}</button>
-            ))}
-            <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }}/>
-            <button onClick={() => setAtRiskOnly(!atRiskOnly)} style={{
-              padding: '3px 10px', borderRadius: 12, fontSize: 10, flexShrink: 0,
-              background: atRiskOnly ? 'var(--danger-pale)' : 'transparent',
-              color: atRiskOnly ? 'var(--danger)' : 'var(--text-faint)',
-              border: `1px solid ${atRiskOnly ? 'rgba(196,71,48,0.3)' : 'transparent'}`,
-              cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
-              boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
-            }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
+          /* ER-B5 B2: sort controls and the state filter shared one mixed row;
+             split into a labeled SORT pill row and a separate FILTER row so
+             ordering and volume-filtering read as two distinct controls. */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>Sort</span>
+              {[['score', 'By Score'], ['added', 'Recently Added'], ['name', 'A\u2013Z']].map(([val, label]) => (
+                <button key={val} onClick={() => setSortBy(val)} style={{
+                  padding: '3px 10px', borderRadius: 12, fontSize: 10,
+                  background: sortBy === val ? 'var(--bg-surface)' : 'transparent',
+                  color: sortBy === val ? 'var(--text-primary)' : 'var(--text-faint)',
+                  border: `1px solid ${sortBy === val ? 'var(--border)' : 'transparent'}`,
+                  cursor: 'pointer',
+                }}>{label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>Filter</span>
+              <button onClick={() => setAtRiskOnly(!atRiskOnly)} style={{
+                padding: '3px 10px', borderRadius: 12, fontSize: 10, flexShrink: 0,
+                background: atRiskOnly ? 'var(--danger-pale)' : 'transparent',
+                color: atRiskOnly ? 'var(--danger)' : 'var(--text-muted)',
+                border: `1px solid ${atRiskOnly ? 'rgba(196,71,48,0.3)' : 'var(--border)'}`,
+                cursor: 'pointer', fontWeight: atRiskOnly ? 600 : 400,
+                boxShadow: atRiskOnly ? 'var(--danger-glow)' : 'none',
+              }}>{isInterimPeriod() ? "Didn\u2019t Pass" : '\u26A0 At Risk'}</button>
+            </div>
           </div>
         )}
 

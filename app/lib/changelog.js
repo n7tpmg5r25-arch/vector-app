@@ -29,6 +29,18 @@
 
 export const CHANGELOG = [
   {
+    version: '5.24.0',
+    date: '2026-06-05',
+    phase: 'alpha',
+    highlights: [
+      'Fine print is now easier to read. The model’s limitation notes, the “What this model doesn’t use” disclosure, and the political-dynamics caveats on the methodology page were rendered in a light grey that was hard to read in daylight; they now use a higher-contrast tone that clears accessibility guidance for small text.',
+      'The “Moderate” signal tier no longer reads like a coin-flip. Where the tier label appears, it now carries its real historical rate — roughly 1.8% of Moderate bills became law — so a mid-band score is understood as technically alive but a long shot, not a 50/50 chance.',
+      'AI-written legislator bios now carry the same calm, consistent disclosure as bill summaries. The louder “AI Generated” badge on member profiles is now a neutral “AI Summary” label with a source link and a single “Report a discrepancy” option, matching the bill pages — honest about how the text is produced without implying a review step that does not happen.',
+      'Two small interface clean-ups. The watchlist now separates sorting (By Score, Recently Added, A–Z) from filtering (Didn’t Pass / At Risk) into their own labeled rows; and the install page hides the step-by-step phone instructions once the app is already installed, with a link to show them again for a new device.',
+      'A finished bill no longer repeats its status. On bills that are signed into law, a redundant “Signed into law” line was removed so the outcome shows once and the key details sit higher on the screen.',
+    ],
+  },
+  {
     version: '5.23.0',
     date: '2026-06-04',
     phase: 'alpha',

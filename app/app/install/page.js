@@ -34,6 +34,7 @@
 //   G5 — No scoreBill / extractFeatures / cohort literal touches.
 //   G6 — Page-scoped surface; PublicNav top-bar is shared but not globally
 //        mounted. Layer discipline preserved.
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Nav from '../components/Nav'
 import PublicNav from '../components/PublicNav'
@@ -73,6 +74,26 @@ export default function InstallPage() {
   // authed users don't flash PublicNav during the auth-resolve window.
   const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
+
+  // ER-B5 B3: when the app is already installed, the three manual platform
+  // walkthroughs are noise. Detect standalone the same way InstallPrompt does
+  // (display-mode:standalone + iOS navigator.standalone) and also listen for
+  // appinstalled so the steps collapse live if the user installs while here.
+  // A toggle keeps them reachable for re-install / new-device cases.
+  const [pwaInstalled, setPwaInstalled]       = useState(false)
+  const [showStepsAnyway, setShowStepsAnyway] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const standalone =
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true
+    if (standalone) setPwaInstalled(true)
+    const onInstalled = () => setPwaInstalled(true)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => window.removeEventListener('appinstalled', onInstalled)
+  }, [])
+  const showManualSteps = !pwaInstalled || showStepsAnyway
 
   return (
     <div style={{ paddingBottom: 100, fontFamily: 'var(--font-body)' }}>
@@ -135,6 +156,21 @@ export default function InstallPage() {
                 browser that never fires the event. */}
             <InstallPrompt />
 
+            {pwaInstalled && !showStepsAnyway && (
+              <button
+                type="button"
+                onClick={() => setShowStepsAnyway(true)}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-body)',
+                  textDecoration: 'underline', textUnderlineOffset: 2, lineHeight: 1.55,
+                }}
+              >
+                Reinstalling or setting up another device? Show the manual steps.
+              </button>
+            )}
+
+            {showManualSteps && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -168,6 +204,7 @@ export default function InstallPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
 
