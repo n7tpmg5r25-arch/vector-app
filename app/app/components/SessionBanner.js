@@ -57,7 +57,7 @@ export default function SessionBanner() {
         color: 'var(--gold, #d4b47a)',
         lineHeight: 1.4,
       }}>
-        Viewing {session} — historical data
+        Viewing {session} archive — read-only
       </span>
       <span
         role="button"

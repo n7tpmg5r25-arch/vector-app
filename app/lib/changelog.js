@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.23.0',
+    date: '2026-06-04',
+    phase: 'alpha',
+    highlights: [
+      'The committee calendar now reads correctly between sessions. During the interim the Legislature holds committee work sessions that carry no bills, which previously left a run of “0 bills” cards that looked like a broken feed; the calendar and each committee page now lead with an interim note that explains the schedule is dark and points to the date the next session convenes.',
+      'Member profiles now lead with what a legislator can actually move. The “Where their bills end up” outcome funnel — the share of their bills that clear committee, pass the floor, and become law — now sits near the top of the profile, just under the bio and committee seats, while the past-election record is condensed to a single compact line below.',
+      'A persistent reminder now appears whenever you are viewing a past biennium. Switching to a historical session — for example 2023-2024 — tints the bottom navigation and labels it “Viewing 2023-24 archive,” so a finished bill from a prior cycle is harder to mistake for a live one; tapping the label returns you to the current session.',
+    ],
+  },  {
     version: '5.22.0',
     date: '2026-06-04',
     phase: 'alpha',

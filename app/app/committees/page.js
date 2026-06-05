@@ -389,6 +389,36 @@ export default function CommitteesPage() {
             )
           ) : (
             <>
+            {/* ER-B4 (A8) — interim context banner. During the interim the WA
+                Legislature holds committee work sessions that carry no bills, so
+                every meeting card reads "0 bills" — a ghost-town effect that looks
+                like a broken scraper. This strip gives the run of zero-agenda cards
+                context, matching the home BillsMovingWidget interim posture. */}
+            {isInterimPeriod() && (() => {
+              const _next = getNextBiennium()
+              const _cur = getCurrentBiennium()
+              const _hasNext = _next && _cur && _next.session !== _cur.session
+              return (
+                <div style={{
+                  marginBottom: 16, padding: '11px 14px',
+                  background: 'rgba(184,151,90,0.06)',
+                  border: '1px solid rgba(184,151,90,0.22)',
+                  borderRadius: 'var(--radius)',
+                }}>
+                  <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+                    color: 'var(--gold)', letterSpacing: '0.08em', textTransform: 'uppercase',
+                    marginBottom: 4,
+                  }}>Interim — no active agenda</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    The Legislature is between sessions. Any meetings below are committee work
+                    sessions and hearings with no bills on the agenda — bill referrals resume
+                    {_hasNext ? ` when the ${bienniumShortLabel(_next.session)} session convenes ${formatSessionDate(_next.start)}` : ' when the next session convenes'}.
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Thread 103 — YOUR BILLS pinned section */}
             {user && myMeetings.length > 0 && !meetingLoading && (
               <div style={{ marginBottom: 20 }}>

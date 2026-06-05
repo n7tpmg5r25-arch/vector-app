@@ -1,6 +1,8 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { isInterimPeriod } from '../../lib/session-config'
+import { isInterimPeriod, getCurrentSession, bienniumShortLabel } from '../../lib/session-config'
+import { useSession } from '../../lib/useSession'
 import HamburgerButton from './HamburgerButton'
 
 const NAV = [
@@ -109,6 +111,16 @@ const NAV = [
 export default function Nav() {
   const pathname = usePathname()
   const router = useRouter()
+  // ER-B4 (B1) — persistent archive signal. SessionBanner cues the top of the
+  // page but scrolls away; the fixed bottom nav is always on screen, so tint +
+  // caption it whenever the viewer is on a historical biennium. Gated on
+  // `mounted` because useSession reads localStorage (client-only) — without it
+  // the server render (current session) and client render would mismatch.
+  const [session, setSession] = useSession()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  const isArchive = mounted && session && session !== getCurrentSession()
+  const archiveLabel = isArchive ? (bienniumShortLabel(session) || session) : ''
 
   return (
     <>
@@ -152,11 +164,32 @@ export default function Nav() {
       background: 'rgba(14,16,20,0.92)',
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
-      borderTop: '1px solid var(--border)',
+      borderTop: isArchive ? '2px solid rgba(184,151,90,0.7)' : '1px solid var(--border)',
       padding: '10px 4px 24px',
-      display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+      display: 'flex', flexDirection: 'column', alignItems: 'stretch',
       zIndex: 100,
     }}>
+      {/* ER-B4 (B1) — persistent archive caption; tap returns to the current session. */}
+      {isArchive && (
+        <button
+          onClick={() => {
+            setSession(getCurrentSession())
+            if (typeof window !== 'undefined') window.location.reload()
+          }}
+          aria-label={`Viewing ${archiveLabel} archive — tap to return to the current session`}
+          style={{
+            border: 'none', background: 'rgba(184,151,90,0.12)',
+            color: 'var(--gold)', cursor: 'pointer',
+            fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            padding: '4px 10px', marginBottom: 8, borderRadius: 6,
+            alignSelf: 'center', maxWidth: '100%',
+          }}
+        >
+          Viewing {archiveLabel} archive · tap to exit
+        </button>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
       {NAV.map(({ path, label, icon }) => {
         const active = pathname === path || (path !== '/' && pathname.startsWith(path))
         return (
@@ -192,6 +225,7 @@ export default function Nav() {
           </button>
         )
       })}
+      </div>
     </nav>
     </>
   )
