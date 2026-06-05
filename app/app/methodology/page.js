@@ -361,6 +361,8 @@ export default function MethodologyPage() {
               A HIGH bill (75+) sits in the 84.0% historical pass bucket &mdash; bills at this tier
               warrant calendar holds, witness coordination, and amendment review. A VERY LOW bill
               (0&ndash;44) sits at 0.0% historical pass &mdash; deprioritize unless an X-Factor flips the read.
+              A MODERATE bill (60&ndash;74) sits at just ~1.8% historical pass &mdash; technically alive
+              but a long shot, not a coin-flip; watch for a companion bill or a revival vehicle.
               The signal-tier label (HIGH / MODERATE / LOW / VERY LOW) is the same answer the score gives,
               just easier to scan: same meaning, faster eye.
             </div>
@@ -672,7 +674,7 @@ export default function MethodologyPage() {
                 }}>
                   <strong>In practice:</strong> {s.inPractice}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-faint)', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                   Limitation: {s.limitation}
                 </div>
               </div>
@@ -683,7 +685,7 @@ export default function MethodologyPage() {
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
                 What this model doesn&apos;t use
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-faint)', lineHeight: 1.65 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.65 }}>
                 Governor&apos;s stated policy priorities, lobby registration data (JLOB), party
                 leadership whip counts, campaign finance relationships, and caucus strategy signals
                 are not factored into either the trajectory score or the political dynamics signals.
@@ -694,7 +696,7 @@ export default function MethodologyPage() {
               </div>
             </div>
 
-            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
+            <div style={{ padding: '10px 16px', fontSize: 11, color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
               Political dynamics signals are informational only &mdash; not factored into the trajectory score or pass probability.
             </div>
           </div>

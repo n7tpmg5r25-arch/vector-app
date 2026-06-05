@@ -1131,7 +1131,7 @@ export default function BillDetailPage() {
               <strong style={{ color: 'var(--text-primary)' }}>X factors</strong> are positive or negative multipliers (companion bills, cutoff pressure, held in Rules, narrow margins, etc.) that adjust the base total by ±50%.
             </div>
             <div>
-              Signal strength (HIGH / MODERATE / LOW / VERY LOW) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
+              Signal strength (HIGH ~84% · MODERATE ~1.8% · LOW ~0% · VERY LOW ~0% historical pass) is <strong style={{ color: 'var(--text-primary)' }}>calibrated against actual 2025–2026 session outcomes</strong> — the percentages reflect the share of real bills in each band that became law. During interim, labels change to LAW / CARRY OVER / DEAD to reflect session results. Read more on the <a href="/methodology" style={{ color: 'var(--teal)' }}>methodology page</a>.
             </div>
           </div>
         )}
@@ -1173,15 +1173,10 @@ export default function BillDetailPage() {
             This bill passed at least one chamber and carries over within the {bill.session || getCurrentSession()} biennium.
           </div>
         )}
-        {isInterimPeriod() && bill.confidence_label === 'LAW' && (
-          <div style={{
-            background: 'rgba(184,151,90,0.06)', border: '1px solid rgba(184,151,90,0.2)',
-            borderRadius: 'var(--radius)', padding: '10px 14px',
-            fontSize: 12, color: 'var(--teal)', lineHeight: 1.5,
-          }}>
-            Signed into law.
-          </div>
-        )}
+        {/* ER-B5 B4: removed the redundant interim "Signed into law." banner.
+            The score-block subtitle ("Signed into law · Signal was …") and the
+            sparkline status badge already state the outcome; the standalone gold
+            row only consumed above-the-fold space on terminal LAW bills. */}
 
         {/* ── STAGE PIPELINE (T146: moved above sparkline) ───────────────── */}
         <div style={{
