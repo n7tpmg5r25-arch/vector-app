@@ -284,7 +284,23 @@ export default function CommitteeDetail() {
                 No scheduled meetings yet. Committee agendas typically post 5–7 days ahead during session, day-of during interim.
               </EmptyCard>
             ) : (
-              meetings.map(m => (
+              <>
+              {/* ER-B4 (A8) — interim work-session context. Between sessions every
+                  meeting here is a work session with no bills, so each card reads
+                  "0 bills"; this note keeps that from looking like a broken feed. */}
+              {isInterimPeriod() && (
+                <div style={{
+                  marginBottom: 6, padding: '9px 12px',
+                  background: 'rgba(184,151,90,0.06)',
+                  border: '1px solid rgba(184,151,90,0.22)',
+                  borderRadius: 'var(--radius)',
+                  fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5,
+                }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Interim · </span>
+                  these are committee work sessions — no bills are on agendas between sessions.
+                </div>
+              )}
+              {meetings.map(m => (
                 <div key={m.id} style={{
                   background: 'var(--bg-card)', border: '1px solid var(--border)',
                   borderRadius: 'var(--radius)', padding: '12px 14px', marginBottom: 6,
@@ -330,7 +346,8 @@ export default function CommitteeDetail() {
                     )}
                   </div>
                 </div>
-              ))
+              ))}
+              </>
             )}
           </Section>
 

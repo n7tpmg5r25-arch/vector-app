@@ -944,6 +944,46 @@ function MembersContent() {
                   )}
                 </div>
 
+                {/* ── Outcome funnel — elevated under bio/committees per ER-B4 (A9).
+                    A member's current ability to move policy is the top lobbyist
+                    signal, so this sits above sponsorship / voting / electoral. ── */}
+                {funnelMax > 0 && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)', padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                      Where Their Bills End Up
+                    </div>
+                    {funnel.map(s => {
+                      const pct = funnelMax > 0 ? (s.count / funnelMax) * 100 : 0
+                      const tone = s.key === 6 ? 'rgba(74,222,128,0.55)'
+                                : s.key === 4 ? 'rgba(184,151,90,0.55)'
+                                : s.key === 3 ? 'rgba(58,122,138,0.55)'
+                                :               'rgba(138,128,112,0.45)'
+                      return (
+                        <div key={s.key} style={{ marginBottom: 6 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
+                            <span style={{ color: 'var(--text-mid)' }}>{s.label}</span>
+                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              {s.count}
+                              <span style={{ color: 'var(--text-faint)', fontSize: 9, marginLeft: 4 }}>
+                                ({Math.round(pct)}%)
+                              </span>
+                            </span>
+                          </div>
+                          <div style={{ height: 6, background: 'var(--bg-surface)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              width: `${pct}%`, height: '100%', background: tone,
+                              transition: 'width 0.3s',
+                            }}/>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
                 {/* ── Tier 2: HIGH-tier sponsorship + categories ── */}
                 {highTierBills.length > 0 && (
                   <div style={{
@@ -1059,89 +1099,30 @@ function MembersContent() {
                   </div>
                 )}
 
-                {/* ── Tier 3: Electoral record (T126 data) ── */}
+                {/* ── Electoral record — compacted to a single row per ER-B4 (A9).
+                    A member's current ability to move policy (the outcome funnel
+                    elevated above) outranks their last campaign margin, so the
+                    electoral record is reduced to a compact line here. ── */}
                 {memberElections && memberElections.length > 0 && (() => {
                   const recent = memberElections[0]
-                  const prev   = memberElections[1] || null
                   return (
                     <div style={{
                       background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius)', padding: '12px 14px',
+                      borderRadius: 'var(--radius)', padding: '10px 14px',
+                      display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap',
                     }}>
-                      <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>
-                        Electoral Record
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', lineHeight: 1 }}>
-                          {recent.unopposed ? 'Unopposed' : `${recent.vote_pct}%`}
-                        </span>
-                        {!recent.unopposed && recent.margin_pct != null && (
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            +{recent.margin_pct}pt margin
-                          </span>
-                        )}
-                        <span style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
-                          {recent.election_year} general
-                        </span>
-                      </div>
-                      {!recent.unopposed && recent.opponent_name && (
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-                          vs. {recent.opponent_name}
-                          {recent.total_votes && (
-                            <span style={{ color: 'var(--text-faint)', marginLeft: 8 }}>
-                              {recent.total_votes.toLocaleString()} total votes
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {prev && (
-                        <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
-                          {prev.election_year}: {prev.unopposed ? 'Unopposed' : `${prev.vote_pct}%`}
-                          {!prev.unopposed && prev.margin_pct != null && ` (+${prev.margin_pct}pt)`}
-                          {!prev.unopposed && prev.opponent_name && ` vs. ${prev.opponent_name}`}
-                        </div>
-                      )}
+                      <span style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                        Electoral
+                      </span>
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                        {recent.unopposed ? 'Ran unopposed' : `${recent.vote_pct}%${recent.margin_pct != null ? ` · +${recent.margin_pct}pt margin` : ''}`}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 'auto', fontFamily: 'var(--font-mono)' }}>
+                        {recent.election_year} general
+                      </span>
                     </div>
                   )
                 })()}
-
-                {/* ── Tier 3: Stage funnel (with % labels) ── */}
-                {funnelMax > 0 && (
-                  <div style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '12px 14px',
-                  }}>
-                    <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-                      Where Their Bills End Up
-                    </div>
-                    {funnel.map(s => {
-                      const pct = funnelMax > 0 ? (s.count / funnelMax) * 100 : 0
-                      const tone = s.key === 6 ? 'rgba(74,222,128,0.55)'
-                                : s.key === 4 ? 'rgba(184,151,90,0.55)'
-                                : s.key === 3 ? 'rgba(58,122,138,0.55)'
-                                :               'rgba(138,128,112,0.45)'
-                      return (
-                        <div key={s.key} style={{ marginBottom: 6 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, marginBottom: 3 }}>
-                            <span style={{ color: 'var(--text-mid)' }}>{s.label}</span>
-                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                              {s.count}
-                              <span style={{ color: 'var(--text-faint)', fontSize: 9, marginLeft: 4 }}>
-                                ({Math.round(pct)}%)
-                              </span>
-                            </span>
-                          </div>
-                          <div style={{ height: 6, background: 'var(--bg-surface)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{
-                              width: `${pct}%`, height: '100%', background: tone,
-                              transition: 'width 0.3s',
-                            }}/>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
 
                 {/* ── Tier 3: Per-biennium career breakdown ── */}
                 {showAllSessions && selectedMember.bySession && Object.keys(selectedMember.bySession).length > 1 && (
