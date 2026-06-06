@@ -13,6 +13,11 @@ import PublicHome from './components/PublicHome'
 import VectorLoader from './components/VectorLoader'
 import HomeSkeleton from './components/HomeSkeleton'
 import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { getSessionClock } from '../lib/session-clock'
+import ArcMark from './components/dashboard/ArcMark'
+import ArcGauge from './components/dashboard/ArcGauge'
+import DistributionBar from './components/dashboard/DistributionBar'
+import SessionClock from './components/dashboard/SessionClock'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -242,6 +247,20 @@ export default function HomePage() {
   const avgScore = watchedScores.length > 0
     ? Math.round(watchedScores.reduce((a, b) => a + b, 0) / watchedScores.length)
     : null
+
+  // DASH-1: cockpit session clock (day-of-session + next statutory cutoff) and
+  // the portfolio tier distribution bucketed from the watchlist final scores.
+  // Tier cuts (75 / 60 / 45) match ScoreBadge + pdf-shared.js getScoreTier().
+  const clock = getSessionClock()
+  const tierCounts = watchlist.reduce((acc, w) => {
+    const s = w.bills?.final_score
+    if (s == null) return acc
+    if (s >= 75) acc.high++
+    else if (s >= 60) acc.mod++
+    else if (s >= 45) acc.low++
+    else acc.vlow++
+    return acc
+  }, { high: 0, mod: 0, low: 0, vlow: 0 })
   const outlook = avgScore !== null && !isInterimPeriod() ? outlookLabel(avgScore) : null
   const momentum = momentumLabel(watchlist)
   // 6H.2: During interim, show outcome counts instead of score-based stats
@@ -312,17 +331,26 @@ export default function HomePage() {
         padding: '52px 16px 14px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <img
-              src="/logos/vector-wa-primary.svg"
-              alt="Vector | WA"
-              style={{ height: 56, width: 'auto', display: 'block', filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.22))' }}
-            />
-            <div style={{ fontSize: 10, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6, fontFamily: 'var(--font-body)' }}>
-              Legislative Trajectories
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+            <ArcMark width={28} />
+            <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 16, letterSpacing: '0.14em', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+              VECTOR<span style={{ color: 'var(--brass)', fontWeight: 400, margin: '0 4px' }}>|</span>WA
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            {/* DASH-1: next-cutoff chip — shown only during an active session
+                with an upcoming statutory cutoff. Rust when within 7 days. */}
+            {clock.nextCutoff && (
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, whiteSpace: 'nowrap',
+                color: clock.nextCutoff.daysLeft <= 7 ? 'var(--danger)' : 'var(--text-mid)',
+                background: clock.nextCutoff.daysLeft <= 7 ? 'rgba(196,71,48,0.1)' : 'rgba(184,151,90,0.08)',
+                border: `1px solid ${clock.nextCutoff.daysLeft <= 7 ? 'rgba(196,71,48,0.25)' : 'var(--border)'}`,
+                borderRadius: 11, padding: '3px 9px',
+              }}>
+                Cutoff · {clock.nextCutoff.daysLeft}d
+              </span>
+            )}
             {/* Phase 7V: hide refresh during interim -- scores are frozen */}
             {!isInterimPeriod() && (
               <button
@@ -341,6 +369,8 @@ export default function HomePage() {
             )}
           </div>
         </div>
+        {/* DASH-1: session clock — progress bar + Day X / Y (active) or Interim. */}
+        <SessionClock clock={clock} />
       </div>
 
       {/* ── HEADER (solid panel; scrolls under sticky bar) ──
@@ -501,6 +531,44 @@ export default function HomePage() {
       </div>
 
       <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* ── DASH-1: PORTFOLIO TRAJECTORY HERO ─────────────────
+            Glanceable cockpit instrument — the watchlist's average trajectory
+            as a 270° brass gauge with the tier distribution beneath
+            (HIGH/MOD/LOW/VERY LOW → Sage/Deep-Teal/Amber/Stone). Shown only when
+            bills are tracked; the weekly delta is stubbed (▲ —) until DASH-3
+            wires the snapshot-at-t-7 helper. The richer needs-attention +
+            movers/momentum/heat instruments arrive in DASH-2/DASH-3; the
+            sections below stay in place so the home keeps working meanwhile. */}
+        {watchlist.length > 0 && avgScore !== null && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)', padding: 14,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <ArcGauge
+                value={avgScore}
+                max={99}
+                displayValue={String(avgScore)}
+                subLabel="/ 99"
+                size={104}
+                ariaLabel={`Average portfolio trajectory ${avgScore} out of 99`}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 7 }}>
+                  Portfolio trajectory
+                </div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                  ▲ — <span style={{ color: 'var(--text-faint)' }}>vs last week</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.4 }}>
+                  {watchlist.length} bill{watchlist.length === 1 ? '' : 's'} tracked
+                </div>
+              </div>
+            </div>
+            <DistributionBar counts={tierCounts} style={{ marginTop: 13 }} />
+          </div>
+        )}
 
         {/* ── STALE DATA WARNING (Phase 5A) ────────────────── */}
         {lastSyncAt && (Date.now() - lastSyncAt.getTime()) > 36 * 60 * 60 * 1000 && (
