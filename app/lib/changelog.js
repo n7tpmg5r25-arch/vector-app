@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.25.0',
+    date: '2026-06-06',
+    phase: 'alpha',
+    highlights: [
+      'The home now opens with your portfolio at a glance. Signed-in users who track bills see a new trajectory gauge — a single 0–99 dial that averages the predicted trajectory of every bill on your watchlist — with a tier bar beneath it that splits those bills into High, Moderate, Low, and Very Low bands, so the shape of your portfolio reads in one look.',
+      'A session clock now sits in the header. It shows how far the Legislature is into its current session (Day X of 105 in a long session, 60 in a short one) and, when a policy or fiscal cutoff is within reach, a countdown chip that turns red inside the final week; between sessions it reads as interim.',
+      'The header identity was rebuilt around the Vector | WA arc mark and wordmark. This is the first step of a larger home redesign — the existing trajectory, category, and totals sections stay in place below the new gauge while the rest of the dashboard is rebuilt.',
+    ],
+  },
+  {
     version: '5.24.0',
     date: '2026-06-05',
     phase: 'alpha',
