@@ -14,7 +14,6 @@ import VectorLoader from './components/VectorLoader'
 import HomeSkeleton from './components/HomeSkeleton'
 import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getSessionClock } from '../lib/session-clock'
-import ArcMark from './components/dashboard/ArcMark'
 import ArcGauge from './components/dashboard/ArcGauge'
 import DistributionBar from './components/dashboard/DistributionBar'
 import SessionClock from './components/dashboard/SessionClock'
@@ -331,12 +330,14 @@ export default function HomePage() {
         padding: '52px 16px 14px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-            <ArcMark width={28} />
-            <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 16, letterSpacing: '0.14em', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-              VECTOR<span style={{ color: 'var(--brass)', fontWeight: 400, margin: '0 4px' }}>|</span>WA
-            </span>
-          </div>
+          {/* Real Vector | WA logo lockup (app/public/logos/vector-wa-primary.svg) —
+              canonical brand asset, matches HomeSkeleton + every other header so the
+              skeleton-to-loaded transition does not jump. Never hand-roll the logo. */}
+          <img
+            src="/logos/vector-wa-primary.svg"
+            alt="Vector | WA"
+            style={{ height: 56, width: 'auto', display: 'block', flexShrink: 0, filter: 'drop-shadow(0 0 16px rgba(184,151,90,0.22))' }}
+          />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
             {/* DASH-1: next-cutoff chip — shown only during an active session
                 with an upcoming statutory cutoff. Rust when within 7 days. */}
