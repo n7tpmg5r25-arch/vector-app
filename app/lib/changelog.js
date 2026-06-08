@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.26.0',
+    date: '2026-06-06',
+    phase: 'alpha',
+    highlights: [
+      'The day’s four biggest score moves now lead the home dashboard. A new diverging chart ranks the bills that gained or lost the most predicted trajectory since the last sync — gains sweep right in green, losses left in red — so the sharpest changes read at a glance instead of as a list to scan.',
+      'A momentum tile reports how many of those bills advanced since the prior update, paired with a trend line, for a single read on whether your tracked set is gaining or losing ground.',
+      'Three compact “issue heat” bars replace the old category list, ranking the strongest policy areas by average trajectory and coloring each by its signal tier — High, Moderate, Low, or Very Low. Between sessions, when scores are frozen, the movers and momentum tiles now say so plainly rather than showing an empty chart.',
+    ],
+  },
+  {
     version: '5.25.0',
     date: '2026-06-06',
     phase: 'alpha',

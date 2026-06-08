@@ -10,13 +10,15 @@ import { useViewer } from '../lib/viewer-capabilities'
 import Nav from './components/Nav'
 import ScoreBadge from './components/ScoreBadge'
 import PublicHome from './components/PublicHome'
-import VectorLoader from './components/VectorLoader'
 import HomeSkeleton from './components/HomeSkeleton'
 import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getSessionClock } from '../lib/session-clock'
 import ArcGauge from './components/dashboard/ArcGauge'
 import DistributionBar from './components/dashboard/DistributionBar'
 import SessionClock from './components/dashboard/SessionClock'
+import MoversChart from './components/dashboard/MoversChart'
+import MomentumTile from './components/dashboard/MomentumTile'
+import IssueHeat from './components/dashboard/IssueHeat'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -260,6 +262,14 @@ export default function HomePage() {
     else acc.vlow++
     return acc
   }, { high: 0, mod: 0, low: 0, vlow: 0 })
+  // DASH-2: movers + momentum reuse the in-memory scoreDeltas the watchlist
+  // chips already read. billsById maps a delta bill_id to its HB/SB label from
+  // bills already in hand (top list + watchlist) -- no new query. moverRiseCount
+  // is how many of those bills rose since the prior snapshot.
+  const billsById = {}
+  topBills.forEach(b => { if (b && b.bill_id != null) billsById[b.bill_id] = b })
+  watchlist.forEach(w => { if (w.bills && w.bills.bill_id != null) billsById[w.bills.bill_id] = w.bills })
+  const moverRiseCount = Object.values(scoreDeltas).filter(d => d > 0).length
   const outlook = avgScore !== null && !isInterimPeriod() ? outlookLabel(avgScore) : null
   const momentum = momentumLabel(watchlist)
   // 6H.2: During interim, show outcome counts instead of score-based stats
@@ -275,7 +285,6 @@ export default function HomePage() {
     ? (interimWatchCounts?.dead || 0)
     : watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
 
-  const sessionYear = SESSION.split('-')[0]
 
   // ── PUBLIC-LAYER GATE ───────────────────────────────────────────────
   // Phase 12 Batch 4. When NEXT_PUBLIC_ENABLE_PUBLIC_LAYER is 'true' and
@@ -755,8 +764,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── SESSION OUTCOMES (interim) / TOP TRAJECTORY (active) ─── */}
-        {isInterimPeriod() ? (
+        {/* ── SESSION OUTCOMES - interim only (kept); DASH-2 instruments replace Top Trajectory + Category Intelligence ─── */}
+        {isInterimPeriod() && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
@@ -828,164 +837,19 @@ export default function HomePage() {
               )
             })()}
           </div>
-        ) : (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              Top Trajectory · {SESSION}
-            </div>
-            <Link href="/search" style={{ fontSize: 11, color: 'var(--teal)', fontWeight: 500, padding: '8px 0 8px 8px', display: 'inline-block' }}>
-              All bills →
-            </Link>
-          </div>
+        )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {loading ? (
-              <VectorLoader label="Loading top bills" size="sm" />
-            ) : topBills.map((bill, idx) => {
-              const delta = scoreDeltas[bill.bill_id]
-              return (
-              <Link
-                key={bill.bill_id}
-                href={`/bill/${bill.bill_id}`}
-                prefetch={false}
-                style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)', padding: '12px 14px',
-                  cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12,
-                  transition: 'border-color 0.2s, box-shadow 0.2s',
-                  animation: reducedMotion ? 'none' : `fadeUp 0.3s ease ${idx * 0.04}s both`,
-                  textDecoration: 'none', color: 'inherit',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(184,151,90,0.06)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
-              >
-                <div style={{
-                  fontSize: 10, fontFamily: 'var(--font-mono)',
-                  color: 'var(--text-faint)', width: 16, paddingTop: 2, flexShrink: 0,
-                }}>{idx + 1}</div>
-
-                <div style={{ position: 'relative' }}>
-                  <ScoreBadge score={bill.final_score} size="sm" status={bill.confidence_label}/>
-                  {delta != null && delta !== 0 && (
-                    <span style={{
-                      position: 'absolute', top: -6, right: -10,
-                      fontSize: 8, fontFamily: 'var(--font-mono)', fontWeight: 700,
-                      padding: '0px 4px', borderRadius: 6,
-                      background: delta > 0 ? 'rgba(184,151,90,0.15)' : 'rgba(196,71,48,0.15)',
-                      color: delta > 0 ? 'var(--teal)' : 'var(--danger)',
-                      border: `1px solid ${delta > 0 ? 'rgba(184,151,90,0.3)' : 'rgba(196,71,48,0.3)'}`,
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {delta > 0 ? '+' : ''}{delta}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                      {bill.chamber === 'House' ? 'HB' : 'SB'} {bill.bill_number}
-                    </span>
-                    {!bill.bipartisan && (
-                      <span style={{ fontSize: 9, padding: '1px 6px', background: 'rgba(184,151,90,0.1)', color: 'var(--gold)', border: '1px solid rgba(184,151,90,0.25)', borderRadius: 8 }}>
-                        Minority Only
-                      </span>
-                    )}
-                    {bill.pulled_from_rules && (
-                      <span style={{ fontSize: 9, padding: '1px 6px', background: 'var(--teal-pale)', color: 'var(--teal-bright)', border: '1px solid rgba(184,151,90,0.2)', borderRadius: 8 }}>
-                        ↑ Rules
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                      {bill.prime_sponsor || 'Unknown'}{bill.prime_party ? ` (${bill.prime_party.charAt(0)})` : ''}
-                    </span>
-                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>·</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                      {STAGE_SHORT[bill.stage] || 'Intro'}
-                    </span>
-                    {bill.committee_passed && (
-                      <span style={{ fontSize: 9, color: 'var(--teal)', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={9} aria-hidden="true" strokeWidth={3} /> Pass</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${sessionYear}`, '_blank', 'noopener,noreferrer') }}
-                  style={{ flexShrink: 0, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-faint)', opacity: 0.5, transition: 'opacity 0.2s', background: 'none', border: 'none', cursor: 'pointer' }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                  title="View on leg.wa.gov"
-                  aria-label="View on leg.wa.gov"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                  </svg>
-                </button>
-              </Link>
-            )})}
-          </div>
+        {/* ── DASH-2 INSTRUMENT CLUSTER ─────────────────────
+            Replaces the former Top Trajectory list + Category Intelligence.
+            Momentum + Issue heat share the one sanctioned 2-up row (not a
+            desktop breakpoint); the diverging movers chart runs full-width
+            beneath. All three read data already in hand (scoreDeltas,
+            categories) and self-handle the interim score freeze. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <MomentumTile count={moverRiseCount} interim={isInterimPeriod()} />
+          <IssueHeat categories={categories} />
         </div>
-        )}
-
-        {/* ── CATEGORY INTELLIGENCE ─────────────────────────── */}
-        {categories.length > 0 && (
-          <div>
-            <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>
-              {isInterimPeriod() ? 'Interim Intelligence · Category Pass Rates' : 'Category Intelligence · Avg Score by Category'}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {categories.slice(0, 6).map(cat => {
-                const avg = Math.round(cat.avg_score || 0)
-                const barColor = avg >= 50 ? 'var(--teal)' : avg >= 35 ? 'var(--gold)' : 'var(--text-muted)'
-                return (
-                  <div key={cat.category}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/search?category=${encodeURIComponent(cat.category)}`)}
-                    onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && router.push(`/search?category=${encodeURIComponent(cat.category)}`)}
-                    style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)', padding: '10px 14px',
-                    cursor: 'pointer', transition: 'border-color 0.2s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,151,90,0.3)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                    {/* ER6 F12: long category names (e.g. "Criminal Justice & Public
-                        Safety") + the bills/avg-score group could collide or wrap at
-                        the 480px column under iOS Larger Text. Truncate the label with
-                        an ellipsis and pin the stat group so it never gets squeezed. */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-mid)', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={cat.category}>{cat.category}</span>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
-                          {cat.total_bills} bills
-                        </span>
-                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: barColor, fontWeight: 600, textShadow: avg >= 50 ? '0 0 8px rgba(184,151,90,0.3)' : 'none' }}>
-                          avg score {avg}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${Math.min(avg, 100)}%`,
-                        background: barColor, borderRadius: 2,
-                        boxShadow: avg >= 50 ? '0 0 8px rgba(184,151,90,0.3)' : 'none',
-                        transition: 'width 0.4s ease',
-                      }}/>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        <MoversChart deltas={scoreDeltas} billsById={billsById} interim={isInterimPeriod()} />
 
         {/* ── STAT STRIP (Phase 7V: nav stripped, Nav covers routing) ── */}
         <div style={{
