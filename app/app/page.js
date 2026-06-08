@@ -19,6 +19,9 @@ import SessionClock from './components/dashboard/SessionClock'
 import MoversChart from './components/dashboard/MoversChart'
 import MomentumTile from './components/dashboard/MomentumTile'
 import IssueHeat from './components/dashboard/IssueHeat'
+import NeedsAttention from './components/dashboard/NeedsAttention'
+import { isAtRisk } from '../lib/at-risk'
+import { getPortfolioWeeklyDelta } from '../lib/portfolio-deltas'
 
 function outlookLabel(avg) {
   if (avg >= 55) return { text: 'Very Strong', color: 'var(--teal-bright)', glow: 'var(--teal-glow)' }
@@ -67,6 +70,7 @@ export default function HomePage() {
   const [topBills, setTopBills]  = useState([])
   const [categories, setCategories] = useState([])
   const [scoreDeltas, setScoreDeltas] = useState({}) // bill_id -> delta number
+  const [portfolioDelta, setPortfolioDelta] = useState(null) // DASH-3: signed weekly avg-trajectory change (null until computed)
   const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
   const [loading, setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -114,7 +118,7 @@ export default function HomePage() {
       user
         ? supabase
             .from('tracked_bills')
-            .select('bill_id, tag, added_at, bills(bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, confidence_label, session)')
+            .select('bill_id, tag, added_at, bills(bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, confidence_label, session, hearing_date, pulled_from_rules, held_in_rules, days_to_cutoff, days_since_action)')
             .eq('user_id', user.id)
             .order('added_at', { ascending: false })
         : Promise.resolve({ data: null }),
@@ -197,6 +201,15 @@ export default function HomePage() {
           })
           setScoreDeltas(deltas)
         }
+      }
+
+      // DASH-3: portfolio weekly delta for the hero gauge -- a second light
+      // read, also off the critical path. Averages each tracked bill's
+      // (now - ~7d ago) trajectory from snapshots. Interim is excluded above.
+      const wlIds = wl.map(w => w.bill_id).filter(Boolean)
+      if (wlIds.length > 0) {
+        const pd = await getPortfolioWeeklyDelta(supabase, wlIds)
+        if (pd) setPortfolioDelta(pd.delta)
       }
     }
   }
@@ -281,9 +294,24 @@ export default function HomePage() {
   const highMomentum = isInterimPeriod()
     ? (interimWatchCounts?.law || 0)
     : watchlist.filter(w => (w.bills?.final_score || 0) >= 50).length
+  // DASH-3: at-risk is no longer a naive score<25 -- it's the at-risk.js model
+  // (cutoff pressure + held/stalled + stuck-low, excluding terminal/advancing).
   const atRisk = isInterimPeriod()
     ? (interimWatchCounts?.dead || 0)
-    : watchlist.filter(w => (w.bills?.final_score || 0) < 25).length
+    : watchlist.filter(w => isAtRisk(w.bills)).length
+
+  // DASH-3: hero "vs last week" delta. Frozen during the interim (scores don't
+  // move -- never fabricate a number); a muted placeholder until the
+  // off-critical-path snapshot read resolves; then Sage up / Rust down.
+  const heroDelta = isInterimPeriod()
+    ? { color: 'var(--text-muted)', arrow: '', value: 'Scores frozen', sub: 'interim' }
+    : portfolioDelta == null
+      ? { color: 'var(--text-muted)', arrow: '▲', value: '—', sub: 'vs last week' }
+      : portfolioDelta > 0
+        ? { color: 'var(--sage)', arrow: '▲', value: String(portfolioDelta), sub: 'vs last week' }
+        : portfolioDelta < 0
+          ? { color: 'var(--danger)', arrow: '▼', value: String(Math.abs(portfolioDelta)), sub: 'vs last week' }
+          : { color: 'var(--text-mid)', arrow: '▬', value: '0', sub: 'vs last week' }
 
 
   // ── PUBLIC-LAYER GATE ───────────────────────────────────────────────
@@ -568,8 +596,8 @@ export default function HomePage() {
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 7 }}>
                   Portfolio trajectory
                 </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                  ▲ — <span style={{ color: 'var(--text-faint)' }}>vs last week</span>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: heroDelta.color, marginBottom: 4 }}>
+                  {heroDelta.arrow ? `${heroDelta.arrow} ` : ''}{heroDelta.value} <span style={{ color: 'var(--text-faint)' }}>{heroDelta.sub}</span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.4 }}>
                   {watchlist.length} bill{watchlist.length === 1 ? '' : 's'} tracked
@@ -578,6 +606,14 @@ export default function HomePage() {
             </div>
             <DistributionBar counts={tierCounts} style={{ marginTop: 13 }} />
           </div>
+        )}
+
+        {/* ── DASH-3: NEEDS ATTENTION ──────────────────────
+            Risk + hearings triage for the tracked set, directly under the
+            portfolio hero. Self-gates: hidden during the interim and when
+            nothing needs flagging (see NeedsAttention.js). */}
+        {watchlist.length > 0 && (
+          <NeedsAttention watchlist={watchlist} interim={isInterimPeriod()} />
         )}
 
         {/* ── STALE DATA WARNING (Phase 5A) ────────────────── */}

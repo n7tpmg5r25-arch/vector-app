@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.27.0',
+    date: '2026-06-07',
+    phase: 'alpha',
+    highlights: [
+      'A new “needs attention” card now leads the home dashboard for signed-in users, distilling your tracked bills into three reads: how many are at risk, how many have a hearing in the next 7 days, and the single most urgent bill with the reason it’s flagged. “At risk” is a real model now, not a low score — a bill counts only if it’s still alive and losing its path to passage: held in the Rules Committee, stalled with no action for three weeks or more, or facing a statutory cutoff within a week before it has cleared committee.',
+      'The portfolio trajectory gauge now shows how your watchlist moved over the past week. The placeholder under the dial is replaced by a real signed change — the average trajectory of your tracked bills versus seven days ago — rising in green or falling in red.',
+      'Between sessions, when scores are frozen, the new card and the weekly change stay honest: the card steps aside and the gauge reads as frozen rather than inventing movement. Hearings count only inside the next seven days, so the card reflects the week actually ahead.',
+    ],
+  },
+  {
     version: '5.26.0',
     date: '2026-06-06',
     phase: 'alpha',
