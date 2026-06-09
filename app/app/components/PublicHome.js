@@ -1,412 +1,280 @@
 'use client'
 /**
- * PublicHome -- Phase 12 Batch 4 + Thread 24 (2026-04-26)
+ * PublicHome -- anonymous-visitor cockpit (DASH-6, 2026-06-08).
  *
- * Anonymous-visitor home page. Renders only when:
- *   useViewer() returns !user && publicLayerEnabled === true
- * and the proxy gate has admitted the request.
+ * Brings the anon path to the same glanceable cockpit registered users see
+ * (DASH-1..5), reading the statewide warehouse through the anon browser client
+ * (RLS public-read on bills / interim_intelligence / trajectory_snapshots /
+ * news_items). Renders only when useViewer() returns !user && publicLayerEnabled
+ * and the proxy gate has admitted the request; the page-level gate in
+ * app/app/page.js skips loadData() for this path, so PublicHome owns its own
+ * statewide fetches.
  *
- * Thread 24 layout:
- *   - PublicNav top bar -- wordmark, How it works, About, Sign in
- *   - Hero band -- Section 10 logo lockup + Section 02 functional descriptor
- *   - "What is Vector | WA" 2-paragraph explainer
- *   - Interim-only "How did the {bienniumShortLabel} session end?" tile
- *     (gated on isInterimPeriod())
- *   - "By the numbers" datasheet panel (4 stat cells: bills tracked /
- *     calibration cohort / sessions covered / refresh cadence) -- replaces
- *     the persona-card concept after preview review found it off-brand
- *   - Bills-moving widget (interim-aware)
- *   - Top categories shortcut grid
- *   - Three generic browse tiles (Search / Committees / Members)
- *   - Global Footer (rendered by the root layout) carries Section 02 line
+ * Parity with the registered shell, with three swaps:
+ *   1. Hero gauge  -> statewide "% still alive" (not-DEAD / total) over the
+ *      statewide tier distribution, in place of the personal portfolio gauge.
+ *   2. Movers      -> statewide score movers (the top-trajectory cohort), in
+ *      place of the watchlist movers. Momentum counts the same statewide rises.
+ *   3. Personal needs-attention card -> a static "track your bills -- free"
+ *      prompt.
+ * Issue heat and In-the-news are identical to registered (both already
+ * statewide); the news card reads the same four newest news_items. Footer ->
+ * Search / How it works. Everything stays behind NEXT_PUBLIC_ENABLE_PUBLIC_LAYER
+ * (off in prod) -- the page-level gate is the upstream switch.
  *
- * G1 -- Sessions-covered count derives from getAllSessions().length so
- *       rollover years auto-roll. No hardcoded biennium literals.
- * G5 -- 8,062 calibration cohort literal preserved verbatim (frozen until
- *       2027-04 calibration refresh per scoreBill freeze). No scoreBill
- *       or extractFeatures touches.
- * G6 -- Page-scoped component; PublicNav is shared but not globally mounted.
- *       Footer changes preserve Thread 19.1 viewer-aware bottom-line.
+ * Interim-aware: between sessions (now) scores are frozen, so the movers and
+ * momentum instruments render their frozen states and no snapshot diff runs.
+ * The gauge then reads the survival share, issue heat reads interim_intelligence,
+ * and the news card runs year-round. Brand v1.2: real logo (PublicNav lockup +
+ * the prompt mark), Playfair numbers, DM Mono labels, Karla body, brass
+ * restrained, functional palette semantic-only. Mobile-only; no media queries.
  */
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import PublicNav from './PublicNav'
-import BillsMovingWidget from './BillsMovingWidget'
-import {
-  isInterimPeriod,
-  getCurrentSession,
-  bienniumShortLabel,
-  getAllSessions,
-} from '../../lib/session-config'
+import ArcGauge from './dashboard/ArcGauge'
+import DistributionBar from './dashboard/DistributionBar'
+import SessionClock from './dashboard/SessionClock'
+import MomentumTile from './dashboard/MomentumTile'
+import IssueHeat from './dashboard/IssueHeat'
+import MoversChart from './dashboard/MoversChart'
+import InTheNews from './dashboard/InTheNews'
+import { createBrowserClient } from '../../lib/supabase'
+import { isInterimPeriod, getCurrentSession, bienniumShortLabel } from '../../lib/session-config'
+import { getSessionClock } from '../../lib/session-clock'
 
-// Top categories for the shortcut grid. Names sourced from the canonical
-// taxonomy in app/lib/categories (15-category list). Hardcoded subset of 6
-// highest-salience for anon visitors. Reorder eyeball recommended if the
-// canonical list is reordered -- chips link to /search?category=X and the
-// search page expects exact-match category strings.
-const TOP_CATEGORIES = [
-  'Health',
-  'Education',
-  'Housing',
-  'Criminal Justice',
-  'Environment',
-  'Transportation',
-]
-
-const SECTION_EYEBROW = {
-  fontSize: 10,
-  color: 'var(--text-faint)',
-  letterSpacing: '0.12em',
-  textTransform: 'uppercase',
-  fontWeight: 600,
-  marginBottom: 10,
+const EYEBROW = {
+  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
+  textTransform: 'uppercase', color: 'var(--text-muted)',
 }
+
+// Statewide movers diff: scan the top-trajectory cohort and look back a couple
+// of weeks. Both bounds keep the snapshot read under the PostgREST 1000-row cap
+// (<= cohort * window rows) while staying wide enough to be a real statewide read.
+const MOVERS_COHORT = 60
+const MOVERS_WINDOW_DAYS = 14
 
 export default function PublicHome() {
   const interim = isInterimPeriod()
-  const sessionShort = bienniumShortLabel(getCurrentSession())
-  // Thread 36.4 — datasheet labels "years covered" not "sessions covered".
-  // WA Legislature uses 2-year bienniums; getAllSessions().length returns the
-  // number of bienniums (3 = 2021-22 + 2023-24 + 2025-26). A casual reader
-  // hears "session" and thinks of an annual session, so 3 reads as wrong.
-  // Multiplying by 2 gives the unambiguous span: 6 years of data.
-  const yearsCovered = getAllSessions().length * 2
+  const session = getCurrentSession()
+  const clock = getSessionClock()
+
+  const [stats, setStats] = useState(null)   // { total, alive, alivePct, tiers }
+  const [categories, setCategories] = useState([])
+  const [newsItems, setNewsItems] = useState([])
+  const [deltas, setDeltas] = useState({})   // bill_id -> signed score change
+  const [billsById, setBillsById] = useState({})
+
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createBrowserClient()
+
+    async function load() {
+      // One statewide bill-count helper, reused for the survival rate and each
+      // tier bucket. head:true => count only, no rows over the wire.
+      const billCount = () => supabase
+        .from('bills')
+        .select('bill_id', { count: 'exact', head: true })
+        .eq('session', session)
+        .eq('legislation_type', 'bill')
+
+      const [totalRes, deadRes, highRes, modRes, lowRes, vlowRes, catsRes, newsRes] =
+        await Promise.all([
+          billCount(),                                               // total
+          billCount().eq('confidence_label', 'DEAD'),                // dead -> alive = total - dead
+          billCount().gte('final_score', 75),                        // HIGH
+          billCount().gte('final_score', 60).lt('final_score', 75),  // MODERATE
+          billCount().gte('final_score', 45).lt('final_score', 60),  // LOW
+          billCount().lt('final_score', 45),                         // VERY LOW (nulls excluded by <)
+          supabase.from('interim_intelligence')
+            .select('category, avg_score, total_bills')
+            .order('avg_score', { ascending: false })
+            .limit(8),
+          supabase.from('news_items')
+            .select('source, title, snippet, url, published_at, item_type')
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .limit(4),
+        ])
+      if (cancelled) return
+
+      const total = totalRes.count || 0
+      const dead = deadRes.count || 0
+      const alive = Math.max(0, total - dead)
+      setStats({
+        total, alive,
+        alivePct: total > 0 ? Math.round((alive / total) * 100) : 0,
+        tiers: {
+          high: highRes.count || 0, mod: modRes.count || 0,
+          low: lowRes.count || 0, vlow: vlowRes.count || 0,
+        },
+      })
+      setCategories((catsRes.data || []).filter(c => c.category && c.category !== 'Other'))
+      setNewsItems(newsRes.data || [])
+
+      // Statewide movers -- off the critical path, in-session only. Scores are
+      // frozen during the interim, so MoversChart + MomentumTile render their
+      // frozen states and we skip the snapshot diff entirely. In session we scan
+      // the top-trajectory cohort (bounded for the 1000-row cap) and diff each
+      // bill's two most recent snapshots.
+      if (interim) return
+      const { data: top } = await supabase
+        .from('bills')
+        .select('bill_id, bill_number, chamber, final_score')
+        .eq('session', session)
+        .eq('legislation_type', 'bill')
+        .not('final_score', 'is', null)
+        .order('final_score', { ascending: false })
+        .limit(MOVERS_COHORT)
+      if (cancelled || !top || top.length === 0) return
+
+      const byId = {}
+      top.forEach(b => { byId[b.bill_id] = b })
+      const since = new Date(Date.now() - MOVERS_WINDOW_DAYS * 86400000).toISOString().slice(0, 10)
+      const { data: snaps } = await supabase
+        .from('trajectory_snapshots')
+        .select('bill_id, score, snapshot_date')
+        .in('bill_id', top.map(b => b.bill_id))
+        .gte('snapshot_date', since)
+        .order('snapshot_date', { ascending: false })
+      if (cancelled || !snaps) return
+
+      const recent = {}
+      snaps.forEach(s => {
+        if (!recent[s.bill_id]) recent[s.bill_id] = []
+        if (recent[s.bill_id].length < 2) recent[s.bill_id].push(s)
+      })
+      const d = {}
+      Object.entries(recent).forEach(([bid, arr]) => {
+        if (arr.length >= 2) d[bid] = (arr[0].score || 0) - (arr[1].score || 0)
+      })
+      setBillsById(byId)
+      setDeltas(d)
+    }
+
+    load()
+    return () => { cancelled = true }
+  }, [interim, session])
+
+  const tiers = stats?.tiers || { high: 0, mod: 0, low: 0, vlow: 0 }
+  const alivePct = stats?.alivePct ?? 0
+  const momentumCount = Object.values(deltas).filter(v => v > 0).length
+  const shortLabel = bienniumShortLabel(session)
 
   return (
-    <div style={{ fontFamily: 'var(--font-body)', minHeight: '100vh', paddingBottom: 40 }}>
+    <div style={{ paddingBottom: 40, fontFamily: 'var(--font-body)', minHeight: '100vh' }}>
       <PublicNav />
 
-      {/* ---- HERO ---- */}
-      <header
-        style={{
-          padding: '56px 20px 36px',
-          background: 'linear-gradient(180deg, #0e1014 0%, var(--bg) 100%)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage:
-              'radial-gradient(ellipse at 70% 20%, rgba(184,151,90,0.08) 0%, transparent 60%)',
-            pointerEvents: 'none',
-          }}
-        />
+      <div style={{ padding: '14px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        <div style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto' }}>
-          <img
-            src="/logos/vector-wa-primary.svg"
-            alt="Vector | WA"
-            style={{
-              height: 88,
-              width: 'auto',
-              display: 'block',
-              marginBottom: 18,
-              filter: 'drop-shadow(0 0 24px rgba(184,151,90,0.28))',
-            }}
-          />
-
-          <p
-            style={{
-              fontSize: 18,
-              lineHeight: 1.5,
-              color: 'var(--text-primary)',
-              maxWidth: 540,
-              margin: '0 0 12px',
-              fontWeight: 500,
-            }}
-          >
-            Free, nonpartisan legislative intelligence for Washington State.
-          </p>
-
-          <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--text-mid)', maxWidth: 560, margin: 0 }}>
-            Trajectory scores, momentum, and committee activity for every bill in Olympia. Built
-            for advocates, staff, journalists, and anyone who wants to read the building.
-          </p>
-
-          {/* Thread 71 (2026-05-07) \u2014 hero CTA repointed from /how-it-works
-              to /about. After the /install rename, /how-it-works no longer
-              exists as a destination, and /install is a retention CTA, not
-              the right top-of-funnel pitch for a curious visitor. /about
-              is the natural "learn what this is" landing for the hero. */}
-          <Link
-            href="/about"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              marginTop: 14,
-              fontSize: 13,
-              fontWeight: 600,
-              letterSpacing: '0.01em',
-              color: 'var(--teal)',
-              textDecoration: 'none',
-              borderBottom: '1px solid rgba(184,151,90,0.4)',
-              paddingBottom: 1,
-            }}
-          >
-            About Vector | WA <span aria-hidden="true">{'\u2192'}</span>
-          </Link>
+        {/* -- CHROME: next-cutoff chip + session clock (mirrors the registered bar) -- */}
+        <div>
+          {clock.nextCutoff && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, whiteSpace: 'nowrap',
+                color: clock.nextCutoff.daysLeft <= 7 ? 'var(--danger)' : 'var(--text-mid)',
+                background: clock.nextCutoff.daysLeft <= 7 ? 'rgba(196,71,48,0.1)' : 'rgba(184,151,90,0.08)',
+                border: `1px solid ${clock.nextCutoff.daysLeft <= 7 ? 'rgba(196,71,48,0.25)' : 'var(--border)'}`,
+                borderRadius: 11, padding: '3px 9px',
+              }}>
+                Cutoff &middot; {clock.nextCutoff.daysLeft}d
+              </span>
+            </div>
+          )}
+          <SessionClock clock={clock} />
         </div>
-      </header>
 
-      {/* ---- EXPLAINER ---- */}
-      <section style={{ padding: '24px 20px 8px', maxWidth: 720, margin: '0 auto' }}>
-        <div style={SECTION_EYEBROW}>What is Vector | WA</div>
-        <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-mid)', margin: '0 0 12px' }}>
-          {'Vector | WA is a Washington State legislative intelligence tool. It watches every bill in Olympia, scores its trajectory from 0 to 99, and refreshes nightly. The score blends five procedural signals \u2014 committee placement, sponsor profile, momentum, historical category pass rates, and fiscal note size \u2014 calibrated against thousands of past bills with known outcomes.'}
-        </p>
-        <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text-mid)', margin: 0 }}>
-          {'The site is free, nonpartisan, and built for anyone who needs to read the docket without paying for an enterprise tracker. The public site launches mid 2027 \u2014 for now, every bill, every committee, and every legislator is here at no cost.'}
-        </p>
-      </section>
-
-      {/* ---- INTERIM-ONLY OUTCOMES TILE ---- */}
-      {interim && (
-        <section style={{ padding: '14px 20px 0', maxWidth: 720, margin: '0 auto' }}>
-          <Link
-            href="/outcomes"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              padding: '14px 16px',
-              background: 'rgba(184,151,90,0.06)',
-              border: '1px solid rgba(184,151,90,0.25)',
-              borderRadius: 10,
-              textDecoration: 'none',
-              color: 'inherit',
-              transition: 'border-color 0.15s, background 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--teal)'
-              e.currentTarget.style.background = 'rgba(184,151,90,0.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(184,151,90,0.25)'
-              e.currentTarget.style.background = 'rgba(184,151,90,0.06)'
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--gold)',
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                Interim
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.35 }}>
-                How did the {sessionShort} session end?
-              </div>
-              {/* Thread 41.5: copy now matches the destination /outcomes
-                  page exact labels (Signed / Passed Chamber / Dead). The
-                  prior "what carried over" framing was misleading post-
-                  biennium-close (nothing actually carries over to the
-                  next biennium) and inconsistent with the destination
-                  page's "Passed Chamber - did not become law this
-                  session" tooltip. */}
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
-                {'Final tally \u2014 what was signed, what passed one chamber, what died.'}
+        {/* -- HERO: statewide survival gauge + tier distribution -- */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)', padding: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <ArcGauge
+              value={alivePct}
+              max={100}
+              displayValue={stats ? `${alivePct}%` : '—'}
+              subLabel="alive"
+              size={104}
+              ariaLabel={stats
+                ? `${alivePct}% of ${stats.total} bills still alive this session`
+                : 'Loading statewide survival rate'}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ ...EYEBROW, marginBottom: 7 }}>Session pulse &middot; {shortLabel}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-mid)', lineHeight: 1.5 }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
+                  {stats ? stats.total.toLocaleString() : '—'}
+                </span> bills tracked<br />
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--sage)' }}>
+                  {stats ? tiers.high.toLocaleString() : '—'}
+                </span> in the HIGH tier
               </div>
             </div>
-            <span aria-hidden="true" style={{ fontSize: 18, color: 'var(--teal)', flexShrink: 0 }}>{'\u2192'}</span>
-          </Link>
-        </section>
-      )}
-
-      {/* ---- BY THE NUMBERS (Thread 24 datasheet, refined Thread 36.4) ----
-           Three cells: calibration cohort + years covered + refresh cadence.
-           Bills Tracked tile dropped per Colin 2026-04-28: redundant given
-           the BillsMovingWidget below shows live activity.
-           "Years covered" replaces "Sessions covered" because WA bienniums
-           read as ambiguous to non-WA-native journalists ("3 sessions" reads
-           as 3 annual sessions, not 3 bienniums).
-           All three values now use mono so the visual rhythm is consistent. */}
-      <section style={{ padding: '24px 20px 12px', maxWidth: 720, margin: '0 auto' }}>
-        <div style={SECTION_EYEBROW}>By the numbers</div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: 8,
-          }}
-        >
-          <StatCell value="8,062" label="calibration cohort" />
-          <StatCell value={String(yearsCovered)} label="years covered" />
-          <StatCell value="Daily" label="refresh" />
+          </div>
+          {stats && <DistributionBar counts={tiers} style={{ marginTop: 13 }} />}
         </div>
-      </section>
 
-      {/* ---- BILLS-MOVING WIDGET ---- */}
-      <section style={{ maxWidth: 720, margin: '0 auto', padding: '12px 0 8px' }}>
-        <BillsMovingWidget />
-      </section>
+        {/* -- TRACK-YOUR-BILLS PROMPT (replaces the personal needs-attention card) -- */}
+        <Link href="/login" style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderLeft: '3px solid var(--brass)', borderRadius: '0 var(--radius) var(--radius) 0',
+          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+          textDecoration: 'none', color: 'inherit',
+        }}>
+          <img
+            src="/logos/vector-wa-mark.svg"
+            alt=""
+            aria-hidden="true"
+            style={{ height: 20, width: 'auto', flexShrink: 0, filter: 'drop-shadow(0 0 10px rgba(184,151,90,0.25))' }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 2 }}>
+              Track your bills &mdash; free
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-mid)', lineHeight: 1.4 }}>
+              A watchlist, hearing alerts, and your own trajectory gauge.
+            </div>
+          </div>
+          <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--brass)', flexShrink: 0 }}>
+            {'→'}
+          </span>
+        </Link>
 
-      {/* ---- TOP CATEGORIES SHORTCUT ---- */}
-      <section style={{ maxWidth: 720, margin: '0 auto', padding: '20px 20px 8px' }}>
-        <div style={SECTION_EYEBROW}>Browse by category</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {TOP_CATEGORIES.map((cat) => (
-            <Link
-              key={cat}
-              href={`/search?category=${encodeURIComponent(cat)}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--text-mid)',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 16,
-                textDecoration: 'none',
-                transition: 'border-color 0.15s, color 0.15s, background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--teal)'
-                e.currentTarget.style.color = 'var(--teal)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border)'
-                e.currentTarget.style.color = 'var(--text-mid)'
-              }}
-            >
-              {cat}
-            </Link>
-          ))}
-          <Link
-            href="/search"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 500,
-              color: 'var(--teal)',
-              background: 'transparent',
-              border: '1px dashed rgba(184,151,90,0.3)',
-              borderRadius: 16,
-              textDecoration: 'none',
-            }}
-          >
-            {'All categories \u2192'}
-          </Link>
+        {/* -- INSTRUMENTS: momentum + issue heat (2-up), then statewide movers -- */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <MomentumTile count={momentumCount} interim={interim} />
+          <IssueHeat categories={categories} />
         </div>
-      </section>
+        <MoversChart deltas={deltas} billsById={billsById} interim={interim} />
 
-      {/* ---- ENTRY TILES (existing -- generic browse) ---- */}
-      <section style={{ padding: '20px 16px 28px', maxWidth: 720, margin: '0 auto' }}>
-        <div style={{ ...SECTION_EYEBROW, paddingLeft: 4 }}>Or just browse</div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 10,
-          }}
-        >
-          <EntryTile
-            href="/search"
-            title="Search bills"
-            body="Filter by category, sponsor, committee, or status."
-          />
-          <EntryTile
-            href="/committees"
-            title="Browse committees"
-            body="See where each bill is sitting and what's queued for hearings."
-          />
-          <EntryTile
-            href="/members"
-            title="Browse legislators"
-            body="Senators, representatives, sponsorship and committee assignments."
-          />
+        {/* -- IN THE NEWS (identical to registered; statewide, self-hides when empty) -- */}
+        <InTheNews items={newsItems} />
+
+        {/* -- FOOTER NAV -- */}
+        <div style={{ display: 'flex', gap: 9 }}>
+          <FooterPill href="/search">Search bills</FooterPill>
+          <FooterPill href="/methodology">How it works</FooterPill>
         </div>
-      </section>
-    </div>
-  )
-}
-
-function StatCell({ value, label }) {
-  return (
-    <div
-      style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
-        padding: '14px 12px',
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 22,
-          fontWeight: 700,
-          color: 'var(--teal)',
-          lineHeight: 1.1,
-          textShadow: '0 0 12px rgba(184,151,90,0.25)',
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: 9,
-          color: 'var(--text-faint)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginTop: 6,
-          lineHeight: 1.3,
-        }}
-      >
-        {label}
       </div>
     </div>
   )
 }
 
-function EntryTile({ href, title, body }) {
+function FooterPill({ href, children }) {
   return (
     <Link
       href={href}
       style={{
-        display: 'block',
-        padding: '16px 16px 18px',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
-        textDecoration: 'none',
-        transition: 'border-color 0.15s, background 0.15s, transform 0.15s',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'var(--teal)'
-        e.currentTarget.style.background = 'var(--bg-card-2)'
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.background = 'var(--bg-card)'
+        flex: 1, textAlign: 'center', textDecoration: 'none',
+        border: '1px solid var(--border)', borderRadius: 10,
+        padding: '12px 9px', minHeight: 44,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
+        textTransform: 'uppercase', color: 'var(--text-mid)',
       }}
     >
-      <div
-        style={{
-          fontSize: 15,
-          color: 'var(--text-primary)',
-          fontWeight: 600,
-          letterSpacing: '0.01em',
-          marginBottom: 6,
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>{body}</div>
+      {children}
     </Link>
   )
 }
