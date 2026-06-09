@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.28.0',
+    date: '2026-06-08',
+    phase: 'alpha',
+    highlights: [
+      'Groundwork landed for a statewide news feed on the dashboard. A nightly job now gathers Washington legislative and political coverage from seven curated sources — Washington State Standard, the Spokesman-Review, KNKX, KUOW, Cascade PBS, The Olympian, and the state Legislature — and files each story as a headline, a one-line summary, its source, and a link.',
+      'The feed stays lean and honest: duplicate stories collapse to a single entry, items are kept for 60 days and then retired, and any source that goes quiet is skipped without holding up the rest. It runs year-round, including between sessions.',
+      'Nothing changes on screen yet — this is the data layer. The “In the news” card that reads from it arrives in the next update.',
+    ],
+  },
+  {
     version: '5.27.0',
     date: '2026-06-07',
     phase: 'alpha',
