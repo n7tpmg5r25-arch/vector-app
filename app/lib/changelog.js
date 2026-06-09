@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.31.0',
+    date: '2026-06-08',
+    phase: 'alpha',
+    highlights: [
+      'Every PDF export now reads “Export as PDF” across the bill, member, and watchlist pages — one consistent label in place of the older mix of “Share PDF” and “Export PDF”. On phones the button now downloads the file directly, like it does everywhere else, instead of opening the share sheet.',
+      'Before a PDF is generated, a short confirmation now asks you to acknowledge that you are responsible for verifying the information against the official record before relying on it or sharing it.',
+    ],
+  },
+  {
     version: '5.30.0',
     date: '2026-06-08',
     phase: 'alpha',

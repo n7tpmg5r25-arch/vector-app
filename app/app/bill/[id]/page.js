@@ -20,8 +20,9 @@ import { isFinalPassage, bucketMemberVotes, padBucketsToReported, characterize }
 import { translateAmendmentEvent, WSL_AMENDMENT_REFERENCE_URL } from '../../../lib/wsl-amendment-codes'
 import { parseSummarySections, splitInlineBold } from '../../../lib/summary-format'
 import VectorLoader from '../../components/VectorLoader'
-import { Check, ArrowUpRight, FileText, Bookmark, Loader2, Share } from 'lucide-react'
-import { sharePdf, canSharePdfFiles } from '../../../lib/share-pdf'
+import { Check, ArrowUpRight, FileText, Bookmark, Loader2 } from 'lucide-react'
+import { downloadPdf } from '../../../lib/share-pdf'
+import { confirmExport } from '../../../lib/export-ack'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -420,8 +421,6 @@ export default function BillDetailPage() {
   const [tag, setTag] = useState('')
   const [shared, setShared]     = useState(false)
   const [exporting, setExporting] = useState(false)  // Thread 12.3: PDF brief export
-  const [canShare, setCanShare] = useState(false)  // ER4 (F8): device can share a PDF file via the share sheet
-  useEffect(() => { setCanShare(canSharePdfFiles()) }, [])
   const [scoreInfoOpen, setScoreInfoOpen] = useState(false)
   const [activeXf, setActiveXf] = useState(null) // T160 M3: tapped X-factor chip index (mobile tooltip reveal)
   const [vetoCtx, setVetoCtx] = useState(null) // Phase 11.3: historic veto rate for this bill's category
@@ -688,12 +687,11 @@ export default function BillDetailPage() {
    * through — the public brief format doesn't render them. */
   async function exportPublicBriefPdf() {
     if (!bill || exporting) return
+    if (!(await confirmExport())) return
     setExporting(true)
     try {
       const { generatePublicBriefPDF } = await import('../../../lib/generate-public-pdf')
-      // ER4 (F8): get the finished bytes back instead of an immediate download,
-      // then hand them to the share sheet (texts a brief to a client/staffer)
-      // with a download fallback baked into sharePdf().
+      // Thread A: plain download on every device (no share sheet).
       const { blob, filename } = await generatePublicBriefPDF({
         bill,
         scoreFeatures:      latestSnap?.xf_factors || [],
@@ -705,11 +703,7 @@ export default function BillDetailPage() {
         generatedAt:        new Date(),
         output:             'blob',
       })
-      const prefix = bill.chamber === 'House' ? 'HB' : 'SB'
-      await sharePdf(blob, filename, {
-        title: `${prefix} ${bill.bill_number} — Vector | WA brief`,
-        text:  `${prefix} ${bill.bill_number}: ${bill.title || ''}`.trim(),
-      })
+      downloadPdf(blob, filename)
     } catch (err) {
       console.error('Public PDF export failed:', err)
       alert('PDF export failed. Please try again.')
@@ -960,8 +954,8 @@ export default function BillDetailPage() {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {exporting
                 ? <Loader2 size={14} aria-hidden="true" style={{ animation: 'spin 1s linear infinite' }} />
-                : (canShare ? <Share size={14} aria-hidden="true" /> : <FileText size={14} aria-hidden="true" />)}
-              {exporting ? 'Generating' : (canShare ? 'Share PDF' : 'Export PDF')}
+                : <FileText size={14} aria-hidden="true" />}
+              {exporting ? 'Generating' : 'Export as PDF'}
             </span>
           </button>
           {capabilities.canSave && (

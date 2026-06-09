@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { createBrowserClient } from '../../../lib/supabase'
 import { PORTAL, FONT_BODY } from '../../../lib/portal-palette'
+import { confirmExport } from '../../../lib/export-ack'
 
 /**
  * Team portal — Download briefing PDF
@@ -33,6 +34,7 @@ export default function DownloadBriefingButton({ clientId, clientName }) {
 
   async function handleDownload() {
     if (busy) return
+    if (!(await confirmExport())) return
     setBusy(true)
     setErr(null)
     try {
