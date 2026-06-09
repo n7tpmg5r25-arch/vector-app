@@ -159,6 +159,20 @@ jobs:
             echo "Not Monday (day $DAY) -- skipping committee seat sync"
           fi
 
+      # DASH-4: statewide news ingest. Polls a curated set of WA RSS/Atom feeds
+      # (text-only: title + snippet + link + source), dedupes on a normalized
+      # URL/title key, and prunes to 60-day retention. Year-round (news is not
+      # session-gated) and fully fault-isolated — a dead feed logs and is
+      # skipped, and the script exits 0 even on error, so it can never fail the
+      # sync. Writes via the service-role key (RLS bypass); page reads are
+      # public. Groundwork for the DASH-5 "In the news" block; no UI yet.
+      - name: Sync statewide news (DASH-4)
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/sync-news.js
+
       - name: Report result
         if: always()
         run: echo "Sync completed at $(date -u)"
