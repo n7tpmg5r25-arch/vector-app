@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.30.0',
+    date: '2026-06-08',
+    phase: 'alpha',
+    highlights: [
+      'The home dashboard now greets signed-out visitors with the same cockpit registered users see, reading live statewide data in place of a personal watchlist. A survival gauge leads — the share of this session’s bills still alive, 924 of 3,111 (about 30%) as of this release — over a four-tier breakdown of where every scored bill stands.',
+      'Momentum, issue heat, today’s movers, and the “In the news” card are identical to the signed-in view, now drawn from the full statewide field rather than a tracked set. Between sessions, when scores are frozen, the movers and momentum read as frozen instead of inventing movement.',
+      'In place of the personal “needs attention” card, a quiet “track your bills — free” prompt invites visitors to sign in for a watchlist and their own trajectory gauge. This closes the six-part dashboard rebuild — the cockpit now reads the same whether or not you’re signed in.',
+    ],
+  },
+  {
     version: '5.29.0',
     date: '2026-06-08',
     phase: 'alpha',
