@@ -59,6 +59,14 @@ export async function sharePdf(blob, filename, meta = {}) {
   return 'downloaded'
 }
 
+/**
+ * Plain download of a generated PDF blob — no share sheet. (Thread A: every
+ * export is a direct download on every device.)
+ */
+export function downloadPdf(blob, filename) {
+  downloadBlob(blob, filename)
+}
+
 function downloadBlob(blob, filename) {
   if (typeof document === 'undefined') return
   const url = URL.createObjectURL(blob)

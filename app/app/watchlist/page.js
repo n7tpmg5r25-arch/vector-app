@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import { fetchTotalScoredBills } from '../../lib/app-stats'
+import { confirmExport } from '../../lib/export-ack'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
@@ -224,6 +225,8 @@ export default function WatchlistPage() {
 
   /* ── PDF Export handler ── */
   const handleExport = async () => {
+    if (exporting) return
+    if (!(await confirmExport())) return
     setExporting(true)
     try {
       const { generateBriefPDF } = await import('../../lib/generate-pdf')
@@ -407,7 +410,7 @@ export default function WatchlistPage() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
                 </svg>
-                {exporting ? 'Generating...' : highlighted.size > 0 ? `Export selected (${highlighted.size})` : 'Export PDF'}
+                {exporting ? 'Generating...' : highlighted.size > 0 ? `Export selected (${highlighted.size})` : 'Export as PDF'}
               </button>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
