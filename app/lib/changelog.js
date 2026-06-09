@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.29.0',
+    date: '2026-06-08',
+    phase: 'alpha',
+    highlights: [
+      'The dashboard now closes with an “In the news” card — up to four of the latest Washington legislative and political stories, each with its source, how long ago it ran, and a one-tap link out to the original. Press coverage and Legislature filings carry distinct marks, so reporting and official action read apart at a glance.',
+      'The card reads the statewide feed gathered nightly, shows the four most recent items, and opens each source in a new tab. A full “All →” view lists the thirty most recent.',
+      'When the feed has nothing new the card steps aside instead of showing an empty shell, so the home stays clean between updates.',
+    ],
+  },
+  {
     version: '5.28.0',
     date: '2026-06-08',
     phase: 'alpha',
