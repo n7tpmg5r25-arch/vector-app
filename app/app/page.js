@@ -20,6 +20,7 @@ import MoversChart from './components/dashboard/MoversChart'
 import MomentumTile from './components/dashboard/MomentumTile'
 import IssueHeat from './components/dashboard/IssueHeat'
 import NeedsAttention from './components/dashboard/NeedsAttention'
+import InTheNews from './components/dashboard/InTheNews'
 import { isAtRisk } from '../lib/at-risk'
 import { getPortfolioWeeklyDelta } from '../lib/portfolio-deltas'
 
@@ -69,6 +70,7 @@ export default function HomePage() {
   const [watchlist, setWatchlist] = useState([])
   const [topBills, setTopBills]  = useState([])
   const [categories, setCategories] = useState([])
+  const [newsItems, setNewsItems] = useState([])
   const [scoreDeltas, setScoreDeltas] = useState({}) // bill_id -> delta number
   const [portfolioDelta, setPortfolioDelta] = useState(null) // DASH-3: signed weekly avg-trajectory change (null until computed)
   const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
@@ -141,9 +143,17 @@ export default function HomePage() {
       interim ? billCount(q => q.eq('confidence_label', 'DEAD')) : Promise.resolve({ count: null }),
       // ER3 F6: bipartisan bill count for the interim stat strip (cheap head-count).
       interim ? billCount(q => q.eq('bipartisan', true)) : Promise.resolve({ count: null }),
+      // DASH-5: newest statewide news_items for the In-the-news card. Always
+      // runs (news is year-round, not gated by session or interim); the anon
+      // public client can read this table directly (RLS public-read).
+      supabase
+        .from('news_items')
+        .select('source, title, snippet, url, published_at, item_type')
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .limit(4),
     ]
 
-    const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes, bipartisanRes] =
+    const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes, bipartisanRes, newsRes] =
       await Promise.all(queries)
 
     const bills = billsResult.data || []
@@ -157,6 +167,7 @@ export default function HomePage() {
     setWatchlist(wl)
 
     setTotalBills(totalRes.count || 0)
+    setNewsItems(newsRes.data || [])
 
     if (interim) {
       setOutcomeCounts({ law: lawRes.count || 0, carryOver: coRes.count || 0, dead: deadRes.count || 0 })
@@ -938,6 +949,13 @@ export default function HomePage() {
             </div>
           ))}
         </div>
+
+        {/* DASH-5: In the news - one calm statewide block, last in the
+            cockpit body and directly above the footer nav (mock order).
+            Reads the DASH-4 news_items feed and self-hides while the table
+            is empty. Not interim-gated; statewide news runs year-round.
+            Public/anon parity is DASH-6. */}
+        <InTheNews items={newsItems} />
       </div>
 
       <Nav/>
