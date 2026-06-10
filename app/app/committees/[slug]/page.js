@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
+import { watchlistStore } from '../../../lib/watchlist-store'
 import { useSession } from '../../../lib/useSession'
 import { useViewer } from '../../../lib/viewer-capabilities'
 import { isInterimPeriod, getCurrentBiennium, getNextBiennium, formatSessionDate } from '../../../lib/session-config'
@@ -105,11 +106,7 @@ export default function CommitteeDetail() {
       // Thread 105 — fetch which of this committee's bills the user tracks
       let watched = new Set()
       if (user && (bs || []).length > 0) {
-        const { data: wData } = await supabase
-          .from('tracked_bills')
-          .select('bill_id')
-          .eq('user_id', user.id)
-          .in('bill_id', (bs || []).map(b => b.bill_id))
+        const { data: wData } = await watchlistStore(user).ids({ billIds: (bs || []).map(b => b.bill_id) })
         watched = new Set((wData || []).map(d => d.bill_id))
       }
       setWatchedIds(watched)

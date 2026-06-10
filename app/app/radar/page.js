@@ -27,6 +27,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
 import ScoreBadge from '../components/ScoreBadge'
@@ -201,7 +202,7 @@ function RadarContent() {
         `)
         .order('detected_at', { ascending: false })
         .limit(500),
-      supabase.from('tracked_bills').select('bill_id').eq('user_id', user.id),
+      watchlistStore(user).ids(),
     ])
 
     setClients(clientsRes.data || [])
@@ -390,7 +391,7 @@ function RadarContent() {
     if (!user || trackedIds.has(match.bill_id)) return
     setTrackedIds(prev => new Set([...prev, match.bill_id]))
     setMatches(prev => prev.map(m => m.id === match.id ? { ...m, seen_at: new Date().toISOString() } : m))
-    await supabase.from('tracked_bills').insert({ bill_id: match.bill_id, user_id: user.id, tag: null, notes: '' })
+    await watchlistStore(user).add(match.bill_id)
     await supabase.from('radar_matches').update({ seen_at: new Date().toISOString() }).eq('id', match.id)
   }
 

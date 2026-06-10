@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { isInterimPeriod, getCurrentSession } from '../../lib/session-config'
 import { fetchTotalScoredBills } from '../../lib/app-stats'
 import { confirmExport } from '../../lib/export-ack'
@@ -53,9 +54,8 @@ export default function WatchlistPage() {
       if (!user) return
 
       /* ── 1. Fetch tracked bills (now includes last_viewed_at) ── */
-      const { data } = await supabase
-        .from('tracked_bills')
-        .select(`
+      const { data } = await watchlistStore(user).list({
+        select: `
           bill_id, tag, notes, added_at, last_viewed_at,
           bills (
             bill_id, bill_number, title, final_score,
@@ -67,9 +67,8 @@ export default function WatchlistPage() {
             bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record,
             calendar_pressure, calendar_pressure_next_meeting
           )
-        `)
-        .eq('user_id', user.id)
-        .order('added_at', { ascending: false })
+        `,
+      })
 
       // Phase 7U.5: filter to the currently-viewed biennium. When the user
       // switches sessions via the session picker, this page re-runs load()
@@ -99,10 +98,7 @@ export default function WatchlistPage() {
               .in('bill_id', billIds)
               .order('snapshot_date', { ascending: false })
           : Promise.resolve({ data: null }),
-        supabase
-          .from('tracked_bills')
-          .update({ last_viewed_at: new Date().toISOString() })
-          .eq('user_id', user.id),
+        watchlistStore(user).touchViewed(),
         billIds.length > 0
           ? supabase
               .from('meeting_agenda_items')
@@ -307,7 +303,7 @@ export default function WatchlistPage() {
     setWatched(prev => prev.filter(w => w.bill_id !== billId))
     setHighlighted(prev => { const n = new Set(prev); n.delete(billId); return n })
     setOpenSwipeId(null)
-    await supabase.from('tracked_bills').delete().eq('bill_id', billId).eq('user_id', user.id)
+    await watchlistStore(user).remove(billId)
   }
 
   /* ── Thread 102: Toggle highlight for PDF report (swipe action) ── */

@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { isInterimPeriod } from '../../lib/session-config'
@@ -99,10 +100,7 @@ function SearchContent() {
   useEffect(() => {
     if (viewerLoading) return
     if (!user) { setWatchedIds(new Set()); return }
-    supabase
-      .from('tracked_bills')
-      .select('bill_id')
-      .eq('user_id', user.id)
+    watchlistStore(user).ids()
       .then(({ data }) => {
         if (data) setWatchedIds(new Set(data.map(d => d.bill_id)))
       })
@@ -179,8 +177,7 @@ function SearchContent() {
       setBulkAdding(false)
       return
     }
-    const rows = newBills.map(b => ({ bill_id: b.bill_id, user_id: user.id, tag: bulkTag.trim() || null, notes: '' }))
-    const { error } = await supabase.from('tracked_bills').insert(rows)
+    const { error } = await watchlistStore(user).addMany(newBills.map(b => b.bill_id), { tag: bulkTag.trim() || null, notes: '' })
     if (!error) {
       const newIds = new Set(watchedIds)
       newBills.forEach(b => newIds.add(b.bill_id))
@@ -200,10 +197,10 @@ function SearchContent() {
     if (!user) return
     const billId = bill.bill_id
     if (watchedIds.has(billId)) {
-      await supabase.from('tracked_bills').delete().eq('bill_id', billId).eq('user_id', user.id)
+      await watchlistStore(user).remove(billId)
       setWatchedIds(prev => { const n = new Set(prev); n.delete(billId); return n })
     } else {
-      await supabase.from('tracked_bills').insert({ bill_id: billId, user_id: user.id, tag: null, notes: '' })
+      await watchlistStore(user).add(billId)
       setWatchedIds(prev => new Set([...prev, billId]))
     }
   }
