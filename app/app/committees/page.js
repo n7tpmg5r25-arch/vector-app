@@ -74,7 +74,7 @@ export default function CommitteesPage() {
   // Phase 12 Batch 6 — capability-aware nav swap for anon visitors.
   // Thread 15.2: viewerLoading destructured + isAnonPublic gated on !viewerLoading
   // so authed users no longer flash PublicNav during the auth-resolve window.
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   const [view, setView] = useState('calendar') // 'calendar' | 'by-committee'
@@ -101,22 +101,43 @@ export default function CommitteesPage() {
   const [expandedLoading, setExpandedLoading] = useState(false)
   const [committeeLoading, setCommitteeLoading] = useState(true)
 
-  // Thread 103 — fetch watched bills when user is logged in
+  // Thread 103 — fetch watched bills when user is logged in.
+  // PORTAL-2: anon viewers load the device-local list when the public
+  // layer is on. Local rows can't join bills(...) (PORTAL_DEEP_DIVE.md
+  // §2.3), so the anon path hydrates by ids: local ids() → one
+  // bills .in() query — bills is anon-readable, and the 200-item local
+  // cap stays far under the 1000-row PostgREST limit.
   useEffect(() => {
-    if (!user) return
+    if (viewerLoading) return
+    if (!user && !capabilities.canSave) return
     async function loadWatched() {
-      const { data } = await watchlistStore(user).list({
-        select: 'bill_id, bills(bill_id, bill_number, title, chamber, final_score)',
-        ordered: false,
-      })
-      const ids = new Set((data || []).map(d => d.bill_id))
-      setWatchedBillIds(ids)
+      if (user) {
+        const { data } = await watchlistStore(user).list({
+          select: 'bill_id, bills(bill_id, bill_number, title, chamber, final_score)',
+          ordered: false,
+        })
+        const ids = new Set((data || []).map(d => d.bill_id))
+        setWatchedBillIds(ids)
+        const byId = {}
+        ;(data || []).forEach(d => { if (d.bills) byId[d.bill_id] = d.bills })
+        setWatchedBillDetails(byId)
+        return
+      }
+      const { data: idRows } = await watchlistStore(user).ids()
+      const localIds = (idRows || []).map(d => d.bill_id)
+      setWatchedBillIds(new Set(localIds))
       const byId = {}
-      ;(data || []).forEach(d => { if (d.bills) byId[d.bill_id] = d.bills })
+      if (localIds.length > 0) {
+        const { data: billRows } = await supabase
+          .from('bills')
+          .select('bill_id, bill_number, title, chamber, final_score')
+          .in('bill_id', localIds)
+        ;(billRows || []).forEach(b => { byId[b.bill_id] = b })
+      }
       setWatchedBillDetails(byId)
     }
     loadWatched()
-  }, [user?.id])
+  }, [user?.id, viewerLoading])
 
   // Load committees (for slug lookups)
   useEffect(() => {

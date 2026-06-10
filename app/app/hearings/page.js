@@ -38,7 +38,9 @@ export default function HearingsPage() {
   useEffect(() => {
     if (viewerLoading) return
     async function load() {
-      if (user) {
+      // PORTAL-2: anon viewers read watched-state from the device-local
+      // backend when the public layer is on (watchlistStore(null) → local).
+      if (user || capabilities.canSave) {
         const { data: wl } = await watchlistStore(user).ids()
         setWatchedIds(new Set((wl || []).map(w => w.bill_id)))
       }
