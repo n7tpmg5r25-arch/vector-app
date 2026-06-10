@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.33.0',
+    date: '2026-06-09',
+    phase: 'alpha',
+    highlights: [
+      'The statewide news feed now draws on 14 Washington outlets, up from 7 \u2014 adding the Everett Herald, the Walla Walla Union-Bulletin, MyNorthwest (KIRO Newsradio), and The Washington Observer, with best-effort slots for the Seattle Times, The Columbian, and The Center Square. The pool spans public media, commercial dailies, radio, wire, and independent Olympia press.',
+      'No single outlet can dominate what you see: the home card seats at most 2 items per source across its 4 rows, and the full news page at most 5 per source across 30. Sources take turns newest-first \u2014 a fixed rule, not a judgment call, and identical whether or not you are signed in.',
+      'Whole-newsroom feeds now pass one government-beat test \u2014 Legislature, elections, budgets, agencies \u2014 applied identically to every outlet, so off-beat stories stay out without anyone hand-picking the news.',
+    ],
+  },
+  {
     version: '5.32.0',
     date: '2026-06-09',
     phase: 'alpha',

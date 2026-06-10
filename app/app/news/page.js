@@ -4,7 +4,9 @@
  *
  * The full statewide feed behind the dashboard's "In the news" card. Same
  * source the card reads (news_items, DASH-4), same row treatment (NewsRow from
- * InTheNews.js), just more of it — the thirty most recent items. Display only;
+ * InTheNews.js), just more of it — up to thirty recent items, balanced to at
+ * most five per source by the NEWS-1 neutral selection rule (lib/news-select),
+ * so one prolific outlet cannot fill the page. Display only;
  * no ingest, no scoring. Mobile-only: sticky brand header, global bottom nav.
  * Reads the public-read news_items table directly, so it works for any viewer.
  */
@@ -13,6 +15,7 @@ import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import { NewsRow } from '../components/dashboard/InTheNews'
+import { selectBalanced } from '../../lib/news-select'
 
 const EYEBROW = {
   fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
@@ -31,9 +34,9 @@ export default function NewsPage() {
         .from('news_items')
         .select('source, title, snippet, url, published_at, item_type')
         .order('published_at', { ascending: false, nullsFirst: false })
-        .limit(30)
+        .limit(120) // NEWS-1: multi-source pool; balanced down to 30 below
       if (active) {
-        setItems(data || [])
+        setItems(selectBalanced(data || [], { perSourceCap: 5, limit: 30 }))
         setLoading(false)
       }
     })()

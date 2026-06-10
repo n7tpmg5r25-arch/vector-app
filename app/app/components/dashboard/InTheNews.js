@@ -16,11 +16,18 @@
  * empty table, which renders nothing rather than a hollow card. Mobile-only;
  * no media queries.
  *
+ * Neutral selection (NEWS-1, 2026-06-09): the card receives a newest-first
+ * POOL (up to 24 rows from page.js / PublicHome.js) and balances it here - at
+ * most 2 rows per source, sources rotating newest-first (lib/news-select) - so
+ * no single outlet can own the card regardless of publishing volume. Anonymous
+ * and registered viewers get the same default selection.
+ *
  * Props:
- *   items  Array<{ source, title, url, published_at, item_type }>  newest-first, <=4
+ *   items  Array<{ source, title, url, published_at, item_type }>  newest-first pool
  */
 import Link from 'next/link'
 import { ExternalLink, FileText } from 'lucide-react'
+import { selectBalanced } from '../../../lib/news-select'
 
 const EYEBROW = {
   fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
@@ -94,7 +101,8 @@ export function NewsRow({ item }) {
 }
 
 export default function InTheNews({ items = [] }) {
-  const rows = (items || []).slice(0, 4)
+  // NEWS-1: per-source cap + newest-first rotation instead of a bare slice.
+  const rows = selectBalanced(items || [], { perSourceCap: 2, limit: 4 })
   // News is year-round (no interim gate). The one empty state is an empty
   // table — stay silent rather than render a hollow card. The DASH-4 nightly
   // job fills it within a day of going live.

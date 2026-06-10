@@ -19,6 +19,11 @@
  *   - Dedup on a normalized key — lower(trim(url || title)) — mirroring the DB
  *     unique index md5(lower(trim(coalesce(url,title)))). Duplicates across
  *     feeds and across nights collapse to one row (no duplicate floods).
+ *   - Neutral by rule (NEWS-1): the pool spans public media, commercial
+ *     dailies, radio, wire, and independent Olympia press; whole-newsroom
+ *     feeds pass one fixed government-beat keyword test, and what renders is
+ *     capped per source with newest-first rotation (app/lib/news-select.js).
+ *     Inclusion is mechanical - no editorial picks, no per-outlet tuning.
  *   - 60-day retention: items older than the window are pruned every run, so the
  *     table stays small and $0 on the Supabase free tier.
  *   - Writes use the service-role key (RLS-bypassing). Client reads are public
@@ -52,34 +57,116 @@ const MAX_ITEMS_PER_FEED = Math.max(1, parseInt(process.env.NEWS_MAX_ITEMS_PER_F
 const UPSERT_CHUNK = 200;
 
 // ── Curated WA feed list ───────────────────────────────────────────────────────
-// Each entry: { source, url, type }. `type` becomes news_items.item_type
-// ('article' = journalism, 'legislation' = official legislative item; DASH-5
-// renders an external-link vs file icon from it). This list is the single
-// editing surface — add/remove a line to change coverage. Because every feed is
-// fault-isolated, a wrong/dead URL is a logged no-op, never a failure; the first
-// nightly run's per-feed log confirms which resolve.
+// Each entry: { source, url, type, beat }.
+//   type  'article' | 'legislation' -> news_items.item_type ('legislation' is
+//         the official-filing glyph in DASH-5; everything else is journalism).
+//   beat  'politics' = the feed itself is a politics/government section, so
+//                      every item is already on-beat and ingests as-is.
+//         'general'  = a whole-newsroom feed; items must pass isNewsBeat()
+//                      (the fixed keyword test below) to ingest.
 //
-//   [verified] returned an RSS/Atom content-type during DASH-4 build
-//   [confirm]  best-effort URL — confirm from the first run's per-feed log line
+// NEUTRAL INCLUSION RULE (NEWS-1, 2026-06-09). The feed must not read as
+// favoring any outlet or viewpoint; inclusion is mechanical, never editorial:
+//   1. POOL    Every Washington outlet with a working public RSS/Atom feed and
+//              statewide government coverage qualifies - public media,
+//              commercial dailies, radio, wire, independent. No outlet is
+//              excluded or boosted for its editorial lean. Outlets we could
+//              not add: McClatchy's four WA dailies (News Tribune, Olympian*,
+//              Tri-City Herald, Bellingham Herald), the Puget Sound Business
+//              Journal (no public feeds; fetch blocked), and AP (no public
+//              RSS). *The Olympian keeps its pre-NEWS-1 best-effort line.
+//   2. BEAT    Politics / government / Legislature coverage only - via the
+//              outlet's own politics-section feed where one exists, or
+//              isNewsBeat() for whole-newsroom feeds. Same test for everyone.
+//   3. DISPLAY What renders is capped per source and rotated newest-first
+//              round-robin across sources (app/lib/news-select.js), so no
+//              single outlet can dominate a card no matter how much it
+//              publishes. Anonymous and registered viewers get the same
+//              default selection; any future per-user source preference must
+//              layer on top of this rule, never replace it.
+//
+// This list is the single editing surface - add/remove a line to change
+// coverage. Every feed is fault-isolated: a wrong/dead URL is a logged no-op,
+// never a failure, so the nightly per-feed log is the source of truth for
+// which resolve.
+//   [verified] returned RSS/Atom when checked (DASH-4 build or NEWS-1 2026-06-09)
+//   [confirm]  best-effort URL - confirm from the first run's per-feed log line
 const FEEDS = [
-  // [verified] WordPress / States Newsroom — returned application/rss+xml.
-  { source: 'WA State Standard', url: 'https://washingtonstatestandard.com/feed/', type: 'article' },
-  // [verified] Official Spokesman-Review feed index lists this exact WA-government feed.
-  { source: 'Spokesman-Review', url: 'https://www.spokesman.com/feeds/stories/washington-government/', type: 'article' },
-  // [verified] NPR-member (Grove) /index.rss — returned application/xml.
-  { source: 'KNKX', url: 'https://www.knkx.org/index.rss', type: 'article' },
-  // [confirm] Same NPR-member /index.rss pattern as KNKX; confirm on first run.
-  { source: 'KUOW', url: 'https://www.kuow.org/index.rss', type: 'article' },
-  // [confirm] Cascade PBS (formerly Crosscut), Brightspot CMS; confirm feed path.
-  { source: 'Cascade PBS', url: 'https://www.cascadepbs.org/index.rss', type: 'article' },
-  // [confirm] The Olympian (McClatchy) RSS widget; the contentId is site-specific
-  //   — confirm/replace from the first run's log if it returns zero items.
-  { source: 'The Olympian', url: 'https://www.theolympian.com/news/local/?widgetName=rssfeed&widgetContentId=712015&getXmlFeed=true', type: 'article' },
+  // ── Statewide nonprofit & public media ──────────────────────────────────────
+  // [verified] WordPress / States Newsroom - live in prod (NEWS-1 audit: the
+  //   only source delivering rows, which is exactly the imbalance this thread
+  //   fixes from the pool side).
+  { source: 'WA State Standard', url: 'https://washingtonstatestandard.com/feed/', type: 'article', beat: 'politics' },
+  // [verified] NPR-member (Grove) /index.rss - whole-newsroom, beat-filtered.
+  { source: 'KNKX', url: 'https://www.knkx.org/index.rss', type: 'article', beat: 'general' },
+  // [confirm] Same NPR-member pattern as KNKX; 0 rows so far - confirm on log.
+  { source: 'KUOW', url: 'https://www.kuow.org/index.rss', type: 'article', beat: 'general' },
+  // [confirm] Cascade PBS (formerly Crosscut), Brightspot CMS; 0 rows so far.
+  { source: 'Cascade PBS', url: 'https://www.cascadepbs.org/index.rss', type: 'article', beat: 'general' },
+  // ── Commercial dailies ──────────────────────────────────────────────────────
+  // [verified] Official Spokesman-Review WA-government section feed.
+  { source: 'Spokesman-Review', url: 'https://www.spokesman.com/feeds/stories/washington-government/', type: 'article', beat: 'politics' },
+  // [confirm] WordPress politics-section feed; origin returned empty to the
+  //   NEWS-1 fetch check (likely bot-gating) - the Action's fetch may differ.
+  { source: 'Seattle Times', url: 'https://www.seattletimes.com/seattle-news/politics/feed/', type: 'article', beat: 'politics' },
+  // [verified NEWS-1] Sound Publishing /feed/ - whole-newsroom, beat-filtered.
+  { source: 'Everett Herald', url: 'https://www.heraldnet.com/feed/', type: 'article', beat: 'general' },
+  // [verified NEWS-1] BLOX CMS search feed - whole-newsroom, beat-filtered.
+  { source: 'Union-Bulletin', url: 'https://www.union-bulletin.com/search/?f=rss&l=25&s=start_time&sd=desc', type: 'article', beat: 'general' },
+  // [confirm] WordPress politics-section feed; empty to the NEWS-1 fetch check.
+  { source: 'The Columbian', url: 'https://www.columbian.com/news/politics/feed/', type: 'article', beat: 'politics' },
+  // [confirm] McClatchy RSS widget (pre-NEWS-1 line, kept); the contentId is
+  //   site-specific - replace from the first run's log if it stays at zero.
+  { source: 'The Olympian', url: 'https://www.theolympian.com/news/local/?widgetName=rssfeed&widgetContentId=712015&getXmlFeed=true', type: 'article', beat: 'general' },
+  // ── Commercial radio ────────────────────────────────────────────────────────
+  // [verified NEWS-1] Bonneville / KIRO Newsradio - whole-newsroom, beat-filtered.
+  { source: 'MyNorthwest', url: 'https://mynorthwest.com/feed/', type: 'article', beat: 'general' },
+  // ── Wire & independent Olympia press ────────────────────────────────────────
+  // [confirm] Statehouse wire; BLOX CMS - empty to the NEWS-1 fetch check.
+  { source: 'The Center Square', url: 'https://www.thecentersquare.com/washington/search/?f=rss&l=25', type: 'article', beat: 'politics' },
+  // [verified NEWS-1] Independent Olympia politics newsletter (Substack feed).
+  { source: 'Washington Observer', url: 'https://washingtonobserver.substack.com/feed', type: 'article', beat: 'politics' },
+  // ── Official ────────────────────────────────────────────────────────────────
   // [confirm] legislation-typed slot. The WA Legislature publishes only per-bill
   //   and per-topic RSS (no single "legislation news" feed); point this at a
   //   chosen topic feed from app.leg.wa.gov/bi/topicalindex. No-op until set.
-  { source: 'WA Legislature', url: 'https://app.leg.wa.gov/billsbytopic/Rss.aspx?topic=&year=2026', type: 'legislation' },
+  { source: 'WA Legislature', url: 'https://app.leg.wa.gov/billsbytopic/Rss.aspx?topic=&year=2026', type: 'legislation', beat: 'politics' },
 ];
+
+// ── Government-beat test (NEWS-1) ──────────────────────────────────────────────
+// One fixed pattern, applied identically to every 'general' (whole-newsroom)
+// feed - never tuned per outlet. Generous on purpose: it admits the broad
+// government beat (Legislature, elections, budgets, agencies, councils, courts
+// as government) and drops the rest of a newsroom feed (sports, weather,
+// features, crime blotter). Title and snippet both count.
+const BEAT_RE = new RegExp('\\b(?:' + [
+  'legislat\\w*', 'lawmaker\\w*', 'olympia', 'capitol', 'statehouse',
+  'governor\\w*', 'gubernatorial', 'gov', 'mayor\\w*', 'attorney general', 'secretary of state',
+  'state (?:house|senate|budget\\w*|agenc\\w*|patrol|lands|law\\w*|capitol)',
+  '(?:house|senate) (?:bill|committee|floor|democrats|republicans)',
+  'special session', 'sine die', 'veto\\w*',
+  'ballot\\w*', 'initiative\\w*', 'referendum\\w*', 'election\\w*',
+  'primar(?:y|ies)', 'voters?', 'redistrict\\w*', 'campaign\\w*',
+  'city council', 'county (?:council|commission\\w*)', 'school board',
+  'lev(?:y|ies)', 'tax(?:es|ed|ation|payer\\w*)?', 'budget\\w*',
+  'medicaid', 'medicare', 'public school\\w*', 'public health',
+  'wsdot', 'ferr(?:y|ies)', 'minimum wage', 'rulemaking', 'regulat\\w*',
+  'polic(?:y|ies)', 'public records?', 'open government',
+  'congress\\w*', 'senator\\w*', 'representative\\w*', 'supreme court',
+  'democrat\\w*', 'republican\\w*', 'bipartisan\\w*', 'caucus\\w*',
+].join('|') + ')\\b', 'i');
+
+function isNewsBeat(item) {
+  if (!item) return false;
+  return BEAT_RE.test((item.title || '') + ' ' + (item.snippet || ''));
+}
+
+// 'politics'-beat feeds are already section-filtered by the outlet; 'general'
+// feeds keep only items that pass the beat test.
+function onBeat(items, feed) {
+  if (!feed || feed.beat !== 'general') return items;
+  return items.filter(isNewsBeat);
+}
 
 // ── Fetch with timeout + light retry (mirrors sync-bill-text.js) ───────────────
 async function fetchText(url, { timeoutMs = FETCH_TIMEOUT_MS, retries = 2 } = {}) {
@@ -253,10 +340,11 @@ async function syncNews() {
   for (const feed of FEEDS) {
     try {
       const xml = await fetchText(feed.url);
-      const items = parseFeed(xml, feed);
+      const parsed = parseFeed(xml, feed);
+      const items = onBeat(parsed, feed); // NEWS-1: government-beat gate for whole-newsroom feeds
       collected = collected.concat(items);
-      perFeed.push(feed.source + ': ' + items.length);
-      console.log('  ' + feed.source + ' -> ' + items.length + ' item(s)');
+      perFeed.push(feed.source + ': ' + items.length + (parsed.length !== items.length ? ' (' + (parsed.length - items.length) + ' off-beat)' : ''));
+      console.log('  ' + feed.source + ' -> ' + items.length + ' of ' + parsed.length + ' item(s) on-beat');
     } catch (err) {
       perFeed.push(feed.source + ': SKIPPED');
       console.warn('  ' + feed.source + ' [skipped]: ' + (err && err.message ? err.message : err));
@@ -313,6 +401,9 @@ if (require.main === module) {
 
 module.exports = {
   FEEDS,
+  BEAT_RE,
+  isNewsBeat,
+  onBeat,
   parseFeed,
   itemBlocks,
   firstTag,

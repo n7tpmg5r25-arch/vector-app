@@ -90,10 +90,12 @@ export default function PublicHome() {
             .select('category, avg_score, total_bills')
             .order('avg_score', { ascending: false })
             .limit(8),
+          // NEWS-1: 24-row multi-source pool; InTheNews balances it to 4 rows
+          // (2-per-source cap, newest-first rotation) - same rule as signed-in.
           supabase.from('news_items')
             .select('source, title, snippet, url, published_at, item_type')
             .order('published_at', { ascending: false, nullsFirst: false })
-            .limit(4),
+            .limit(24),
         ])
       if (cancelled) return
 
