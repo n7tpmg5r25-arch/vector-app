@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../../lib/supabase'
+import { watchlistStore } from '../../../lib/watchlist-store'
 import { useViewer } from '../../../lib/viewer-capabilities'
 import ScoreBadge from '../../components/ScoreBadge'
 import MeetingBadge from '../../components/MeetingBadge'
@@ -513,12 +514,7 @@ export default function BillDetailPage() {
       if (snaps.length > 0) setLatestSnap(snaps[snaps.length - 1])
 
       if (user) {
-        const { data: trackData } = await supabase
-          .from('tracked_bills')
-          .select('*')
-          .eq('bill_id', billId)
-          .eq('user_id', user.id)
-          .maybeSingle()
+        const { data: trackData } = await watchlistStore(user).get(billId)
         if (trackData) {
           setTracked(trackData)
           setNotes(trackData.notes || '')
@@ -597,17 +593,10 @@ export default function BillDetailPage() {
     if (!user) return
     setSaving(true)
     if (tracked) {
-      await supabase.from('tracked_bills')
-        .delete()
-        .eq('bill_id', billId)
-        .eq('user_id', user.id)
+      await watchlistStore(user).remove(billId)
       setTracked(null)
     } else {
-      const { data } = await supabase
-        .from('tracked_bills')
-        .insert({ bill_id: billId, user_id: user.id, notes, tag })
-        .select()
-        .single()
+      const { data } = await watchlistStore(user).add(billId, { tag, notes })
       setTracked(data)
     }
     setSaving(false)
@@ -616,10 +605,7 @@ export default function BillDetailPage() {
   async function saveNotes() {
     if (!user || !tracked) return
     setSaving(true)
-    await supabase.from('tracked_bills')
-      .update({ notes, tag })
-      .eq('bill_id', billId)
-      .eq('user_id', user.id)
+    await watchlistStore(user).update(billId, { tag, notes })
     setSaving(false)
   }
 

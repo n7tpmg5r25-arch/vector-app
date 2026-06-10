@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
@@ -104,10 +105,10 @@ export default function CommitteesPage() {
   useEffect(() => {
     if (!user) return
     async function loadWatched() {
-      const { data } = await supabase
-        .from('tracked_bills')
-        .select('bill_id, bills(bill_id, bill_number, title, chamber, final_score)')
-        .eq('user_id', user.id)
+      const { data } = await watchlistStore(user).list({
+        select: 'bill_id, bills(bill_id, bill_number, title, chamber, final_score)',
+        ordered: false,
+      })
       const ids = new Set((data || []).map(d => d.bill_id))
       setWatchedBillIds(ids)
       const byId = {}

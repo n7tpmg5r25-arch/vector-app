@@ -55,6 +55,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { Settings as SettingsIcon } from 'lucide-react'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { useViewer } from '../../lib/viewer-capabilities'
 import { isAdmin } from '../../lib/admin'
 import {
@@ -162,10 +163,8 @@ export default function SideDrawer() {
       setWatchlistCount(null)
       return () => { mounted = false }
     }
-    supabase
-      .from('tracked_bills')
-      .select('bill_id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+    watchlistStore(user)
+      .count()
       .then(({ count, error }) => {
         if (!mounted) return
         if (error) {

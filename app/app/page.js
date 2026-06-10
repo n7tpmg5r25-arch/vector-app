@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../lib/supabase'
+import { watchlistStore } from '../lib/watchlist-store'
 import { getCurrentSession, getNextBiennium, daysUntil, isInterimPeriod, formatSessionDate, bienniumShortLabel } from '../lib/session-config'
 import { useSession } from '../lib/useSession'
 import { useViewer } from '../lib/viewer-capabilities'
@@ -118,11 +119,7 @@ export default function HomePage() {
         .order('final_score', { ascending: false })
         .limit(12),
       user
-        ? supabase
-            .from('tracked_bills')
-            .select('bill_id, tag, added_at, bills(bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, confidence_label, session, hearing_date, pulled_from_rules, held_in_rules, days_to_cutoff, days_since_action)')
-            .eq('user_id', user.id)
-            .order('added_at', { ascending: false })
+        ? watchlistStore(user).list({ select: 'bill_id, tag, added_at, bills(bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, confidence_label, session, hearing_date, pulled_from_rules, held_in_rules, days_to_cutoff, days_since_action)' })
         : Promise.resolve({ data: null }),
       supabase
         .from('interim_intelligence')

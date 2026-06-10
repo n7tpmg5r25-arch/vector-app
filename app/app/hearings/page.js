@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
+import { watchlistStore } from '../../lib/watchlist-store'
 import { isInterimPeriod, getNextBiennium, getCurrentBiennium, formatSessionDate } from '../../lib/session-config'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
@@ -38,10 +39,7 @@ export default function HearingsPage() {
     if (viewerLoading) return
     async function load() {
       if (user) {
-        const { data: wl } = await supabase
-          .from('tracked_bills')
-          .select('bill_id')
-          .eq('user_id', user.id)
+        const { data: wl } = await watchlistStore(user).ids()
         setWatchedIds(new Set((wl || []).map(w => w.bill_id)))
       }
 

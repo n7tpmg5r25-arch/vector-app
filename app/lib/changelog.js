@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.34.0',
+    date: '2026-06-10',
+    phase: 'alpha',
+    highlights: [
+      'Under-the-hood reliability work on the watchlist. Every watch, unwatch, tag, and note action across the app — bill pages, search, Radar, committees, hearings, the home dashboard, and the menu badge — now flows through one shared module instead of nine separate code paths.',
+      'Nothing changes on screen: the same actions, the same data, the same account. This is the foundation for an upcoming update that lets anyone try the watchlist before creating an account.',
+    ],
+  },
+  {
     version: '5.33.0',
     date: '2026-06-09',
     phase: 'alpha',
