@@ -146,11 +146,14 @@ export default function HomePage() {
       // DASH-5: newest statewide news_items for the In-the-news card. Always
       // runs (news is year-round, not gated by session or interim); the anon
       // public client can read this table directly (RLS public-read).
+      // NEWS-1: fetch a 24-row multi-source pool - InTheNews balances it to 4
+      // rows (2-per-source cap, newest-first rotation), so one prolific outlet
+      // cannot own the card.
       supabase
         .from('news_items')
         .select('source, title, snippet, url, published_at, item_type')
         .order('published_at', { ascending: false, nullsFirst: false })
-        .limit(4),
+        .limit(24),
     ]
 
     const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes, bipartisanRes, newsRes] =
