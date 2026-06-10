@@ -189,46 +189,22 @@ function drawSectionLabel(doc, y, m, contentW, label) {
 
 async function drawHeader(doc, y, m, pw, generatedAt) {
   // T147: reduced from 22 → 14mm — previous size dominated the header
-  const logoH = 14
-  const logoW = logoH * (895 / 500)
-
-  let logoDrawn = false
-  try {
-    const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
-      '#ebeae4': '#0e1014',
-    })
-    if (dataUrl) {
-      doc.addImage(dataUrl, 'PNG', m, y, logoW, logoH)
-      logoDrawn = true
-    }
-  } catch (_) {}
-
-  if (!logoDrawn) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.setTextColor(...P.primary)
-    doc.text('VECTOR | WA', m, y + 9)
-  }
-
-  // Domain — one reference to the brand, top-right
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  doc.setTextColor(...P.accent)
-  doc.text(VECTOR_DOMAIN, pw - m, y + 5, { align: 'right' })
-
+  // Neutral export header - date + time stamp only, no logo or brand.
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
   const stamp = generatedAt.toLocaleDateString('en-US', {
     year: 'numeric', month: 'short', day: 'numeric',
+  }) + '  ·  ' + generatedAt.toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit',
   })
-  doc.text('Generated ' + stamp, pw - m, y + 10, { align: 'right' })
+  doc.text('Generated ' + stamp, m, y + 4)
 
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
-  doc.line(m, y + logoH + 2, pw - m, y + logoH + 2)
+  doc.line(m, y + 7, pw - m, y + 7)
 
-  return y + logoH + 6
+  return y + 12
 }
 
 // ── Section 2 — Identity ─────────────────────────────────────────────────────
@@ -264,8 +240,8 @@ async function drawIdentity(doc, y, m, pw, contentW, member, bio, elections) {
   }
 
   // Party color bar on left edge of photo
-  const partyRgb = member.party === 'D' ? [77, 154, 255]
-    : member.party === 'R' ? [239, 68, 68]
+  const partyRgb = member.party === 'D' ? [90, 90, 90]
+    : member.party === 'R' ? [90, 90, 90]
     : [...P.neutralLt]
   doc.setFillColor(...partyRgb)
   doc.rect(photoX, y, 1.5, photoH, 'F')
@@ -760,7 +736,7 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   doc.setTextColor(...P.neutralLt)
-  doc.text('Trajectory scores: predicted likelihood of legislative success, 0–100 (Vector | WA model).', m, y)
+  doc.text('Trajectory scores: predicted likelihood of legislative success, 0–100.', m, y)
   y += 3.5
   if (votingStats?.sampleN) {
     doc.text(
@@ -792,8 +768,6 @@ function drawFooter(doc, m, pw, ph, generatedAt) {
   //        (wrong framing for a document shared with lobbyist clients)
   doc.setTextColor(...P.muted)
   doc.text('Generated ' + stamp, m, fy + 3)
-  doc.setTextColor(...P.accent)
-  doc.text(VECTOR_DOMAIN, pw - m, fy + 3, { align: 'right' })
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
@@ -875,9 +849,9 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
   drawFooter(doc, m, pw, ph, generatedAt)
   // ─────────────────────────────────────────────────────────────────────────
 
-  const lastName    = (member.name || 'member').split(' ').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
-  const sessionSlug = (session || 'wa').replace('/', '-').replace(/\s/g, '-')
-  const filename    = `${lastName}-member-brief-${sessionSlug}.pdf`
+  const nameSlug    = (member.name || 'member').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const safeDate    = generatedAt.toISOString().slice(0, 10)
+  const filename    = `member-${nameSlug}-${safeDate}.pdf`
   // ER4 (F8): additive output option — rendering unchanged, delivery only.
   if (output === 'blob') return { blob: doc.output('blob'), filename }
   doc.save(filename)

@@ -871,7 +871,7 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(6.5)
       doc.setTextColor(...P.muted)
-      doc.text('[summary continues - see ' + VECTOR_DOMAIN + ']', m, y)
+      doc.text('[summary continues]', m, y)
       y += 4
     }
     y += 2
@@ -975,36 +975,17 @@ export async function generateBriefPDF({
 
   // ── Header ────────────────────────────────────────────────────────────────────
   {
-    const logoH = 18
-    const logoW = logoH * (895 / 500)
-
-    let logoDrawn = false
-    try {
-      const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', { '#ebeae4': '#0e1014' })
-      if (dataUrl) { doc.addImage(dataUrl, 'PNG', m, y - 1, logoW, logoH); logoDrawn = true }
-    } catch (e) {}
-
-    if (!logoDrawn) {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.setTextColor(...P.primary)
-      doc.text('VECTOR | WA', m, y + 10)
-    }
-
-    // Right: report type + date (T154: date printed ONCE here — removed duplicate below)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.neutral)
-    doc.text('LEGISLATIVE INTELLIGENCE BRIEF', pw - m, y + 5, { align: 'right' })
+    const genTime = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const stampDate = date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(...P.muted)
-    doc.text(date, pw - m, y + 10, { align: 'right' })
+    doc.text('Generated ' + stampDate + '  ·  ' + genTime, m, y + 4)
     if (session) {
       doc.setFontSize(7)
-      doc.text(session, pw - m, y + 14.5, { align: 'right' })
+      doc.text(session, pw - m, y + 4, { align: 'right' })
     }
-    y += logoH
+    y += 8
   }
 
   // Thin separator
@@ -1114,19 +1095,18 @@ export async function generateBriefPDF({
         calibBlurb = 'Trajectory scores (0-99) calibrated against ' + n + ' bills across ' + bCount + ' WA biennia (' + firstYear + '-' + lastYear + '). 75+ = 84% became law.'
       }
       doc.text(calibBlurb, m, methY + 3.5)
-      doc.text('Signal tiers: HIGH (75+), MODERATE (60-74), LOW (45-59), VERY LOW (<45). Full methodology: ' + VECTOR_DOMAIN + '/methodology', m, methY + 7)
+      doc.text('Signal tiers: HIGH (75+), MODERATE (60-74), LOW (45-59), VERY LOW (<45).', m, methY + 7)
     }
 
     // Footer — every page
     const fy = ph - 12
-    doc.setDrawColor(...P.accent)
+    doc.setDrawColor(...P.neutralLt)
     doc.setLineWidth(0.4)
     doc.line(m, fy, pw - m, fy)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.setTextColor(...P.neutral)
-    doc.text('Vector | WA  \xB7  Washington State legislative intelligence', m, fy + 5)
-    doc.text(VECTOR_DOMAIN, pw - m, fy + 5, { align: 'right' })
+    doc.setTextColor(...P.muted)
+    doc.text('Generated ' + (date || ''), m, fy + 5)
     if (pageCount > 1) {
       doc.setFontSize(6.5)
       doc.text('Page ' + p + ' of ' + pageCount, pw / 2, fy + 5, { align: 'center' })
@@ -1134,9 +1114,9 @@ export async function generateBriefPDF({
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────────
-  const safeName = (tagLabel || 'Portfolio').replace(/[^a-zA-Z0-9]/g, '_')
-  const safeDate = date.replace(/[^a-zA-Z0-9]/g, '_')
-  const filename  = 'Vector_WA_Brief_' + safeName + '_' + safeDate + '.pdf'
+  const safeName = (tagLabel || 'portfolio').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
+  const safeDate = new Date().toISOString().slice(0, 10)
+  const filename  = safeName + '-brief-' + safeDate + '.pdf'
   doc.save(filename)
   return filename
 }
