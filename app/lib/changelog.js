@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.35.0',
+    date: '2026-06-10',
+    phase: 'alpha',
+    highlights: [
+      'The watchlist can now run entirely on your device: up to 200 bills, each with a tag and notes, saved in your browser with no account. This is the second piece of groundwork for the free public tier and stays switched off for visitors until that launch — signed-in watchlists keep working exactly as before, in your account.',
+      'Device-saved lists are honest about where they live: a one-line "saved on this device" notice with a link to create a free account, and at the 200-bill device cap the watch button itself becomes that prompt.',
+      'Saved bills survive reloads and are shared across tabs on the same device. Moving a device list into a real account arrives in an upcoming update.',
+    ],
+  },
+  {
     version: '5.34.0',
     date: '2026-06-10',
     phase: 'alpha',

@@ -24,6 +24,7 @@ import VectorLoader from '../../components/VectorLoader'
 import { Check, ArrowUpRight, FileText, Bookmark, Loader2 } from 'lucide-react'
 import { downloadPdf } from '../../../lib/share-pdf'
 import { confirmExport } from '../../../lib/export-ack'
+import { useLocalWatchlist, LOCAL_WATCHLIST_CAP } from '../../../lib/useLocalWatchlist'
 
 // Historical pass rates by score bucket (Phase 7D.3: bills-only, 3 bienniums, N=8,062, 2,155 LAW)
 const BUCKET_RATES = [
@@ -411,6 +412,12 @@ export default function BillDetailPage() {
   // flash PublicNav (and lose the bottom Nav) during the auth resolve window.
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
+  // PORTAL-2: live device-local watchlist size — drives the at-cap
+  // affordance flip (+ Watch -> register prompt) for anonymous viewers.
+  // Authed viewers never write locally, so this stays [] and is inert.
+  const localItems = useLocalWatchlist()
+  const localFull = !user && capabilities.saveMode === 'local' && localItems.length >= LOCAL_WATCHLIST_CAP
+
   const [bill, setBill]         = useState(null)
   const [snapshots, setSnapshots] = useState([])
   const [latestSnap, setLatestSnap] = useState(null)
@@ -513,14 +520,19 @@ export default function BillDetailPage() {
       setSnapshots(snaps)
       if (snaps.length > 0) setLatestSnap(snaps[snaps.length - 1])
 
-      if (user) {
+      // PORTAL-2: the tracked check also runs for anon viewers when the
+      // public layer is on — watchlistStore(null) serves the device-local
+      // backend, so a locally-watched bill renders "Watching" + its tag.
+      if (user || capabilities.canSave) {
         const { data: trackData } = await watchlistStore(user).get(billId)
         if (trackData) {
           setTracked(trackData)
           setNotes(trackData.notes || '')
           setTag(trackData.tag || '')
         }
+      }
 
+      if (user) {
         // Phase 7S: fetch analyst notes for this bill
         const { data: notesData } = await supabase
           .from('bill_notes')
@@ -589,8 +601,23 @@ export default function BillDetailPage() {
     load()
   }, [billId, user?.id, viewerLoading])
 
+  // PORTAL-2: keep anon watch-state live across tabs — useLocalWatchlist
+  // hears the cross-tab `storage` event, so a save/remove in another tab
+  // flips this page's Watching button without a reload. Presence-only:
+  // tag/notes drafts in progress are never clobbered. Authed viewers are
+  // untouched (db backend; this effect bails immediately).
+  useEffect(() => {
+    if (user || !capabilities.canSave) return
+    const item = localItems.find(it => it.bill_id === billId) || null
+    setTracked(prev => {
+      if (!item) return null
+      if (prev && prev.bill_id === item.bill_id) return prev
+      return item
+    })
+  }, [localItems, user?.id, billId, capabilities.canSave])
+
   async function toggleWatch() {
-    if (!user) return
+    if (!user && !capabilities.canSave) return
     setSaving(true)
     if (tracked) {
       await watchlistStore(user).remove(billId)
@@ -603,7 +630,7 @@ export default function BillDetailPage() {
   }
 
   async function saveNotes() {
-    if (!user || !tracked) return
+    if ((!user && !capabilities.canSave) || !tracked) return
     setSaving(true)
     await watchlistStore(user).update(billId, { tag, notes })
     setSaving(false)
@@ -944,7 +971,24 @@ export default function BillDetailPage() {
               {exporting ? 'Generating' : 'Export as PDF'}
             </span>
           </button>
-          {capabilities.canSave && (
+          {capabilities.canSave && (localFull && !tracked ? (
+            /* PORTAL-2 (PORTAL_DEEP_DIVE.md S2.2): at the 200-bill device
+               cap the add affordance flips to the register prompt. */
+            <Link
+              href="/login"
+              className="vec-cta-primary"
+              style={{
+                padding: '7px 16px',
+                background: 'transparent',
+                border: '1px solid var(--teal)',
+                borderRadius: 20, fontSize: 12, fontWeight: 600,
+                color: 'var(--teal)', textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              List full — free account
+            </Link>
+          ) : (
             <button
               onClick={toggleWatch}
               disabled={saving}
@@ -964,7 +1008,7 @@ export default function BillDetailPage() {
                 {tracked ? 'Watching' : '+ Watch'}
               </span>
             </button>
-          )}
+          ))}
         </div>
       </div>
 
@@ -2609,6 +2653,15 @@ export default function BillDetailPage() {
                 opacity: saving ? 0.6 : 1,
               }}>{saving ? 'Saving...' : 'Save Tag'}</button>
             </div>
+            {/* PORTAL-2: device-storage honesty for anon viewers (S2.5).
+                bill_notes — the analyst-note form and list below — stays a
+                registered feature; anon gets watch + tag on the local row. */}
+            {!user && (
+              <div style={{ fontSize: 11, color: 'var(--text-faint)', lineHeight: 1.5 }}>
+                Saved on this device — <Link href="/login" style={{ color: 'var(--teal)', textDecoration: 'none' }}>create a free account</Link> to keep your list everywhere.
+              </div>
+            )}
+            {user && (<>
             {/* New note form */}
             <div style={{ marginBottom: 14 }}>
               <textarea
@@ -2728,6 +2781,7 @@ export default function BillDetailPage() {
                 ))}
               </div>
             )}
+            </>)}
           </div>
         )}
       </div>

@@ -1,11 +1,12 @@
 'use client'
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import { watchlistStore } from '../../lib/watchlist-store'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
+import { useLocalWatchlist, LOCAL_WATCHLIST_CAP } from '../../lib/useLocalWatchlist'
 import { isInterimPeriod } from '../../lib/session-config'
 import { useDebouncedValue } from '../../lib/use-debounced-value'
 import Nav from '../components/Nav'
@@ -14,7 +15,7 @@ import ScoreBadge from '../components/ScoreBadge'
 import CohortCitation from '../components/CohortCitation'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
-import { Check } from 'lucide-react'
+import { Check, UserPlus } from 'lucide-react'
 
 import { CATEGORIES } from '../../lib/categories'
 
@@ -58,9 +59,10 @@ function getSummarySnippet(summary, term) {
 
 function SearchContent() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const supabase = createBrowserClient()
   const [SESSION] = useSession()
-  const { user, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
   const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
 
   // Filter state
@@ -96,15 +98,30 @@ function SearchContent() {
   const [bulkAdding, setBulkAdding] = useState(false)
   const [bulkResult, setBulkResult] = useState(null)
 
-  // Load watched bill IDs when authed
+  // PORTAL-2: live device-local list size — at the 200-bill cap the
+  // inline bookmark flips to a register prompt for anonymous viewers.
+  const localItems = useLocalWatchlist()
+  const localFull = !user && capabilities.saveMode === 'local' && localItems.length >= LOCAL_WATCHLIST_CAP
+
+  // Load watched bill IDs when authed — or for anon viewers via the
+  // device-local backend when the public layer is on (watchlistStore(null)).
   useEffect(() => {
     if (viewerLoading) return
-    if (!user) { setWatchedIds(new Set()); return }
+    if (!user && !capabilities.canSave) { setWatchedIds(new Set()); return }
     watchlistStore(user).ids()
       .then(({ data }) => {
         if (data) setWatchedIds(new Set(data.map(d => d.bill_id)))
       })
   }, [user?.id, viewerLoading])
+
+  // PORTAL-2: anon watched-state follows the live local list — the
+  // useLocalWatchlist storage listener makes a save/unsave in another
+  // tab (or on a bill page) reflect here without a reload. Authed
+  // viewers (db backend) bail immediately; flag off -> canSave false.
+  useEffect(() => {
+    if (user || !capabilities.canSave) return
+    setWatchedIds(new Set(localItems.map(it => it.bill_id)))
+  }, [localItems, user?.id, capabilities.canSave])
 
   // BUG FIX: page intentionally NOT in fetchBills deps — we read pageRef.current
   // instead so the callback stays stable and Load More can call it synchronously
@@ -194,13 +211,17 @@ function SearchContent() {
 
   // Toggle single bill watch inline
   async function handleToggleWatch(bill) {
-    if (!user) return
+    if (!user && !capabilities.canSave) return
     const billId = bill.bill_id
     if (watchedIds.has(billId)) {
       await watchlistStore(user).remove(billId)
       setWatchedIds(prev => { const n = new Set(prev); n.delete(billId); return n })
     } else {
-      await watchlistStore(user).add(billId)
+      const { error } = await watchlistStore(user).add(billId)
+      // PORTAL-2: the local backend refuses adds at the 200-bill device
+      // cap — don't mark watched. (The db path ignored insert errors
+      // before this thread and still does: authed behavior unchanged.)
+      if (error && !user) return
       setWatchedIds(prev => new Set([...prev, billId]))
     }
   }
@@ -630,7 +651,19 @@ function SearchContent() {
 
               {/* Action buttons: bookmark + external link */}
               <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {user && (
+                {(user || capabilities.canSave) && (!isWatched && localFull ? (
+                  /* PORTAL-2: at the device cap the add affordance is a
+                     register prompt (S2.2); removing bills still works. */
+                  <button
+                    type="button"
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); router.push('/login') }}
+                    style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--teal)', opacity: 0.75, background: 'none', border: 'none', cursor: 'pointer' }}
+                    title="Device list full — create a free account to add more"
+                    aria-label="Device list full — create a free account to add more"
+                  >
+                    <UserPlus size={14} aria-hidden="true" />
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={e => { e.preventDefault(); e.stopPropagation(); handleToggleWatch(bill) }}
@@ -645,7 +678,7 @@ function SearchContent() {
                       <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                     </svg>
                   </button>
-                )}
+                ))}
                 <button
                   type="button"
                   onClick={e => { e.preventDefault(); e.stopPropagation(); window.open(`https://app.leg.wa.gov/billsummary?BillNumber=${bill.bill_number}&Year=${SESSION.split('-')[0]}`, '_blank', 'noopener,noreferrer') }}

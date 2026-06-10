@@ -105,7 +105,9 @@ export default function CommitteeDetail() {
 
       // Thread 105 — fetch which of this committee's bills the user tracks
       let watched = new Set()
-      if (user && (bs || []).length > 0) {
+      // PORTAL-2: anon watched-state via the device-local backend when
+      // the public layer is on.
+      if ((user || capabilities.canSave) && (bs || []).length > 0) {
         const { data: wData } = await watchlistStore(user).ids({ billIds: (bs || []).map(b => b.bill_id) })
         watched = new Set((wData || []).map(d => d.bill_id))
       }

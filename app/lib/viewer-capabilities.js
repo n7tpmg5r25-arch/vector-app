@@ -53,14 +53,23 @@ export function getViewerCapabilities(user) {
       isAuthed: false,
       userId: null,
 
-      // Action gates — all false for public viewers
-      canSave: false,         // save to watchlist
+      // Action gates — PORTAL-2: when the public layer is on, anonymous
+      // viewers can save to a device-local watchlist (the localStorage
+      // backend behind watchlist-store.js). canEditNotes follows canSave:
+      // anon tag/notes live inside the local watchlist row, not in
+      // bill_notes (a registered feature). Flag off -> every gate below
+      // is false, exactly as before PORTAL-2.
+      canSave: PUBLIC_LAYER_ENABLED,      // save to watchlist (device-local)
       canFollow: false,       // follow a committee
-      canEditNotes: false,    // add / edit bill notes
+      canEditNotes: PUBLIC_LAYER_ENABLED, // tag / notes on locally-watched bills
       canEditBillSummary: false, // edit the global AI bill summary (admin-only)
       canExport: false,       // PDF / leave-behind export
       canSeeAlerts: false,    // alert / digest UI
       canSeeAdmin: false,     // admin surfaces
+
+      // PORTAL-2: which backend watchlist-store.js serves this viewer.
+      // Anon saves stay on this device until register-to-sync (PORTAL-4).
+      saveMode: 'local',
 
       // Note-visibility seams (landed Phase 13a; used by 13b's shared-note UI)
       canSeePrivateNotes: false,
@@ -90,6 +99,9 @@ export function getViewerCapabilities(user) {
       canExport: false,       // PDF briefing deferred to 13b.x
       canSeeAlerts: false,    // email alerts deferred to 13b.x
       canSeeAdmin: false,
+
+      // PORTAL-2: authed viewers always use the db watchlist backend.
+      saveMode: 'db',
 
       // 13a opens the door for 13b shared-note surfacing. The RLS policy
       // that actually serves `scope='shared'` rows to clients lands in 13b.x
@@ -124,6 +136,9 @@ export function getViewerCapabilities(user) {
     canExport: true,
     canSeeAlerts: true,
     canSeeAdmin: false, // admin routes still do their own UID check
+
+    // PORTAL-2: authed viewers always use the db watchlist backend.
+    saveMode: 'db',
 
     canSeePrivateNotes: true,
     canSeeSharedNotes: true,
