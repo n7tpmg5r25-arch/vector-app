@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.32.0',
+    date: '2026-06-09',
+    phase: 'alpha',
+    highlights: [
+      'All three PDF exports — single bill, member, and watchlist — now print fully neutral: black and white, with no logo, brand name, web address, or accent color. Only the date and time the file was generated remain.',
+      'Downloaded briefs now carry plain, unbranded file names like “HB-1234-brief-2026-06-09.pdf” and “member-jane-doe-2026-06-09.pdf”, so a saved or forwarded brief stands on its own.',
+      'The app itself stays fully branded — this change applies only to the documents you export and share.',
+    ],
+  },
+  {
     version: '5.31.0',
     date: '2026-06-08',
     phase: 'alpha',

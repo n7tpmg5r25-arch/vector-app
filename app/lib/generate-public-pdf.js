@@ -70,10 +70,10 @@ const VECTOR_DOMAIN = 'vectorwa' + '.' + 'com'
 
 // Party dot colors — match bill detail page prime-sponsor dot
 const PARTY_COLOR = {
-  D: [77, 154, 255],
-  R: [239, 68, 68],
-  I: [138, 128, 112],
-  L: [138, 128, 112],
+  D: [90, 90, 90],
+  R: [90, 90, 90],
+  I: [90, 90, 90],
+  L: [90, 90, 90],
 }
 
 // Sponsor-tier plain-English labels (T151)
@@ -270,32 +270,7 @@ function drawSectionLabel(doc, y, m, contentW, label) {
 // ── Section 1 — Header ────────────────────────────────────────────────────────
 
 async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
-  const logoH = 14
-  const logoW = logoH * (895 / 500)
-
-  let logoDrawn = false
-  try {
-    const dataUrl = await loadSvgWithFillSwap('/logos/vector-wa-primary.svg', {
-      '#ebeae4': '#0e1014',
-    })
-    if (dataUrl) {
-      doc.addImage(dataUrl, 'PNG', m, y, logoW, logoH)
-      logoDrawn = true
-    }
-  } catch (_) {}
-
-  if (!logoDrawn) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.setTextColor(...P.primary)
-    doc.text('VECTOR | WA', m, y + 9)
-  }
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
-  doc.setTextColor(...P.accent)
-  doc.text(VECTOR_DOMAIN, pw - m, y + 5, { align: 'right' })
-
+  // Neutral export header - date + time stamp only, no logo or brand.
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
@@ -304,21 +279,19 @@ async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
   }) + '  ·  ' + generatedAt.toLocaleTimeString('en-US', {
     hour: 'numeric', minute: '2-digit',
   })
-  doc.text('Generated ' + stamp, pw - m, y + 10, { align: 'right' })
+  doc.text('Generated ' + stamp, m, y + 4)
 
   const ctxLine = getSessionContextLine()
   if (ctxLine) {
-    doc.setFont('helvetica', 'normal')
     doc.setFontSize(6.5)
-    doc.setTextColor(...P.muted)
-    doc.text(ctxLine, pw - m, y + 14.5, { align: 'right' })
+    doc.text(ctxLine, pw - m, y + 4, { align: 'right' })
   }
 
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
-  doc.line(m, y + logoH + 2, pw - m, y + logoH + 2)
+  doc.line(m, y + 7, pw - m, y + 7)
 
-  return y + logoH + 6
+  return y + 12
 }
 
 // ── Section 2 — Bill identity + inline Affects ────────────────────────────────
@@ -598,7 +571,7 @@ function drawWhatItDoes(doc, y, m, contentW, bill, ph) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
     doc.setTextColor(...P.muted)
-    doc.text('Summary not yet available — check vectorwa.com for updates.', m, y)
+    doc.text('Summary not yet available.', m, y)
     return y + 7
   }
 
@@ -896,8 +869,7 @@ function drawTimeline(doc, y, m, contentW, snapshots, ph) {
 function drawFooter(doc, ph, m, pw, bill, generatedAt) {
   const fy    = ph - 13
   const stamp = generatedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  const verifyPath = '/bill/' + (bill.bill_id || bill.id || '')
-  const line1 = 'Generated ' + stamp + '  ·  Verify at ' + VECTOR_DOMAIN + verifyPath
+  const line1 = 'Generated ' + stamp
   const line2 = 'Not legal advice  ·  Summary contains AI-generated content'
 
   doc.setDrawColor(...P.accent)
@@ -992,9 +964,9 @@ export async function generatePublicBriefPDF({
     drawFooter(doc, ph, m, pw, bill, generatedAt)
   }
 
-  const safeBill = ((bill.chamber === 'House' ? 'HB' : 'SB') + (bill.bill_number || '')).replace(/[^a-zA-Z0-9]/g, '_')
-  const safeDate = generatedAt.toISOString().slice(0, 10).replace(/-/g, '')
-  const filename  = 'Vector_WA_' + safeBill + '_brief_' + safeDate + '.pdf'
+  const safeBill = ((bill.chamber === 'House' ? 'HB' : 'SB') + '-' + (bill.bill_number || '')).replace(/[^a-zA-Z0-9-]/g, '-')
+  const safeDate = generatedAt.toISOString().slice(0, 10)
+  const filename  = safeBill + '-brief-' + safeDate + '.pdf'
   // ER4 (F8): additive output option. Rendering above is unchanged; this only
   // chooses delivery — return the finished bytes as a Blob for the share sheet,
   // or save() to download (default, byte-for-byte the legacy behavior).

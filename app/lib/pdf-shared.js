@@ -34,23 +34,25 @@
  * everywhere (closest sans-serif available natively).
  */
 export const VECTOR_PALETTE = {
-  primary:              [14, 16, 20],     // Dark Neutral  #0e1014 — text on white
-  primaryMid:           [23, 25, 33],     // Card          #171921 — secondary text / accent panel
-  accent:               [184, 151, 90],   // Brass         #b8975a — primary accent
-  neutral:              [70, 75, 85],     // text-muted analog
-  neutralLt:            [200, 195, 185],  // Light divider analog
-  surface:              [248, 246, 242],  // Off-white print surface (card background on paper)
+  // Thread B (2026-06-09): PDF exports are fully neutral - black/gray/white only.
+  // No brass, no brand accent. Tier + outcome colors differ by gray value.
+  primary:              [0, 0, 0],        // Black - primary text
+  primaryMid:           [38, 38, 38],     // Near-black - secondary text
+  accent:               [82, 82, 82],     // Mid-gray - section labels / rules (was brass)
+  neutral:              [90, 90, 90],     // Gray - muted body analog
+  neutralLt:            [201, 201, 201],  // Light gray - dividers
+  surface:              [245, 245, 245],  // Off-white print surface
   white:                [255, 255, 255],
-  danger:               [196, 71, 48],    // Rust          #c44730 — universal warning
-  muted:                [138, 128, 112],  // Stone         #8a8070 — tertiary / metadata
-  // Tier colors — brass-forward, brand v1.2.
-  tierHigh:             [184, 151, 90],   // Brass — strong
-  tierMod:              [212, 180, 122],  // Brass-Lt — moderate
-  tierLow:              [138, 128, 112],  // Stone — low
-  tierVlow:             [90, 88, 82],     // Dim stone — very low
-  outcomeLaw:           [184, 151, 90],   // Brass
-  outcomePassedChamber: [212, 180, 122],  // Brass-Lt
-  outcomeDead:          [138, 128, 112],  // Stone
+  danger:               [55, 55, 55],     // Dark gray - warning (was rust)
+  muted:                [110, 110, 110],  // Gray - metadata
+  // Tier colors - grayscale ramp, darkest = strongest signal.
+  tierHigh:             [20, 20, 20],     // Near-black - strong
+  tierMod:              [80, 80, 80],     // Mid-gray - moderate
+  tierLow:              [130, 130, 130],  // Gray - low
+  tierVlow:             [175, 175, 175],  // Light gray - very low
+  outcomeLaw:           [20, 20, 20],     // Near-black
+  outcomePassedChamber: [80, 80, 80],     // Mid-gray
+  outcomeDead:          [130, 130, 130],  // Gray
   displayFont:          'helvetica',
 }
 
