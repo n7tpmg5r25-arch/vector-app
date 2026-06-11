@@ -14,9 +14,12 @@
  *   (c) a reverse-chron feed of matches with Track (→ watchlist) and Open
  *       (→ bill detail).
  *
- * Registered-tier (owner-only) route: proxy.js redirects anon visitors to
- * /login before this renders, and radar_terms / radar_matches RLS is
- * owner-only, so every query is implicitly scoped to the signed-in user.
+ * Registered-tier feature on an anon-reachable route (PORTAL-3, 2026-06-10):
+ * when the public layer flag is on the proxy admits anon /radar so the
+ * converged nav has no dead redirects, and anon viewers get an inline
+ * "free-account feature" teaser instead. The term/match pipeline itself
+ * stays registered-only -- radar_terms / radar_matches RLS is uid-fenced,
+ * so every query is implicitly scoped to the signed-in user.
  *
  * Honors the deep-link /radar?new=1&q=<query> from the Search page's
  * "Save as Radar term" button — opens the form pre-filled.
@@ -30,6 +33,7 @@ import { createBrowserClient } from '../../lib/supabase'
 import { watchlistStore } from '../../lib/watchlist-store'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
@@ -435,6 +439,64 @@ function RadarContent() {
   }
 
   const clientOptions = [{ value: '', label: 'General (no client)' }, ...clients.map(c => ({ value: c.id, label: c.name }))]
+
+  // PORTAL-3: /radar is proxy-open for anon (converged nav, no dead
+  // redirect off deep links), but the term + email pipeline is
+  // registered-only (radar_terms RLS is uid-fenced). Render an inline
+  // teaser; loadAll() above already no-ops without a user, so nothing was
+  // fetched. Every hook has run by this point, so the early return is
+  // hydration-safe. The global PublicBottomNav carries anon wayfinding.
+  if (!viewerLoading && !user) {
+    return (
+      <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)', minHeight: '100vh' }}>
+        <PublicNav />
+        <div style={{ padding: '20px 16px' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)', marginBottom: 14 }}>
+            Radar
+          </div>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderLeft: '3px solid var(--gold)',
+            borderRadius: '0 var(--radius) var(--radius) 0',
+            padding: '16px 16px 18px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="var(--gold)" strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/>
+                <circle cx="12" cy="12" r="5"/>
+                <circle cx="12" cy="12" r="1.2" fill="var(--gold)" stroke="none"/>
+              </svg>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Radar is a free-account feature
+              </div>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-mid)', lineHeight: 1.55, marginBottom: 14 }}>
+              Radar watches for brand-new bills the day they are introduced &mdash;
+              matched against the issues, clients, and places you save &mdash; and
+              folds new matches into an email alert. Alerts need an inbox, so
+              Radar terms live on an account. Your watchlist works without one,
+              saved on this device.
+            </div>
+            <Link
+              href="/login"
+              className="vec-cta-primary"
+              style={{
+                display: 'inline-flex', alignItems: 'center',
+                padding: '10px 18px', borderRadius: 'var(--radius)',
+                background: 'var(--teal)', color: 'var(--bg)',
+                fontSize: 13, fontWeight: 600, textDecoration: 'none',
+                boxShadow: 'var(--teal-glow)',
+              }}
+            >
+              Create a free account
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (viewerLoading || (loading && terms.length === 0 && matches.length === 0)) {
     return (

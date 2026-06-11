@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.36.0',
+    date: '2026-06-10',
+    phase: 'alpha',
+    highlights: [
+      'The device watchlist gets its page: visitors without an account can open the watchlist itself \u2014 the same cards, scores, score changes, tags, and notes, the same swipe-to-remove \u2014 fed entirely from the list saved in their browser. A one-line notice states where the data lives, with a one-tap path to a free account that syncs it everywhere. Like all public-tier work, none of this is visible until the free public launch.',
+      'Signed-out navigation converges with the signed-in app: the same five-tab bottom bar \u2014 Home, Watchlist, Search, Members, Committees \u2014 so the product reads identically either way. Radar, whose saved terms and email alerts need an inbox, shows visitors a one-card explanation instead of a bounce to the login page.',
+      'Two dead ends close: the statewide news page opens for visitors (the home news card\u2019s "All" arrow now goes where it points), and the home dashboard\u2019s attention card goes live for device-saved lists \u2014 the same at-risk and hearings triage signed-in users get, computed over the bills saved on the device.',
+    ],
+  },
+  {
     version: '5.35.0',
     date: '2026-06-10',
     phase: 'alpha',

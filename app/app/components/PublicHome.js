@@ -15,8 +15,11 @@
  *      statewide tier distribution, in place of the personal portfolio gauge.
  *   2. Movers      -> statewide score movers (the top-trajectory cohort), in
  *      place of the watchlist movers. Momentum counts the same statewide rises.
- *   3. Personal needs-attention card -> a static "track your bills -- free"
- *      prompt.
+ *   3. Personal needs-attention card -> the real NeedsAttention fed by the
+ *      device-local watchlist (PORTAL-3): anon rows hydrate from the
+ *      anon-readable bills table and run the same at-risk model. While the
+ *      device list is empty the static "track your bills -- free" prompt
+ *      remains (it is the affordance to start saving).
  * Issue heat and In-the-news are identical to registered (both already
  * statewide); the news card reads the same four newest news_items. Footer ->
  * Search / How it works. Everything stays behind NEXT_PUBLIC_ENABLE_PUBLIC_LAYER
@@ -39,7 +42,9 @@ import MomentumTile from './dashboard/MomentumTile'
 import IssueHeat from './dashboard/IssueHeat'
 import MoversChart from './dashboard/MoversChart'
 import InTheNews from './dashboard/InTheNews'
+import NeedsAttention from './dashboard/NeedsAttention'
 import { createBrowserClient } from '../../lib/supabase'
+import { useLocalWatchlist } from '../../lib/useLocalWatchlist'
 import { isInterimPeriod, getCurrentSession, bienniumShortLabel } from '../../lib/session-config'
 import { getSessionClock } from '../../lib/session-clock'
 
@@ -64,6 +69,13 @@ export default function PublicHome() {
   const [newsItems, setNewsItems] = useState([])
   const [deltas, setDeltas] = useState({})   // bill_id -> signed score change
   const [billsById, setBillsById] = useState({})
+
+  // PORTAL-3: the device-local watchlist feeds the real NeedsAttention card.
+  // useLocalWatchlist() is the live local-row view (same-window + cross-tab);
+  // rows hydrate below from the anon-readable bills table with the same
+  // at-risk columns the authed home fetches, then filter to this session.
+  const localItems = useLocalWatchlist()
+  const [localWl, setLocalWl] = useState([])
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +169,26 @@ export default function PublicHome() {
     return () => { cancelled = true }
   }, [interim, session])
 
+  // PORTAL-3: hydrate the local rows -> { bills } shape NeedsAttention reads.
+  // 200-item device cap keeps .in() far under the 1000-row PostgREST limit.
+  useEffect(() => {
+    let cancelled = false
+    const ids = (localItems || []).map(it => it.bill_id)
+    if (ids.length === 0) { setLocalWl([]); return }
+    const supabase = createBrowserClient()
+    supabase
+      .from('bills')
+      .select('bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, confidence_label, session, hearing_date, pulled_from_rules, held_in_rules, days_to_cutoff, days_since_action')
+      .in('bill_id', ids)
+      .then(({ data }) => {
+        if (cancelled) return
+        setLocalWl((data || [])
+          .filter(b => b.session === session)
+          .map(b => ({ bills: b })))
+      })
+    return () => { cancelled = true }
+  }, [localItems, session])
+
   const tiers = stats?.tiers || { high: 0, mod: 0, low: 0, vlow: 0 }
   const alivePct = stats?.alivePct ?? 0
   const momentumCount = Object.values(deltas).filter(v => v > 0).length
@@ -217,31 +249,41 @@ export default function PublicHome() {
           {stats && <DistributionBar counts={tiers} style={{ marginTop: 13 }} />}
         </div>
 
-        {/* -- TRACK-YOUR-BILLS PROMPT (replaces the personal needs-attention card) -- */}
-        <Link href="/login" style={{
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderLeft: '3px solid var(--brass)', borderRadius: '0 var(--radius) var(--radius) 0',
-          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
-          textDecoration: 'none', color: 'inherit',
-        }}>
-          <img
-            src="/logos/vector-wa-mark.svg"
-            alt=""
-            aria-hidden="true"
-            style={{ height: 20, width: 'auto', flexShrink: 0, filter: 'drop-shadow(0 0 10px rgba(184,151,90,0.25))' }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 2 }}>
-              Track your bills &mdash; free
+        {/* -- NEEDS ATTENTION (PORTAL-3): once the device list has rows, the
+              real card runs the same at-risk + hearings triage registered
+              users get, over the locally-saved portfolio. It self-hides
+              during the interim and when nothing needs flagging, exactly
+              like the registered home. While the list is empty, the static
+              track-your-bills prompt stays (real mark asset, never
+              hand-rolled). -- */}
+        {localWl.length > 0 ? (
+          <NeedsAttention watchlist={localWl} interim={interim} />
+        ) : (
+          <Link href="/login" style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderLeft: '3px solid var(--brass)', borderRadius: '0 var(--radius) var(--radius) 0',
+            padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12,
+            textDecoration: 'none', color: 'inherit',
+          }}>
+            <img
+              src="/logos/vector-wa-mark.svg"
+              alt=""
+              aria-hidden="true"
+              style={{ height: 20, width: 'auto', flexShrink: 0, filter: 'drop-shadow(0 0 10px rgba(184,151,90,0.25))' }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.3, marginBottom: 2 }}>
+                Track your bills &mdash; free
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-mid)', lineHeight: 1.4 }}>
+                A watchlist, hearing alerts, and your own trajectory gauge.
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-mid)', lineHeight: 1.4 }}>
-              A watchlist, hearing alerts, and your own trajectory gauge.
-            </div>
-          </div>
-          <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--brass)', flexShrink: 0 }}>
-            {'→'}
-          </span>
-        </Link>
+            <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 14, color: 'var(--brass)', flexShrink: 0 }}>
+              {'→'}
+            </span>
+          </Link>
+        )}
 
         {/* -- INSTRUMENTS: momentum + issue heat (2-up), then statewide movers -- */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

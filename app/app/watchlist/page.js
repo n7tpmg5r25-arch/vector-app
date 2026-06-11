@@ -10,6 +10,7 @@ import { confirmExport } from '../../lib/export-ack'
 import { useSession } from '../../lib/useSession'
 import { useViewer } from '../../lib/viewer-capabilities'
 import Nav from '../components/Nav'
+import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import MeetingBadge from '../components/MeetingBadge'
 import VectorLoader from '../components/VectorLoader'
@@ -24,7 +25,12 @@ export default function WatchlistPage() {
   // the home page session picker. Watches remain global in tracked_bills; we
   // filter to the active session client-side after the join.
   const [SESSION] = useSession()
-  const { user, capabilities, loading: viewerLoading } = useViewer()
+  const { user, capabilities, loading: viewerLoading, publicLayerEnabled } = useViewer()
+  // PORTAL-3: anon visitors reach this page when the public layer is on (the
+  // proxy admits /watchlist) and read the device-local store instead of
+  // tracked_bills. Same gate shape as bill/[id] -- never true while the
+  // viewer is still resolving, so authed users cannot flash the anon chrome.
+  const isAnonPublic = !viewerLoading && publicLayerEnabled && !user
   const [watched, setWatched]               = useState([])
   const [tags, setTags]                     = useState([])
   const [activeTag, setActiveTag]           = useState('All')
@@ -51,24 +57,43 @@ export default function WatchlistPage() {
   useEffect(() => {
     if (viewerLoading) return
     async function load() {
-      if (!user) return
+      if (!user && !publicLayerEnabled) return
 
       /* ── 1. Fetch tracked bills (now includes last_viewed_at) ── */
-      const { data } = await watchlistStore(user).list({
-        select: `
-          bill_id, tag, notes, added_at, last_viewed_at,
-          bills (
-            bill_id, bill_number, title, final_score,
-            stage, chamber, category, committee_name,
-            has_public_hearing, committee_passed,
-            hearing_date, days_to_cutoff, status, stalled,
-            prime_sponsor, prime_party, bipartisan,
-            session, companion_bill, confidence_label, pass_probability, ai_summary,
-            bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record,
-            calendar_pressure, calendar_pressure_next_meeting
-          )
-        `,
-      })
+      // PORTAL-3: the local backend cannot join (no embedded bills(...) in
+      // localStorage), so the anon path hydrates per PORTAL_DEEP_DIVE.md
+      // S2.3: local list() -> from('bills').in('bill_id', ids) with the SAME
+      // columns as the authed embedded select. bills is anon-readable and the
+      // 200-item device cap keeps .in() far under the 1000-row PostgREST
+      // limit (T145 lesson). Everything downstream sees one row shape.
+      const BILL_COLUMNS = `
+        bill_id, bill_number, title, final_score,
+        stage, chamber, category, committee_name,
+        has_public_hearing, committee_passed,
+        hearing_date, days_to_cutoff, status, stalled,
+        prime_sponsor, prime_party, bipartisan,
+        session, companion_bill, confidence_label, pass_probability, ai_summary,
+        bipartisan_index, chair_alignment, cross_aisle_count, sponsor_track_record,
+        calendar_pressure, calendar_pressure_next_meeting
+      `
+      let data
+      if (user) {
+        ;({ data } = await watchlistStore(user).list({
+          select: `bill_id, tag, notes, added_at, last_viewed_at, bills (${BILL_COLUMNS})`,
+        }))
+      } else {
+        const { data: localRows } = await watchlistStore(null).list()
+        const localIds = (localRows || []).map(r => r.bill_id)
+        const billsById = {}
+        if (localIds.length > 0) {
+          const { data: billRows } = await supabase
+            .from('bills')
+            .select(BILL_COLUMNS)
+            .in('bill_id', localIds)
+          ;(billRows || []).forEach(b => { billsById[b.bill_id] = b })
+        }
+        data = (localRows || []).map(r => ({ ...r, bills: billsById[r.bill_id] || null }))
+      }
 
       // Phase 7U.5: filter to the currently-viewed biennium. When the user
       // switches sessions via the session picker, this page re-runs load()
@@ -165,8 +190,9 @@ export default function WatchlistPage() {
         }
       }
 
-      // Phase 7S: fetch note counts per bill
-      if (billIds.length > 0) {
+      // Phase 7S: fetch note counts per bill (registered-only -- bill_notes
+      // is uid-fenced; the anon pencil edits the local row's notes instead)
+      if (user && billIds.length > 0) {
         const { data: allNotes } = await supabase
           .from('bill_notes')
           .select('bill_id, created_at, updated_at')
@@ -336,6 +362,16 @@ export default function WatchlistPage() {
           }
         }))
       }
+    } else {
+      // PORTAL-3: anon -- the pencil edits the local row's notes field
+      // through the store (bill_notes is a registered feature; a device row
+      // carries one notes string, the same field the bill page has edited
+      // anon since PORTAL-2). The inline NOTE line updates optimistically.
+      const body = quickNote.trim()
+      const { error } = await watchlistStore(null).update(notesBillId, { notes: body })
+      if (!error) {
+        setWatched(prev => prev.map(w => w.bill_id === notesBillId ? { ...w, notes: body } : w))
+      }
     }
     setQuickNote('')
     setNotesBillId(null)
@@ -349,20 +385,26 @@ export default function WatchlistPage() {
   return (
     <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)' }}>
       {/* ━━━ HEADER ━━━ */}
+      {/* PORTAL-3: anon gets the PublicNav top bar (the sign-in affordance)
+          and the sticky header tucks under it -- the bill/[id] anon pattern. */}
+      {isAnonPublic && <PublicNav />}
       <div style={{
         background: 'rgba(14,16,20,0.95)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border)',
-        padding: '52px 16px 14px',
-        position: 'sticky', top: 0, zIndex: 50,
+        padding: isAnonPublic ? '12px 16px 14px' : '52px 16px 14px',
+        position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
             Watchlist
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Subscribe to Calendar — direct webcal:// link */}
-            {filtered.length > 0 && (
+            {/* Subscribe to Calendar — direct webcal:// link.
+                PORTAL-3 S2.4: registered-only -- the .ics route reads
+                tracked_bills by auth token; a device list has no identity,
+                so there is no feed to subscribe to. Hidden for anon. */}
+            {user && filtered.length > 0 && (
               <button
                 type="button"
                 onClick={async () => {
@@ -517,6 +559,25 @@ export default function WatchlistPage() {
 
       {/* ━━━ CONTENT ━━━ */}
       <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+
+        {/* PORTAL-3 S2.5: the one-line device-storage honesty row -- sits
+            where the alerts / Cal-Feed affordances sit for registered users.
+            Copy is the durability story: ITP can evict tab-browsing storage,
+            the installed PWA is exempt, an account syncs everywhere. */}
+        {isAnonPublic && watched.length > 0 && (
+          <Link href="/login" style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderLeft: '3px solid var(--brass)',
+            borderRadius: '0 var(--radius) var(--radius) 0',
+            padding: '9px 12px', textDecoration: 'none',
+          }}>
+            <span style={{ fontSize: 11, color: 'var(--text-mid)', minWidth: 0, flex: 1, lineHeight: 1.4 }}>
+              Saved on this device only &mdash; <span style={{ color: 'var(--gold)', fontWeight: 600 }}>create a free account to sync</span>
+            </span>
+            <span aria-hidden="true" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--brass)', flexShrink: 0 }}>{'→'}</span>
+          </Link>
+        )}
 
         {/* ── WHAT'S CHANGED SECTION ── */}
         {!loading && !isInterimPeriod() && showChanges && (
@@ -803,7 +864,7 @@ export default function WatchlistPage() {
                 </div>
                 {/* Quick-note pencil */}
                 <button
-                  onClick={e => { e.stopPropagation(); setNotesBillId(notesBillId === bill_id ? null : bill_id); setQuickNote('') }}
+                  onClick={e => { e.stopPropagation(); const opening = notesBillId !== bill_id; setNotesBillId(opening ? bill_id : null); setQuickNote(opening && !user ? (notes || '') : '') }}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer', padding: '10px',
                     margin: '-10px',
@@ -840,7 +901,7 @@ export default function WatchlistPage() {
                 <textarea
                   value={quickNote}
                   onChange={e => setQuickNote(e.target.value)}
-                  placeholder="Quick internal note..."
+                  placeholder={user ? 'Quick internal note...' : 'Notes for this bill (saved on this device)...'}
                   rows={2}
                   autoFocus
                   style={{
@@ -856,7 +917,7 @@ export default function WatchlistPage() {
                     letterSpacing: '0.05em', textTransform: 'uppercase',
                     padding: '2px 8px', background: 'rgba(138,128,112,0.12)',
                     borderRadius: 6, border: '1px solid rgba(138,128,112,0.2)',
-                  }}>INTERNAL</span>
+                  }}>{user ? 'INTERNAL' : 'THIS DEVICE'}</span>
                   <div style={{ flex: 1 }}/>
                   <button onClick={() => { setNotesBillId(null); setQuickNote('') }} style={{
                     padding: '5px 12px', background: 'transparent',
@@ -877,7 +938,7 @@ export default function WatchlistPage() {
         )})}
 
       </div>
-      <Nav/>
+      {!viewerLoading && !isAnonPublic && <Nav/>}
     </div>
   )
 }
