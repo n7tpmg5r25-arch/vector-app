@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { createBrowserClient } from '../../lib/supabase'
+import { PUBLIC_LAYER_ENABLED } from '../../lib/viewer-capabilities'
 
 /**
  * LoginPage
@@ -17,6 +18,16 @@ import { createBrowserClient } from '../../lib/supabase'
  *   are anon-allowlisted in proxy.js (isPublicLayerRoute). The pair sits
  *   OUTSIDE the card branch on purpose — they persist across the
  *   pre-send and post-send ("Check your email") states.
+ *
+ * PORTAL-4 (2026-06-11): registration is flag-gated. The paragraph above
+ * describes flag-off prod. With NEXT_PUBLIC_ENABLE_PUBLIC_LAYER on,
+ * signInWithOtp sends shouldCreateUser: true -- the same email box signs
+ * an existing user in or creates a free account (honest dual-mode copy
+ * on the card). OTP + magic-link mechanics, /auth/callback, and
+ * resolveLandingPath are untouched; the closed-beta waitlist block below
+ * (already hidden, Thread 101) retires at the public flip. The local ->
+ * account watchlist merge lives in components/MergeLocalWatchlist.js,
+ * mounted in the root layout.
  */
 
 export default function LoginPage() {
@@ -127,7 +138,9 @@ function LoginPageInner() {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
-        shouldCreateUser: false,
+        // PORTAL-4: flag on -> the same box signs in OR creates a free
+        // account. Flag off (prod today) -> closed list, exactly as before.
+        shouldCreateUser: PUBLIC_LAYER_ENABLED ? true : false,
       }
     })
     if (error) {
@@ -326,9 +339,13 @@ function LoginPageInner() {
           </div>
         ) : (
           <>
-            <div style={headingStyle}>Already have access?</div>
+            <div style={headingStyle}>
+              {PUBLIC_LAYER_ENABLED ? 'Sign in or create a free account' : 'Already have access?'}
+            </div>
             <div style={subheadStyle}>
-              Sign in with a magic link sent to your email.
+              {PUBLIC_LAYER_ENABLED
+                ? 'Same box either way \u2014 enter your email and we\u2019ll send a code. New emails get a free account, existing ones sign right in.'
+                : 'Sign in with a magic link sent to your email.'}
             </div>
 
             <form onSubmit={handleSignIn}>
