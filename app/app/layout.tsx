@@ -30,6 +30,7 @@ import Footer from './components/Footer'
 import SessionBanner from './components/SessionBanner'
 import PublicBottomNav from './components/PublicBottomNav'
 import SideDrawer from './components/SideDrawer'
+import MergeLocalWatchlist from './components/MergeLocalWatchlist'
 
 // Thread 82 (2026-05-12): metadataBase was pointing at the Vercel preview
 // URL (vector-app-liard.vercel.app), which broke all og:url values in
@@ -87,6 +88,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ backgroundColor: '#0e1014' }}>
         <RegisterSW />
         <SessionBanner />
+        {/* PORTAL-4 (2026-06-11) -- register-to-sync. Mounted once here in
+            the root layout, NOT /auth/callback: the OTP login path never
+            visits the callback (it hard-reloads to /). Self-gates: flag
+            off, signed out, or empty device list -> renders null and does
+            nothing. See app/app/components/MergeLocalWatchlist.js. */}
+        <MergeLocalWatchlist />
         {children}
         <Footer />
         {/* Thread 29 (2026-04-27) — anon bottom-nav. Globally mounted but
