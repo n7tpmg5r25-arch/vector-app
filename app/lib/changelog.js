@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.38.0',
+    date: '2026-06-11',
+    phase: 'alpha',
+    highlights: [
+      'Editing a bill\u2019s public summary is now an explicit admin permission \u2014 ahead of open registration, a regular signed-in account no longer carries that switch, and the database enforces the same rule independently of the app.',
+      'Fixed a silent save bug: summary edits previously looked saved but never reached the database. Admin edits now persist and survive a reload.',
+      'Waitlist confirmation messages now say registration opens at the public launch instead of naming a beta month.',
+      'Email volume audited ahead of multi-user sign-ups: a new account receives no alert or digest email until it opts in on Settings.',
+    ],
+  },
+  {
     version: '5.37.0',
     date: '2026-06-11',
     phase: 'alpha',
