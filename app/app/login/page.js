@@ -73,9 +73,9 @@ function LoginPageInner() {
     } else if (err === 'auth_callback_error') {
       setBanner({ kind: 'warn', text: 'Sign-in link expired or invalid. Request a new magic link below.' })
     } else if (wl === 'confirmed') {
-      setBanner({ kind: 'ok', text: "Email confirmed — you’re on the beta list. We’ll be in touch around December 2026." })
+      setBanner({ kind: 'ok', text: "Email confirmed — you’re on the list. We’ll email you when registration opens at launch." })
     } else if (wl === 'already_confirmed') {
-      setBanner({ kind: 'ok', text: "You’re already confirmed on the beta list. Watch for your invite in December 2026." })
+      setBanner({ kind: 'ok', text: "You’re already confirmed on the list. We’ll email you when registration opens at launch." })
     } else if (wl === 'invalid' || wl === 'error') {
       setBanner({ kind: 'warn', text: 'That confirmation link is invalid or expired. Try signing up again below.' })
     }
@@ -547,7 +547,7 @@ function LoginPageInner() {
               textTransform: 'uppercase',
               color: 'var(--teal)',
               marginBottom: 8,
-            }}>Closed Beta &middot; December 2026</div>
+            }}>Registration opens at launch</div>
 
             {/* Headline */}
             <div style={{
