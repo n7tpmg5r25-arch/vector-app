@@ -418,13 +418,6 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     const summaryLines = wrapped.slice(0, 3)
     doc.text(summaryLines, m, y)
     y += summaryLines.length * 4
-
-    y += 1.5
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(...P.neutralLt)
-    doc.text('AI-assisted summary · Verify key facts with member\'s office', m, y)
-    y += 4
   }
 
   return y + 2
@@ -433,26 +426,21 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
 // ── Section 4 — Top Bills ────────────────────────────────────────────────────
 
 function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
-  y = drawSectionLabel(doc, y, m, contentW, 'Top Bills This Session')
-
+  // PDF-M3: resolve bills before drawing section label -- avoids contradiction with stats
   let bills = (memberBills || [])
     .filter(b => !session || b.session === session)
     .sort((a, b) => (b.final_score || 0) - (a.final_score || 0))
     .slice(0, 5)
-
-  if (!bills.length) {
+  const usedFallback = !bills.length
+  if (usedFallback) {
     bills = [...(memberBills || [])]
       .sort((a, b) => (b.final_score || 0) - (a.final_score || 0))
       .slice(0, 5)
   }
+  if (!bills.length) return y   // skip section entirely
 
-  if (!bills.length) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(...P.muted)
-    doc.text('No sponsored bills on record', m, y)
-    return y + 8
-  }
+  const sectionTitle = usedFallback ? 'Top Bills (All Sessions)' : 'Top Bills This Session'
+  y = drawSectionLabel(doc, y, m, contentW, sectionTitle)
 
   const circleR = 4.2   // PDF-M1: 3.5 → 4.2 for print readability
   const numColW = 16
@@ -711,7 +699,7 @@ function drawStageFunnel(doc, y, m, contentW, memberBills) {
 function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats) {
   // T147: renamed from "VECTOR | WA INTELLIGENCE" — brand already in header
   const sectionLabel = session
-    ? 'LEGISLATIVE RECORD  -  ' + session
+    ? 'LEGISLATIVE RECORD  ·  ' + session
     : 'LEGISLATIVE RECORD'
 
   y = drawSectionLabel(doc, y, m, contentW, sectionLabel)
@@ -737,7 +725,8 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
   const statW = contentW / STAT_COLS
   const statPool = [
     { label: 'Laws Enacted',    value: String(member.laws_passed     || 0) },
-    { label: 'Success Rate',    value: (member.pass_rate             || 0) + '%' },
+    // PDF-M3: law rate -- footnote says signed into law, now the math matches
+    { label: 'Success Rate',    value: (member.bill_count > 0 && member.laws_passed != null ? Math.round((member.laws_passed / member.bill_count) * 100) : (member.pass_rate || 0)) + '%' },
     { label: 'Bills Sponsored', value: String(member.bill_count      || 0) },
     { label: 'Bills Advanced',  value: String(member.committee_passes || 0) },
     { label: 'Top Bill Score',  value: String(member.top_score       || 0) },
@@ -785,7 +774,7 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
 // ── Footer ───────────────────────────────────────────────────────────────────
 
 function drawFooter(doc, m, pw, ph, generatedAt) {
-  const fy = ph - 12
+  const fy = ph - 15   // PDF-M3: raised 3mm to fit data sources line
   doc.setDrawColor(...P.neutralLt)
   doc.setLineWidth(0.3)
   doc.line(m, fy - 2, pw - m, fy - 2)
@@ -795,12 +784,17 @@ function drawFooter(doc, m, pw, ph, generatedAt) {
   })
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  // T147: removed "Vector | WA · Washington State Legislative Intelligence" left text
-  //        (brand already in header — no need to repeat in footer)
-  // T147: removed "CONFIDENTIAL BRIEFING" right text
-  //        (wrong framing for a document shared with lobbyist clients)
   doc.setTextColor(...P.muted)
   doc.text('Generated ' + stamp, m, fy + 3)
+
+  // PDF-M3: data attribution
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5.5)
+  doc.setTextColor(...P.neutralLt)
+  doc.text(
+    'Data: Washington State Legislature · leg.wa.gov · Washington Secretary of State · WA roll-call voting records',
+    m, fy + 8
+  )
 }
 
 // ── Main export ──────────────────────────────────────────────────────────────
@@ -862,22 +856,21 @@ export async function generateMemberPdf(member, memberBills, session, bio = null
 
   y = Math.max(yLeft, yRight) + 5
 
-  // T147c: lowered threshold from ph-80 to ph-90. Actual measured heights:
-  // stage funnel ~23.5mm + legislative record ~48.5mm = 72mm content.
-  // Footer rule sits at ph-14 (265.4mm on letter). Max safe y before sections
-  // = ph-14-72 = ph-86. Use ph-90 for a 4mm safety buffer above the footer rule.
-  // Previous ph-80 allowed y up to 199.4mm → content ending at 271.4mm which
-  // overran the footer rule by ~6mm on busy member profiles.
-  if (y > ph - 90) {
-    doc.addPage()
-    y = 16
+  // PDF-M3: single-page guarantee -- never addPage(). Skip funnel if cramped.
+  // Footer rule at ph-17. Budget: funnel ~25mm + intelligence ~52mm = 77mm.
+  const footerRule = ph - 20   // 3mm buffer above footer rule
+  const INTEL_H    = 54
+  const FUNNEL_H   = 25
+
+  if (y + FUNNEL_H + INTEL_H <= footerRule) {
+    y = drawStageFunnel(doc, y, m, contentW, memberBills)
+    y = drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats)
+  } else if (y + INTEL_H <= footerRule) {
+    y = drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats)
+  } else {
+    y = footerRule - INTEL_H
+    y = drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats)
   }
-
-  // Stage funnel — full-width, compact
-  y = drawStageFunnel(doc, y, m, contentW, memberBills)
-
-  // Stats / Legislative Record
-  y = drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats)
 
   drawFooter(doc, m, pw, ph, generatedAt)
   // ─────────────────────────────────────────────────────────────────────────
