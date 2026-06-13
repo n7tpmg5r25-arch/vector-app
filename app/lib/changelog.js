@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.41.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'Bill export PDF (PDF-B1): four clarity fixes for non-insider readers. Key Signals now include a footnote explaining that delta values are score model impact, not passage probability.',
+      'Companion bill line now shows the tier label (HIGH / MODERATE / LIMITED) alongside the raw score so decision-makers can read it at a glance.',
+      'Fiscal Note section always appears — bills with no fiscal note now show "No fiscal note on file" rather than silently omitting the section.',
+      'Affects line now falls back to the first sentence of the executive summary when the AI summary has no dedicated WHO IS AFFECTED heading, so the field is never blank.',
+    ],
+  },
+  {
     version: '5.40.0',
     date: '2026-06-13',
     phase: 'alpha',

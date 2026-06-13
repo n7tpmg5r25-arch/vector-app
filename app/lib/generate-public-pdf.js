@@ -344,7 +344,14 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
   // Replaces the T151 rounded-box callout. Same data, no visual chrome.
   const sections    = structureSummary(bill.custom_summary || bill.ai_summary || '')
   const affectedSec = sections.find(s => s.heading && /AFFECTED|IMPACT/i.test(s.heading))
-  if (affectedSec?.body) {
+  // PDF-B1: fallback to first sentence of summary when no AFFECTED/IMPACT heading
+  const affectsBody = affectedSec?.body || (() => {
+    const firstSec = sections.find(s => s.body)
+    if (!firstSec?.body) return null
+    const firstSentence = firstSec.body.split(/(?<=[.!?])\s/)[0]
+    return (firstSentence && firstSentence.length > 20) ? firstSentence : null
+  })()
+  if (affectsBody) {
     // Font MUST be set before getTextWidth (T148)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
@@ -362,7 +369,7 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
     // one-line clip hid content (and once hid a hallucination). Title rows
     // elsewhere stay uniform-truncated -- this prose block wraps with a hanging
     // indent under the label.
-    const affAll   = doc.splitTextToSize(affectedSec.body, affW)
+    const affAll   = doc.splitTextToSize(affectsBody, affW)
     const affLines = affAll.slice(0, 3)
     if (affAll.length > 3) {
       affLines[2] = (affLines[2] || '').trim().replace(/[.,;]?\s*$/, '') + '…'
@@ -648,6 +655,13 @@ function drawKeySignals(doc, y, m, contentW, scoreFeatures, ph) {
     y += rowH
   })
 
+  // PDF-B1: footnote explains delta % is score model impact, not passage probability
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(6)
+  doc.setTextColor(...P.muted)
+  doc.text('Signal values show score model impact — not passage probability.', m, y + 1)
+  y += 4
+
   return y + 3
 }
 
@@ -739,7 +753,11 @@ function drawCompanion(doc, y, m, contentW, bill, ph) {
     ? bill.companion_bill
     : (bill.companion_bill?.label || bill.companion_bill?.bill_number || String(bill.companion_bill))
   const parts = [compLabel]
-  if (bill.companion_score != null) parts.push('Score ' + bill.companion_score)
+  if (bill.companion_score != null) {
+    // PDF-B1: show tier label so score is legible to a non-insider
+    const compTierLbl = getScoreTierLabel(bill.companion_score)
+    parts.push(compTierLbl ? compTierLbl + ' (' + bill.companion_score + ')' : 'Score ' + bill.companion_score)
+  }
   const stateLbl = companionStateLabel(bill.companion_state)
   if (stateLbl) parts.push(stateLbl)
 
@@ -767,7 +785,17 @@ function drawCompanion(doc, y, m, contentW, bill, ph) {
  */
 function drawFiscalNote(doc, y, m, contentW, fiscalNote, bill, ph) {
   const size = fiscalNote ? (fiscalNote.size || fiscalNote.new_size) : bill.fiscal_note_size
-  if (!size || size === 'none') return y
+  // PDF-B1: always render section — knowing there is NO fiscal note is actionable
+  if (!size || size === 'none') {
+    y = checkPageBreak(doc, y, 10, ph)
+    y += 2
+    y = drawSectionLabel(doc, y, m, contentW, 'Fiscal Note')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(...P.muted)
+    doc.text('No fiscal note on file.', m, y)
+    return y + 7
+  }
 
   y = checkPageBreak(doc, y, 22, ph)
   y += 2
