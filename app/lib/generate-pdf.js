@@ -1083,7 +1083,7 @@ export async function generateBriefPDF({
 
     // Methodology block — last page only, above footer
     if (p === pageCount) {
-      const methY = ph - 24
+      const methY = ph - 27   // PDF-W2: raised 3mm with the footer to clear the data-sources line
       doc.setDrawColor(...P.neutralLt)
       doc.setLineWidth(0.15)
       doc.line(m, methY, pw - m, methY)
@@ -1105,18 +1105,26 @@ export async function generateBriefPDF({
     }
 
     // Footer — every page
-    const fy = ph - 12
+    const fy = ph - 15   // PDF-W2: raised 3mm to fit the data-sources attribution line
     doc.setDrawColor(...P.neutralLt)
-    doc.setLineWidth(0.4)
+    doc.setLineWidth(0.3)
     doc.line(m, fy, pw - m, fy)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(...P.muted)
-    doc.text('Generated ' + (date || ''), m, fy + 5)
+    doc.text('Generated ' + (date || ''), m, fy + 4)
     if (pageCount > 1) {
       doc.setFontSize(6.5)
-      doc.text('Page ' + p + ' of ' + pageCount, pw / 2, fy + 5, { align: 'center' })
+      doc.text('Page ' + p + ' of ' + pageCount, pw / 2, fy + 4, { align: 'center' })
     }
+    // PDF-W2: data-sources attribution -- matches member + single-bill briefs
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(5.5)
+    doc.setTextColor(...P.neutralLt)
+    doc.text(
+      'Data: Washington State Legislature · leg.wa.gov · Washington Secretary of State · WA roll-call voting records',
+      m, fy + 8
+    )
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────────
