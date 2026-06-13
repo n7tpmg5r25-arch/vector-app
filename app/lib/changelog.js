@@ -1066,4 +1066,9 @@ export const CHANGELOG = [
     date: '2026-05-01',
     phase: 'alpha',
     highlights: [
-      'LinkedIn-style side drawer with vi
+      'LinkedIn-style side drawer added — viewer-aware body (public/registered/team), biennium-aware subtitle, hamburger button, and solid backdrop; watchlist count badge via supabase head query; window CustomEvents decouple Nav and drawer (Thread 55).',
+      'Sticky header density fix — narrow-viewport hamburger clamp added to keep header within the 480px column on iPhone (Thread 37).',
+      'Pre-launch housekeeping — corrections@vectorwa.com live, CSS party-color vars, search/watchlist emoji entities fixed, datasheet refresh, square logo, PWA install explainer (Thread 36).',
+    ],
+  },
+]
