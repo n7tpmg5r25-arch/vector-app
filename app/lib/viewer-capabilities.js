@@ -130,9 +130,13 @@ export function getViewerCapabilities(user) {
     canEditNotes: true,
     // T156: bill summary edits update the global bills.custom_summary column —
     // visible to all users. Gate separately from canEditNotes (private notes).
-    // Currently true for owner (Colin) only; set false here when multi-user
-    // registered accounts go live and move to an explicit admin check.
-    canEditBillSummary: true,
+    // PORTAL-5: register-to-sync (PORTAL-4) opens multi-user registered
+    // accounts, so this is now the explicit admin check that comment
+    // promised. app_metadata is server-controlled (users cannot edit
+    // their own), and the admin_update_bills RLS policy on public.bills
+    // enforces the same claim at the database, so UI and DB agree even
+    // when the REST API is called directly.
+    canEditBillSummary: user.app_metadata?.role === 'admin',
     canExport: true,
     canSeeAlerts: true,
     canSeeAdmin: false, // admin routes still do their own UID check
