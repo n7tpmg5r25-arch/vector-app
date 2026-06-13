@@ -621,7 +621,8 @@ function SearchContent() {
                   const { snippet, matchStart, matchLen } = snip
                   return (
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                      {snippet.slice(0, matchStart)}
+                      {/* PORTAL-6 scrub-gate item 1: AI source marker */}
+                      <span style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.06em', marginRight: 5 }}>AI·</span>{snippet.slice(0, matchStart)}
                       <mark style={{ background: 'rgba(184,151,90,0.25)', color: 'var(--text-primary)', borderRadius: 2, padding: '0 1px' }}>
                         {snippet.slice(matchStart, matchStart + matchLen)}
                       </mark>
