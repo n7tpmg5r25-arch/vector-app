@@ -757,10 +757,10 @@ function MembersContent() {
                   </a>
                   {/* Thread 112: Print Card — visual separator + PDF brief */}
                   <button
-                    disabled={pdfLoading}
+                    disabled={pdfLoading || billsLoading}
                     onClick={async e => {
                       e.stopPropagation()
-                      if (pdfLoading) return
+                      if (pdfLoading || billsLoading) return
                       if (!(await confirmExport())) return
                       setPdfLoading(true)
                       try {
@@ -788,17 +788,17 @@ function MembersContent() {
                     }}
                     style={{
                       fontSize: 9, padding: '3px 10px', borderRadius: 10,
-                      background: pdfLoading ? 'var(--bg-surface)' : 'rgba(184,151,90,0.08)',
-                      color: pdfLoading ? 'var(--text-muted)' : 'var(--teal)',
+                      background: (pdfLoading || billsLoading) ? 'var(--bg-surface)' : 'rgba(184,151,90,0.08)',
+                      color: (pdfLoading || billsLoading) ? 'var(--text-muted)' : 'var(--teal)',
                       border: '1px solid rgba(184,151,90,0.2)',
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      cursor: pdfLoading ? 'default' : 'pointer',
+                      cursor: (pdfLoading || billsLoading) ? 'default' : 'pointer',
                       fontFamily: 'var(--font-mono)', letterSpacing: '0.04em',
                       marginLeft: 'auto',
                     }}
                   >
                     <Printer size={9} aria-hidden="true" />
-                    {pdfLoading ? 'Generating…' : 'Export as PDF'}
+                    {pdfLoading ? 'Generating…' : billsLoading ? 'Loading…' : 'Export as PDF'}
                   </button>
                 </div>
               </div>
