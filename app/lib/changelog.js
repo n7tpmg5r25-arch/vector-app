@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.40.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'Member PDF rewritten for C-suite clarity: bio summary expanded from one line to three, seat safety label (SAFE SEAT / COMPETITIVE SEAT / VULNERABLE SEAT) added under the electoral margin, and all eight Legislative Record stats relabeled in plain English.',
+      'Stat labels now read as plain language: "Laws Enacted", "Success Rate", "Party-Line Votes", "Floor Attendance", "Bills Advanced", and "Top Bill Score" replace the previous jargon equivalents. Footnotes explain Success Rate and Top Bill Score for readers with no legislative context.',
+      'Score circles on the Top Bills list are slightly larger and use a bigger font for legibility on printed pages.',
+    ],
+  },
+  {
     version: '5.39.0',
     date: '2026-06-13',
     phase: 'alpha',

@@ -104,6 +104,17 @@ function electionLine(elections) {
   return null
 }
 
+/** Seat-safety classification from most-recent general election margin. */
+function seatSafetyTag(elections) {
+  if (!elections || !elections.length) return null
+  const r = elections[0]
+  if (r.unopposed) return { text: 'UNCONTESTED', color: [...P.accent] }
+  if (r.margin_pct == null) return null
+  if (r.margin_pct >= 15) return { text: 'SAFE SEAT', color: [...P.primary] }
+  if (r.margin_pct >= 5)  return { text: 'COMPETITIVE SEAT', color: [...P.muted] }
+  return { text: 'VULNERABLE SEAT', color: [...P.danger] }
+}
+
 /**
  * Return an upcoming hearing date string if the bill's hearing_date is in
  * the future and within 60 days. Returns null otherwise.
@@ -296,6 +307,16 @@ async function drawIdentity(doc, y, m, pw, contentW, member, bio, elections) {
     doc.setTextColor(...P.muted)
     doc.text(trunc(elLine, 70), textX, ty)
     ty += 4
+
+    // PDF-M1: seat-safety label — converts raw margin to plain-English signal
+    const safetyTag = seatSafetyTag(elections)
+    if (safetyTag) {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      doc.setTextColor(...safetyTag.color)
+      doc.text(safetyTag.text, textX, ty)
+      ty += 3.5
+    }
   }
 
   ty += 1.5
@@ -385,8 +406,9 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     doc.setFontSize(8)
     const wrapped = wrapText(doc, summary, contentW)
     doc.setTextColor(...P.muted)
-    doc.text(wrapped.slice(0, 1), m, y)   // T148: 1-line cap — was 2, saves ~4mm
-    y += 1 * 4
+    const summaryLines = wrapped.slice(0, 3)  // PDF-M1: 3-line cap (was 1) — C-suite context
+    doc.text(summaryLines, m, y)
+    y += summaryLines.length * 4
 
     y += 1.5
     doc.setFont('helvetica', 'normal')
@@ -423,12 +445,12 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     return y + 8
   }
 
-  const circleR = 3.5
+  const circleR = 4.2   // PDF-M1: 3.5 → 4.2 for print readability
   const numColW = 16
   // T147c: padding increased from +4 → +10 to guarantee a clean gap between
   // the title text right edge and the score circle left edge. Previous 3mm gap
   // was too tight — jsPDF font metrics occasionally over-ran it.
-  const titleW  = contentW - numColW - (circleR * 2 + 10)
+  const titleW  = contentW - numColW - (circleR * 2 + 14)  // PDF-M1: gap for larger circle
 
   for (const bill of bills) {
     const score      = bill.final_score || 0
@@ -464,9 +486,9 @@ function drawTopBills(doc, y, m, contentW, pw, memberBills, session) {
     doc.setFillColor(...scoreRgb)
     doc.circle(scoreX, scoreY, circleR, 'F')
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(6.5)
+    doc.setFontSize(8)  // PDF-M1: 6.5 → 8 for print readability
     doc.setTextColor(...P.white)
-    doc.text(String(score), scoreX, scoreY + 1.2, { align: 'center' })
+    doc.text(String(score), scoreX, scoreY + 1.5, { align: 'center' })
 
     // Sub-row: stage · outcome · upcoming hearing
     const subY     = y + 4 + titleH
@@ -703,16 +725,16 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
   const statW = contentW / 4
   const rows = [
     [
-      { label: 'Laws Passed',    value: String(member.laws_passed    || 0) },
-      { label: 'Pass Rate',      value: (member.pass_rate            || 0) + '%' },
+      { label: 'Laws Enacted',   value: String(member.laws_passed    || 0) },
+      { label: 'Success Rate',   value: (member.pass_rate            || 0) + '%' },
       { label: 'Yrs Served',     value: yrsVal || '—' },        // T147: replaces Session
       { label: 'Bills Sponsored', value: String(member.bill_count   || 0) },
     ],
     [
-      { label: 'Party Cohesion', value: votingStats?.cohesionPct != null ? votingStats.cohesionPct + '%' : '—' },
-      { label: 'Attendance',     value: votingStats?.attendancePct != null ? votingStats.attendancePct + '%' : '—' },
-      { label: 'Committee Passes', value: String(member.committee_passes || 0) },
-      { label: 'Best Trajectory', value: String(member.top_score      || 0) },
+      { label: 'Party-Line Votes', value: votingStats?.cohesionPct != null ? votingStats.cohesionPct + '%' : '—' },
+      { label: 'Floor Attendance', value: votingStats?.attendancePct != null ? votingStats.attendancePct + '%' : '—' },
+      { label: 'Bills Advanced',   value: String(member.committee_passes || 0) },
+      { label: 'Top Bill Score',   value: String(member.top_score      || 0) },
     ],
   ]
 
@@ -736,11 +758,13 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(6)
   doc.setTextColor(...P.neutralLt)
-  doc.text('Trajectory scores: predicted likelihood of legislative success, 0–100.', m, y)
+  doc.text('Top Bill Score: likelihood of passage for the member\'s strongest bill (0-100 scale).', m, y)
+  y += 3.5
+  doc.text('Success Rate: bills signed into law as a share of total bills sponsored this session.', m, y)
   y += 3.5
   if (votingStats?.sampleN) {
     doc.text(
-      `Cohesion + attendance based on ${votingStats.sampleN} most-recent roll calls in session.`,
+      `Party-Line Votes + Floor Attendance based on ${votingStats.sampleN} most-recent roll calls.`,
       m, y
     )
     y += 3.5
