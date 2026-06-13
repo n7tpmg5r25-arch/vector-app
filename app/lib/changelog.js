@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.45.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'PDF-B2 / PDF-W2: Single-bill and watchlist briefs given the member-brief C-suite finish -- the single-bill footer drops the redundant "Not legal advice / AI-generated content" disclaimer (the export confirmation already carries the verify-the-record notice), both footers gain a data sources attribution line, and the footer divider and spacing now match the member brief.',
+    ],
+  },
+
+  {
     version: '5.44.0',
     date: '2026-06-13',
     phase: 'alpha',

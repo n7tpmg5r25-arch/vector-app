@@ -895,20 +895,29 @@ function drawTimeline(doc, y, m, contentW, snapshots, ph) {
 // ── Footer ────────────────────────────────────────────────────────────────────
 
 function drawFooter(doc, ph, m, pw, bill, generatedAt) {
-  const fy    = ph - 13
+  // PDF-B2: footer matches generate-member-pdf.js -- neutral divider, date
+  // stamp, and a data-sources attribution line. The old legal/AI disclaimer
+  // line was removed: the confirmExport() gate shown before every export
+  // already carries the verify-the-record notice, so repeating it on a
+  // C-suite brief was redundant.
+  const fy = ph - 15
+  doc.setDrawColor(...P.neutralLt)
+  doc.setLineWidth(0.3)
+  doc.line(m, fy - 2, pw - m, fy - 2)
+
   const stamp = generatedAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  const line1 = 'Generated ' + stamp
-  const line2 = 'Not legal advice  ·  Summary contains AI-generated content'
-
-  doc.setDrawColor(...P.accent)
-  doc.setLineWidth(0.4)
-  doc.line(m, fy, pw - m, fy)
-
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...P.muted)
-  doc.text(line1, m, fy + 4)
-  doc.text(line2, m, fy + 8)
+  doc.text('Generated ' + stamp, m, fy + 3)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(5.5)
+  doc.setTextColor(...P.neutralLt)
+  doc.text(
+    'Data: Washington State Legislature · leg.wa.gov · Washington Secretary of State · WA roll-call voting records',
+    m, fy + 8
+  )
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
