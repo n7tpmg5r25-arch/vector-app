@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.37.0',
+    date: '2026-06-11',
+    phase: 'alpha',
+    highlights: [
+      'Signing in and creating an account become the same box: enter an email, get an 8-digit code \u2014 new emails get a free account, existing ones sign straight in. Like all public-tier work, this stays switched off until the free public launch.',
+      'Bills saved on a device move into the new account automatically at first sign-in \u2014 tags, notes, and original saved dates survive the trip, and a one-time notice confirms how many made it. Anything that cannot sync stays safely on the device with a retry; a partial move never loses data.',
+      'A list already in the account always wins: syncing never overwrites tags or notes saved while signed in \u2014 device notes fill in only where the account had none.',
+    ],
+  },
+  {
     version: '5.36.0',
     date: '2026-06-10',
     phase: 'alpha',
