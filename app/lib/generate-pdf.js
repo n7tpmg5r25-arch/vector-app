@@ -540,7 +540,7 @@ function drawPortfolioTable(doc, bills, scoreDeltas, changes, y, m, contentW, ph
   let hx = m + 1.5
   const hy = y + 3.2
   ;[
-    ['BILL #', colBill], ['TITLE', colTitle], ['SCORE', colScore],
+    ['BILL #', colBill], ['TITLE', colTitle], ['SCORE/99', colScore],
     ['STAGE', colStage], ['TREND', colTrend], ['NEXT', colNext],
   ].forEach(([label, w]) => { doc.text(label, hx, hy); hx += w })
   y += 7

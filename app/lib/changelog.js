@@ -29,6 +29,27 @@
 
 export const CHANGELOG = [
   {
+    version: '5.43.0',
+    date: '2026-06-13',
+    phase: 'PDF-M2',
+    highlights: [
+      'Member PDF: removed internal "Tier N" jargon — role now shows plain majority/minority English (Majority Member, Minority Member, etc.)',
+      'Member PDF: identity block now always shows a role line for every member, including tier-3/tier-4 (previously tier-3 showed nothing)',
+      'Member PDF: dynamic stat grid suppresses any stat with no real value — no more dash-labeled rows in C-suite documents',
+      'Member PDF: bio fallback to occupation when bio_summary is absent or short — data-sparse members now always have context text',
+    ],
+  },
+  {
+    version: '5.42.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist PDF (PDF-W1): three clarity fixes matching the bill export improvements. Companion bill scores now show tier labels (HIGH / MODERATE / LIMITED) rather than raw numbers.',
+      'Affects line in each bill card now falls back to the first sentence of the executive summary when the AI summary has no WHO IS AFFECTED heading.',
+      'Portfolio overview table score column now labeled SCORE/99 so scale is clear on first read.',
+    ],
+  },
+  {
     version: '5.41.0',
     date: '2026-06-13',
     phase: 'alpha',

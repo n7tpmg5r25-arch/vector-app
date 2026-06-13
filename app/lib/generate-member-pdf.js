@@ -47,11 +47,12 @@ const P = VECTOR_PALETTE
 const VECTOR_DOMAIN = 'vectorwa.com'
 
 // T147: middle dot replaces double-dash (professional punctuation on print)
+// PDF-M2: 'TIER N · ...' removed — internal jargon. Plain English majority/minority.
 const TIER_TEXT = {
-  1: 'TIER 1 · MAJORITY LEADERSHIP',
-  2: 'TIER 2 · SENIOR MEMBER',
-  3: 'TIER 3 · MEMBER',
-  4: 'TIER 4 · MINORITY',
+  1: 'Majority Leadership',
+  2: 'Senior Majority Member',
+  3: 'Majority Member',
+  4: 'Minority Member',
 }
 
 // Stage index → display label (WA actual stage values: 1 / 3 / 4 / 6)
@@ -282,16 +283,16 @@ async function drawIdentity(doc, y, m, pw, contentW, member, bio, elections) {
 
   // Leadership role — from bio.leadership_role if populated (named position);
   // falls back to tier-derived label for chairs / senior members.
-  if (bio?.leadership_role) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(...P.accent)
-    doc.text(bio.leadership_role, textX, ty)
-    ty += 4.5
-  } else if (member.is_chair || member.tier <= 2) {
-    const roleLabel = member.is_chair ? 'Committee Chair'
-      : member.tier === 1 ? 'Majority Leadership'
-      : 'Senior Member'
+  // PDF-M2: always show a role line — previously tier 3/4 members showed nothing
+  {
+    let roleLabel = bio?.leadership_role || null
+    if (!roleLabel) {
+      if (member.is_chair)        roleLabel = 'Committee Chair'
+      else if (member.tier === 1) roleLabel = 'Majority Leadership'
+      else if (member.tier === 2) roleLabel = 'Senior Majority Member'
+      else if (member.tier === 3) roleLabel = 'Majority Member'
+      else                        roleLabel = 'Minority Member'
+    }
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
     doc.setTextColor(...P.accent)
@@ -398,15 +399,22 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
     y = chipRowY + chipH + 2
   }
 
-  // Bio summary — T148: 1-line cap + font set before wrapText (metric fix)
-  if (summary) {
+  // PDF-M2: build bio text — summary first; fallback to occupation when absent or short
+  const bioText = (() => {
+    if (summary && summary.length > 60) return summary
+    const occLine = bio?.occupation?.length ? bio.occupation.slice(0, 2).join(', ') : null
+    if (summary && occLine) return summary.replace(/\.?$/, '.') + ' ' + occLine + '.'
+    if (occLine) return occLine + '.'
+    return summary || null
+  })()
+  if (bioText) {
     y += 2
     // T148: font MUST be set before wrapText — same metric-match requirement as drawTopBills
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    const wrapped = wrapText(doc, summary, contentW)
+    const wrapped = wrapText(doc, bioText, contentW)
     doc.setTextColor(...P.muted)
-    const summaryLines = wrapped.slice(0, 3)  // PDF-M1: 3-line cap (was 1) — C-suite context
+    const summaryLines = wrapped.slice(0, 3)
     doc.text(summaryLines, m, y)
     y += summaryLines.length * 4
 
@@ -722,23 +730,23 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
     ? String(new Date().getFullYear() - bio.first_elected_year) + ' yrs'
     : null
 
-  const statW = contentW / 4
-  const rows = [
-    [
-      { label: 'Laws Enacted',   value: String(member.laws_passed    || 0) },
-      { label: 'Success Rate',   value: (member.pass_rate            || 0) + '%' },
-      { label: 'Yrs Served',     value: yrsVal || '—' },        // T147: replaces Session
-      { label: 'Bills Sponsored', value: String(member.bill_count   || 0) },
-    ],
-    [
-      { label: 'Party-Line Votes', value: votingStats?.cohesionPct != null ? votingStats.cohesionPct + '%' : '—' },
-      { label: 'Floor Attendance', value: votingStats?.attendancePct != null ? votingStats.attendancePct + '%' : '—' },
-      { label: 'Bills Advanced',   value: String(member.committee_passes || 0) },
-      { label: 'Top Bill Score',   value: String(member.top_score      || 0) },
-    ],
-  ]
+  // PDF-M2: dynamic stat pool — suppress any stat without real data.
+  // C-suite documents must never show a labeled field with a dash.
+  const STAT_COLS = 4
+  const statW = contentW / STAT_COLS
+  const statPool = [
+    { label: 'Laws Enacted',    value: String(member.laws_passed     || 0) },
+    { label: 'Success Rate',    value: (member.pass_rate             || 0) + '%' },
+    { label: 'Bills Sponsored', value: String(member.bill_count      || 0) },
+    { label: 'Bills Advanced',  value: String(member.committee_passes || 0) },
+    { label: 'Top Bill Score',  value: String(member.top_score       || 0) },
+    yrsVal ? { label: 'Yrs Served',      value: yrsVal }                          : null,
+    votingStats?.cohesionPct   != null ? { label: 'Party-Line Votes', value: votingStats.cohesionPct   + '%' } : null,
+    votingStats?.attendancePct != null ? { label: 'Floor Attendance', value: votingStats.attendancePct + '%' } : null,
+  ].filter(Boolean)
 
-  rows.forEach(row => {
+  for (let ri = 0; ri < statPool.length; ri += STAT_COLS) {
+    const row = statPool.slice(ri, ri + STAT_COLS)
     row.forEach(({ label, value }, i) => {
       const sx = m + i * statW
       doc.setFont('helvetica', 'normal')
@@ -751,7 +759,7 @@ function drawIntelligence(doc, y, m, contentW, member, session, bio, votingStats
       doc.text(value, sx + 1, y + 5.5)
     })
     y += 10.5
-  })
+  }
 
   // Context footnotes — give an external reader enough to interpret the numbers
   y += 2
