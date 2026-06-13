@@ -875,6 +875,12 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
       y += 4
     }
     y += 2
+    // PORTAL-6 scrub-gate item 2: one AI-attribution line per summary block
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...P.muted)
+    doc.text('AI-drafted summary', m, y)
+    y += 3.5
   }
 
   // ── Companion line ───────────────────────────────────────────────────────────

@@ -29,6 +29,26 @@
 
 export const CHANGELOG = [
   {
+    version: '5.40.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'Member PDF rewritten for C-suite clarity: bio summary expanded from one line to three, seat safety label (SAFE SEAT / COMPETITIVE SEAT / VULNERABLE SEAT) added under the electoral margin, and all eight Legislative Record stats relabeled in plain English.',
+      'Stat labels now read as plain language: "Laws Enacted", "Success Rate", "Party-Line Votes", "Floor Attendance", "Bills Advanced", and "Top Bill Score" replace the previous jargon equivalents. Footnotes explain Success Rate and Top Bill Score for readers with no legislative context.',
+      'Score circles on the Top Bills list are slightly larger and use a bigger font for legibility on printed pages.',
+    ],
+  },
+  {
+    version: '5.39.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'AI-source labeling is now consistent across every surface that shows an AI-drafted summary: the search results snippet gains a small “AI·” prefix, the portfolio PDF gains a per-bill attribution line, and the two pre-launch backup tables holding earlier AI text were moved off the public API surface.',
+      'The single-bill and member PDFs already carried AI attribution (confirmed unchanged); all three PDF paths are now verified clean.',
+      'LAUNCH_CHECKLIST.md published — the public-layer flip is a single Vercel environment variable change. The checklist covers the flag flip, custom SMTP via Resend, auth email rate-limit raise, and the Resend volume decision before registration opens.',
+    ],
+  },
+  {
     version: '5.38.0',
     date: '2026-06-11',
     phase: 'alpha',
@@ -1014,12 +1034,4 @@ export const CHANGELOG = [
     date: '2026-05-01',
     phase: 'alpha',
     highlights: [
-      'LinkedIn-style side drawer with viewer-aware menu — public, registered, and team viewers each get a tailored navigation surface (Phase 5 Thread 55).',
-      'Brand Guide v1.2 compliance — brass palette, three-voice typography (Playfair Display / Karla / DM Mono), and the Vector | WA logo system shipped end to end (Phase 4).',
-      'Calibration tables on the methodology page right-aligned for sharper data-grid presentation (Phase 5 Thread 52).',
-      'Service worker cache bumped to v4 to flush stale pre-Phase-4 markup on returning visitors (Phase 5 Thread 49).',
-      'Public bottom navigation for anonymous viewers — Search, Committees, Members, and a session-aware Outcomes / Hearings tab (Thread 29).',
-    ],
-  },
-  // Future entries prepend here on each phase ship.
-]
+      'LinkedIn-style side drawer with vi
