@@ -29,6 +29,14 @@ function isPublicLayerRoute(pathname) {
   if (pathname === '/members') return true
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
+  // PORTAL-3 (2026-06-10): personal-workflow surfaces open to anon when the
+  // flag is on -- /watchlist renders the device-local list, /radar renders an
+  // inline free-account teaser (no dead redirect), /news closes the anon dead
+  // end behind the home In-the-news card (PORTAL_DEEP_DIVE.md 1.4-1, 5).
+  // Mirror lives in PublicBottomNav.js#isPublicSurface -- same PR, keep in sync.
+  if (pathname === '/watchlist') return true
+  if (pathname === '/news') return true
+  if (pathname === '/radar') return true
   return false
 }
 

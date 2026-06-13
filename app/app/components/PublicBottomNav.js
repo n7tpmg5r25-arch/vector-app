@@ -9,8 +9,9 @@
  * users got nothing below the fold).
  *
  * ─── Layer matrix (G6 — globally-mounted layer discipline) ─────────
- *   role === 'public'  → render the 4-tab bottom nav (Search /
- *                        Committees / Members / Outcomes-or-Hearings).
+ *   role === 'public'  → render the 5-tab bottom nav (Home / Watchlist /
+ *                        Search / Members / Cmtes) -- the PORTAL-3 converged
+ *                        set that mirrors the authed Nav.js column.
  *   role === 'owner'   → suppress. The existing authed Nav.js IS the
  *                        owner bottom nav; doubling would render two
  *                        fixed-bottom bars stacked on top of each other.
@@ -29,10 +30,10 @@
  * here so the two never disagree on what 'public-layer' means.
  *
  * ─── Hydration ─────────────────────────────────────────────────────
- * Tab-4's Outcomes ↔ Hearings swap uses isInterimPeriod() — a pure date
- * check from session-config.js. SSR + CSR agree (Thread 15.2 lesson:
- * never wrap interim/session checks in `typeof window !== 'undefined'`
- * because that mismatches on hydration).
+ * PORTAL-3: the old Tab-4 Outcomes <-> Hearings interim swap retired with
+ * the converged 5-tab set (all five tabs are static paths), so no date
+ * logic runs at render and SSR + CSR agree by construction. /outcomes and
+ * /hearings stay proxy-reachable via home-page links.
  *
  * ─── Visual ────────────────────────────────────────────────────────
  * Mirrors authed Nav.js bottom-nav chrome 1:1 — same fixed positioning,
@@ -46,7 +47,6 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useViewer } from '../../lib/viewer-capabilities'
-import { isInterimPeriod } from '../../lib/session-config'
 
 // Mirrors proxy.js#isPublicLayerRoute + the always-public /disclaimers.
 // Keep in sync with proxy.js. If proxy.js adds a route, add it here.
@@ -57,6 +57,11 @@ function isPublicSurface(pathname) {
   if (pathname === '/committees') return true
   if (pathname.startsWith('/committees/')) return true
   if (pathname === '/members') return true
+  // PORTAL-3 mirror additions -- proxy.js#isPublicLayerRoute gained these in
+  // the same PR (the deliberate-copy rule above).
+  if (pathname === '/watchlist') return true
+  if (pathname === '/news') return true
+  if (pathname === '/radar') return true
   if (pathname === '/methodology') return true
   if (pathname === '/outcomes') return true
   if (pathname === '/hearings') return true
@@ -67,14 +72,39 @@ function isPublicSurface(pathname) {
   return false
 }
 
-// 4-tab anon nav. Tabs 1-3 are static. Tab 4 swaps Outcomes ↔ Hearings
-// the same way authed Nav.js swaps Cmtes ↔ Hearings — mirror the SWAP
-// pattern (interim vs session), not the labels (the public column has
-// 4 tabs vs the authed column's 5, so labels diverge intentionally).
+// PORTAL-3 (2026-06-10): converged 5-tab anon nav -- Home / Watchlist /
+// Search / Members / Cmtes (PORTAL_DEEP_DIVE.md S5). Watchlist is real for
+// anon (device-local store behind watchlist-store.js); Radar's slot is the
+// one honest divergence (registered-only email pipeline -- /radar renders an
+// inline free-account teaser instead of taking a tab). The old Outcomes <->
+// Hearings swap tab retires; both routes stay reachable from home links.
+// Glyphs mirror the authed Nav.js set 1:1 so the two bars read as the same
+// product; Watchlist keeps Nav's gold personal-tier accent (the `accent`
+// field), everything else the teal data-surface accent.
 const TABS = [
   {
-    path: '/search',
-    label: 'Search',
+    path: '/', label: 'Home',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'var(--teal)' : 'none'}
+        stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    ),
+  },
+  {
+    path: '/watchlist', label: 'Watchlist', accent: 'var(--gold)',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'var(--gold)' : 'none'}
+        stroke={active ? 'var(--gold)' : 'var(--text-muted)'} strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+      </svg>
+    ),
+  },
+  {
+    path: '/search', label: 'Search',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
@@ -85,23 +115,7 @@ const TABS = [
     ),
   },
   {
-    path: '/committees',
-    label: 'Cmtes',
-    icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-        stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
-        strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 21h18"/>
-        <path d="M5 21V7l7-4 7 4v14"/>
-        <path d="M9 21v-6h6v6"/>
-        <path d="M9 9h1"/><path d="M14 9h1"/>
-        <path d="M9 13h1"/><path d="M14 13h1"/>
-      </svg>
-    ),
-  },
-  {
-    path: '/members',
-    label: 'Members',
+    path: '/members', label: 'Members',
     icon: (active) => (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
         stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
@@ -114,39 +128,18 @@ const TABS = [
     ),
   },
   {
-    // Tab-4 swap: Outcomes during interim, Hearings during session.
-    // No `typeof window` guard — isInterimPeriod() is pure-date so SSR
-    // and CSR agree (Thread 15.2 hydration-mismatch fix).
-    get path() { return isInterimPeriod() ? '/outcomes' : '/hearings' },
-    get label() { return isInterimPeriod() ? 'Outcomes' : 'Hearings' },
-    icon: (active) => {
-      const interim = isInterimPeriod()
-      return interim ? (
-        // Trophy / outcomes icon
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
-          strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 9a6 6 0 0 0 12 0V3H6z"/>
-          <path d="M6 5H3v3a3 3 0 0 0 3 3"/>
-          <path d="M18 5h3v3a3 3 0 0 1-3 3"/>
-          <path d="M9 21h6"/>
-          <path d="M12 15v6"/>
-        </svg>
-      ) : (
-        // Calendar / hearings icon (mirrors authed Nav.js exactly)
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-          stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
-          strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-          <circle cx="8" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
-          <circle cx="12" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
-          <circle cx="16" cy="15" r="1" fill={active ? 'var(--teal)' : 'var(--text-muted)'}/>
-        </svg>
-      )
-    },
+    path: '/committees', label: 'Cmtes',
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+        stroke={active ? 'var(--teal)' : 'var(--text-muted)'} strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 21h18"/>
+        <path d="M5 21V7l7-4 7 4v14"/>
+        <path d="M9 21v-6h6v6"/>
+        <path d="M9 9h1"/><path d="M14 9h1"/>
+        <path d="M9 13h1"/><path d="M14 13h1"/>
+      </svg>
+    ),
   },
 ]
 
@@ -173,7 +166,7 @@ export default function PublicBottomNav() {
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
       zIndex: 100,
     }}>
-      {TABS.map(({ path, label, icon }) => {
+      {TABS.map(({ path, label, icon, accent }) => {
         const active = pathname === path || (path !== '/' && pathname.startsWith(path))
         return (
           <button
@@ -197,7 +190,7 @@ export default function PublicBottomNav() {
               letterSpacing: '0.03em',
               fontFamily: 'var(--font-body)',
               fontWeight: active ? 600 : 400,
-              color: active ? 'var(--teal)' : 'var(--text-muted)',
+              color: active ? (accent || 'var(--teal)') : 'var(--text-muted)',
             }}>{label}</span>
           </button>
         )

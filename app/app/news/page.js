@@ -7,14 +7,18 @@
  * InTheNews.js), just more of it — up to thirty recent items, balanced to at
  * most five per source by the NEWS-1 neutral selection rule (lib/news-select),
  * so one prolific outlet cannot fill the page. Display only;
- * no ingest, no scoring. Mobile-only: sticky brand header, global bottom nav.
- * Reads the public-read news_items table directly, so it works for any viewer.
+ * no ingest, no scoring. Mobile-only: sticky brand header, viewer-aware
+ * bottom nav -- authed viewers get Nav here; anon rides the globally-mounted
+ * PublicBottomNav (PORTAL-3 opened /news in the proxy + its mirror, closing
+ * the anon dead end behind the home card's "All ->" link). Reads the
+ * public-read news_items table directly, so it works for any viewer.
  */
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '../../lib/supabase'
 import Nav from '../components/Nav'
 import { NewsRow } from '../components/dashboard/InTheNews'
+import { useViewer } from '../../lib/viewer-capabilities'
 import { selectBalanced } from '../../lib/news-select'
 
 const EYEBROW = {
@@ -24,6 +28,10 @@ const EYEBROW = {
 
 export default function NewsPage() {
   const supabase = createBrowserClient()
+  // PORTAL-3: anon visitors reach this page when the public layer is on.
+  // The authed bottom Nav renders only for signed-in viewers; anon wayfinding
+  // is the global PublicBottomNav (its mirror gained /news this PR).
+  const { capabilities, loading: viewerLoading } = useViewer()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -90,7 +98,7 @@ export default function NewsPage() {
         </div>
       </div>
 
-      <Nav/>
+      {!viewerLoading && capabilities.isAuthed && <Nav/>}
     </div>
   )
 }
