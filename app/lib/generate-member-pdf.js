@@ -358,7 +358,8 @@ function drawLegislativeFocus(doc, y, m, contentW, bio, memberBills) {
   const priorities = bio.priorities || []
   const summary    = bio.bio_summary || null
 
-  if (!priorities.length && !summary) return y
+  // PDF-M2: also check occupation — data-sparse members may have occupation but no priorities/summary
+  if (!priorities.length && !summary && !bio?.occupation?.length) return y
 
   y = drawSectionLabel(doc, y, m, contentW, 'Legislative Focus')
 
