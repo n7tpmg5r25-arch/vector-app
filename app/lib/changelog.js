@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.44.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'PDF-M3: Member brief C-suite scrub -- removed redundant AI note from bio; fixed Top Bills to resolve bill array before drawing header (eliminates stats contradiction); corrected Success Rate to show laws enacted / bills sponsored; data sources attribution added to footer; single-page guarantee (stage funnel dropped gracefully when cramped, addPage removed); section title separator updated to middle dot.',
+    ],
+  },
+
+  {
     version: '5.43.0',
     date: '2026-06-13',
     phase: 'PDF-M2',
