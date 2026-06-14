@@ -302,9 +302,9 @@ async function drawHeader(doc, y, m, pw, contentW, generatedAt) {
  * The box from T151 was visually consistent with the web app, not a memo.
  */
 function drawBillIdentity(doc, y, m, contentW, bill) {
-  // Bill number — brass bold helvetica
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
+  // Bill number — serif headline (C-suite editorial voice)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(13)
   doc.setTextColor(...P.accent)
   const label = billLabel(bill)
   doc.text(label, m, y + 5)
@@ -318,9 +318,9 @@ function drawBillIdentity(doc, y, m, contentW, bill) {
     doc.text(bill.session, m + labelW + 4, y + 5)
   }
 
-  // Title — font MUST be set before splitTextToSize (T148 discipline)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(12)
+  // Title — serif headline; font MUST be set before splitTextToSize (T148 discipline)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(13)
   doc.setTextColor(...P.primary)
   const titleLines = doc.splitTextToSize(getBillTitle(bill), contentW)
   const shownLines = titleLines.slice(0, 2)
@@ -426,14 +426,28 @@ function drawStatusAndScore(doc, y, m, contentW, bill) {
   const tierLbl = isTerminal
     ? (cl === 'LAW' ? 'SIGNED INTO LAW' : cl === 'DEAD' ? 'DID NOT ADVANCE' : 'PASSED CHAMBER')
     : ((getScoreTierLabel(score) || 'VERY LOW')).toUpperCase()
-
-  // #1: 11pt (was 13pt) — title is now dominant at 12pt; color differentiates tier
-  // #10: raw score annotation removed — number is noise without scale context
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(...color)
+  // C-suite: at-risk bills render the verdict in full-strength ink (never the
+  // faintest mark on the page); non-terminal bills also show the 0-99 trajectory
+  // score — the flagship metric — beside the tier word.
+  const dc     = bill.days_to_cutoff
+  const atRisk = !isTerminal && !interim && (score < TIER_LOW || (dc != null && dc > 0 && dc <= 7))
+  doc.setFont('times', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...(atRisk ? P.primary : color))
   doc.text(tierLbl, m, y)
-  // #2: y += 8 (was 5) — 11pt descender is ~4mm; was colliding with one-liner
+  const tierW = doc.getTextWidth(tierLbl)
+  if (!isTerminal) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...P.muted)
+    doc.text('   ' + score + ' / 99', m + tierW, y)
+  }
+  if (atRisk) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...P.primary)
+    doc.text('AT RISK', m + contentW, y, { align: 'right' })
+  }
   y += 8
 
   // ── One-liner ────────────────────────────────────────────────────────────
@@ -920,6 +934,52 @@ function drawFooter(doc, ph, m, pw, bill, generatedAt) {
   )
 }
 
+// ── Section 11 — Bottom Line (synthesized executive takeaway) ─────────────────
+
+function composeBottomLine(bill, score) {
+  const cl = (bill.confidence_label || '').toUpperCase()
+  if (cl === 'LAW')  return 'Enacted — no further action required; monitor implementation and effective dates.'
+  if (cl === 'DEAD') return 'Did not pass this biennium. Reassess sponsor and committee strategy before any reintroduction next session.'
+  if (cl === 'PASSED_CHAMBER') return 'Cleared its first chamber and carries into the next session — engage the second-chamber committee of reference early.'
+  let standing
+  if (score >= TIER_HIGH)          standing = 'Strong position (' + score + '/99)'
+  else if (score >= TIER_MODERATE) standing = 'Viable but contested (' + score + '/99)'
+  else if (score >= TIER_LOW)      standing = 'Behind the pace (' + score + '/99)'
+  else                             standing = 'Long odds (' + score + '/99)'
+  let timing = null
+  if (bill.hearing_date) {
+    try {
+      const dH = Math.ceil((new Date(bill.hearing_date) - new Date()) / 86400000)
+      if (dH > 0 && dH <= 21) timing = 'a hearing in ' + dH + ' day' + (dH === 1 ? '' : 's')
+    } catch (e) {}
+  }
+  const dc = bill.days_to_cutoff
+  if (!timing && dc != null && dc > 0 && dc <= 14) timing = 'a committee cutoff in ' + dc + ' day' + (dc === 1 ? '' : 's')
+  let action
+  if (timing) {
+    action = (score >= TIER_LOW)
+      ? 'With ' + timing + ', secure committee support and line up testimony now.'
+      : 'With ' + timing + ' and limited momentum, a sponsor push is needed to keep it alive.'
+  } else if (score >= TIER_HIGH)     { action = 'Hold sponsor momentum and watch for weakening amendments.' }
+  else if (score >= TIER_MODERATE)   { action = 'The committee vote is the swing factor — focus engagement there.' }
+  else if (score >= TIER_LOW)        { action = 'A scheduled hearing or sponsor push is needed to keep it moving.' }
+  else                               { action = 'Without a sponsor push or hearing, expect it to stall this session.' }
+  return standing + '. ' + action
+}
+
+function drawBottomLine(doc, y, m, contentW, bill, ph) {
+  const text = composeBottomLine(bill, bill.final_score || 0)
+  if (!text) return y
+  y = checkPageBreak(doc, y, 16, ph)
+  y += 2
+  y = drawSectionLabel(doc, y, m, contentW, 'Bottom Line')
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...P.primary)
+  doc.splitTextToSize(text, contentW).slice(0, 3).forEach(line => { doc.text(line, m, y); y += 4.6 })
+  return y + 3
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
@@ -992,6 +1052,9 @@ export async function generatePublicBriefPDF({
   y = drawCompanion(doc, y, m, contentW, bill, ph)
   y = drawFiscalNote(doc, y, m, contentW, fiscalNote, bill, ph)
   y = drawTimeline(doc, y, m, contentW, snapshots, ph)
+
+  // Bottom Line: synthesized executive takeaway (standing + nearest lever + action)
+  y = drawBottomLine(doc, y, m, contentW, bill, ph)
 
   // ─────────────────────────────────────────────────────────────────────────
 
