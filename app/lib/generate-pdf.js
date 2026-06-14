@@ -260,20 +260,22 @@ function drawSectionLabel(doc, y, m, contentW, label) {
  * Bill card header — bill number left + tier word right + full-width rule.
  * Replaces the roundedRect card shell from pre-T154. No box, just typography.
  */
-function drawBillLabel(doc, y, m, contentW, billLbl, tierLbl, tierColor) {
-  // Bill number — brass, left-aligned
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
+function drawBillLabel(doc, y, m, contentW, billLbl, tierLbl, tierColor, atRisk) {
+  // Bill number — serif headline, left-aligned
+  doc.setFont('times', 'bold')
+  doc.setFontSize(9.5)
   doc.setTextColor(...P.accent)
   doc.text(billLbl.toUpperCase(), m, y)
-  // Tier word — right-aligned, tier color
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...tierColor)
-  doc.text(tierLbl.toUpperCase(), m + contentW, y, { align: 'right' })
+  // Verdict — right-aligned; at-risk bills carry an AT RISK flag in full-strength
+  // ink with a heavier rule, so urgency is never the faintest mark on the card.
+  const rightLbl = atRisk ? 'AT RISK  \xB7  ' + tierLbl.toUpperCase() : tierLbl.toUpperCase()
+  doc.setFont('times', 'bold')
+  doc.setFontSize(9.5)
+  doc.setTextColor(...(atRisk ? P.primary : tierColor))
+  doc.text(rightLbl, m + contentW, y, { align: 'right' })
   y += 1.5
-  doc.setDrawColor(...P.accent)
-  doc.setLineWidth(0.4)
+  doc.setDrawColor(...(atRisk ? P.primary : P.accent))
+  doc.setLineWidth(atRisk ? 0.7 : 0.4)
   doc.line(m, y, m + contentW, y)
   return y + 4
 }
@@ -289,16 +291,15 @@ function drawKpiStrip(doc, y, m, contentW, bills) {
     return score < TIER_LOW && score > 0 && !['LAW', 'DEAD', 'PASSED_CHAMBER'].includes(cl)
   }).length
 
-  const parts = [
-    total + ' tracked',
-    highCount + ' HIGH',
-    atRisk > 0 ? atRisk + ' at risk' : '0 at risk',
-  ]
-
+  // Lead counts in label ink; the at-risk count goes full-strength when > 0 so
+  // the one number that should pull the eye actually does.
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(...P.accent)
-  doc.text(parts.join('  \xB7  '), m, y)
+  const lead = total + ' tracked  \xB7  ' + highCount + ' HIGH  \xB7  '
+  doc.text(lead, m, y)
+  doc.setTextColor(...(atRisk > 0 ? P.primary : P.accent))
+  doc.text(atRisk > 0 ? atRisk + ' at risk' : '0 at risk', m + doc.getTextWidth(lead), y)
   return y + 7
 }
 
@@ -663,9 +664,9 @@ function drawPortfolioTable(doc, bills, scoreDeltas, changes, y, m, contentW, ph
           nextTxt = 'Cutoff ' + bill.days_to_cutoff + 'd'
         }
         if (nextTxt) {
-          doc.setFont('helvetica', 'normal')
+          doc.setFont('helvetica', 'bold')
           doc.setFontSize(6.5)
-          doc.setTextColor(...RUST)
+          doc.setTextColor(...P.primary)
           doc.text(nextTxt, rx, rowY)
         }
       }
@@ -691,6 +692,38 @@ function drawPortfolioTable(doc, bills, scoreDeltas, changes, y, m, contentW, ph
  * AI summary: structureSummary() extracts executive section only — 3 lines max.
  * Was: full blob stripped of headings, up to 6 lines.
  */
+/**
+ * Bill-specific portfolio one-liner. Leads with the nearest concrete lever so
+ * two same-tier bills never print the identical sentence (the old version
+ * repeated "84% historical pass rate" verbatim under every HIGH bill).
+ */
+function watchlistOneLiner(bill, score, billId, scoreDeltas, changes) {
+  const cl = (bill.confidence_label || '').toUpperCase()
+  if (cl === 'LAW')  return 'Signed into law — outcome final.'
+  if (cl === 'DEAD') return 'Did not advance — session ended without passage.'
+  if (cl === 'PASSED_CHAMBER') return isPostBienniumClose()
+    ? 'Passed one chamber — must be refiled next biennium to advance.'
+    : 'Passed its first chamber — carries into the next session.'
+  let hearingDays = null
+  if (bill.hearing_date) {
+    try { const d = daysUntil(bill.hearing_date); if (d > 0 && d <= 21) hearingDays = d } catch (e) {}
+  }
+  const dc = bill.days_to_cutoff
+  const stageChanged = changes && changes[billId] && changes[billId].stageChanged
+  const delta = (scoreDeltas && scoreDeltas[billId]) || 0
+  if (hearingDays != null) {
+    const tail = score >= TIER_HIGH ? 'strong position to hold.'
+      : score < TIER_LOW ? 'needs support to clear committee.' : 'committee outcome is the swing factor.'
+    return 'Hearing in ' + hearingDays + ' day' + (hearingDays === 1 ? '' : 's') + ' — ' + tail
+  }
+  if (dc != null && dc > 0 && dc <= 7) return 'Committee cutoff in ' + dc + ' day' + (dc === 1 ? '' : 's') + ' — needs a vote scheduled or it stalls.'
+  if (stageChanged) return 'Advanced a stage this week' + (delta > 0 ? ' (+' + delta + ' pts)' : '') + ' — momentum is building.'
+  if (score >= TIER_HIGH)     return 'Strong position (' + score + '/99) — hold sponsor momentum and watch for amendments.'
+  if (score >= TIER_MODERATE) return 'Viable but contested (' + score + '/99) — the committee vote is the swing factor.'
+  if (score >= TIER_LOW)      return 'Behind the pace (' + score + '/99) — needs a hearing or sponsor push to keep moving.'
+  return 'Long odds (' + score + '/99) — most bills in this band do not advance this session.'
+}
+
 function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW, ph, billNotes, fiscalHistory = []) {
   const bill      = tracked.bills || {}
   const billId    = tracked.bill_id
@@ -707,6 +740,10 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
   const tierLbl   = isTerminal
     ? (cl === 'LAW' ? 'Signed into Law' : cl === 'DEAD' ? 'Did Not Advance' : 'Passed Chamber')
     : (getScoreTierLabel(score) || 'VERY LOW')
+
+  // C-suite: at-risk = active bill with a low score or imminent cutoff. Drives
+  // the AT RISK flag, the darker verdict ink, and the heavier card rule.
+  const atRisk = !isTerminal && !isInterimPeriod() && (score < TIER_LOW || (bill.days_to_cutoff != null && bill.days_to_cutoff > 0 && bill.days_to_cutoff <= 7))
 
   // T154: executive section only from structured summary
   const sections  = structureSummary(bill.custom_summary || bill.ai_summary || '')
@@ -739,29 +776,19 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
 
   const deltaText = getDeltaNarrative(billId, bill, scoreDeltas, changes)
 
-  // Score one-liner — matches generate-public-pdf.js
-  const oneLiner = (() => {
-    if (cl === 'LAW')  return 'Signed into law - outcome final.'
-    if (cl === 'DEAD') return 'Did not advance - session ended without passage.'
-    if (cl === 'PASSED_CHAMBER') {
-      if (isPostBienniumClose()) return 'Did not pass this biennium - must be refiled to advance.'
-      return 'Passed its first chamber - carries into the next session.'
-    }
-    if (score >= TIER_HIGH)     return '84% historical pass rate - strong forward momentum.'
-    if (score >= TIER_MODERATE) return 'Viable path to passage - moderate momentum.'
-    if (score >= TIER_LOW)      return 'Limited movement - needs sponsor push or scheduled hearing.'
-    return 'Very limited momentum - most bills in this band do not advance this session.'
-  })()
+  // Bill-specific one-liner — leads with this bill's nearest concrete lever
+  // (hearing / cutoff / stage move) so same-tier bills never read identically.
+  const oneLiner = watchlistOneLiner(bill, score, billId, scoreDeltas, changes)
 
   // Ensure the card block starts with enough room for at least the header + title
   y = checkPageBreak(doc, y, 20, ph)
 
   // ── Bill label (visual separator, replaces rounded card box) ────────────────
-  y = drawBillLabel(doc, y, m, contentW, billLbl, tierLbl, tierColor)
+  y = drawBillLabel(doc, y, m, contentW, billLbl, tierLbl, tierColor, atRisk)
 
   // ── Title (max 2 lines) ──────────────────────────────────────────────────────
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(11)
   doc.setTextColor(...P.primary)
   const titleLines = doc.splitTextToSize(title, contentW - 30)
   titleLines.slice(0, 2).forEach(line => {
@@ -826,10 +853,17 @@ function drawExpandedBillCard(doc, tracked, scoreDeltas, changes, y, m, contentW
   y += 7
 
   // ── Tier word + one-liner (T154: replaces 20pt score box with roundedRect) ────
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.setTextColor(...tierColor)
+  doc.setFont('times', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(...(atRisk ? P.primary : tierColor))
   doc.text(tierLbl.toUpperCase(), m, y)
+  const twl = doc.getTextWidth(tierLbl.toUpperCase())
+  if (!isTerminal) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...P.muted)
+    doc.text('   ' + score + ' / 99', m + twl, y)
+  }
   y += 8    // same spacing rule as generate-public-pdf.js T153
 
   doc.setFont('helvetica', 'normal')
@@ -1007,14 +1041,14 @@ export async function generateBriefPDF({
     doc.setTextColor(...P.muted)
     doc.text('Filtered by tag', m, y)
     y += 4.5
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
+    doc.setFont('times', 'bold')
+    doc.setFontSize(14)
     doc.setTextColor(...P.primary)
     doc.text(tagLabel, m, y)
     y += 7
   } else {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
+    doc.setFont('times', 'bold')
+    doc.setFontSize(14)
     doc.setTextColor(...P.primary)
     doc.text('Full Portfolio Report', m, y)
     y += 7
@@ -1064,17 +1098,17 @@ export async function generateBriefPDF({
   for (let p = 1; p <= pageCount; p++) {
     doc.setPage(p)
 
-    // Continuation header — pages 2+
+    // Continuation header — pages 2+ (unbranded: neutral document label only)
     if (p > 1) {
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8.5)
-      doc.setTextColor(...P.primary)
-      doc.text('VECTOR | WA', m, 13)
-      if (tagLabel) {
+      doc.setFontSize(7.5)
+      doc.setTextColor(...P.muted)
+      doc.text(tagLabel ? tagLabel : 'Portfolio Brief', m, 13)
+      if (session) {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
         doc.setTextColor(...P.muted)
-        doc.text('Tag: ' + tagLabel, pw - m, 13, { align: 'right' })
+        doc.text(session, pw - m, 13, { align: 'right' })
       }
       doc.setDrawColor(...P.neutralLt)
       doc.setLineWidth(0.2)

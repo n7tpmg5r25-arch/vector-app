@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.46.0',
+    date: '2026-06-13',
+    phase: 'alpha',
+    highlights: [
+      'PDF-C1: C-suite polish for the single-bill and watchlist briefs. Serif (Times) headlines for bill numbers, titles, and the verdict word; the 0-99 trajectory score now prints beside the tier on both; at-risk bills (low score or imminent cutoff) carry an AT RISK flag in full-strength ink so urgency reads first; watchlist one-liners are now bill-specific (no repeated boilerplate); the single-bill brief closes with a synthesized BOTTOM LINE; and the watchlist continuation header is fully unbranded.',
+    ],
+  },
+
+  {
     version: '5.45.0',
     date: '2026-06-13',
     phase: 'alpha',
