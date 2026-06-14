@@ -1,3 +1,14 @@
+// ============================================================================
+// SUPERSEDED / REFERENCE ONLY (Thread RADAR-AUDIT, 2026-06-14)
+// ----------------------------------------------------------------------------
+// The live send-alerts (v15) and weekly-digest (v11) are SELF-CONTAINED inline
+// sources (see each function's index.ts) and NO LONGER import this file. They
+// carry the current behavior: Radar match rendering, /bill | /watchlist |
+// /radar (no /app) links, /settings unsubscribe + List-Unsubscribe header, and
+// the Vector | WA v1.2 email palette. This shared template is kept for
+// reference only and is NOT the deploy source. Do not redeploy from it.
+// ============================================================================
+
 /**
  * Vector | WA HTML email template
  * Phase 9: Alerting & Notifications
