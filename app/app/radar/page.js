@@ -57,7 +57,7 @@ const SCOPE_LABEL = {
 
 const REASON_LABEL = {
   new_bill: 'New bill',
-  material_change: 'Language changed',
+  material_change: 'Updated',
   new_language: 'New language',
 }
 
@@ -323,7 +323,8 @@ function RadarContent() {
     // In builder mode the compiled chips are the source of truth; in raw mode
     // it's the text input. Either way the stored value is a plain
     // websearch_to_tsquery string — the backend never sees the builder.
-    const query = (rawMode ? fQuery : compileTokens(builderTokens)).trim()
+    const normalizeQuotes = (s) => String(s).replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+    const query = normalizeQuotes((rawMode ? fQuery : compileTokens(builderTokens)).trim())
     if (!label || !query) {
       setFormError(label ? 'Add at least one word to watch for.' : 'Give the term a name and something to watch for.')
       return

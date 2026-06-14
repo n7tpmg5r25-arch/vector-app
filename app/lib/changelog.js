@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.47.0',
+    date: '2026-06-14',
+    phase: 'alpha',
+    highlights: [
+      'Alert and digest emails: fixed every in-app link (they pointed at a /app path that no longer exists), added a one-click unsubscribe and a Manage notification preferences link, and refreshed the styling to the Vector | WA palette (dark header, brass accent).',
+      'Radar match labels clarified: a bill amended or substituted into a term now reads "Updated", distinct from "New language", which quotes the exact text that changed.',
+      'Radar phrase matching: search terms entered with curly quotes are normalized to straight quotes so an exact phrase is matched as a phrase.',
+    ],
+  },
+
+  {
     version: '5.46.0',
     date: '2026-06-13',
     phase: 'alpha',
