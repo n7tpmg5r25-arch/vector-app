@@ -4,7 +4,7 @@ on:
   schedule:
     # Noon Pacific = 7 PM UTC (PDT) / 8 PM UTC (PST)
     # Weekdays only (Mon-Fri)
-    - cron: '0 19 * * 1-5'
+    - cron: '0 19 * 1-4 1-5'
   workflow_dispatch:  # Allow manual trigger from Actions tab
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
           # 2025-2026 session ended March 12, 2026
           # 2027-2028 session starts January 11, 2027, ends ~March 10, 2028
           # During interim: skip mid-day sync entirely
-          TODAY=$(date -u +%Y-%m-%d)
+          TODAY=$(date -u +%Y%m%d)
 
           # Check if we're in the 2027-28 session window
-          if [[ "$TODAY" >= "2027-01-11" && "$TODAY" <= "2028-03-10" ]]; then
+          if [ "$TODAY" -ge 20270111 ] && [ "$TODAY" -le 20280310 ]; then
             echo "In 2027-2028 session. Running mid-day sync."
             echo "active=true" >> $GITHUB_OUTPUT
             echo "biennium=2027-28" >> $GITHUB_OUTPUT
