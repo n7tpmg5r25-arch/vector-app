@@ -26,7 +26,7 @@ on:
   schedule:
     # Every hour, on the hour. The session_check step below gates real work to
     # the active Jan–Apr session windows; outside them every step is skipped.
-    - cron: '0 * * * *'
+    - cron: '0 * * 1-4 *'
   workflow_dispatch:  # Manual trigger from the Actions tab
 
 jobs:
@@ -46,9 +46,9 @@ jobs:
           # die + 2028 cutoffs are WA-Leg estimates until the official calendars
           # publish; refine here when they do). Anything outside these windows —
           # including the May–Dec 2027 intra-biennium interim — skips entirely.
-          TODAY=$(date -u +%Y-%m-%d)
+          TODAY=$(date -u +%Y%m%d)
 
-          if [[ "$TODAY" >= "2027-01-11" && "$TODAY" <= "2027-04-30" ]]; then
+          if [ "$TODAY" -ge 20270111 ] && [ "$TODAY" -le 20270430 ]; then
             echo "In 2027 long session. Running hourly sync."
             echo "active=true" >> $GITHUB_OUTPUT
             echo "biennium=2027-28" >> $GITHUB_OUTPUT
@@ -58,7 +58,7 @@ jobs:
             echo "floor_cutoff=2027-03-10" >> $GITHUB_OUTPUT
             echo "opposite_cutoff=2027-03-31" >> $GITHUB_OUTPUT
             echo "sine_die=2027-04-25" >> $GITHUB_OUTPUT
-          elif [[ "$TODAY" >= "2028-01-10" && "$TODAY" <= "2028-03-10" ]]; then
+          elif [ "$TODAY" -ge 20280110 ] && [ "$TODAY" -le 20280310 ]; then
             echo "In 2028 short session. Running hourly sync."
             echo "active=true" >> $GITHUB_OUTPUT
             echo "biennium=2027-28" >> $GITHUB_OUTPUT
