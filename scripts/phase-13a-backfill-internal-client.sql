@@ -29,7 +29,7 @@ declare
 begin
   select id into _owner_uid
   from auth.users
-  where email = 'cjfoot@gmail.com'
+  where email = 'REPLACE_ME@example.com'
   limit 1;
 
   if _owner_uid is null then

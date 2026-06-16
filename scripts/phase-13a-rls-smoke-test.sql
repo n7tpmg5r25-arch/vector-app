@@ -39,7 +39,7 @@ insert into public.clients (id, slug, name, status, created_by)
 values (
   '22222222-2222-2222-2222-222222222222',
   'acme-test', 'Acme Law Group (Test)', 'active',
-  (select id from auth.users where email = 'cjfoot@gmail.com' limit 1)
+  (select id from auth.users where email = 'REPLACE_ME@example.com' limit 1)
 );
 
 insert into public.client_users (client_id, user_id, role, accepted_at)
@@ -75,7 +75,7 @@ reset role;
 -- Simulate an authenticated JWT for Colin.
 select set_config('request.jwt.claims',
   jsonb_build_object(
-    'sub',  (select id::text from auth.users where email = 'cjfoot@gmail.com' limit 1),
+    'sub',  (select id::text from auth.users where email = 'REPLACE_ME@example.com' limit 1),
     'role', 'authenticated'
   )::text,
   true);

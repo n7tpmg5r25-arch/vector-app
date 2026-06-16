@@ -34,3 +34,6 @@ Thumbs.db
 .agents/
 .claude/
 skills-lock.json
+
+# Internal infra / recovery notes — kept local, not published
+docs/
