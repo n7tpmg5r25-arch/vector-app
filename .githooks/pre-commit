@@ -1,0 +1,8 @@
+#!/bin/sh
+# Vector | WA pre-commit guardrail: scan staged changes for secrets before commit.
+if command -v node >/dev/null 2>&1; then
+  node "$(git rev-parse --show-toplevel)/.githooks/secret-scan.js" || exit 1
+else
+  echo "WARNING: secret-scan skipped (node not found on PATH) - relying on GitHub push protection."
+fi
+exit 0

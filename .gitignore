@@ -37,3 +37,13 @@ skills-lock.json
 
 # Internal infra / recovery notes — kept local, not published
 docs/
+
+# Secret material — never commit (env files already covered up top)
+*.pem
+*.key
+*.pfx
+*.p12
+*.keystore
+secrets.json
+service-account*.json
+*.local
