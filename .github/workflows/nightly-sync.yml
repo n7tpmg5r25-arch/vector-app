@@ -1,0 +1,178 @@
+name: Nightly Sync
+
+on:
+  schedule:
+    # Midnight Pacific Time = 8 AM UTC (PDT) / 7 AM UTC (PST)
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allow manual trigger from Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # Sync processes ~7,800 bills; typically 20-85 min
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install app dependencies
+        working-directory: ./app
+        run: npm ci
+
+      - name: Run sync-v2.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          SESSION_START: '2025-01-13'
+          COMMITTEE_CUTOFF: '2025-02-21'
+          FLOOR_CUTOFF: '2025-03-07'
+          OPPOSITE_CUTOFF: '2025-03-21'
+          SINE_DIE: '2026-03-12'
+        run: node app/lib/sync-v2.js
+
+      # T169: alert detection + delivery, year-round on the nightly sync.
+      # midday-sync.yml already runs this, but only during active session; the
+      # nightly job runs every day, so this also catches off-session changes
+      # (e.g. governor signings in the April–May post-session window) and gives
+      # a daily alert floor. Canonical detector: app/lib/detect-alerts.js.
+      - name: Run alert detection
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-alerts.js
+
+      # R2: radar detection (term-centric new-bill matches). Runs after the
+      # bill-centric alert detector and before send-alerts, so radar_match
+      # events created here go out in the same email pass. Year-round on the
+      # nightly job to catch pre-filing inserts (Dec 1 flood) and off-session.
+      - name: Run radar detection
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-radar.js
+
+      # R5: bill-text ingestion (Radar Phase 3a). Archives the current
+      # authoritative full text of each current-session bill into
+      # bill_text_versions, bounded to RADAR_TEXT_MAX bills/run so WA Leg API
+      # volume + run time stay capped. Nightly ONLY (not midday) to hold this
+      # to one pass per day. Self-throttling round-robin: never-ingested bills
+      # first, then least-recently-confirmed, so the full set backfills over
+      # ~11 nights and then steadily re-confirms. Entirely additive — a failed
+      # fetch logs and skips, and the script exits 0 even on a thrown error so
+      # it can never fail the sync. Groundwork for R6 true diffing; no
+      # user-facing behavior change yet.
+      - name: Ingest bill text (Radar Phase 3a)
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          RADAR_TEXT_MAX: '300'
+        run: node app/lib/sync-bill-text.js
+
+      - name: Send alert emails (if events pending)
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Checking for pending alert events..."
+          RESULT=$(curl -s -w "\n%{http_code}" \
+            "${SUPABASE_URL}/functions/v1/send-alerts" \
+            -H "Content-Type: application/json" \
+            -H "x-function-secret: ${FUNCTION_SECRET}" \
+            -d '{"type": "event-batch"}')
+          HTTP_CODE=$(echo "$RESULT" | tail -1)
+          BODY=$(echo "$RESULT" | head -n -1)
+          echo "send-alerts: HTTP $HTTP_CODE — $BODY"
+
+      - name: Summarize bills with AI
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Starting AI summary pass..."
+          REMAINING="more"
+          TOTAL=0
+          CALLS=0
+          while [ "$REMAINING" != "0" ] && [ $CALLS -lt 80 ]; do
+            CALLS=$((CALLS + 1))
+            RESULT=$(curl -s -w "\n%{http_code}" \
+              "${SUPABASE_URL}/functions/v1/summarize-bills" \
+              -H "Content-Type: application/json" \
+              -H "x-function-secret: ${FUNCTION_SECRET}")
+            HTTP_CODE=$(echo "$RESULT" | tail -1)
+            BODY=$(echo "$RESULT" | head -n -1)
+            echo "Call $CALLS: HTTP $HTTP_CODE - $BODY"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Edge function returned $HTTP_CODE, stopping."
+              break
+            fi
+
+            SUMMARIZED=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('summarized',0))" 2>/dev/null || echo "0")
+            REMAINING=$(echo "$BODY" | python3 -c "import sys,json; r=json.load(sys.stdin).get('remaining',0); print(r)" 2>/dev/null || echo "0")
+            TOTAL=$((TOTAL + SUMMARIZED))
+
+            if [ "$SUMMARIZED" = "0" ]; then
+              echo "No bills summarized this call, stopping."
+              break
+            fi
+
+            # Brief pause between calls
+            sleep 2
+          done
+          echo "AI summaries complete: $TOTAL bills summarized in $CALLS calls"
+
+      - name: Sync committee seats (weekly, Mondays only)
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: '2025-26'
+          CURRENT_YEAR: '2026'
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+        run: |
+          DAY=$(date +%u)
+          if [ "$DAY" = "1" ]; then
+            echo "Monday -- running committee seat sync"
+            node app/lib/sync-committee-seats.js
+          else
+            echo "Not Monday (day $DAY) -- skipping committee seat sync"
+          fi
+
+      # DASH-4: statewide news ingest. Polls a curated set of WA RSS/Atom feeds
+      # (text-only: title + snippet + link + source), dedupes on a normalized
+      # URL/title key, and prunes to 60-day retention. Year-round (news is not
+      # session-gated) and fully fault-isolated — a dead feed logs and is
+      # skipped, and the script exits 0 even on error, so it can never fail the
+      # sync. Writes via the service-role key (RLS bypass); page reads are
+      # public. Groundwork for the DASH-5 "In the news" block; no UI yet.
+      - name: Sync statewide news (DASH-4)
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/sync-news.js
+
+      - name: Report result
+        if: always()
+        run: echo "Sync completed at $(date -u)"

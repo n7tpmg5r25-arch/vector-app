@@ -1,0 +1,303 @@
+/* Fonts are loaded via next/font/google in app/layout.tsx (self-hosted,
+   preloaded, non-render-blocking). The previous @import of fonts.googleapis.com
+   was render-blocking and discovered late (browser had to parse this CSS before
+   it could even start fetching the font CSS, then the font files). next/font
+   exposes each family as a CSS variable (--font-karla / --font-playfair /
+   --font-dm-mono) which the --font-* tokens below reference. (Perf pass, T157.) */
+
+:root {
+  /* ── VECTOR | WA DARK INTELLIGENCE THEME ─────────── */
+  --bg:            #0e1014;
+  --bg-card:       #171921;
+  --bg-card-2:     #1c1f28;
+  --bg-surface:    #232632;
+
+  /* Brass — LEGACY name; canonical alias is --brass (Brand Guide v1.2 §02) */
+  --teal:          #b8975a;
+  --teal-bright:   #d4b47a;
+  --teal-mid:      #a0824a;
+  --teal-dim:      #6e5a38;
+  --teal-pale:     rgba(184,151,90,0.08);
+  --teal-glow:     0 0 12px rgba(184,151,90,0.35);
+  --teal-glow-lg:  0 0 24px rgba(184,151,90,0.25), 0 0 48px rgba(184,151,90,0.1);
+
+  /* Brass Light — LEGACY name; canonical alias is --brass-light (Brand Guide v1.2 §02) */
+  --gold:          #d4b47a;
+  --gold-light:    #e4c899;
+  --gold-pale:     rgba(212,180,122,0.12);
+  --gold-glow:     0 0 10px rgba(212,180,122,0.3);
+
+  /* Danger (warm red, harmonizes with Amber) */
+  --danger:        #c44730;
+  --danger-pale:   rgba(196,71,48,0.1);
+  --danger-glow:   0 0 10px rgba(196,71,48,0.3);
+
+  /* Senate accent — warm copper, distinct from House brass */
+  --senate-accent: #c87941;
+
+  /* Functional palette — Brand Guide v1.2 §02. Single source of truth for the
+     score / data-viz tiers (T160). Previously these four hex values were
+     copy-pasted across ScoreBadge, methodology, BillsMovingWidget, InstallPrompt. */
+  --sage:        #7aab6e;  /* strong / passed */
+  --deep-teal:   #3a7a8a;  /* active */
+  --amber:       #c47a30;  /* watch / pending */
+  --stone:       #8a8070;  /* inactive */
+  --sage-glow:      rgba(122,171,110,0.4);
+  --deep-teal-glow: rgba(58,122,138,0.3);
+  --amber-glow:     rgba(196,122,48,0.3);
+
+  /* Text (warm-shifted) */
+  --text-primary:  #e8e9ec;
+  --text-mid:      #a8acb4;
+  --text-muted:    #6c7078;
+  --text-faint:    #3d4050;
+
+  /* Borders (forest-tinted) */
+  --border:        #2a2d38;
+  --border-light:  #343845;
+
+  /* Shadows */
+  --shadow-sm:     0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md:     0 4px 20px rgba(0,0,0,0.4);
+  --shadow-lg:     0 8px 40px rgba(0,0,0,0.5);
+
+  /* Radii */
+  --radius:        10px;
+  --radius-lg:     16px;
+
+  /* Fonts — primary families come from next/font (see layout.tsx); the
+     literal names are kept as fallbacks in case the variable is ever absent. */
+  --font-display:  var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --font-body:     var(--font-karla), 'Karla', 'DM Sans', system-ui, sans-serif;
+  --font-mono:     var(--font-dm-mono), 'DM Mono', 'Courier New', monospace;
+
+  /* Legacy compat (green → forest mapping) */
+  --green-dark:    #b8975a;
+  --green-mid:     #a0824a;
+  --green-light:   #6e5a38;
+  --green-pale:    rgba(184,151,90,0.08);
+
+  /* Party colors (Thread 36) — single canonical D blue + R red across the
+     site. Bill detail prime sponsor dot, PartyMicrobar, VoteSplitBar, and
+     the members heatmap all reference these. The pale variants are for
+     background tinting on member-detail headers + chips. */
+  --party-d:        #4d9aff;
+  --party-r:        #ef4444;
+  --party-d-pale:   rgba(77,154,255,0.12);
+  --party-r-pale:   rgba(239,68,68,0.12);
+  --party-d-border: rgba(77,154,255,0.3);
+  --party-r-border: rgba(239,68,68,0.3);
+
+  /* ── Brand Guide v1.2 §02 canonical aliases (Thread 46) ─────────────────
+     Add canonical brand-name aliases without removing the legacy names.
+     Existing components keep working; new design work uses these names.
+     A future thread can grep usage and rename in bulk once the legacy
+     name counts go to zero. */
+  --brass:         var(--teal);        /* #b8975a */
+  --brass-light:   var(--gold);        /* #d4b47a */
+  --dark-neutral:  var(--bg);          /* #0e1014 */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  margin: 0 auto;
+  min-height: 100vh;
+  max-width: 480px;
+}
+
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: var(--font-body); }
+/* T160 H1: 16px floor on form controls prevents iOS Safari from auto-zooming
+   the viewport on focus (and never zooming back). Scale visual size with
+   padding, never with a sub-16px font. */
+input, select, textarea { font-family: var(--font-body); font-size: 16px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Utility */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* ── SPARKLINE ANIMATION ─────────────────────── */
+/* sparkline animation is handled via inline styles + useEffect in AnimatedSparkline */
+@keyframes glowPulse {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(184,151,90,0.4)); }
+  50%      { filter: drop-shadow(0 0 12px rgba(184,151,90,0.7)); }
+}
+@keyframes dotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184,151,90,0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(184,151,90,0); }
+}
+@keyframes scoreGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(184,151,90,0.3), inset 0 0 8px rgba(184,151,90,0.1); }
+  50%      { box-shadow: 0 0 24px rgba(184,151,90,0.5), inset 0 0 12px rgba(184,151,90,0.15); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Lucide Loader2 spin (Thread 35) — used by Brief / Print Brief PDF buttons */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+/* VectorLoader brass arrow pulse (Thread 35) */
+@keyframes vectorLoaderPulse {
+  0%, 100% { opacity: 0.45; transform: translateX(0); }
+  50%      { opacity: 1;    transform: translateX(2px); }
+}
+.vec-loader-arrow {
+  animation: vectorLoaderPulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-loader-arrow { animation: none; }
+}
+
+/* Skeleton shimmer (T157 perf pass) — used by HomeSkeleton and any future
+   loading placeholder. A brass-tinted sweep across a card-colored block so
+   the page paints structure instantly instead of a blank full-screen spinner. */
+@keyframes vecShimmer {
+  0%   { background-position: -480px 0; }
+  100% { background-position: 480px 0; }
+}
+.vec-skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 0%, var(--bg-surface) 50%, var(--bg-card) 100%);
+  background-size: 480px 100%;
+  border-radius: var(--radius);
+  animation: vecShimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-skeleton { animation: none; }
+}
+
+/* T160 M2: shared minimum tap target. Apply to icon-only buttons, nav items,
+   chevrons, and chip controls so touch targets meet the 44px iOS/WCAG floor
+   without per-element padding hacks. Wrap the visual content; the icon/text
+   inside keeps its own size. */
+.vec-tap {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* T160 M4: global reduced-motion safety net. Per-component gating covered the
+   home/search/bill surfaces; this catches the always-on CSS animations
+   (scoreGlow, dotPulse, glowPulse) and any future motion in one place. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Thread 35 PRIMARY CTA POLISH ───────────────
+   Adds a subtle brass-glow + 1px lift on hover to every "primary"
+   button. Not applied via CSS reset; opt-in via the .vec-cta-primary
+   utility class so we don't accidentally style every <button>. The
+   disabled state replaces opacity:0.5 with a brass-on-dark cross-hatch
+   so the button stays legible while telegraphing "wait". */
+.vec-cta-primary {
+  box-shadow: 0 0 24px rgba(184,151,90,0.12);
+  transition: box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+.vec-cta-primary:hover:not(:disabled) {
+  box-shadow: 0 0 28px rgba(184,151,90,0.22), 0 4px 12px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+.vec-cta-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.vec-cta-primary:disabled,
+.vec-cta-primary[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 1;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(14,16,20,0.0) 0,
+    rgba(14,16,20,0.0) 6px,
+    rgba(14,16,20,0.18) 6px,
+    rgba(14,16,20,0.18) 12px
+  );
+  box-shadow: 0 0 24px rgba(184,151,90,0.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .vec-cta-primary { transition: none; }
+  .vec-cta-primary:hover:not(:disabled) { transform: none; }
+}
+
+/* ── Thread 35 MICROTYPOGRAPHY ───────────────
+   Tabular figures everywhere a column of numbers shows up. The whole
+   monospace family gets tnum at the body level so vote tallies, score
+   columns, member-vote counts, day-counts, and the like all align
+   vertically without per-site CSS. Karla also benefits from tnum on
+   numeric-heavy strips (mobile bottom-nav badges, score labels).
+
+   Eyebrow utility consolidates the three letter-spacings that were
+   floating around the codebase (0.08 / 0.1 / 0.12) to a single
+   0.12em — apply via className="vec-eyebrow" rather than retyping
+   the inline style on every uppercase label.
+
+   These are additive; no existing inline letter-spacing values are
+   removed (Thread 35 is a polish bundle, not a refactor). Sites that
+   want tighter spacing can still override inline. */
+body {
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+code, pre, .font-mono, [style*="font-mono"], [style*="--font-mono"] {
+  font-feature-settings: 'tnum' 1, 'lnum' 1, 'zero' 1;
+}
+.vec-eyebrow {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-faint);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.vec-tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+/* ── Thread 37 NARROW-PHONE FALLBACK ───────────────
+   Hide elements on phones narrower than 400px (iPhone SE 375px,
+   Galaxy S8 360px, older Android). Used by the bill-detail sticky
+   header to drop the redundant `leg.wa.gov` button when 5 buttons
+   would otherwise crowd into the right-side group. The same
+   leg.wa.gov link still renders in the bill metadata KV cell, so
+   nothing is lost.
+
+   Per CLAUDE.md "Mobile-only by design" rule: narrow-screen
+   `@media (max-width: 400px)` is permitted — the prohibition is
+   on desktop responsive `@media (min-width: 1024px)`. */
+@media (max-width: 400px) {
+  .vec-hide-narrow { display: none !important; }
+}
+
+/* Mobile-first: this app is intentionally mobile-only. Threads 7 + 8
+   experimented with desktop responsive layouts (bottom-tab → top-bar
+   nav swap, 2-col home grid, watchlist column-header strip, bill-detail
+   side rail, 2-col search results) and were reverted on 2026-04-25 to
+   keep focus on the launch backlog. The full revival kit (CSS + JSX
+   patches) is preserved at:
+     C:\Users\Col\Documents\Claude\Projects\Vector - WA\
+       DESKTOP_RESPONSIVE_DEFERRED.md
+   Re-introduce only when a real lobbyist-laptop user need shows up. */

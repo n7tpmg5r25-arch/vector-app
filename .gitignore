@@ -1,0 +1,39 @@
+﻿# Environment / secrets
+.env
+.env.*
+.env.local
+app/.env
+app/.env.*
+app/.env.local
+
+# Dependencies
+node_modules
+
+# Vercel
+.vercel
+
+# Build output
+.next
+dist
+out
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+*.bak
+
+# Claude / Cowork tooling (generated, not source)
+.agents/
+.claude/
+skills-lock.json
+
+# Internal infra / recovery notes — kept local, not published
+docs/

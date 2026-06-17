@@ -1,0 +1,2101 @@
+/**
+ * VECTOR | WA — Sync Script v2.7 (Phase 8 — Political Dynamics Layer)
+ * lib/sync-v2.js
+ *
+ * Fetches all WA Legislature bills, scores them with the calibrated
+ * trajectory model, and writes results to Supabase.
+ *
+ * v2.7 CHANGES (Phase 8 — Political Dynamics):
+ *  - 8.1: fetchCommitteeChairs() — calls CommitteeService.asmx/GetCommittees
+ *         to build Map<committeeName, {chair, party}> for chair_alignment signal
+ *  - 8.2: fetchSponsorTrackRecords() — queries bills from prior sessions to
+ *         compute sponsor pass rates (outcome_passed_law / total bills introduced)
+ *  - 8.3: extractSponsors() now returns bipartisan_index (float 0-1) and
+ *         cross_aisle_count (int) from enriched party data
+ *  - 8.4: processBill() computes chair_alignment and sponsor_track_record
+ *         from pre-loaded maps passed in via runSync()
+ *  - 8.5: runSync() pre-loads committeeChairMap + sponsorTrackMap at start
+ *
+ * v2.6 CHANGES (Phase 7D.2b):
+ *  - 7D.2b.1: getLegislation() now picks the most advanced version (highest
+ *             SubstituteVersion/EngrossedVersion) instead of arr[0]. This gives
+ *             us the correct BillId (e.g. "SHB 1294") and accurate CurrentStatus.
+ *  - 7D.2b.2: processBill() uses the advanced version's BillId for
+ *             getStatusChanges() — fixes truncated histories for ~580 substituted
+ *             bills that were stuck at stage 3 with "substitute bill substituted."
+ *  - 7D.2b.3: substitute_filed detection now checks status text for
+ *             "substitute bill substituted" (was always false for most bills).
+ *  - 7D.2b.4: Cleaned up duplicate governor_action + outcome boolean lines.
+ *
+ * v2.5 CHANGES (Phase 7D.1):
+ *  - 7D.1.1: Fixed governor-signed detection — API returns "Governor signed."
+ *            not "signed by governor". Was missing ~65% of enacted laws.
+ *  - 7D.1.2: Added governor_action column (signed/vetoed/partial_veto/null)
+ *  - 7D.1.3: Added legislation_type column from WSL ShortLegislationType
+ *  - 7D.1.4: Added introduction_year column from GetLegislationByYear year param
+ *  - 7D.1.5: outcome_passed_law / outcome_passed_chamber now set every sync
+ *            (was one-time backfill — 128 stage-6 bills had null)
+ *
+ * v2.4 CHANGES (Phase 6A):
+ *  - 6A.1: Interim score freeze — skip rescoring when no material data changed
+ *  - 6A.4: End-of-session stalled detection for stage-1 bills
+ *  - 6A.5: signal_tier column — always stores score-based tier alongside outcome label
+ *
+ * v2.3 CHANGES (Step 6.13):
+ *  - 6.13.1: Stalled detection now catches Rules-queue bills (was 82 false positives)
+ *  - 6.13.2: Session-state awareness — interim bills show DEAD/CARRY OVER/LAW
+ *  - 6.13.3: Added LOW confidence tier (bridge between MODERATE and VERY LOW)
+ *  - 6.13.4: Hearing detection from status text as fallback to GetHearings API
+ *  - 6.13.5: Graceful null handling for committee_name in UI
+ *
+ * v2.2 CHANGES (Phase 5A):
+ *  - Retry with exponential backoff on API failures (3 retries)
+ *  - 10-second timeout per API call (was 30s — hangs caused 83+ min runs)
+ *  - committee_name populated from GetLegislation CurrentStatus.Committee
+ *  - last_action populated from most recent status change description
+ *  - Batch size increased to 10 with staggered delays (faster throughput)
+ *  - Better error isolation — one bill failing doesn't stall the batch
+ *  - Progress logging every 50 bills instead of every batch
+ *
+ * Previous fixes (v2.0-v2.1):
+ *  - fiscal_score, momentum_score, sponsor_score ranges fixed
+ *  - Stage advancement bonus, X Factors, confidence labels calibrated
+ *  - GetRollCalls param fix, companion_bill extraction
+ *  - Calibration against actual 2025-26 outcomes
+ *
+ * Data flow:
+ *   WA Legislature API (XML)
+ *     → parseXML (xml2js)
+ *     → extractFeatures (history analysis)
+ *     → scoreEngine (calibrated weights + stage bonus + X Factor)
+ *     → Supabase upsert (bills table)
+ *     → trajectory_snapshots insert (one per bill per day)
+ */
+
+require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
+const fetch    = require('node-fetch');
+const xml2js   = require('xml2js');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+const WA_BASE  = process.env.WA_API_BASE || 'https://wslwebservices.leg.wa.gov';
+
+// ── BIENNIUM / SESSION IDENTIFIERS ────────────────────────────────────────────
+// BIENNIUM: WA API short form (YYYY-YY), e.g. '2025-26'. Used as a query-string
+//   parameter against leg.wa.gov web services. The short form is the WA API
+//   contract — do NOT normalize to YYYY-YYYY here.
+// YEAR:     end year of the biennium (YYYY), e.g. '2026' for the 2025–26 biennium.
+// SESSION:  internal DB / session-config key (YYYY-YYYY), e.g. '2025-2026'.
+//   Must match `bills.session`, `sync_log.session`, the SESSIONS arrays in the
+//   weekly-digest / daily-snapshot / send-alerts edge functions, and
+//   `BIENNIUMS[].session` in app/lib/session-config.js. Derived from YEAR so
+//   both formats stay in lockstep.
+// Fail fast on missing / malformed env — nightly-sync.yml and midday-sync.yml
+// both set all three envs. The old silent '2025-26' / '2026' fallbacks
+// (removed 2026-04-22) would have masked a config bug and silently asserted
+// against the wrong biennium after the 2027 rollover.
+// Canonical biennium list: app/lib/session-config.js BIENNIUMS.
+const BIENNIUM = process.env.CURRENT_BIENNIUM;
+const YEAR     = process.env.CURRENT_YEAR;
+if (!BIENNIUM || !/^\d{4}-\d{2}$/.test(BIENNIUM)) {
+  console.error(`FATAL: CURRENT_BIENNIUM must be YYYY-YY (got ${JSON.stringify(BIENNIUM)})`);
+  process.exit(2);
+}
+if (!YEAR || !/^\d{4}$/.test(YEAR)) {
+  console.error(`FATAL: CURRENT_YEAR must be YYYY (got ${JSON.stringify(YEAR)})`);
+  process.exit(2);
+}
+const SESSION = `${parseInt(YEAR)-1}-${YEAR}`;  // e.g. '2025-2026' when YEAR='2026'
+
+// ── CHAMBER CONTROL ───────────────────────────────────────────────────────────
+// Drives the `majority_sponsor` flag in extractSponsors(). WA currently has a
+// Democratic majority in both chambers (as of 2026). Update this constant (or
+// set the MAJORITY_PARTY env var) when control flips — scoreBill() is frozen
+// for 2027 calibration, so this single constant is the safe lever for
+// reflecting a chamber-control change without a scoring rerun.
+const MAJORITY_PARTY = process.env.MAJORITY_PARTY || 'D';
+
+// Session cutoff calendar — update each session
+const SESSION_CALENDAR = {
+  committee_cutoff: process.env.COMMITTEE_CUTOFF || '2028-02-07',
+  floor_cutoff:     process.env.FLOOR_CUTOFF     || '2028-02-21',
+  opposite_cutoff:  process.env.OPPOSITE_CUTOFF  || '2028-03-05',
+  sine_die:         process.env.SINE_DIE         || '2028-03-14',
+  session_start:    process.env.SESSION_START     || '2027-01-11',
+};
+
+// ── SESSION STATE ─────────────────────────────────────────────────────────────
+function getSessionState() {
+  const today = new Date();
+  const sineDate = new Date(SESSION_CALENDAR.sine_die);
+  const startDate = new Date(SESSION_CALENDAR.session_start);
+  if (today < startDate) return 'pre_filing';
+  if (today <= sineDate) return 'active';
+  return 'interim';
+}
+
+// ── CALIBRATED WEIGHTS ────────────────────────────────────────────────────────
+async function loadCalibratedWeights() {
+  const { data, error } = await supabase
+    .from('calibration_weights')
+    .select('*')
+    .eq('is_current', true)
+    .single();
+
+  if (error || !data) {
+    console.warn('  Using fallback hardcoded weights');
+    return getHardcodedWeights();
+  }
+  console.log(`  Loaded calibration from ${data.computed_at}`);
+  return data;
+}
+
+function getHardcodedWeights() {
+  // Phase 7D.3 recalibration (April 12, 2026 — 8,062 bills-only across 3 bienniums, 2,155 LAW)
+  // law_rate = became-law / total-bills-in-category (excludes resolutions/memorials)
+  return {
+    category_rates: {
+      "Natural Resources": 0.358, "Other": 0.348, "Employment / Labor": 0.343,
+      "Veterans / Military": 0.313, "Agriculture": 0.286, "Business / Commerce": 0.267,
+      "Health": 0.266, "Transportation": 0.244, "Housing": 0.244,
+      "Criminal Justice": 0.242, "Education": 0.235, "Government Operations": 0.232,
+      "Environment": 0.222, "Technology": 0.192, "Budget / Appropriations": 0.190,
+    },
+    bucket_pass_rates: {
+      "0-30": 0.000, "30-45": 0.000, "45-60": 0.000,
+      "60-75": 0.018, "75-100": 0.840,
+    },
+  };
+}
+
+// ── RETRY + TIMEOUT HELPERS (Phase 5A) ───────────────────────────────────────
+const API_TIMEOUT_MS = 10000;  // 10 seconds per API call (was 30s)
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;    // 1s, 2s, 4s backoff
+
+async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+// ── WA API HELPERS ────────────────────────────────────────────────────────────
+async function fetchXML(service, endpoint, params) {
+  const url = new URL(`${WA_BASE}/${service}/${endpoint}`);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const res = await fetchWithRetry(url.toString(), {
+    headers: { 'Accept': 'text/xml' },
+  });
+  const text = await res.text();
+  const parser = new xml2js.Parser({ explicitArray: false, ignoreAttrs: true });
+  return parser.parseStringPromise(text);
+}
+
+async function getAllBillsSummary() {
+  // FIX: Fetch BOTH years of the biennium.
+  // GetLegislationByYear returns bills by the year they were INTRODUCED.
+  // A biennium like '2025-26' has 2025 introductions + 2026 introductions.
+  // Previously only fetching YEAR (2026), missing the entire 2025 long session.
+  const bienniumStart = BIENNIUM.split('-')[0];            // e.g. '2025'
+  const bienniumEnd   = '20' + BIENNIUM.split('-')[1];     // e.g. '2026'
+  const years = [bienniumStart, bienniumEnd];
+
+  const toArr = x => { const v = x?.ArrayOfLegislationInfo?.LegislationInfo; return Array.isArray(v) ? v : (v ? [v] : []); };
+  const all = [];
+
+  for (const yr of years) {
+    const [h, s] = await Promise.all([
+      fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'House' }),
+      fetchXML('LegislationService.asmx', 'GetLegislationByYear', { year: yr, biennium: BIENNIUM, agency: 'Senate' }),
+    ]);
+    // Phase 7D.1: Tag each bill with its introduction year
+    const hArr = toArr(h).map(b => ({ ...b, _introYear: parseInt(yr) }));
+    const sArr = toArr(s).map(b => ({ ...b, _introYear: parseInt(yr) }));
+    all.push(...hArr, ...sArr);
+    console.log(`  Year ${yr}: ${hArr.length} House + ${sArr.length} Senate bills`);
+  }
+
+  // Deduplicate by BillNumber+Agency in case any bill appears in both years
+  const seen = new Set();
+  return all.filter(b => {
+    const key = `${b.OriginalAgency || b.Agency}_${b.BillNumber}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function getStatusChanges(billId) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetLegislativeStatusChangesByBillId', {
+      biennium: BIENNIUM, billId,
+      beginDate: `${parseInt(YEAR)-1}-01-01`,
+      endDate: new Date().toISOString().split('T')[0],
+    });
+    const items = data?.ArrayOfLegislativeStatus?.LegislativeStatus;
+    return Array.isArray(items) ? items : (items ? [items] : []);
+  } catch(e) { return []; }
+}
+
+// Phase 5C.3 (revised) — GetLegislation does NOT return a Sponsors collection
+// (only a last-name string in parens). So we still need a per-bill call to
+// LegislationService.asmx/GetSponsors, which returns the full roster with
+// FirstName, LastName, Type ('Primary'/'Secondary'), and Order (0-indexed).
+async function getSponsors(billId) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetSponsors', { biennium: BIENNIUM, billId });
+    const items = data?.ArrayOfSponsor?.Sponsor;
+    if (!items) return [];
+    return Array.isArray(items) ? items : [items];
+  } catch(e) { return []; }
+}
+
+async function getHearings(billNumber) {
+  try {
+    const data = await fetchXML('CommitteeMeetingService.asmx', 'GetHearings', {
+      biennium: BIENNIUM, billNumber: parseInt(billNumber),
+    });
+    const items = data?.ArrayOfHearing?.Hearing;
+    return Array.isArray(items) ? items : (items ? [items] : []);
+  } catch(e) { return []; }
+}
+
+async function getAmendments(billNumber) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetAmendmentsForBiennium', {
+      biennium: BIENNIUM, billNumber: parseInt(billNumber),
+    });
+    const items = data?.ArrayOfAmendment?.Amendment;
+    return Array.isArray(items) ? items : (items ? [items] : []);
+  } catch(e) { return []; }
+}
+
+// BUG FIX: GetRollCalls takes "billNumber" (e.g. "1001"), NOT "billId" (e.g. "HB 1001")
+async function getRollCalls(billNumber) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetRollCalls', { biennium: BIENNIUM, billNumber });
+    const items = data?.ArrayOfRollCall?.RollCall;
+    return Array.isArray(items) ? items : (items ? [items] : []);
+  } catch(e) { return []; }
+}
+
+// ── ROLL CALL PERSISTENCE (Thread 6) ─────────────────────────────────────────
+// Writes per-roll-call + per-member rows into roll_calls / member_votes for
+// every floor vote on a bill. Idempotent via UNIQUE roll_calls.source_id and
+// PRIMARY KEY (roll_call_id, member_id) on member_votes.
+//
+// Display-only — scoreBill() does not consume these tables (G5 frozen-engine
+// rule for the 2027 calibration session). The existing avg_floor_margin
+// aggregate write in extractFeatures() is untouched.
+//
+// Called per bill from the runSync() upsert loop AFTER the bills row is
+// upserted (the FK target must exist). Errors are non-fatal: a failed vote
+// write logs and continues — the bill row itself stays good.
+//
+// Defensive parsing: WA's GetRollCalls XML shape is
+// <ArrayOfRollCall><RollCall>...<Votes><Vote><MemberId/><Name/><Vote/>
+// </Vote>...</Votes></RollCall></ArrayOfRollCall>, but xml2js renders <Votes>
+// with a single child as an object instead of an array, so we coerce. Field
+// names are checked with multiple fallbacks (Vote / VoteValue / Position) in
+// case the WA service ever renames; missing fields silently skip a row
+// instead of crashing the bill.
+//
+// First-call diagnostic: when ROLLCALL_DEBUG_LOGGED is still false and we
+// see a RollCall with yeas+nays > 0 but produce zero member rows, we log
+// the available keys so a follow-up patch can add the right field name. Set
+// to true after the first such log so we don't spam the GitHub Actions log.
+let ROLLCALL_DEBUG_LOGGED = false;
+
+function _normalizeVoteValue(v) {
+  if (!v) return null;
+  const s = String(v).trim().toUpperCase();
+  if (s.startsWith('Y')) return 'YEA';
+  if (s.startsWith('N')) return 'NAY';
+  if (s.startsWith('A')) return 'ABSENT';
+  if (s.startsWith('E')) return 'EXCUSED';
+  return s.slice(0, 16); // truncate any unexpected value to fit text column
+}
+
+// WA's GetRollCalls XML shape (verified 2026-04-25):
+//   <YeaVotes><Count>41</Count><MembersVoting>Abbarno, ...</MembersVoting></YeaVotes>
+// xml2js with `explicitArray: false` maps that to { Count: '41', MembersVoting: '...' },
+// so the count is rc.YeaVotes.Count, NOT rc.YeaVotes itself. The existing
+// avg_floor_margin code at extractFeatures() line ~556 reads parseInt(rc.YeaVotes)
+// directly and has therefore been silently producing 0 across every biennium —
+// see project memory `project_thread6_voting_data_shipped_2026_04_25` and the
+// post-2027 cleanup TODO. Don't fix that path here: a real avg_floor_margin
+// would feed scoreBill()'s strong-margin / narrow-margin X-factors and break
+// the G5 calibration freeze.
+function _readCount(node) {
+  if (node == null) return 0;
+  if (typeof node === 'object') return parseInt(node.Count) || 0;
+  return parseInt(node) || 0; // accept legacy shape just in case
+}
+
+function _parseRollCallRow(billId, rc) {
+  const yeas    = _readCount(rc.YeaVotes);
+  const nays    = _readCount(rc.NayVotes);
+  const absent  = _readCount(rc.AbsentVotes);
+  const excused = _readCount(rc.ExcusedVotes);
+  // SequenceNumber is per-bill in the WA API (1, 2, 3, ... within one
+  // bill's roll calls), not globally unique across bills. Without the
+  // bill_id prefix, every bill's seq=1 row would collide on
+  // UNIQUE (source_id) and the upserts would overwrite each other —
+  // observed on first backfill (script counted 2,298 writes; DB held 89).
+  // RollCallId field doesn't appear in the GetRollCalls response we
+  // probed (bill 5974, biennium 2025-26), so SequenceNumber is what we
+  // actually have. Prefix with bill_id for the unique-per-bill scope.
+  const seq = String(rc.RollCallId || rc.SequenceNumber || '').trim();
+  if (!seq) return null;
+  const sourceId = `${billId}_${seq}`;
+
+  const rawDate = rc.VoteDate || rc.ActionDate || null;
+  const voteDate = rawDate ? String(rawDate).split('T')[0] : null;
+  if (!voteDate) return null; // schema NOT NULL
+
+  // Chamber: WA returns "Agency" as 'House' or 'Senate' for chamber roll
+  // calls. Some committee-vote rows also flow through this endpoint with
+  // a committee name in Agency — we accept whatever is there since the
+  // column is text and Thread 11 will branch on it.
+  const chamber = (rc.Agency || rc.Chamber || 'House').trim();
+
+  return {
+    bill_id:   billId,
+    chamber,
+    vote_date: voteDate,
+    motion:    (rc.Motion || rc.Description || '').trim().slice(0, 240) || null,
+    yeas, nays, absent, excused,
+    result:    yeas > nays ? 'passed' : (yeas + nays > 0 ? 'failed' : null),
+    source_id: sourceId,
+  };
+}
+
+function _parseMemberVotes(rc) {
+  // <Votes><Vote><MemberId/><Name/><VOte>Yea</VOte></Vote>...</Votes>
+  // WSL idiosyncratic capitalisation: the per-member result element is
+  // literally <VOte> (capital V, capital O, lowercase te) — verified on
+  // GetRollCalls?biennium=2025-26&billNumber=5974 on 2026-04-25. Other
+  // names are kept in the fallback list for future API compatibility.
+  // xml2js: <Votes> with one child renders as object; with many, as array.
+  const inner = rc.Votes?.Vote || rc.MemberVotes?.MemberVote || rc.Vote;
+  if (!inner) return [];
+  const arr = Array.isArray(inner) ? inner : [inner];
+  return arr
+    .map(v => {
+      const memberId   = String(v.MemberId || v.Id || v.LegislatorId || '').trim();
+      const memberName = (v.Name || v.MemberName || v.LongName || '').trim();
+      // VOte first — that's the actual WSL name. Vote/VoteValue/Position
+      // are defensive fallbacks if the API ever normalises capitalisation.
+      const rawVote = v.VOte ?? v.Vote ?? v.VoteValue ?? v.Position ?? '';
+      const voteStr = (typeof rawVote === 'object' && rawVote !== null)
+        ? (rawVote._ ?? rawVote.value ?? '')
+        : rawVote;
+      const vote = _normalizeVoteValue(voteStr);
+      // Party isn't in the GetRollCalls payload — Thread 11 will join from
+      // the SponsorService roster cache. Leave NULL here.
+      if (!memberId || !memberName || !vote) return null;
+      return { member_id: memberId, member_name: memberName, party: null, vote };
+    })
+    .filter(Boolean);
+}
+
+async function persistRollCalls(billId, rollCalls) {
+  if (!Array.isArray(rollCalls) || rollCalls.length === 0) {
+    return { rollCallsWritten: 0, memberVotesWritten: 0, errors: [] };
+  }
+  let rollCallsWritten = 0;
+  let memberVotesWritten = 0;
+  const localErrors = [];
+
+  for (const rc of rollCalls) {
+    const row = _parseRollCallRow(billId, rc);
+    if (!row) continue;
+
+    // Upsert the roll_call row, get its UUID id back so we can attach members.
+    // ON CONFLICT (source_id) — the unique index from the schema migration.
+    const { data: rcRow, error: rcErr } = await supabase
+      .from('roll_calls')
+      .upsert(row, { onConflict: 'source_id' })
+      .select('id')
+      .single();
+    if (rcErr) {
+      localErrors.push(`rc[${row.source_id}]: ${rcErr.message}`);
+      continue;
+    }
+    rollCallsWritten++;
+
+    const members = _parseMemberVotes(rc);
+
+    // Diagnostic: aggregate counts say votes happened but we couldn't parse
+    // any per-member rows. Log the available keys ONCE so we can patch the
+    // field-name list without a full debug round-trip.
+    if (!ROLLCALL_DEBUG_LOGGED && members.length === 0 && (row.yeas + row.nays) > 0) {
+      ROLLCALL_DEBUG_LOGGED = true;
+      const keys = Object.keys(rc || {});
+      const innerKeys = rc.Votes ? Object.keys(rc.Votes) : null;
+      console.warn(
+        `  [rollcall-shape] No per-member votes parsed for bill ${billId} ` +
+        `RC ${row.source_id} (yeas=${row.yeas}, nays=${row.nays}). ` +
+        `RollCall keys: [${keys.join(', ')}]; Votes child keys: ${innerKeys ? '[' + innerKeys.join(', ') + ']' : 'absent'}. ` +
+        `Update _parseMemberVotes() if a new field name surfaces.`
+      );
+    }
+    if (members.length === 0) continue;
+
+    const memberRows = members.map(m => ({ ...m, roll_call_id: rcRow.id }));
+    const { error: mvErr } = await supabase
+      .from('member_votes')
+      .upsert(memberRows, { onConflict: 'roll_call_id,member_id' });
+    if (mvErr) {
+      localErrors.push(`mv[${row.source_id}]: ${mvErr.message}`);
+      continue;
+    }
+    memberVotesWritten += memberRows.length;
+  }
+
+  return { rollCallsWritten, memberVotesWritten, errors: localErrors };
+}
+
+// Get full legislation details (for companion bill + committee)
+// Phase 7D.2b FIX: GetLegislation returns ALL versions of a bill (original +
+// substitutes + engrossments). We pick the most advanced version — the one with
+// the highest SubstituteVersion (then EngrossedVersion as tiebreak). This gives
+// us the correct BillId (e.g. "SHB 1294") for querying status changes, plus
+// the accurate CurrentStatus showing governor signing instead of substitution.
+async function getLegislation(billNumber) {
+  try {
+    const data = await fetchXML('LegislationService.asmx', 'GetLegislation', { biennium: BIENNIUM, billNumber });
+    const items = data?.ArrayOfLegislation?.Legislation;
+    const arr = Array.isArray(items) ? items : (items ? [items] : []);
+    if (arr.length <= 1) return arr[0] || null;
+    // Pick the most advanced version (highest substitute + engrossed)
+    return arr.reduce((best, cur) => {
+      const bestSub = parseInt(best.SubstituteVersion || '0');
+      const curSub  = parseInt(cur.SubstituteVersion || '0');
+      const bestEng = parseInt(best.EngrossedVersion || '0');
+      const curEng  = parseInt(cur.EngrossedVersion || '0');
+      return (curSub > bestSub || (curSub === bestSub && curEng > bestEng)) ? cur : best;
+    });
+  } catch(e) { return null; }
+}
+
+// ── RCW CITES (Phase 11.3) ────────────────────────────────────────────────────
+// WSL's GetLegislation returns RCWCites as one of:
+//   - null / missing (most bills)
+//   - a single RCWCite object
+//   - an array of RCWCite objects
+// xml2js flattens single-item collections to objects, so we normalize here.
+// Each cite may have Title (e.g. "82.08.020"), Chapter ("82.08"), Section ("020").
+// Returns a stable array or null. Display-only — NOT a scoring input.
+function extractRcwCites(legislation) {
+  if (!legislation) return null;
+  const node = legislation.RCWCites?.RCWCite ?? legislation.RCWCites;
+  if (!node) return null;
+  const arr = Array.isArray(node) ? node : [node];
+  const out = [];
+  const seen = new Set();
+  for (const c of arr) {
+    if (!c || typeof c !== 'object') continue;
+    const chapter = (c.Chapter || '').toString().trim();
+    const section = (c.Section || '').toString().trim();
+    // Title is WSL's pre-formatted cite label ("82.08.020" or "82.08"); fall back
+    // to chapter[.section] if Title missing.
+    let title = (c.Title || '').toString().trim();
+    if (!title) title = section ? `${chapter}.${section}` : chapter;
+    if (!title) continue;
+    const cite = title.startsWith('RCW') ? title : `RCW ${title}`;
+    if (seen.has(cite)) continue;
+    seen.add(cite);
+    out.push({ cite, title, chapter: chapter || null, section: section || null });
+  }
+  return out.length > 0 ? out : null;
+}
+
+function makeBillId(raw) {
+  const agency = raw.OriginalAgency || raw.Agency || 'House';
+  const num = raw.BillNumber || '';
+  const prefix = agency === 'Senate' ? 'SB' : 'HB';
+  return `${prefix} ${num}`;
+}
+
+// ── DAYS TO CUTOFF ────────────────────────────────────────────────────────────
+function getDaysToCutoff(stage) {
+  const today = new Date();
+  const cutoffs = {
+    1: SESSION_CALENDAR.committee_cutoff,
+    2: SESSION_CALENDAR.committee_cutoff,
+    3: SESSION_CALENDAR.floor_cutoff,
+    4: SESSION_CALENDAR.opposite_cutoff,
+    5: SESSION_CALENDAR.sine_die,
+    6: null,
+  };
+  const cutoff = cutoffs[stage] || cutoffs[1];
+  if (!cutoff) return 99;
+  const diff = Math.ceil((new Date(cutoff) - today) / 86400000);
+  return Math.max(0, Math.min(99, diff));
+}
+
+// ── CATEGORY DETECTION ────────────────────────────────────────────────────────
+// v2.4 (Step 6.14): Expanded from 11 to 14 categories, ~160 keywords.
+// Goal: drop "Other" from 50% to <30%. Order matters — first match wins.
+// More-specific categories listed before broader ones to avoid false positives.
+function detectCategory(title = '') {
+  const t = title.toLowerCase();
+  const CATS = {
+    'Veterans / Military':  ['veteran','military','armed forces','national guard','service member','medal of honor','purple heart'],
+    'Natural Resources':    ['water right','timber','mining','mineral','fishery','fisheries','wildlife manag','hatchery','shellfish','aquatic','irrigation','reclamation','wildland'],
+    'Health':               ['health','medical','hospital','medicaid','medicare','mental health','substance','disease','pharmacy','abortion','reproductive','prescri','prosthetic','hiv','dental','opioid','fentanyl','behavioral health','therapy','therapist','nursing home','assisted living','long-term care','aging','elder','senior','dementia','developmental disabilit','intellectual disabilit','autism'],
+    'Education':            ['school','education','student','teacher','university','college','curriculum','child care','childcare','early childhood','preschool','ninth grade','postsecondary','k-12','tuition','financial aid','scholarship','literacy','special education'],
+    'Criminal Justice':     ['criminal','police','law enforcement','felony','misdemeanor','sentencing','jail','prison','offense','court','judge','judicial','attorney','public defense','public safety','victim','domestic violence','sex offend','trafficking','assault','robbery','theft','fraud','corrections','parole','probation','restitution','firearm','gun','weapon','ammunition','body cam','community safety'],
+    'Housing':              ['housing','tenant','landlord','rent ','zoning','eviction','homeless','dwelling','accessory dwelling','building code','condominium','condo','mortgage','affordable housing','residential develop','shelter','mobile home','manufactured home'],
+    'Environment':          ['environment','climate','carbon','emission','pollution','water quality','salmon','forest','energy','electric','nuclear','solar','wind power','renewable','wildfire','clean air','clean fuel','recycling','composting','waste','hazardous','toxic','superfund','shoreline','wetland','endangered species'],
+    'Government Operations':['election','voter','ballot','campaign','redistrict','public record','disclosure','transparency','open meeting','public facilities','state agenc','county','municipal','local govern','city council','commission on','public employ','civil service','notary','lobbyist','ethics in public','initiative','referendum','tribal','native american','indian tribe'],
+    'Technology':           ['technology','data','privacy','cybersecurity','artificial intelligence','digital','broadband','internet','telecom','blockchain','autonomous vehicle','drone','surveillance'],
+    'Budget / Appropriations':['appropriat','budget','general fund','fiscal','revenue','tax credit','sales tax','property tax','excise tax','B&O tax','income tax','capital gains','estate tax','levy','assessment','exemption','tax incentive','tax preference','tax reform','tax relief','tax exempt','reducing','state propert'],
+    'Employment / Labor':   ['employee','employer','wage','labor','worker','employment','unemployment','workplace','pension','retirement','paid leave','family leave','paid family','collective bargain','workforce','apprentice','occupational','prevailing wage','compensation'],
+    'Transportation':       ['transport','highway','road','transit','vehicle','ferry','traffic','rail ','railroad','aviation','airport','bicycle','pedestrian','speed limit','driver','trucking','freight','port ','maritime'],
+    'Agriculture':          ['agricultur','farm','crop','livestock','irrigation','pesticide','animal','veterinar','poultry','dairy','organic','food safety','food processing','hemp'],
+    'Business / Commerce':  ['business','commerce','corporation','license','contract','trade','insurance','consumer','debt','credit','loan ','pawnbroker','antitrust','cannabis','marijuana','liquor','alcohol','real estate','gaming','gambling','lottery','regulation of','small business','retail','wholesale','franchise'],
+  };
+  for (const [cat, keywords] of Object.entries(CATS)) {
+    if (keywords.some(kw => t.includes(kw))) return cat;
+  }
+  return 'Other';
+}
+
+// Phase 11.9 (2026-04-21): Committee-based category fallback. detectCategory()
+// is title-only; procedural/legalistic titles ("An act relating to…") miss
+// every keyword list and fall through to 'Other'. This helper recovers the
+// ~600+ bills per biennium where committee routing cleanly implies the topic.
+// Called upstream of scoreBill() — scoreBill sees the refined category but is
+// not itself modified (2027 scoring-freeze guardrail preserved).
+// Order is load-bearing: more-specific matches first. In particular
+// "human services" must match before "education" so that House committees
+// like "Early Learning & Human Services" route to Health (where LTSS and
+// senior bills actually live), not Education. Outputs only strings already
+// in detectCategory()'s 14-category vocabulary — no new category values.
+function detectCategoryByCommittee(committee = '') {
+  if (!committee) return 'Other';
+  const c = committee.toLowerCase();
+  if (/ways & means|appropriations|finance|capital budget/.test(c)) return 'Budget / Appropriations';
+  if (/law & justice|civil rights & judiciary|community safety|public safety/.test(c)) return 'Criminal Justice';
+  if (/health|long-term care|human services/.test(c)) return 'Health';
+  if (/education|early learning|k-12|postsecondary|higher education|workforce/.test(c)) return 'Education';
+  if (/environment|energy/.test(c)) return 'Environment';
+  if (/natural resources|fish|wildlife/.test(c)) return 'Natural Resources';
+  if (/agriculture|agricultur/.test(c)) return 'Agriculture';
+  if (/housing/.test(c)) return 'Housing';
+  if (/transportation/.test(c)) return 'Transportation';
+  if (/labor/.test(c)) return 'Employment / Labor';
+  if (/business|commerce|consumer protection|trade|economic development/.test(c)) return 'Business / Commerce';
+  if (/technology/.test(c)) return 'Technology';
+  if (/veteran/.test(c)) return 'Veterans / Military';
+  if (/local government|state government|tribal|elections/.test(c)) return 'Government Operations';
+  return 'Other';
+}
+
+// ── FEATURE EXTRACTION ────────────────────────────────────────────────────────
+// Phase 5C.2: now also accepts `legislation` so fiscal-note fields can be read
+// from the full Legislation object (raw = LegislationInfo lacks these fields).
+function extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation) {
+  // 6.13.4: Detect hearings from BOTH the GetHearings API AND status change text.
+  // The API may miss some hearings; status text catches "public hearing in..." lines.
+  const hasHearingFromAPI = hearings.length > 0;
+
+  const sortedHearings = hearings
+    .filter(h => h.CommitteeMeeting?.Date)
+    .sort((a,b) => new Date(a.CommitteeMeeting.Date) - new Date(b.CommitteeMeeting.Date));
+  let hearingDate = sortedHearings.length > 0
+    ? new Date(sortedHearings[0].CommitteeMeeting.Date).toISOString().split('T')[0]
+    : null;
+
+  // Fallback: detect hearing from status change text
+  const hasHearingFromStatus = statusChanges.some(s => {
+    const line = (s.HistoryLine || s.Status || '').toLowerCase();
+    return line.includes('public hearing') || line.includes('scheduled for public hearing');
+  });
+
+  // If status text found a hearing but API didn't, try to extract the date
+  if (!hearingDate && hasHearingFromStatus) {
+    const hearingSC = statusChanges.find(s => {
+      const line = (s.HistoryLine || s.Status || '').toLowerCase();
+      return line.includes('public hearing');
+    });
+    if (hearingSC) {
+      const d = new Date(hearingSC.ActionDate || hearingSC.StatusDate || '');
+      if (!isNaN(d)) hearingDate = d.toISOString().split('T')[0];
+    }
+  }
+
+  const statusTexts = statusChanges.map(s => (s.HistoryLine || s.Status || '').toLowerCase());
+  const joined = statusTexts.join(' ');
+
+  const hasExecSession = joined.includes('executive action') ||
+    (joined.includes('executive session') && !joined.includes('no action'));
+  const committeePassed = statusTexts.some(s => s.includes('do pass') && !s.includes('minority'));
+  const pulledFromRules = joined.includes('rules committee relieved') || joined.includes('removed from rules');
+  const heldInRules = joined.includes('held') && joined.includes('rules') && !pulledFromRules;
+  const passedFloor = joined.includes('third reading, passed') || joined.includes('passed third reading');
+  const passedOpposite = joined.includes('passed to senate') || joined.includes('passed to house') || joined.includes('delivered to governor');
+  // Phase 7D.1 FIX: WSL API returns "Governor signed." not "signed by governor"
+  // Old check missed ~65% of laws. Now matches both word orders + veto variants.
+  const signedByGov = joined.includes('governor signed') || joined.includes('signed by governor') || joined.includes('effective date') || joined.includes('chaptered');
+  const vetoedByGov = joined.includes('governor vetoed') || joined.includes('vetoed by governor');
+  const partialVeto = joined.includes('governor partially vetoed') || joined.includes('partially vetoed by governor');
+
+  // Phase 7D.1: governor_action — signed trumps partial_veto trumps vetoed
+  let governorAction = null;
+  if (signedByGov) governorAction = 'signed';
+  if (partialVeto) governorAction = 'partial_veto';
+  if (vetoedByGov && !partialVeto) governorAction = 'vetoed';
+
+  // 6.13.4 FIX: GetHearings API returns 0 for all bills, and WA status
+  // changes don't include "public hearing" events (hearings are tracked in
+  // CommitteeMeetingService, not as legislative status changes). Infer from
+  // downstream signals: if a bill had exec session or passed committee, it
+  // definitely had a public hearing first — WA rules require it.
+  const hasPublicHearing = hasHearingFromAPI || hasHearingFromStatus
+    || hasExecSession || committeePassed;
+
+  let stage = 1;
+  if (signedByGov) stage = 6;
+  else if (passedOpposite) stage = 5;
+  else if (passedFloor) stage = 4;
+  else if (committeePassed) stage = 3;
+  else if (hasPublicHearing || hasExecSession) stage = 2;
+
+  const referrals = statusChanges.filter(s => (s.HistoryLine || '').toLowerCase().includes('referred to'));
+  const FISCAL = ['ways & means','appropriations','finance','capital budget'];
+  const fiscalReferral = referrals.some(s => FISCAL.some(f => (s.HistoryLine||'').toLowerCase().includes(f)));
+  const doubleReferral = referrals.length >= 2;
+
+  // Substitute detection — from amendments, raw API data, AND status text
+  // Phase 7D.2b FIX: Also check status change text for "substitute bill substituted"
+  // which is the definitive signal that a substitute was adopted. The amendment check
+  // alone was always returning false for most bills.
+  const substituteFiled = amendments.some(a =>
+    (a.AmendmentType || a.Description || '').toLowerCase().includes('substitute'))
+    || parseInt(raw.SubstituteVersion || '0') > 0
+    || statusTexts.some(s => s.includes('substitute bill substituted'));
+  const amendmentCount = amendments.length;
+
+  const allDates = statusChanges
+    .map(s => new Date(s.ActionDate || s.StatusDate || ''))
+    .filter(d => !isNaN(d));
+  // Phase 6 / Thread 57 fix (2026-05-02): when the WSL API returns no parseable
+  // status changes for a bill (typical for archived 2021-22 / 2023-24 bills),
+  // fall back to NULL — never `new Date()`. The previous `: new Date()` fallback
+  // re-stamped 23 bills with the current sync time on every nightly run, which
+  // poisoned `/search` "Most Recent Action" sort and the PDF Brief "Last action"
+  // line. NULL is the honest value; the data simply doesn't exist in our pipeline.
+  const lastDate = allDates.length ? new Date(Math.max(...allDates)) : null;
+  const daysSince = lastDate ? Math.floor((new Date() - lastDate) / 86400000) : null;
+
+  // Stalled detection — catches both committee-stage AND Rules-queue bills
+  // Rules bills HAVE passed committee (committeePassed=true, stage=3) but can
+  // sit in the Rules queue for months with no action. Derive committee name
+  // from the legislation object to check for "rules".
+  const leg2 = legislation || {};
+  const cmteForStalled = (
+    leg2?.CurrentStatus?.Committee?.Name
+    || leg2?.CurrentStatus?.Committee?.LongName
+    || leg2?.CurrentStatus?.CommitteeName
+    || ''
+  ).toLowerCase();
+  const isInRulesQueue = cmteForStalled.includes('rules') && stage === 3;
+  const stalled = daysSince > 21 && stage <= 3 && (!committeePassed || isInRulesQueue);
+
+  // Fiscal note size — derive from API fields + referral patterns
+  // Phase 5C.2: LocalFiscalNote / StateFiscalNote live on the full Legislation
+  // object, NOT on the LegislationInfo summary (raw). Read from legislation
+  // first, then fall back to raw for safety. Values may be booleans or strings.
+  const leg = legislation || {};
+  const localFn = leg.LocalFiscalNote ?? raw.LocalFiscalNote;
+  const stateFn = leg.StateFiscalNote ?? raw.StateFiscalNote;
+  const isTrue = v => v === true || v === 'true' || v === 'True';
+  const hasFiscal = isTrue(localFn) || isTrue(stateFn);
+  let fiscalNoteSize = 'none';
+  if (hasFiscal && fiscalReferral && doubleReferral) fiscalNoteSize = 'large';
+  else if (hasFiscal && fiscalReferral) fiscalNoteSize = 'medium';
+  else if (hasFiscal) fiscalNoteSize = 'small';
+
+  // Roll call vote margins
+  // ⚠ KNOWN BUG (do NOT fix during 2027 calibration freeze, G5):
+  // `r.YeaVotes` is actually a nested object { Count, MembersVoting } per
+  // the WA API XML shape. parseInt(object) → NaN → 0 here, so margins
+  // collapse to null, so avg_floor_margin has been silently null across
+  // every biennium since this code was written. The Thread 6 helpers
+  // _readCount() / _parseRollCallRow() above use the correct shape and
+  // populate roll_calls.yeas/nays correctly. DO NOT FIX HERE — a real
+  // avg_floor_margin would feed scoreBill()'s strong-margin/narrow-margin
+  // X-factors and break the 2027 calibration. Schedule for post-2027
+  // refresh; see project memory project_thread6_voting_data_shipped_2026_04_25.
+  let avgFloorMargin = null;
+  if (rollCalls.length > 0) {
+    const margins = rollCalls
+      .map(r => { const y = parseInt(r.YeaVotes)||0; const n = parseInt(r.NayVotes)||0; return y+n > 0 ? y/(y+n) : null; })
+      .filter(m => m !== null);
+    if (margins.length > 0) avgFloorMargin = margins.reduce((a,b) => a+b, 0) / margins.length;
+  }
+
+  const sessionStart = new Date(SESSION_CALENDAR.session_start);
+  const firstStatus = statusChanges.find(s => (s.HistoryLine || '').toLowerCase().includes('first reading'));
+  const introDate = firstStatus ? new Date(firstStatus.ActionDate || firstStatus.StatusDate) : new Date();
+  const sessionWeek = Math.min(8, Math.max(1, Math.ceil((introDate - sessionStart) / (86400000 * 7))));
+
+  // NEW (Phase 5A): Extract last_action text from most recent status change
+  let lastAction = '';
+  if (statusChanges.length > 0) {
+    const sorted = [...statusChanges].sort((a, b) => {
+      const da = new Date(a.ActionDate || a.StatusDate || 0);
+      const db = new Date(b.ActionDate || b.StatusDate || 0);
+      return db - da;
+    });
+    lastAction = (sorted[0].HistoryLine || sorted[0].Status || '').trim();
+  }
+
+  return {
+    has_public_hearing: hasPublicHearing,
+    has_executive_session: hasExecSession,
+    committee_passed: committeePassed,
+    pulled_from_rules: pulledFromRules,
+    held_in_rules: heldInRules,
+    stalled,
+    substitute_filed: substituteFiled,
+    double_referral: doubleReferral,
+    fiscal_referral: fiscalReferral,
+    fiscal_note_size: fiscalNoteSize,
+    amendment_count: amendmentCount,
+    session_week: sessionWeek,
+    days_since_action: daysSince,
+    stage,
+    days_to_cutoff: getDaysToCutoff(stage),
+    avg_floor_margin: avgFloorMargin,
+    hearing_date: hearingDate,
+    last_action_date: lastDate ? lastDate.toISOString() : null,
+    last_action: lastAction,  // Phase 5A: now populated
+    governor_action: governorAction,  // Phase 7D.1: signed/vetoed/partial_veto/null
+  };
+}
+
+// ── PARTY ENRICHMENT (Phase 6.11) ────────────────────────────────────────────
+// The per-bill LegislationService/GetSponsors does NOT include a Party field.
+// SponsorService.asmx/GetSponsors returns the biennium-wide legislator roster
+// and DOES include Party. We call it once at the top of runSync() and build an
+// in-memory Map<sponsorId, 'D'|'R'|''> passed into every extractSponsors() call.
+// Graceful degradation: if this call fails, sync still succeeds — party stays empty.
+async function fetchBienniumSponsorParties() {
+  try {
+    const data = await fetchXML('SponsorService.asmx', 'GetSponsors', { biennium: BIENNIUM });
+    const items = data?.ArrayOfMember?.Member
+               ?? data?.ArrayOfSponsor?.Sponsor
+               ?? data?.ArrayOfLegislator?.Legislator;
+    if (!items) return new Map();
+    const arr = Array.isArray(items) ? items : [items];
+    const map = new Map();
+    for (const m of arr) {
+      const id = m.Id || m.MemberId || m.SponsorId;
+      let party = (m.Party || '').trim();
+      if (party.toLowerCase().startsWith('d')) party = 'D';
+      else if (party.toLowerCase().startsWith('r')) party = 'R';
+      else party = '';
+      if (id) map.set(String(id), party);
+    }
+    return map;
+  } catch(e) {
+    console.warn(`  [party-map] fetch failed: ${e.message} — continuing without party enrichment`);
+    return new Map();
+  }
+}
+
+// ── COMMITTEE CHAIR MAP (Phase 8) ────────────────────────────────────────────
+// Calls CommitteeService.asmx/GetCommittees to build a map:
+//   Map<normalizedCommitteeName, { chair: string, party: 'D'|'R'|'' }>
+// Used to compute chair_alignment in processBill(). Called once at sync start.
+// Also returns rosterData[] for syncCommitteeRosters() to persist.
+async function fetchCommitteeChairs(partyMap) {
+  try {
+    const data = await fetchXML('CommitteeService.asmx', 'GetCommittees', { biennium: BIENNIUM });
+    const items = data?.ArrayOfCommittee?.Committee;
+    if (!items) { console.warn('  [chair-map] No committees returned'); return { chairMap: new Map(), rosterData: [] }; }
+    const arr = Array.isArray(items) ? items : [items];
+    const map = new Map();
+    const rosterData = [];
+    for (const c of arr) {
+      const name = (c.Name || c.LongName || '').trim();
+      if (!name) continue;
+      const agency = (c.Agency || '').trim(); // "House" or "Senate"
+      // GetCommittees includes Members with roles. Find the Chair.
+      const members = c.Members?.CommitteeMember;
+      const memArr = Array.isArray(members) ? members : (members ? [members] : []);
+
+      // Collect full roster for this committee
+      for (const m of memArr) {
+        const mName = `${m.FirstName || ''} ${m.LastName || ''}`.trim();
+        if (!mName) continue;
+        const mId = m.Id || m.MemberId || null;
+        const title = (m.Title || '').trim() || 'Member';
+        let mParty = '';
+        if (mId && partyMap.has(String(mId))) {
+          mParty = partyMap.get(String(mId));
+        } else if (m.Party) {
+          mParty = m.Party.startsWith('D') ? 'D' : m.Party.startsWith('R') ? 'R' : '';
+        }
+        rosterData.push({
+          committee_name: name,
+          chamber: agency || null,
+          member_name: mName,
+          member_id: mId ? String(mId) : null,
+          title,
+          party: mParty,
+        });
+      }
+
+      // Chairs have Title containing "Chair" but NOT "Vice Chair"
+      const chair = memArr.find(m => {
+        const title = (m.Title || '').toLowerCase();
+        return title.includes('chair') && !title.includes('vice');
+      });
+      if (chair) {
+        const chairName = `${chair.FirstName || ''} ${chair.LastName || ''}`.trim();
+        // Lookup party from the biennium-wide party map
+        const chairId = chair.Id || chair.MemberId;
+        let chairParty = '';
+        if (chairId && partyMap.has(String(chairId))) {
+          chairParty = partyMap.get(String(chairId));
+        } else if (chair.Party) {
+          chairParty = chair.Party.startsWith('D') ? 'D' : chair.Party.startsWith('R') ? 'R' : '';
+        }
+        // Normalize key: lowercase, trim, strip " Committee" suffix
+        const key = name.toLowerCase().replace(/ committee$/i, '').trim();
+        map.set(key, { chair: chairName, party: chairParty });
+      }
+    }
+    console.log(`  Loaded committee chair map: ${map.size} committees, ${rosterData.length} member slots`);
+    return { chairMap: map, rosterData };
+  } catch(e) {
+    console.warn(`  [chair-map] fetch failed: ${e.message} — continuing without chair data`);
+    return { chairMap: new Map(), rosterData: [] };
+  }
+}
+
+// ── COMMITTEE ROSTER SYNC ────────────────────────────────────────────────────
+// Persists full committee membership to committee_members table.
+// Called once per sync after fetchCommitteeChairs().
+// Strategy: delete existing rows per committee, then bulk insert fresh roster.
+async function syncCommitteeRosters(rosterData) {
+  if (!rosterData || rosterData.length === 0) {
+    console.log('  [roster] No roster data to sync');
+    return;
+  }
+  try {
+    // Load committees lookup: name|chamber → id
+    const { data: committees } = await supabase
+      .from('committees')
+      .select('id, name, chamber');
+    const cByKey = new Map();
+    for (const c of committees || []) cByKey.set(`${c.name}|${c.chamber}`, c.id);
+
+    // Group roster rows by committee and resolve to committee_id
+    const rows = [];
+    const unmatchedCommittees = new Set();
+    for (const r of rosterData) {
+      const key = `${r.committee_name}|${r.chamber}`;
+      const committeeId = cByKey.get(key);
+      if (!committeeId) {
+        unmatchedCommittees.add(key);
+        continue;
+      }
+      rows.push({
+        committee_id: committeeId,
+        member_name: r.member_name,
+        member_id: r.member_id,
+        title: r.title,
+        party: r.party,
+      });
+    }
+    if (unmatchedCommittees.size > 0) {
+      console.log(`  [roster] ${unmatchedCommittees.size} committees not in DB (normal for inactive/renamed): ${[...unmatchedCommittees].slice(0, 5).join(', ')}${unmatchedCommittees.size > 5 ? '...' : ''}`);
+    }
+    if (rows.length === 0) {
+      console.log('  [roster] No matched rows to upsert');
+      return;
+    }
+
+    // Clear existing roster then bulk insert fresh data
+    const committeeIds = [...new Set(rows.map(r => r.committee_id))];
+    const { error: delErr } = await supabase
+      .from('committee_members')
+      .delete()
+      .in('committee_id', committeeIds);
+    if (delErr) console.warn(`  [roster] delete error: ${delErr.message}`);
+
+    // Batch insert in chunks of 200
+    const CHUNK = 200;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const { error: insErr } = await supabase
+        .from('committee_members')
+        .insert(chunk);
+      if (insErr) {
+        console.warn(`  [roster] insert error (batch ${Math.floor(i/CHUNK)}): ${insErr.message}`);
+      } else {
+        inserted += chunk.length;
+      }
+    }
+    console.log(`  [roster] Synced ${inserted} member slots across ${committeeIds.length} committees`);
+  } catch(e) {
+    console.warn(`  [roster] sync failed: ${e.message} — non-blocking`);
+  }
+}
+
+// ── SPONSOR TRACK RECORD MAP (Phase 8) ──────────────────────────────────────
+// Pre-queries bills from PRIOR sessions to build:
+//   Map<sponsorName, { passed: number, total: number, rate: float }>
+// Uses outcome_passed_law (set every sync since Phase 7D.1) from earlier biennia.
+async function fetchSponsorTrackRecords() {
+  try {
+    // Determine prior sessions. Current session = SESSION (e.g. '2025-2026').
+    // Prior sessions are the two preceding biennia.
+    const startYear = parseInt(SESSION.split('-')[0]);
+    const priorSessions = [];
+    for (let i = 1; i <= 2; i++) {
+      const py = startYear - (i * 2);
+      priorSessions.push(`${py}-${py + 1}`);
+    }
+    console.log(`  [track-record] Querying prior sessions: ${priorSessions.join(', ')}`);
+
+    // Fetch prime_sponsor + outcome for all bills in prior sessions
+    let allPrior = [];
+    for (const sess of priorSessions) {
+      let page = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('bills')
+          .select('prime_sponsor, outcome_passed_law')
+          .eq('session', sess)
+          .eq('legislation_type', 'bill')
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        if (error || !data || data.length === 0) break;
+        allPrior = allPrior.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        page++;
+      }
+    }
+
+    // Group by sponsor
+    const map = new Map();
+    for (const b of allPrior) {
+      const name = b.prime_sponsor;
+      if (!name || name === 'Unknown') continue;
+      if (!map.has(name)) map.set(name, { passed: 0, total: 0 });
+      const rec = map.get(name);
+      rec.total++;
+      if (b.outcome_passed_law) rec.passed++;
+    }
+
+    // Compute rate
+    for (const [name, rec] of map) {
+      rec.rate = rec.total > 0 ? rec.passed / rec.total : 0;
+    }
+
+    console.log(`  Loaded sponsor track records: ${map.size} sponsors from ${allPrior.length} prior bills`);
+    return map;
+  } catch(e) {
+    console.warn(`  [track-record] fetch failed: ${e.message} — continuing without track records`);
+    return new Map();
+  }
+}
+
+// ── SPONSOR EXTRACTION ────────────────────────────────────────────────────────
+function extractSponsors(sponsors, partyMap) {
+  if (!sponsors || sponsors.length === 0) return {
+    prime_sponsor: 'Unknown', prime_party: '', majority_sponsor: false,
+    bipartisan: false, cosponsor_count: 0, sponsor_tier: 4, is_committee_chair: false,
+    bipartisan_index: null, cross_aisle_count: 0,
+  };
+
+  // Phase 6.11 — Enrich each sponsor's Party from the biennium-wide roster map
+  // BEFORE primary detection runs.
+  if (partyMap && partyMap.size > 0) {
+    for (const s of sponsors) {
+      if (!s.Party || s.Party === '') {
+        const id = s.Id || s.SponsorId || s.MemberId;
+        if (id) {
+          const p = partyMap.get(String(id));
+          if (p) s.Party = p;
+        }
+      }
+    }
+  }
+
+  // Phase 5C.3 fix: Primary/Secondary (not Prime), Order is 0-indexed (not '1'-based)
+  const prime = sponsors.find(s => s.Type === 'Primary' || s.Order === '0') || sponsors[0];
+  const rest = sponsors.filter(s => s !== prime);
+  const party = prime.Party || '';
+  const fullName = `${prime.FirstName||''} ${prime.LastName||''}`.trim()
+                   || prime.Name
+                   || 'Unknown';
+  // Phase 8: Compute bipartisan_index and cross_aisle_count from enriched party data
+  const crossAisle = rest.filter(s => {
+    const sp = (s.Party || '').trim();
+    return sp !== '' && sp !== party;
+  });
+  const crossAisleCount = crossAisle.length;
+  // bipartisan_index = opposite-party cosponsors / total cosponsors (null if no cosponsors)
+  const bipartisanIndex = rest.length > 0 ? crossAisleCount / rest.length : null;
+
+  return {
+    prime_sponsor: fullName,
+    prime_party: party,
+    majority_sponsor: party === MAJORITY_PARTY,
+    bipartisan: crossAisleCount > 0,
+    cosponsor_count: rest.length,
+    sponsor_tier: party === 'D' ? 3 : 4,
+    is_committee_chair: false,  // populated separately via committee roster sync
+    bipartisan_index: bipartisanIndex,      // Phase 8: float 0-1
+    cross_aisle_count: crossAisleCount,     // Phase 8: int
+  };
+}
+
+// ── SCORING ENGINE v2.9 ──────────────────────────────────────────────────────
+// v2.9 changes (Apr 12, 2026):
+//   - Fiscal scoring INVERTED: large=13 (was 4), none=6 (was 15), medium=2 (was 8)
+//     Data: large fiscal bills have 44.6% law rate vs 16.2% for no-fiscal
+//   - Companion XF: now stage-conditional (companion_stage >= 4), was unconditional +10%
+//   - Double referral XF penalty REMOVED (75% law rate = positive signal, not negative)
+//   - Fiscal referral XF: only applied when solo (no double referral); 1.2% law rate
+//   - Confidence recalibrated: HIGH pass_prob 75.9% (was 84.0%)
+function scoreBill(bill, categoryRates, sessionState) {
+  // COMMITTEE (0-25)
+  let committee = 3;
+  if (bill.has_public_hearing) committee += 11;
+  if (bill.committee_passed) committee += 8;
+  if (bill.has_executive_session && bill.committee_passed) committee += 6;
+  committee = Math.max(0, Math.min(committee, 25));
+
+  // SPONSOR (0-20) — uses full range now
+  let sponsor = 4;  // base
+  if (bill.majority_sponsor) sponsor += 4;
+  if (bill.is_committee_chair) sponsor += 6;
+  if (bill.bipartisan) sponsor += 4;
+  if ((bill.cosponsor_count || 0) >= 5) sponsor += 2;
+  sponsor = Math.max(0, Math.min(sponsor, 20));
+
+  // MOMENTUM (0-20) — activity-based, not just recency
+  let momentum = 0;
+  // Activity level
+  if (bill.stage >= 4) momentum += 5;
+  else if (bill.committee_passed && bill.has_executive_session) momentum += 5;
+  else if (bill.has_public_hearing && bill.committee_passed) momentum += 4;
+  else if (bill.has_public_hearing) momentum += 3;
+  else if (bill.has_executive_session) momentum += 3;
+  // Bonus signals
+  if (bill.substitute_filed) momentum += 3;
+  if (bill.pulled_from_rules) momentum += 3;
+  // Recency
+  const days = bill.days_since_action || 0;
+  if (days <= 7) momentum += 5;
+  else if (days <= 14) momentum += 3;
+  else if (days <= 21) momentum += 1;
+  // Penalties
+  if (bill.stalled) momentum -= 8;
+  momentum = Math.max(0, Math.min(momentum, 20));
+
+  // HISTORICAL (0-20) — category pass rates
+  const catRate = categoryRates[bill.category] ?? 0.427;
+  const baseline = categoryRates['Other'] ?? 0.427;
+  let historical = Math.round(8 + ((catRate - baseline) / baseline) * 10);
+  const bn = parseInt((bill.bill_number || '').replace(/\D/g, '')) || 9999;
+  if (bn <= 200) historical += 2;
+  else if (bn > 600) historical -= 1;
+  historical = Math.max(0, Math.min(historical, 20));
+
+  // FISCAL (0-15) — v2.9 recalibration (Apr 2026, 8062 bills)
+  // Actual law rates: large 44.6%, small 28.8%, none 16.2%, medium 1.3%
+  // "large" = fiscal note + fiscal referral + double referral → priority legislation
+  // "medium" = fiscal note + fiscal referral only → friction signal, rarely advances
+  const fiscalMap = { 'large': 13, 'small': 10, 'none': 6, 'medium': 2 };
+  const fiscal = fiscalMap[bill.fiscal_note_size] ?? 6;
+
+  // STAGE ADVANCEMENT BONUS — the key ceiling fix
+  const stageBonus = { 1: 0, 2: 3, 3: 8, 4: 15, 5: 20, 6: 25 };
+  const bonus = stageBonus[bill.stage] ?? 0;
+
+  const base_total = committee + sponsor + momentum + historical + fiscal + bonus;
+
+  // X FACTORS — positive and negative multipliers
+  let xf = 1.0;
+  const xf_factors = [];
+
+  // Positive X factors
+  // v2.9: Companion signal is stage-conditional. Data shows 0% lift at stages 1-5;
+  // raw companion flag correlates NEGATIVELY with outcomes in the 60-74 zone (57% of
+  // DEAD vs 5% of LAW). Only apply bonus when companion is also advancing (stage 4+).
+  if (bill.companion_bill && (bill.companion_stage || 0) >= 4) {
+    xf += 0.08; xf_factors.push({ l: 'Companion advancing', d: 0.08, pos: true });
+  }
+  if (bill.substitute_filed) { xf += 0.05; xf_factors.push({ l: 'Substitute filed', d: 0.05, pos: true }); }
+  if (bill.has_executive_session && bill.committee_passed) { xf += 0.06; xf_factors.push({ l: 'Exec session passed', d: 0.06, pos: true }); }
+  if ((bill.stage || 1) >= 4) { xf += 0.08; xf_factors.push({ l: '2nd chamber', d: 0.08, pos: true }); }
+  if (bill.pulled_from_rules) { xf += 0.15; xf_factors.push({ l: 'Pulled from Rules', d: 0.15, pos: true }); }
+  if (bill.avg_floor_margin != null && bill.avg_floor_margin >= 0.75) {
+    xf += 0.08; xf_factors.push({ l: 'Strong margin', d: 0.08, pos: true });
+  }
+
+  // Negative X factors
+  // v2.9: double_referral penalty REMOVED — data shows 75% law rate when true.
+  // Double-referred bills are priority legislation. Signal captured by fiscal scoring.
+  if ((bill.amendment_count || 0) > 3) { xf -= 0.05; xf_factors.push({ l: 'High amendments', d: -0.05, pos: false }); }
+  // v2.9: fiscal_referral only penalized when NOT double-referred (1.2% law rate solo)
+  if (bill.fiscal_referral && !bill.double_referral) {
+    xf -= 0.08; xf_factors.push({ l: 'Fiscal referral (solo)', d: -0.08, pos: false });
+  }
+  if (bill.stalled) { xf -= 0.10; xf_factors.push({ l: 'Stalled', d: -0.10, pos: false }); }
+  if (bill.held_in_rules) { xf -= 0.20; xf_factors.push({ l: 'Held in Rules', d: -0.20, pos: false }); }
+  if (!bill.majority_sponsor && !bill.bipartisan) {
+    xf -= 0.10; xf_factors.push({ l: 'Minority only', d: -0.10, pos: false });
+  }
+  if (bill.avg_floor_margin != null && bill.avg_floor_margin < 0.60) {
+    xf -= 0.06; xf_factors.push({ l: 'Narrow margin', d: -0.06, pos: false });
+  }
+
+  // Cutoff pressure — only during active session with valid cutoff windows
+  const dtc = bill.days_to_cutoff ?? 99;
+  if (dtc >= 1 && dtc <= 5 && !bill.has_public_hearing && (bill.stage || 1) <= 2) {
+    xf -= 0.18; xf_factors.push({ l: `Cutoff: ${dtc}d`, d: -0.18, pos: false });
+  } else if (dtc >= 1 && dtc <= 14 && !bill.committee_passed && (bill.stage || 1) <= 2) {
+    xf -= 0.08; xf_factors.push({ l: 'Cutoff warning', d: -0.08, pos: false });
+  }
+
+  xf = Math.round(Math.max(0.50, Math.min(1.50, xf)) * 1000) / 1000;
+  const final_score = Math.min(99, Math.round(base_total * xf));  // cap at 99, save 100 for "signed into law"
+
+  // CONFIDENCE — v2.9 recalibration (April 12, 2026 — 8,062 bills-only, 2,155 LAW, 3 bienniums)
+  // Recalibrated after fiscal inversion, companion/referral XF fixes.
+  // pass_prob = "probability of becoming law" based on actual became-law rates per bucket (bills only)
+  let pass_prob, conf_label, conf_low, conf_high;
+
+  // 6.13.2: SESSION-STATE AWARENESS — once sine die hits, bills that didn't
+  // pass are dead. Stage 6 (signed) keeps its score. Stage 4-5 carry over
+  // within a biennium. Everything else is dead until next session.
+  const isInterim = sessionState === 'interim' || sessionState === 'pre_filing';
+
+  if (isInterim && bill.stage >= 6) {
+    // Signed into law — terminal success
+    pass_prob = 1.000; conf_label = 'LAW'; conf_low = 1.000; conf_high = 1.000;
+  } else if (isInterim) {
+    // 2026-04-23 — biennium-aware interim outcome labeling.
+    // WA carryover rule (RCW 44.04 + House/Senate Rules): bills not enacted in
+    // year 1 of a biennium are eligible for consideration in year 2. At end of
+    // year 2 (biennium close), every unpassed bill dies — no cross-biennium
+    // carryover. YEAR parity drives which sine die we're in:
+    //   Odd year  (2025, 2027, 2029) = biennium START → mid-biennium interim
+    //   Even year (2026, 2028, 2030) = biennium CLOSE → terminal outcome labels
+    const isBienniumClosingYear = Number(YEAR) % 2 === 0;
+    pass_prob = 0.000; conf_low = 0.000; conf_high = 0.000;
+    if (isBienniumClosingYear) {
+      // Biennium is over. Stage 4+ = passed originating chamber but didn't
+      // become law. Previously mislabeled 'CARRY OVER' (the semantic bug this
+      // commit fixes). < 4 = never cleared originating chamber.
+      conf_label = bill.stage >= 4 ? 'PASSED_CHAMBER' : 'DEAD';
+    } else {
+      // Year 1 sine die. WA carryover: any bill with progress (stage >= 1)
+      // is technically alive for year 2. Stage 0 is functionally dead.
+      conf_label = bill.stage >= 1 ? 'CARRY OVER' : 'DEAD';
+    }
+  } else if (bill.stalled || bill.held_in_rules) {
+    pass_prob = 0.005; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.015;
+  } else if (final_score >= 75) {
+    // v2.9: 75.9% of 75+ bills became law (2138/2818) — Wilson CI 74.3-77.5%
+    // LAW/(LAW+DEAD) accuracy: 96.0% (2138/2228). CARRY OVER = pending outcome.
+    pass_prob = 0.759; conf_label = 'HIGH'; conf_low = 0.743; conf_high = 0.775;
+  } else if (final_score >= 60) {
+    // v2.9: 1.8% of 60-74 bills became law (15/838) — Wilson CI 1.1-2.9%
+    pass_prob = 0.018; conf_label = 'MODERATE'; conf_low = 0.011; conf_high = 0.029;
+  } else if (final_score >= 45 && bill.committee_passed) {
+    // 6.13.3: LOW tier — passed committee but stalled pre-floor (alive but stuck)
+    // 0% became law in 45-59 bucket, but small chamber-pass signal remains
+    pass_prob = 0.005; conf_label = 'LOW'; conf_low = 0.000; conf_high = 0.015;
+  } else if (final_score >= 45) {
+    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
+  } else {
+    pass_prob = 0.000; conf_label = 'VERY LOW'; conf_low = 0.000; conf_high = 0.005;
+  }
+
+  return {
+    committee, sponsor, momentum, historical, fiscal,
+    base_total, xf_multiplier: xf, final_score, xf_factors,
+    pass_prob, conf_label, conf_low, conf_high,
+  };
+}
+
+// ── PROCESS SINGLE BILL ───────────────────────────────────────────────────────
+async function processBill(raw, categoryRates, state, partyMap, chairMap, trackMap) {
+  const billNum = raw.BillNumber || raw.BillId?.replace(/\D/g, '');
+  if (!billNum) return null;
+
+  // Phase 5C.8: skip gubernatorial appointments (bill_number >= 9000).
+  // These are not real bills and clutter the DB / burn tokens.
+  const billNumInt = parseInt(billNum, 10);
+  if (!isNaN(billNumInt) && billNumInt >= 9000) return null;
+
+  const billApiId = makeBillId(raw);
+  const billId = `${SESSION}-${billNum}`;
+
+  // Phase 5C.1: Fetch the full legislation object FIRST — it contains title,
+  // fiscal note flags, and sponsors that are all missing from the raw
+  // LegislationInfo summary returned by GetLegislationByYear. We use this
+  // single object downstream for title, fiscal_note_size, and prime_sponsor.
+  const legislation = await getLegislation(billNum);
+
+  // Phase 5C.1: Pull title from legislation object, with a fallback chain.
+  const title =
+    (legislation && (legislation.LongDescription || legislation.ShortDescription)) ||
+    raw.ShortDescription ||
+    billApiId; // e.g. "HB 1001" — still better than empty string
+  let category = detectCategory(title);  // Phase 11.9: may be refined below once committeeName resolves
+
+  // Phase 7D.2b FIX: Use the advanced version's BillId (e.g. "SHB 1294") for
+  // status changes. The WSL API tracks all post-substitution events under the
+  // substitute ID. Without this, status history is truncated at "substitute bill
+  // substituted." — no floor votes, no opposite chamber, no governor signing.
+  const advancedBillId = legislation?.BillId || billApiId;
+
+  // Phase 5C.3 (revised): GetLegislation's Sponsor field is just a string like
+  // "(Abbarno)", not a collection. Call LegislationService/GetSponsors for the
+  // real list with FirstName/LastName/Type/Order.
+  const [sponsors, hearings, statusChanges, amendments, rollCalls] = await Promise.all([
+    getSponsors(billApiId),
+    getHearings(billNum),
+    getStatusChanges(advancedBillId),
+    getAmendments(billNum),
+    getRollCalls(billNum),
+  ]);
+
+  const features = extractFeatures(hearings, statusChanges, amendments, rollCalls, raw, state, legislation);
+  const sponsorData = extractSponsors(sponsors, partyMap);
+
+  // Extract companion bill from full legislation data
+  let companionBill = null;
+  let committeeName = '';
+  if (legislation) {
+    const companions = legislation?.Companions?.Companion;
+    const compArr = Array.isArray(companions) ? companions : (companions ? [companions] : []);
+    if (compArr.length > 0) {
+      companionBill = compArr[0].BillId || compArr[0].BillNumber || null;
+    }
+    // Phase 5A: Extract committee_name from CurrentStatus
+    committeeName = legislation?.CurrentStatus?.Committee?.Name
+      || legislation?.CurrentStatus?.Committee?.LongName
+      || legislation?.CurrentStatus?.CommitteeName
+      || raw.CurrentStatus?.CommitteeName
+      || '';
+
+    // Phase 5B: If still empty, extract from status change history ("referred to [Committee]")
+    if (!committeeName) {
+      // Look through status changes in reverse (most recent first) for referral text
+      const scArr = Array.isArray(statusChanges) ? statusChanges : [];
+      for (let i = scArr.length - 1; i >= 0; i--) {
+        const desc = scArr[i]?.Description || scArr[i]?.HistoryLine || '';
+        const match = desc.match(/[Rr]eferred to ([^.]+)\./);
+        if (match) {
+          committeeName = match[1].trim();
+          break;
+        }
+      }
+    }
+    // Phase 5B: If still empty, try "Rules" or exec action patterns from last status change
+    if (!committeeName) {
+      const lastDesc = features.last_action || '';
+      if (/Rules Committee|Rules "X"|Rules 2 Review/i.test(lastDesc)) {
+        committeeName = 'Rules';
+      } else {
+        const execMatch = lastDesc.match(/^([A-Z]+) - /);
+        if (execMatch) {
+          const abbrevMap = {
+            APP: 'Appropriations', FIN: 'Finance', TR: 'Transportation',
+            AGNR: 'Agriculture & Natural Resources', SGOV: 'State Government',
+            CPB: 'Consumer Protection & Business', HCW: 'Health Care & Wellness',
+            TEDV: 'Trade & Economic Development', PEW: 'Postsecondary Education & Workforce',
+            CB: 'College & Budget', CRJ: 'Civil Rights & Judiciary', HSG: 'Housing',
+            HUSR: 'Human Services', ENET: 'Environment, Energy & Technology',
+            HLTC: 'Health & Long-Term Care', LJ: 'Law & Justice',
+            EDUC: 'Early Learning & K-12 Education', LC: 'Labor & Commerce',
+            LWS: 'Labor & Workplace Standards', LGOV: 'Local Government',
+          };
+          committeeName = abbrevMap[execMatch[1]] || '';
+        }
+      }
+    }
+  }
+
+  // Phase 11.9 (2026-04-21): Committee-based category fallback. Only runs when
+  // title-based detectCategory() returned 'Other' AND we resolved a committee
+  // name from the legislation object (lines above). Recovers ~600+ bills per
+  // biennium whose procedural titles miss every keyword list. scoreBill() is
+  // not touched — it just sees the refined category value.
+  if (category === 'Other' && committeeName) {
+    category = detectCategoryByCommittee(committeeName);
+  }
+
+  // Phase 7D.1: Extract legislation_type from ShortLegislationType (nested object from xml2js)
+  const shortLegType = (raw.ShortLegislationType?.ShortLegislationType || '').toUpperCase();
+  const legTypeMap = { B: 'bill', R: 'resolution', JR: 'joint_resolution', JM: 'joint_memorial', CR: 'concurrent_resolution', GA: 'gubernatorial_appointment', I: 'initiative' };
+  const legislationType = legTypeMap[shortLegType] || null;
+
+  // Phase 7D.1: introduction_year tagged by getAllBillsSummary
+  const introductionYear = raw._introYear || null;
+
+  const billRecord = {
+    bill_id: billId,
+    bill_number: billNum,
+    session: SESSION,
+    chamber: raw.OriginalAgency || raw.Agency || 'House',
+    title: title,  // Phase VH-C (2026-04-18): was slice(0, 200) — truncating long titles ("mental hea..."). DB column is unbounded text; no reason to clip.
+    category,
+    status: raw.CurrentStatus?.Status || 'Introduced',
+    committee_name: committeeName,  // Phase 5A: now populated from GetLegislation
+    bill_number_seq: parseInt(billNum) || 9999,
+    companion_bill: companionBill,
+    last_action: features.last_action,  // Phase 5A: now populated from status changes
+    legislation_type: legislationType,          // Phase 7D.1
+    introduction_year: introductionYear,        // Phase 7D.1
+    rcw_cites: extractRcwCites(legislation),    // Phase 11.3 (display-only)
+    ...sponsorData,
+    ...features,
+    raw_data: {
+      summary: raw,
+      hearings_count: hearings.length,
+      status_changes: statusChanges.length,
+      amendments_count: amendments.length,
+      rollcalls_count: rollCalls.length,
+    },
+    updated_at: new Date().toISOString(),
+  };
+
+  // 6.13.1 FIX: extractFeatures reads committee from the legislation object,
+  // but for many bills that call returns null and the committee_name is set
+  // via status-change fallback above. Re-check stalled using the resolved name.
+  if (!billRecord.stalled && committeeName.toLowerCase().includes('rules')
+      && billRecord.stage === 3 && (billRecord.days_since_action || 0) > 21) {
+    billRecord.stalled = true;
+  }
+
+  // 6A.4: End-of-session stalled detection — any bill at stage 1 that never
+  // passed committee is dead once the session ends. Catches the 372 false-active bills.
+  if (state === 'interim' && !billRecord.stalled
+      && billRecord.stage <= 1 && !billRecord.committee_passed) {
+    billRecord.stalled = true;
+  }
+
+  // Score with calibrated rates + session state awareness (6.13.2)
+  const scores = scoreBill(billRecord, categoryRates, state);
+  billRecord.trajectory_score = scores.base_total;
+  billRecord.final_score = scores.final_score;
+  billRecord.xf_multiplier = scores.xf_multiplier;
+  billRecord.pass_probability = scores.pass_prob;
+  billRecord.confidence_label = scores.conf_label;
+  billRecord.confidence_low = scores.conf_low;
+  billRecord.confidence_high = scores.conf_high;
+
+  // Phase 7D.1: Always set outcome booleans from stage (was previously a one-time backfill)
+  billRecord.outcome_passed_chamber = billRecord.stage >= 4;
+  billRecord.outcome_passed_law = billRecord.stage >= 6;
+
+  // Phase 8: Political Dynamics — chair_alignment
+  if (chairMap && chairMap.size > 0 && committeeName) {
+    const cmteKey = committeeName.toLowerCase().replace(/ committee$/i, '').trim();
+    const chairInfo = chairMap.get(cmteKey);
+    if (chairInfo && chairInfo.party && billRecord.prime_party) {
+      if (chairInfo.party === billRecord.prime_party) {
+        billRecord.chair_alignment = 'aligned';
+      } else {
+        billRecord.chair_alignment = 'opposed';
+      }
+    } else {
+      billRecord.chair_alignment = null; // unknown — no party data
+    }
+  }
+
+  // Phase UI.1: is_committee_chair — true when the bill's prime sponsor IS a
+  // committee chair (any committee, not just the bill's assigned committee).
+  if (chairMap && chairMap.size > 0 && billRecord.prime_sponsor && billRecord.prime_sponsor !== 'Unknown') {
+    const sponsorLower = billRecord.prime_sponsor.toLowerCase();
+    for (const [, info] of chairMap) {
+      if (info.chair && info.chair.toLowerCase() === sponsorLower) {
+        billRecord.is_committee_chair = true;
+        break;
+      }
+    }
+  }
+
+  // Phase 8: Political Dynamics — sponsor_track_record
+  if (trackMap && trackMap.size > 0 && billRecord.prime_sponsor && billRecord.prime_sponsor !== 'Unknown') {
+    const rec = trackMap.get(billRecord.prime_sponsor);
+    if (rec && rec.total >= 1) {
+      billRecord.sponsor_track_record = Math.round(rec.rate * 1000) / 1000; // 3 decimal places
+    }
+  }
+
+  // Outcome label — human-readable final status
+  const cmteName = (billRecord.committee_name || '').toLowerCase();
+  const isRulesQueue = cmteName.includes('rules');
+  if (billRecord.stage >= 6) {
+    billRecord.outcome_label = 'Signed into Law';
+  } else if (billRecord.stage >= 5) {
+    billRecord.outcome_label = 'Passed Both Chambers';
+  } else if (billRecord.stage >= 4) {
+    billRecord.outcome_label = 'Passed Chamber of Origin';
+  } else if (billRecord.stage >= 3 && isRulesQueue) {
+    billRecord.outcome_label = 'Died in Rules';
+  } else if (billRecord.stage >= 3) {
+    billRecord.outcome_label = 'Passed Committee';
+  } else if (billRecord.stage >= 2) {
+    billRecord.outcome_label = 'Had Hearing';
+  } else {
+    billRecord.outcome_label = 'Died in Committee';
+  }
+
+  return { billRecord, scores, amendments, rollCalls };
+}
+
+// ── MAIN SYNC ─────────────────────────────────────────────────────────────────
+async function runSync() {
+  const startTime = Date.now();
+  const state = getSessionState();
+  const today = new Date().toISOString().split('T')[0];
+  let billsFetched = 0, billsUpdated = 0, snapshotsWritten = 0, billsSkipped = 0;
+  const errors = [];
+
+  console.log(`[${new Date().toISOString()}] Sync v2.8 — ${SESSION} — state: ${state}`);
+  let amendmentsStored = 0;
+  // Thread 6 — per-member roll-call persistence counters. Display-only;
+  // scoreBill() never reads these. See persistRollCalls() helper above.
+  let rollCallsStored = 0;
+  let memberVotesStored = 0;
+
+  // 6A.1: During interim, pre-load existing bills so we can detect material changes
+  let existingBillsMap = null;
+  if (state === 'interim') {
+    console.log('  INTERIM MODE — will only rescore bills with material data changes');
+    existingBillsMap = new Map();
+    let page = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error: pgErr } = await supabase
+        .from('bills')
+        .select('bill_id, stage, committee_passed, has_public_hearing, stalled, held_in_rules, last_action, fiscal_note_size, is_committee_chair, chair_alignment, category')
+        .eq('session', SESSION)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (pgErr || !data || data.length === 0) break;
+      data.forEach(b => existingBillsMap.set(b.bill_id, b));
+      if (data.length < PAGE_SIZE) break;
+      page++;
+    }
+    console.log(`  Loaded ${existingBillsMap.size} existing bills for change detection`);
+  }
+
+  // Phase 10.2: Pre-load fiscal note sizes for change detection (active sessions too)
+  let fiscalNoteMap = new Map();
+  if (existingBillsMap) {
+    // Reuse interim map — it already has fiscal_note_size
+    existingBillsMap.forEach((b, id) => fiscalNoteMap.set(id, b.fiscal_note_size || 'none'));
+  } else {
+    // Active session: lightweight fetch of just bill_id + fiscal_note_size
+    let fnPage = 0;
+    const FN_PAGE = 1000;
+    while (true) {
+      const { data, error: fnErr } = await supabase
+        .from('bills')
+        .select('bill_id, fiscal_note_size')
+        .eq('session', SESSION)
+        .range(fnPage * FN_PAGE, (fnPage + 1) * FN_PAGE - 1);
+      if (fnErr || !data || data.length === 0) break;
+      data.forEach(b => fiscalNoteMap.set(b.bill_id, b.fiscal_note_size || 'none'));
+      if (data.length < FN_PAGE) break;
+      fnPage++;
+    }
+  }
+  console.log(`  Loaded fiscal note baseline for ${fiscalNoteMap.size} bills`);
+  let fiscalChangesDetected = 0;
+
+  const calibration = await loadCalibratedWeights();
+  const categoryRates = calibration.category_rates || getHardcodedWeights().category_rates;
+
+  // Phase 6.11: Party enrichment — one-shot biennium-wide roster fetch
+  const partyMap = await fetchBienniumSponsorParties();
+  console.log(`  Loaded party map: ${partyMap.size} sponsors`);
+
+  // Phase 8: Committee chair map (needs partyMap for chair party lookup)
+  // Also returns full roster data for committee_members table sync
+  const { chairMap, rosterData } = await fetchCommitteeChairs(partyMap);
+
+  // Sync committee rosters to DB (non-blocking — failures don't stop sync)
+  await syncCommitteeRosters(rosterData);
+
+  // Phase 8: Sponsor track record from prior sessions
+  const trackMap = await fetchSponsorTrackRecords();
+
+  let allBills;
+  try {
+    allBills = await getAllBillsSummary();
+    billsFetched = allBills.length;
+    console.log(`  Fetched ${billsFetched} bills`);
+  } catch(e) {
+    console.error('  WA API unavailable:', e.message);
+    await supabase.from('sync_log').insert({
+      session: SESSION, bills_fetched: 0, bills_updated: 0,
+      snapshots_written: 0, errors: [{ err: e.message }],
+      duration_ms: Date.now() - startTime, notes: 'Aborted — WA API error',
+    });
+    return;
+  }
+
+  // Phase 5A: Increased batch size to 10 (from 5) + shorter delay
+  const BATCH = 10;
+  for (let i = 0; i < allBills.length; i += BATCH) {
+    const batch = allBills.slice(i, i + BATCH);
+
+    // Progress every 50 bills (less console noise)
+    if (i % 50 === 0 || i === 0) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      console.log(`  [${elapsed}s] Processing ${i}–${Math.min(i+BATCH, allBills.length)} of ${allBills.length}...`);
+    }
+
+    await Promise.all(batch.map(async raw => {
+      try {
+        const result = await processBill(raw, categoryRates, state, partyMap, chairMap, trackMap);
+        if (!result) return;
+        const { billRecord, scores, amendments, rollCalls } = result;
+
+        // 6A.1: INTERIM FREEZE — skip rescoring if nothing material changed
+        if (existingBillsMap) {
+          const existing = existingBillsMap.get(billRecord.bill_id);
+          if (existing) {
+            const materialChange =
+              existing.stage !== billRecord.stage ||
+              existing.committee_passed !== billRecord.committee_passed ||
+              existing.has_public_hearing !== billRecord.has_public_hearing ||
+              existing.stalled !== billRecord.stalled ||
+              existing.held_in_rules !== billRecord.held_in_rules ||
+              existing.last_action !== billRecord.last_action ||
+              existing.is_committee_chair !== billRecord.is_committee_chair ||
+              existing.chair_alignment !== billRecord.chair_alignment ||
+              existing.category !== billRecord.category;  // Phase 11.9: one-shot heal for committee-refined categories
+            if (!materialChange) {
+              billsSkipped++;
+              return; // No change — keep existing scores
+            }
+            console.log(`  ** Material change detected: ${billRecord.bill_number} (${billRecord.bill_id})`);
+          }
+        }
+
+        // 6A.5: Always compute score-based signal_tier alongside outcome labels
+        let signal_tier;
+        if (scores.final_score >= 75) signal_tier = 'HIGH';
+        else if (scores.final_score >= 60) signal_tier = 'MODERATE';
+        else if (scores.final_score >= 45) signal_tier = 'LOW';
+        else signal_tier = 'VERY LOW';
+        billRecord.signal_tier = signal_tier;
+
+        const { error: uErr } = await supabase
+          .from('bills')
+          .upsert(billRecord, { onConflict: 'bill_id' });
+        if (uErr) { errors.push({ bill: billRecord.bill_number, err: uErr.message }); return; }
+
+        // Thread 6: persist per-member roll-call rows. The rollCalls array
+        // was already pulled above for the avg_floor_margin aggregate; this
+        // is a strict superset write. Idempotent — re-syncs are safe via
+        // ON CONFLICT (source_id) and (roll_call_id, member_id). Errors are
+        // non-fatal: a vote write failure logs but does not abort the bill.
+        if (rollCalls && rollCalls.length > 0) {
+          try {
+            const { rollCallsWritten, memberVotesWritten, errors: rcErrs } =
+              await persistRollCalls(billRecord.bill_id, rollCalls);
+            rollCallsStored   += rollCallsWritten;
+            memberVotesStored += memberVotesWritten;
+            if (rcErrs.length) {
+              errors.push({ bill: billRecord.bill_number, err: `rc: ${rcErrs.join(' | ')}` });
+            }
+          } catch (e) {
+            errors.push({ bill: billRecord.bill_number, err: `rc-fatal: ${e.message}` });
+          }
+        }
+
+        // Phase 10.1: Store individual amendment records
+        if (amendments && amendments.length > 0) {
+          const amendmentRows = amendments.map(a => {
+            const floorAction = (a.FloorAction || '').trim();
+            return {
+              bill_id: billRecord.bill_id,
+              amendment_number: a.Name || a.AmendmentId || null,
+              floor_number: a.FloorNumber || null,
+              sponsor: a.SponsorName || a.Sponsor || null,
+              description: (a.Description || '').slice(0, 500) || null,
+              floor_action: floorAction || null,
+              floor_action_date: a.FloorActionDate ? a.FloorActionDate.split('T')[0] : null,
+              adopted: /adopted/i.test(floorAction),
+              document_url: a.HtmUrl || a.PdfUrl || null,
+            };
+          }).filter(r => r.amendment_number); // skip rows with no identifier
+
+          if (amendmentRows.length > 0) {
+            const { error: aErr } = await supabase
+              .from('amendments')
+              .upsert(amendmentRows, { onConflict: 'bill_id,amendment_number', ignoreDuplicates: true });
+            if (aErr) {
+              errors.push({ bill: billRecord.bill_number, err: `amend: ${aErr.message}` });
+            } else {
+              amendmentsStored += amendmentRows.length;
+            }
+          }
+        }
+
+        // Phase 10.2: Detect fiscal note changes
+        const prevFiscal = fiscalNoteMap.get(billRecord.bill_id) || 'none';
+        const newFiscal = billRecord.fiscal_note_size || 'none';
+        if (prevFiscal !== newFiscal) {
+          const noteText = prevFiscal === 'none'
+            ? `Fiscal note added (${newFiscal})`
+            : newFiscal === 'none'
+              ? 'Fiscal note removed'
+              : `Fiscal note changed: ${prevFiscal} → ${newFiscal}`;
+          const { error: fnErr } = await supabase
+            .from('fiscal_note_history')
+            .upsert({
+              bill_id: billRecord.bill_id,
+              detected_date: today,
+              previous_size: prevFiscal,
+              new_size: newFiscal,
+              has_state_impact: billRecord.raw_data?.summary?.StateFiscalNote === 'true' || false,
+              has_local_impact: billRecord.raw_data?.summary?.LocalFiscalNote === 'true' || false,
+              note: noteText,
+            }, { onConflict: 'bill_id,detected_date', ignoreDuplicates: false });
+          if (fnErr) {
+            errors.push({ bill: billRecord.bill_number, err: `fiscal: ${fnErr.message}` });
+          } else {
+            fiscalChangesDetected++;
+          }
+          // Update the map so subsequent syncs within the same run don't re-fire
+          fiscalNoteMap.set(billRecord.bill_id, newFiscal);
+        }
+
+        const { error: sErr } = await supabase
+          .from('trajectory_snapshots')
+          .upsert({
+            bill_id: billRecord.bill_id,
+            session: SESSION,
+            score: scores.final_score,
+            base_total: scores.base_total,
+            xf_multiplier: scores.xf_multiplier,
+            stage: billRecord.stage,
+            committee_score: scores.committee,
+            sponsor_score: scores.sponsor,
+            momentum_score: scores.momentum,
+            historical_score: scores.historical,
+            fiscal_score: scores.fiscal,
+            pass_probability: scores.pass_prob,
+            confidence_label: scores.conf_label,
+            xf_factors: scores.xf_factors,
+            snapshot_date: today,
+            days_since_action: billRecord.days_since_action,
+            fiscal_note_size: billRecord.fiscal_note_size,
+          }, { onConflict: 'bill_id,snapshot_date' });
+
+        if (!sErr) snapshotsWritten++;
+        else errors.push({ bill: billRecord.bill_number, err: `snap: ${sErr.message}` });
+        billsUpdated++;
+      } catch(e) {
+        errors.push({ bill: raw.BillNumber, err: e.message });
+      }
+    }));
+
+    // Phase 5A: Shorter delay between batches (was 2000ms)
+    if (i + BATCH < allBills.length) await new Promise(r => setTimeout(r, 500));
+  }
+
+  const duration = Date.now() - startTime;
+  const mins = (duration / 60000).toFixed(1);
+  console.log(`\n  Done: ${billsFetched} fetched, ${billsUpdated} updated, ${billsSkipped} skipped (unchanged), ${snapshotsWritten} snapshots, ${amendmentsStored} amendments, ${fiscalChangesDetected} fiscal changes, ${rollCallsStored} roll calls, ${memberVotesStored} member votes, ${errors.length} errors (${mins} min)`);
+
+  // ── PHASE 11.4: COMPANION PAIR RESOLUTION + SNAPSHOTS ───────────────────────
+  // Second pass: now that every bill in the session has its latest stage/score
+  // in the DB, walk pairs and classify relational state (both_moving / leading /
+  // trailing / forked / both_stuck). Write companion_state + companion_score
+  // back onto bills, and insert one row per bill per night into
+  // companion_snapshots. No WSL calls. scoreBill() is untouched — the live
+  // in-session scoring path reads companion_stage (unchanged); only the Cowork
+  // rescore-all.js reads companion_state, and that is manual + frozen until
+  // post-2027-session per the scoring freeze.
+  let pairsResolved = 0;
+  let companionSnapshotsWritten = 0;
+  try {
+    const pairStats = await resolveCompanionPairs(supabase, SESSION);
+    pairsResolved = pairStats.pairsResolved;
+    companionSnapshotsWritten = pairStats.snapshotsWritten;
+    console.log(`  Companion pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} snapshots written`);
+  } catch (e) {
+    console.error('  [companion resolver failed, continuing]:', e.message);
+  }
+
+  // Phase 11.1 - Committee Meetings sync (after bills, before sync_log)
+  try {
+    const { syncCommitteeMeetings } = require('./sync-meetings');
+    const mtg = await syncCommitteeMeetings(supabase);
+    console.log(`  Meetings: ${mtg.insertedMeetings} upserted, ${mtg.insertedAgenda} agenda items, ${mtg.linkedBills} bills linked`);
+  } catch (e) {
+    console.error('  [meetings sync failed, continuing]:', e.message);
+  }
+
+  // ── PHASE 11.5: CALENDAR PRESSURE ──────────────────────────────────────────
+  // Third pass: now that committee_meetings + meeting_agenda_items are fresh
+  // for the next 14 days, compute per-bill "calendar pressure" — the count of
+  // agenda items across that bill's committee's meetings in the next 7 days.
+  // Proxy for how crowded the chair's docket is. Writes to bills.calendar_pressure
+  // (display-only column) AND calendar_pressure_snapshots (historical curve for
+  // post-2027 calibration). scoreBill() DOES NOT read these — pure data-only
+  // instrumentation. rescore-all.js DOES NOT read these either. Safe during freeze.
+  let pressureBillsUpdated = 0;
+  let pressureSnapshotsWritten = 0;
+  try {
+    const pStats = await computeCalendarPressure(supabase, SESSION);
+    pressureBillsUpdated = pStats.billsUpdated;
+    pressureSnapshotsWritten = pStats.snapshotsWritten;
+    console.log(`  Calendar pressure: ${pressureBillsUpdated} bills updated, ${pressureSnapshotsWritten} snapshots written`);
+  } catch (e) {
+    console.error('  [calendar pressure failed, continuing]:', e.message);
+  }
+
+  await supabase.from('sync_log').insert({
+    session: SESSION, bills_fetched: billsFetched, bills_updated: billsUpdated,
+    snapshots_written: snapshotsWritten,
+    errors: errors.length ? errors.slice(0, 50) : null,
+    duration_ms: duration,
+    notes: `sync-v2.9 scoring recalibration — fiscal inverted, companion/referral fixed${billsSkipped > 0 ? ` (${billsSkipped} unchanged, skipped)` : ''} | ${amendmentsStored} amendments stored | pairs: ${pairsResolved} resolved, ${companionSnapshotsWritten} companion snapshots | votes: ${rollCallsStored} roll calls, ${memberVotesStored} member votes`,
+  });
+
+  return { billsFetched, billsUpdated, snapshotsWritten, pairsResolved, companionSnapshotsWritten, errors };
+}
+
+// ── PHASE 11.4: COMPANION PAIR RESOLUTION ────────────────────────────────────
+// Classifies each companion pair into one of five states and writes the result
+// back to bills.companion_state / companion_score. Also inserts one row per
+// bill per day into companion_snapshots (idempotent on bill_id + snapshot_date).
+//
+// State definitions (same semantics as COMPANION_STATES in the UI):
+//   both_moving  — both pair members advanced in the last 14 days
+//   leading      — this bill's stage > companion's, this bill moved in last 14d
+//   trailing     — companion's stage > this bill's, companion moved in last 14d
+//   forked       — stages diverge AND neither moved in last 14 days
+//   both_stuck   — same stage, or both stalled ≥ 14 days (default interim state)
+//
+// During interim (like the current April 2026 window), almost everything
+// classifies as both_stuck. That is accurate — nothing is moving. Session
+// re-opens and the pairs reshuffle naturally.
+async function resolveCompanionPairs(supabase, session) {
+  const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
+  const STALL_CUTOFF = new Date(Date.now() - FOURTEEN_DAYS_MS);
+
+  // Pull every bill in the session that has a companion value. We also fetch
+  // last_action_date so we can reason about who moved recently. Select in
+  // pages so we don't blow past the default 1000-row ceiling.
+  const allBills = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, bill_number, session, stage, final_score, companion_bill, last_action_date')
+      .eq('session', session)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch bills for pair resolution: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allBills.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  // Index by normalized bill number for quick pair lookup
+  const normNum = v => (v || '').toString().replace(/\D/g, '');
+  const byNumber = new Map();
+  for (const b of allBills) byNumber.set(normNum(b.bill_number), b);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const updates = []; // { bill_id, companion_state, companion_score }
+  const snapshots = []; // companion_snapshots rows
+
+  for (const b of allBills) {
+    if (!b.companion_bill) continue;
+    const mate = byNumber.get(normNum(b.companion_bill));
+    if (!mate) continue; // companion not yet synced (cross-session or orphan)
+
+    const myStage = b.stage || 0;
+    const mateStage = mate.stage || 0;
+    const myMoved = b.last_action_date && new Date(b.last_action_date) >= STALL_CUTOFF;
+    const mateMoved = mate.last_action_date && new Date(mate.last_action_date) >= STALL_CUTOFF;
+
+    let state;
+    if (myStage === mateStage) {
+      // Same stage — both moving if both moved recently, else both stuck
+      state = (myMoved && mateMoved) ? 'both_moving' : 'both_stuck';
+    } else if (myStage > mateStage) {
+      // This bill is further along
+      if (myMoved && mateMoved) state = 'both_moving';
+      else if (myMoved) state = 'leading';
+      else if (!myMoved && !mateMoved) state = 'forked'; // diverged + stalled
+      else state = 'trailing'; // mate moved, we didn't — mate is catching up
+    } else {
+      // Companion is further along
+      if (myMoved && mateMoved) state = 'both_moving';
+      else if (mateMoved) state = 'trailing';
+      else if (!myMoved && !mateMoved) state = 'forked';
+      else state = 'leading'; // we moved, mate didn't — we're closing the gap
+    }
+
+    updates.push({
+      bill_id: b.bill_id,
+      companion_state: state,
+      companion_score: mate.final_score ?? null,
+    });
+    snapshots.push({
+      bill_id: b.bill_id,
+      companion_bill_id: mate.bill_id,
+      companion_stage: mateStage,
+      companion_score: mate.final_score ?? null,
+      companion_state: state,
+      snapshot_date: today,
+    });
+  }
+
+  // Batch-write the bills updates. Supabase JS doesn't have a true bulk-update
+  // by PK across differing values, so we group by (state, score) and issue one
+  // update per bucket keyed on bill_id list. For 700-ish pairs with ~5 states
+  // × handful of score values this stays well under 100 roundtrips.
+  const byBucket = new Map();
+  for (const u of updates) {
+    const key = `${u.companion_state}::${u.companion_score ?? 'null'}`;
+    if (!byBucket.has(key)) byBucket.set(key, { state: u.companion_state, score: u.companion_score, ids: [] });
+    byBucket.get(key).ids.push(u.bill_id);
+  }
+  for (const bucket of byBucket.values()) {
+    const { error } = await supabase
+      .from('bills')
+      .update({ companion_state: bucket.state, companion_score: bucket.score })
+      .in('bill_id', bucket.ids);
+    if (error) throw new Error(`bills companion_state update: ${error.message}`);
+  }
+
+  // Snapshot inserts — idempotent via unique (bill_id, snapshot_date)
+  let snapshotsWritten = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < snapshots.length; i += CHUNK) {
+    const slice = snapshots.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from('companion_snapshots')
+      .upsert(slice, { onConflict: 'bill_id,snapshot_date', ignoreDuplicates: false });
+    if (error) throw new Error(`companion_snapshots upsert: ${error.message}`);
+    snapshotsWritten += slice.length;
+  }
+
+  return { pairsResolved: updates.length, snapshotsWritten };
+}
+
+// ── PHASE 11.5: CALENDAR PRESSURE ────────────────────────────────────────────
+// For every bill in the session whose committee has scheduled meeting(s) in
+// the next 7 days, sum the agenda items across those meetings — that's the
+// "calendar pressure" the chair is carrying. Writes bills.calendar_pressure +
+// bills.calendar_pressure_next_meeting, and upserts one calendar_pressure_snapshots
+// row per bill per day (idempotent via UNIQUE (bill_id, snapshot_date)).
+//
+// Bills whose committee has zero meetings in the window get pressure=0 (not
+// null) so the UI can distinguish "we computed it, it's quiet" from "never
+// computed". During interim almost everything will be 0 — that's correct.
+//
+// scoreBill() DOES NOT read bills.calendar_pressure. rescore-all.js DOES NOT
+// read it. This is purely descriptive. Freeze-safe.
+async function computeCalendarPressure(supabase, session) {
+  const today = new Date();
+  const windowEnd = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const ymd = d => d.toISOString().slice(0, 10);
+  const windowStart = ymd(today);
+  const windowEndStr = ymd(windowEnd);
+  const snapshotDate = windowStart;
+
+  // 1. Pull the session's bills — only need bill_id + committee_id.
+  const allBills = [];
+  let from = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, committee_id')
+      .eq('session', session)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch bills for pressure: ${error.message}`);
+    if (!data || data.length === 0) break;
+    allBills.push(...data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  // 2. Pull all meetings in the 7-day window, with their agenda-item counts.
+  //    committee_meetings.committee_id is a bigint (committees.id), whereas
+  //    bills.committee_id is a text code (e.g. "WAYS"). We join through the
+  //    committees table to bridge the two — pull the meetings first, then
+  //    count their agenda rows in a single query per committee.
+  const { data: meetings, error: mErr } = await supabase
+    .from('committee_meetings')
+    .select('id, committee_id, committee_name, chamber, meeting_date')
+    .gte('meeting_date', windowStart)
+    .lte('meeting_date', windowEndStr);
+  if (mErr) throw new Error(`fetch meetings: ${mErr.message}`);
+
+  const meetingIds = (meetings || []).map(m => m.id);
+  // Count agenda items per meeting
+  const itemCounts = new Map();
+  if (meetingIds.length) {
+    const { data: items, error: iErr } = await supabase
+      .from('meeting_agenda_items')
+      .select('meeting_id')
+      .in('meeting_id', meetingIds);
+    if (iErr) throw new Error(`fetch agenda items: ${iErr.message}`);
+    for (const it of items || []) {
+      itemCounts.set(it.meeting_id, (itemCounts.get(it.meeting_id) || 0) + 1);
+    }
+  }
+
+  // 3. Also pull committees so we can map bills.committee_id (text) → committees.id (bigint).
+  //    bills.committee_id is stored as the WSL committee code (e.g., "WAYS"), but
+  //    committee_meetings joins through committees.id. We match on committee name
+  //    via bills.committee_name ↔ committees.name + chamber, since that's how
+  //    sync-meetings.js resolves the link (see ensureCommittee()).
+  const { data: committees } = await supabase
+    .from('committees')
+    .select('id, name, chamber');
+  const cByKey = new Map();
+  for (const c of committees || []) cByKey.set(`${c.name}|${c.chamber}`, c.id);
+
+  // To bridge bills → committees, re-read bills with committee_name + chamber.
+  // One extra fetch is cheap vs. the alternative of storing committees.id on bills.
+  const billMeta = new Map();
+  let from2 = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('bill_id, committee_name, chamber')
+      .eq('session', session)
+      .range(from2, from2 + PAGE - 1);
+    if (error) throw new Error(`fetch bill committee names: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const b of data) billMeta.set(b.bill_id, b);
+    if (data.length < PAGE) break;
+    from2 += PAGE;
+  }
+
+  // Per-committee rollup: total agenda items + earliest meeting date in window.
+  const committeeRollup = new Map(); // committees.id → { total, nextDate }
+  for (const m of meetings || []) {
+    if (!m.committee_id) continue;
+    const n = itemCounts.get(m.id) || 0;
+    const cur = committeeRollup.get(m.committee_id) || { total: 0, nextDate: null };
+    cur.total += n;
+    if (!cur.nextDate || m.meeting_date < cur.nextDate) cur.nextDate = m.meeting_date;
+    committeeRollup.set(m.committee_id, cur);
+  }
+
+  // 4. For each bill, look up its committee's rollup. Build updates + snapshots.
+  const updates = []; // { bill_id, pressure, next, committeeBigintId }
+  for (const b of allBills) {
+    const meta = billMeta.get(b.bill_id);
+    if (!meta || !meta.committee_name || !meta.chamber) continue;
+    const cid = cByKey.get(`${meta.committee_name}|${meta.chamber}`)
+             || cByKey.get(`${meta.committee_name}|Joint`)
+             || null;
+    if (!cid) continue;
+    const roll = committeeRollup.get(cid) || { total: 0, nextDate: null };
+    updates.push({
+      bill_id: b.bill_id,
+      pressure: roll.total,
+      next: roll.nextDate,
+      committeeBigintId: cid,
+    });
+  }
+
+  // 5. Batch-update bills — group by (pressure, next_meeting) like the companion
+  //    resolver does, so we issue O(buckets) UPDATEs instead of O(bills).
+  const byBucket = new Map();
+  for (const u of updates) {
+    const key = `${u.pressure}::${u.next || 'null'}`;
+    if (!byBucket.has(key)) byBucket.set(key, { pressure: u.pressure, next: u.next, ids: [] });
+    byBucket.get(key).ids.push(u.bill_id);
+  }
+  let billsUpdated = 0;
+  for (const bucket of byBucket.values()) {
+    // Chunk the IN list to stay well under Postgres parameter limits.
+    const CHUNK = 500;
+    for (let i = 0; i < bucket.ids.length; i += CHUNK) {
+      const slice = bucket.ids.slice(i, i + CHUNK);
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          calendar_pressure: bucket.pressure,
+          calendar_pressure_next_meeting: bucket.next,
+        })
+        .in('bill_id', slice);
+      if (error) throw new Error(`bills pressure update: ${error.message}`);
+      billsUpdated += slice.length;
+    }
+  }
+
+  // 6. Snapshot inserts — only write rows where pressure > 0 to keep the
+  //    snapshots table lean (during session that's maybe 300-500 rows/night;
+  //    during interim, near-zero rows). Idempotent via UNIQUE (bill_id, snapshot_date).
+  const snapRows = updates
+    .filter(u => u.pressure > 0)
+    .map(u => ({
+      bill_id: u.bill_id,
+      committee_id: u.committeeBigintId,
+      pressure: u.pressure,
+      next_meeting_date: u.next,
+      window_start: windowStart,
+      window_end: windowEndStr,
+      snapshot_date: snapshotDate,
+    }));
+
+  let snapshotsWritten = 0;
+  const SNAP_CHUNK = 500;
+  for (let i = 0; i < snapRows.length; i += SNAP_CHUNK) {
+    const slice = snapRows.slice(i, i + SNAP_CHUNK);
+    const { error } = await supabase
+      .from('calendar_pressure_snapshots')
+      .upsert(slice, { onConflict: 'bill_id,snapshot_date', ignoreDuplicates: false });
+    if (error) throw new Error(`calendar_pressure_snapshots upsert: ${error.message}`);
+    snapshotsWritten += slice.length;
+  }
+
+  return { billsUpdated, snapshotsWritten };
+}
+
+module.exports = { runSync, processBill, scoreBill, resolveCompanionPairs, computeCalendarPressure };
+
+if (require.main === module) {
+  runSync().catch(console.error);
+}
