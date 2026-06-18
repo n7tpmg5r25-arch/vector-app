@@ -1,5 +1,15 @@
 name: Nightly Sync
 
+# ---------------------------------------------------------------------------
+# ROLE: HEAVY daily job (Thread PIPELINE-1, 2026-06-17).
+# The once-a-day full pipeline and the ONLY place the external-cost steps
+# run: sync-v2 (full WA crawl) -> alerts -> radar -> bill-text ingest ->
+# AI summaries (Claude $$, incremental) -> news -> Monday committee seats.
+# The frequent, year-round LIGHT pipeline (sync->alerts->radar->send only)
+# lives in pipeline-frequent.yml; freshness is watched by pipeline-watchdog.yml.
+# Keep Claude / WA-API cost here, not in the frequent job.
+# ---------------------------------------------------------------------------
+
 on:
   schedule:
     # Midnight Pacific Time = 8 AM UTC (PDT) / 7 AM UTC (PST)
