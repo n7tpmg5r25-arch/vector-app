@@ -1,0 +1,182 @@
+name: Frequent Pipeline (light sync + Radar + alerts)
+
+# -----------------------------------------------------------------------------
+# WHY THIS EXISTS (Thread PIPELINE-1, 2026-06-17)
+# Replaces the old midday-sync.yml + radar-hourly.yml (both deleted). Those were
+# month-gated to Jan-Apr purely to save GitHub Actions minutes on a PRIVATE repo
+# (Free plan 2,000 min/mo cap). The repo went PUBLIC on 2026-06-15, so Actions
+# minutes are now free + unlimited and that throttle is no longer needed.
+#
+# ROLE: the LIGHT pipeline. It runs ONLY sync-v2 -> detect-alerts ->
+# detect-radar -> send-alerts. It runs YEAR-ROUND so data, Radar matches, and
+# alerts stay fresh in the interim too (not just during session), and so the
+# pipeline stays exercised - a silent break surfaces fast (pipeline-watchdog.yml).
+#
+# It deliberately does NOT run the heavy / external-cost steps. Those stay on
+# nightly-sync.yml (once/day): bill-text ingest (sync-bill-text.js), the AI
+# summary loop (Claude $$), statewide news, and the Monday committee-seat sync.
+#
+# CEILINGS THIS CADENCE RESPECTS (do not re-throttle blindly; do not uncork past
+# these either):
+#   * WA Legislature SOAP API - each run is still a FULL ~3,400-bill crawl
+#     (thousands of SOAP calls, ~25 min). Be a good citizen: hourly is justified
+#     when bills actually move (session + the Dec pre-file run-up); in the quiet
+#     interim we run every 4 hours, NOT hourly, because little changes.
+#   * Claude API - NOT touched here (summaries are nightly-only + incremental).
+#   * Supabase Free (500 MB DB, ~5 GB/mo egress) - sync skips unchanged bills and
+#     snapshot-retention-prune keeps snapshots flat, so light runs add little.
+#   * Resend (3,000 emails/mo) - bounded by Radar daily_cap + the dedup ledger.
+#
+# CADENCE (cron fires hourly; the gate step below decides whether THIS hour runs):
+#   * 2027 long session (Jan 11-Apr 30) + 2028 short (Jan 10-Mar 10): hourly.
+#   * Pre-file run-up (Dec 1 2026 -> Jan 10 2027): hourly.
+#   * Interim (everything else): every 4 hours.
+#   * Never at 08:00 UTC - that hour belongs to the nightly heavy job.
+# To run faster in session later (e.g. :30 near cutoffs) add a second cron and
+# widen the gate; to dial interim load down/up, change the every-4h slot list.
+# -----------------------------------------------------------------------------
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # hourly; the gate step decides whether this hour runs
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run the pipeline now regardless of the cadence gate'
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Decide cadence + session window
+        id: gate
+        run: |
+          set -e
+          TODAY=$(date -u +%Y%m%d)
+          H=$((10#$(date -u +%H)))   # 0..23, force base-10 (avoid 08/09 octal error)
+
+          if   [ "$TODAY" -ge 20270111 ] && [ "$TODAY" -le 20270430 ]; then
+            PERIOD=session; CADENCE=hourly
+            BIENNIUM=2027-28; YEAR=2027; SESSION_START=2027-01-11
+            COMMITTEE_CUTOFF=2027-02-19; FLOOR_CUTOFF=2027-03-10
+            OPPOSITE_CUTOFF=2027-03-31; SINE_DIE=2027-04-25
+          elif [ "$TODAY" -ge 20280110 ] && [ "$TODAY" -le 20280310 ]; then
+            PERIOD=session; CADENCE=hourly
+            BIENNIUM=2027-28; YEAR=2028; SESSION_START=2028-01-10
+            COMMITTEE_CUTOFF=2028-02-07; FLOOR_CUTOFF=2028-02-21
+            OPPOSITE_CUTOFF=2028-03-05; SINE_DIE=2028-03-10
+          elif [ "$TODAY" -ge 20261201 ] && [ "$TODAY" -le 20270110 ]; then
+            PERIOD=runup; CADENCE=hourly
+            BIENNIUM=2027-28; YEAR=2027; SESSION_START=2027-01-11
+            COMMITTEE_CUTOFF=2027-02-19; FLOOR_CUTOFF=2027-03-10
+            OPPOSITE_CUTOFF=2027-03-31; SINE_DIE=2027-04-25
+          else
+            PERIOD=interim; CADENCE=every4h
+            BIENNIUM=2025-26; YEAR=2026; SESSION_START=2025-01-13
+            COMMITTEE_CUTOFF=2025-02-21; FLOOR_CUTOFF=2025-03-07
+            OPPOSITE_CUTOFF=2025-03-21; SINE_DIE=2026-03-12
+          fi
+
+          RUN=false
+          if [ "$H" -eq 8 ]; then
+            RUN=false                         # 08:00 UTC belongs to nightly-sync
+          elif [ "$CADENCE" = "hourly" ]; then
+            RUN=true
+          elif [ "$H" -eq 1 ] || [ "$H" -eq 5 ] || [ "$H" -eq 9 ] || [ "$H" -eq 13 ] || [ "$H" -eq 17 ] || [ "$H" -eq 21 ]; then
+            RUN=true                          # interim every-4h slots (offset clear of 08:00)
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force }}" = "true" ]; then
+            RUN=true
+            echo "Manual force=true - bypassing the cadence gate."
+          fi
+
+          echo "period=$PERIOD cadence=$CADENCE hourUTC=$H run=$RUN"
+          {
+            echo "run=$RUN"
+            echo "biennium=$BIENNIUM"
+            echo "year=$YEAR"
+            echo "session_start=$SESSION_START"
+            echo "committee_cutoff=$COMMITTEE_CUTOFF"
+            echo "floor_cutoff=$FLOOR_CUTOFF"
+            echo "opposite_cutoff=$OPPOSITE_CUTOFF"
+            echo "sine_die=$SINE_DIE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install root dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Install app dependencies
+        if: steps.gate.outputs.run == 'true'
+        working-directory: ./app
+        run: npm ci
+
+      - name: Run sync (light - no bill-text / summaries / news)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          CURRENT_BIENNIUM: ${{ steps.gate.outputs.biennium }}
+          CURRENT_YEAR: ${{ steps.gate.outputs.year }}
+          WA_API_BASE: 'https://wslwebservices.leg.wa.gov'
+          SESSION_START: ${{ steps.gate.outputs.session_start }}
+          COMMITTEE_CUTOFF: ${{ steps.gate.outputs.committee_cutoff }}
+          FLOOR_CUTOFF: ${{ steps.gate.outputs.floor_cutoff }}
+          OPPOSITE_CUTOFF: ${{ steps.gate.outputs.opposite_cutoff }}
+          SINE_DIE: ${{ steps.gate.outputs.sine_die }}
+        run: node app/lib/sync-v2.js
+
+      - name: Run alert detection
+        if: steps.gate.outputs.run == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-alerts.js
+
+      - name: Run radar detection
+        if: steps.gate.outputs.run == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node app/lib/detect-radar.js
+
+      - name: Send alert emails (if events pending)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          FUNCTION_SECRET: ${{ secrets.FUNCTION_SECRET }}
+        run: |
+          echo "Checking for pending alert events..."
+          RESULT=$(curl -s -w "\n%{http_code}" \
+            "${SUPABASE_URL}/functions/v1/send-alerts" \
+            -H "Content-Type: application/json" \
+            -H "x-function-secret: ${FUNCTION_SECRET}" \
+            -d '{"type": "event-batch"}')
+          HTTP_CODE=$(echo "$RESULT" | tail -1)
+          BODY=$(echo "$RESULT" | head -n -1)
+          echo "send-alerts: HTTP $HTTP_CODE - $BODY"
+
+      - name: Report result
+        if: always()
+        run: |
+          if [ "${{ steps.gate.outputs.run }}" = "true" ]; then
+            echo "Frequent pipeline ran at $(date -u)"
+          else
+            echo "Skipped this hour by the cadence gate at $(date -u)"
+          fi

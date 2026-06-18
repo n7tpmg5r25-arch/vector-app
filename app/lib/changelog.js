@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.48.0',
+    date: '2026-06-17',
+    phase: 'alpha',
+    highlights: [
+      'Live data refresh: bill statuses, Radar matches, and alert emails now update throughout the day, year-round -- hourly while the Legislature is in session and during the December pre-filing run-up, every four hours in the interim -- instead of only once nightly.',
+      'During session, a new-bill or status-change alert that used to take up to a day now reaches you within the hour.',
+      'Added a daily automated health check that flags a stalled data feed within a day, so refreshes keep running reliably.',
+    ],
+  },
+
+  {
     version: '5.47.0',
     date: '2026-06-14',
     phase: 'alpha',

@@ -1,0 +1,61 @@
+name: Pipeline Watchdog (freshness)
+
+# -----------------------------------------------------------------------------
+# WHY THIS EXISTS (Thread PIPELINE-1, 2026-06-17): a safety net. In June 2026 a
+# bash bug had made two workflows fail 100% of the time and it went unnoticed.
+# This job runs once a day and FAILS LOUDLY (non-zero exit -> GitHub emails the
+# repo owner) if the pipeline has gone dark: the newest sync_log row is older
+# than MAX_AGE_HOURS, or the most recent run aborted before fetching any bills.
+# A green run = the engine wrote to the database within the last day.
+#
+# Free + tiny: one curl to the Supabase REST API + a date comparison. No npm
+# install, no WA Legislature API calls. Uses the service-role key (already a repo
+# secret; never printed). REQUIRES GitHub failed-workflow email notifications to
+# be ON for the owner (Settings -> Notifications -> Actions).
+# -----------------------------------------------------------------------------
+
+on:
+  schedule:
+    - cron: '0 16 * * *'   # 16:00 UTC daily - well after the 08:00 UTC nightly + schedule drift
+  workflow_dispatch:
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check sync_log freshness
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          MAX_AGE_HOURS: '26'
+        run: |
+          set -euo pipefail
+          ROW=$(curl -sS \
+            "${SUPABASE_URL}/rest/v1/sync_log?select=ran_at,bills_fetched&order=ran_at.desc&limit=1" \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}")
+          echo "Latest sync_log row: $ROW"
+          RAN_AT=$(echo "$ROW" | jq -r '.[0].ran_at // empty')
+          FETCHED=$(echo "$ROW" | jq -r 'if length > 0 then (.[0].bills_fetched // -1) else -1 end')
+          if [ -z "$RAN_AT" ]; then
+            echo "::error::Watchdog: sync_log is EMPTY - the pipeline has never written a run. Investigate."
+            exit 1
+          fi
+          RAN_EPOCH=$(date -d "$RAN_AT" +%s)
+          NOW_EPOCH=$(date -u +%s)
+          AGE_H=$(( (NOW_EPOCH - RAN_EPOCH) / 3600 ))
+          echo "Newest sync_log.ran_at=$RAN_AT  (~${AGE_H}h ago)  bills_fetched=$FETCHED  threshold=${MAX_AGE_HOURS}h"
+          FAIL=0
+          if [ "$AGE_H" -gt "$MAX_AGE_HOURS" ]; then
+            echo "::error::Watchdog: data pipeline is STALE - newest sync_log row is ~${AGE_H}h old (threshold ${MAX_AGE_HOURS}h). The sync/Radar pipeline may be broken or not firing."
+            FAIL=1
+          fi
+          if [ "$FETCHED" = "0" ]; then
+            echo "::error::Watchdog: the most recent sync ABORTED before fetching bills (bills_fetched=0) - likely a WA Legislature API error. Check the latest sync run."
+            FAIL=1
+          fi
+          if [ "$FAIL" = "0" ]; then
+            echo "Watchdog OK - pipeline wrote ~${AGE_H}h ago and fetched $FETCHED bills."
+          fi
+          exit $FAIL
