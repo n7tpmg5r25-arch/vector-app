@@ -202,7 +202,7 @@ export default function Footer() {
           }}
         >
           <span style={{ color: '#9aa0b0' }}>
-            Vector | WA &mdash; bill intelligence for Washington State
+            Vector | WA &mdash; open-source bill intelligence for Washington State
           </span>
           <span
             style={{
