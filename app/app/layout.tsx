@@ -42,7 +42,7 @@ export const metadata = {
     default: 'Vector | WA',
     template: '%s — Vector | WA',
   },
-  description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
+  description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -51,18 +51,18 @@ export const metadata = {
   },
   openGraph: {
     title: 'Vector | WA',
-    description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
+    description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
     siteName: 'Vector | WA',
     url: 'https://vectorwa.com',
     type: 'website',
     locale: 'en_US',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA — Free legislative intelligence for Washington State' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA — Free, open-source legislative intelligence for Washington State' }],
   },
   twitter: {
     card: 'summary_large_image',
     images: ['/og-image.png'],
     title: 'Vector | WA',
-    description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
+    description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
   },
 }
 
@@ -123,7 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               '@type': 'Organization',
               name: 'Vector | WA',
               url: 'https://vectorwa.com',
-              description: 'Free legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
+              description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
               areaServed: {
                 '@type': 'AdministrativeArea',
                 name: 'Washington State',

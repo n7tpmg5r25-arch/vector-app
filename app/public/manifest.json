@@ -1,7 +1,7 @@
 {
   "name": "Vector | WA — Free Legislative Intelligence",
   "short_name": "Vector | WA",
-  "description": "Washington State legislative intelligence",
+  "description": "Free, open-source legislative intelligence for Washington State",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0e1014",

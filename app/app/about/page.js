@@ -106,7 +106,7 @@ export default function AboutPage() {
         </div>
 
         <div>
-          <div style={EYEBROW}>2 &middot; Why it&apos;s free</div>
+          <div style={EYEBROW}>2 &middot; Free and open source</div>
           <div style={CARD}>
             <p style={{ marginTop: 0 }}>
               The underlying data &mdash; bill text, sponsors, committee actions, votes,
@@ -115,7 +115,7 @@ export default function AboutPage() {
             </p>
             <p style={{ marginBottom: 0 }}>
               No ads. No upsells. No tracking pixels. The site runs on a small budget
-              and is designed to stay that way.
+              and is designed to stay that way. The code behind it is open source under an MIT license.
             </p>
           </div>
         </div>

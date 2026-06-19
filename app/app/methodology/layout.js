@@ -7,15 +7,15 @@
 
 export const metadata = {
   title: 'Methodology',
-  description: 'How Vector | WA scores Washington State bills — calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
+  description: 'How Vector | WA scores Washington State bills — open-source and calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
   openGraph: {
     title: 'Methodology — Vector | WA',
-    description: 'How Vector | WA scores Washington State bills — calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
+    description: 'How Vector | WA scores Washington State bills — open-source and calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
     url: 'https://vectorwa.com/methodology',
   },
   twitter: {
     title: 'Methodology — Vector | WA',
-    description: 'How Vector | WA scores Washington State bills — calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
+    description: 'How Vector | WA scores Washington State bills — open-source and calibrated on 8,062 bills across three bienniums. Plain-English explanation of trajectory scoring, momentum, and signal tiers.',
   },
 }
 

@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.49.0',
+    date: '2026-06-17',
+    phase: 'alpha',
+    highlights: [
+      'Vector | WA is now open source: the code behind the site is public under an MIT license, reflected across the site and in a new project README.',
+      'Methodology page rewritten about 65% shorter -- the same calibration data (84% of HIGH-tier bills became law across an 8,062-bill cohort), the five signals, and the X-factor list, with the dense explanation and redundant callouts cut.',
+    ],
+  },
+
+  {
     version: '5.48.0',
     date: '2026-06-17',
     phase: 'alpha',
