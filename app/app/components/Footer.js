@@ -239,10 +239,6 @@ export default function Footer() {
                 Disclaimers
               </Link>
               {' · '}
-              <Link href="/about" style={linkStyle}>
-                About
-              </Link>
-              {' · '}
               <Link href="/roadmap" style={linkStyle}>
                 Roadmap
               </Link>

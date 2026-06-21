@@ -43,12 +43,6 @@ export default function sitemap() {
       priority: 1.0,
     },
     {
-      url: `${BASE}/about`,
-      lastModified: BUILT_AT,
-      changeFrequency: 'monthly',
-      priority: 0.9,
-    },
-    {
       url: `${BASE}/methodology`,
       lastModified: BUILT_AT,
       changeFrequency: 'monthly',
