@@ -135,7 +135,7 @@ export default function InstallPage() {
               bill in the Washington State Legislature. Installing it as an app puts the site on
               your home screen &mdash; no browser bar, faster cold start, and bills you&apos;ve
               already viewed stay readable offline. New here?{' '}
-              <Link href="/about" style={INLINE_LINK}>Read about the project</Link>
+              <Link href="/welcome" style={INLINE_LINK}>Read about the project</Link>
               {' '}or see{' '}
               <Link href="/methodology" style={INLINE_LINK}>how the trajectory score is built</Link>
               {' '}before you install.
@@ -230,7 +230,7 @@ export default function InstallPage() {
           </div>
           <div>
             For the project background and why the site is free, see{' '}
-            <Link href="/about" style={INLINE_LINK}>About Vector | WA</Link>
+            <Link href="/welcome" style={INLINE_LINK}>About Vector | WA</Link>
             . For the full scoring formula and the live calibration table, see the{' '}
             <Link href="/methodology" style={INLINE_LINK}>methodology page</Link>
             .

@@ -424,7 +424,7 @@ function LoginPageInner() {
             Methodology
           </Link>
           <Link
-            href="/about"
+            href="/welcome"
             style={{
               flex: 1,
               display: 'inline-flex',

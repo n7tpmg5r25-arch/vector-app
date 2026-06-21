@@ -427,7 +427,6 @@ function PublicBody({ onClose }) {
       <SectionDivider />
 
       <DrawerLink href="/disclaimers" onClose={onClose}>Disclaimers</DrawerLink>
-      <DrawerLink href="/about" onClose={onClose}>About</DrawerLink>
       <DrawerLink href="/roadmap" onClose={onClose}>Roadmap</DrawerLink>
       <DrawerLink href="/methodology" onClose={onClose}>Methodology</DrawerLink>
       <DrawerLink href="/install" onClose={onClose}>Install</DrawerLink>
@@ -591,7 +590,6 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
           Links removed from Footer.js Row 2 for owner+client; drawer is
           now the canonical menu surface for registered/team viewers. */}
       <DrawerLink href="/disclaimers" onClose={() => {}}>Disclaimers</DrawerLink>
-      <DrawerLink href="/about" onClose={() => {}}>About</DrawerLink>
       <DrawerLink href="/roadmap" onClose={() => {}}>Roadmap</DrawerLink>
       <DrawerLink href="/methodology" onClose={() => {}}>Methodology</DrawerLink>
       <DrawerLink href="/install" onClose={() => {}}>Install</DrawerLink>

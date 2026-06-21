@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
         destination: '/install',
         permanent: true,
       },
+      {
+        source: '/about',
+        destination: '/welcome',
+        permanent: true,
+      },
     ];
   },
 };

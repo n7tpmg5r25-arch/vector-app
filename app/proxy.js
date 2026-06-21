@@ -57,7 +57,6 @@ function isAlwaysPublic(pathname) {
     pathname === '/auth/callback' ||
     pathname === '/disclaimers' ||
     pathname === '/methodology' ||
-    pathname === '/about' ||
     pathname === '/install' ||
     pathname === '/changelog' ||
     pathname === '/roadmap' ||
