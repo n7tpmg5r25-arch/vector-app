@@ -52,6 +52,7 @@ function isPublicLayerRoute(pathname) {
 // hitting this allowlist.
 function isAlwaysPublic(pathname) {
   return (
+    pathname === '/welcome' ||
     pathname === '/login' ||
     pathname === '/auth/callback' ||
     pathname === '/disclaimers' ||

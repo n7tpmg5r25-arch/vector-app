@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.50.0',
+    date: '2026-06-20',
+    phase: 'alpha',
+    highlights: [
+      'New welcome page at /welcome -- a desktop-ready public front door that shows what Vector does at a glance: one-tap PDF briefs for bills, watchlists, and legislators; Radar bill-text alerts; the device watchlist; and plain-English summaries. The app itself stays mobile-first; this is the one desktop-ready marketing surface.',
+      'The welcome page is reachable without signing in, links straight into the app, and is labeled alpha / in active development. Built in the Vector | WA brand -- Playfair Display, Karla, and DM Mono on brass over dark -- with a live screenshot of the app.',
+    ],
+  },
+  {
     version: '5.49.0',
     date: '2026-06-17',
     phase: 'alpha',
