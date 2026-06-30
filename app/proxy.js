@@ -94,6 +94,15 @@ export async function proxy(req) {
     !isAlwaysPublic(pathname) &&
     !(publicLayerOn && isPublicLayerRoute(pathname))
   ) {
+    // Pre-launch: the logged-out visitor to the ROOT lands on the marketing
+    // page (/welcome) instead of the bare login wall. This runs only for '/'
+    // while the public layer is OFF; once it's on, '/' is an isPublicLayerRoute
+    // and serves the public dashboard above, so this auto-disables. Deep/gated
+    // links still go to /login so sign-in returns the user in context.
+    if (pathname === '/') {
+      return NextResponse.redirect(new URL('/welcome', req.url))
+    }
+
     // Pass the originating route as a ?from= param so /login can show
     // a contextual message explaining why the user landed there.
     // Thread 88: /watchlist is the first route with this treatment.
