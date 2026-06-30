@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.51.0',
+    date: '2026-06-29',
+    phase: 'alpha',
+    highlights: [
+      'Signed-out visitors now land on the welcome page first -- a desktop-ready overview of what Vector does (one-tap PDF briefs, bill-text Radar alerts, and watchlists) instead of a bare sign-in screen. Signed-in users still go straight to the app.',
+      'The welcome page now uses real screenshots of a bill page, a watchlist, and an exported PDF brief in place of the earlier mockups.',
+      'Methodology is now a short, plain-English breakdown -- the five signals, the ~84% track record for HIGH-tier bills, and the limits -- with the dense calibration tables removed.',
+      'Retired the outdated About page; its links now point to the welcome overview and methodology.',
+    ],
+  },
+  {
     version: '5.50.0',
     date: '2026-06-20',
     phase: 'alpha',
