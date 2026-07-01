@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.54.0',
+    date: '2026-06-30',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: trimmed repeated calls to action -- kept the primary Open the app buttons in the header, hero, and closing, and removed the duplicate per-feature buttons that all led to the same sign-in.',
+    ],
+  },
+  {
     version: '5.53.0',
     date: '2026-06-30',
     phase: 'alpha',
