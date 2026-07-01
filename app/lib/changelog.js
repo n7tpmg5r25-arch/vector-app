@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.55.0',
+    date: '2026-06-30',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: rewrote the section headlines in plainer, more factual language and dropped the salesier lines (for example, the whole desk in your pocket is now simply built for your phone).',
+    ],
+  },
+  {
     version: '5.54.0',
     date: '2026-06-30',
     phase: 'alpha',
