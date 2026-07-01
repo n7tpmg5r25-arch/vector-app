@@ -226,6 +226,8 @@ html:has(.vwl){scroll-behavior:smooth;}
 /* real product screenshots (bill / watchlist phones + PDF brief doc) */
 .vwl .shot-phone{margin:0 auto;width:300px;max-width:100%;border-radius:38px;background:#14161d;padding:14px 10px;box-shadow:0 40px 90px rgba(0,0,0,.6),inset 0 0 0 2px #24272f}
 .vwl .shot-phone img{display:block;width:100%;border-radius:26px;border:1px solid #20232c}
-.vwl .shot-doc{margin:0;width:100%;border-radius:10px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5);transform:rotate(-1.2deg);transition:transform .3s;border:1px solid var(--border-light)}
-.vwl .feature:hover .shot-doc{transform:rotate(0)}
+.vwl .shot-doc{margin:0;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.5);border:1px solid var(--border-light);background:var(--bg-card)}
+.vwl .shot-doc .win-bar{display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;background:var(--bg-card-2);border-bottom:1px solid var(--border)}
+.vwl .shot-doc .win-bar span{width:11px;height:11px;border-radius:50%;background:var(--text-muted);display:inline-block;opacity:.75}
+/* PDF brief sits in a static browser-window frame (no tilt) */
 .vwl .shot-doc img{display:block;width:100%}
