@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.56.0',
+    date: '2026-06-30',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: the PDF-brief visual now sits in a desktop browser-window frame instead of a tilted floating page.',
+    ],
+  },
+  {
     version: '5.55.0',
     date: '2026-06-30',
     phase: 'alpha',
