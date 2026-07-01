@@ -213,7 +213,7 @@ export default function Footer() {
               fontFamily: 'var(--font-mono, "DM Mono", monospace)',
             }}
           >
-            {freshness?.copy || 'Refreshed nightly'}
+            {freshness?.copy || 'Updated every few hours'}
           </span>
         </div>
 

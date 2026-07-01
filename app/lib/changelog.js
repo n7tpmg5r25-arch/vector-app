@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.53.0',
+    date: '2026-06-30',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: added a real photo of Vector installed on a phone home screen, and made the free, independent promise explicit -- no ads, no subscriptions, no data selling.',
+      'Corrected the data-refresh wording across the app to every few hours (the record updates through the day, not once nightly).',
+    ],
+  },
+  {
     version: '5.52.0',
     date: '2026-06-29',
     phase: 'alpha',
