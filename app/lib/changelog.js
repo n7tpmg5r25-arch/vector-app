@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.52.0',
+    date: '2026-06-29',
+    phase: 'alpha',
+    highlights: [
+      'The Disclaimers page now states plainly that Vector is not legal, financial, political, or lobbying advice, and that it is an independent project -- not affiliated with, endorsed by, or speaking for the Washington State Legislature or any government body.',
+      'Added clear "as is" / no-warranty and limitation-of-liability sections, a short privacy and data-handling summary, and a reminder to verify AI-drafted summaries against the official bill text.',
+    ],
+  },
+  {
     version: '5.51.0',
     date: '2026-06-29',
     phase: 'alpha',
