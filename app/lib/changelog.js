@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.57.0',
+    date: '2026-06-30',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: the PDF-brief window shows a document icon and filename in its title bar instead of generic window dots.',
+    ],
+  },
+  {
     version: '5.56.0',
     date: '2026-06-30',
     phase: 'alpha',
