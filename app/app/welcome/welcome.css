@@ -232,3 +232,9 @@ html:has(.vwl){scroll-behavior:smooth;}
 .vwl .shot-doc .win-bar .pdf-name{font-family:var(--mono);font-size:12px;color:var(--text-mid);letter-spacing:.02em}
 /* PDF brief sits in a static browser-window frame (no tilt) */
 .vwl .shot-doc img{display:block;width:100%}
+
+/* PDF feature: bill brief + member brief together on the desktop */
+.vwl .fvis .briefs{position:relative}
+.vwl .briefs .b-bill{width:100%}
+.vwl .briefs .b-member{position:absolute;right:-4%;bottom:-14%;width:56%;z-index:3}
+@media (max-width:920px){.vwl .briefs .b-member{position:static;width:100%;margin-top:16px;right:auto;bottom:auto}}
