@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.59.0',
+    date: '2026-07-01',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: the bill brief and member brief now show as two full document pages side by side.',
+    ],
+  },
+  {
     version: '5.58.0',
     date: '2026-07-01',
     phase: 'alpha',
