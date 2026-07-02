@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.63.0',
+    date: '2026-07-01',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: clearer watchlist wording and sample screens now labeled as examples.',
+    ],
+  },
+  {
     version: '5.62.0',
     date: '2026-07-01',
     phase: 'alpha',
