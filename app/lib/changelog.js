@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.58.0',
+    date: '2026-07-01',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: the PDF-brief section now shows a bill brief and a legislator brief together, and the copy covers briefs for bills and members.',
+    ],
+  },
+  {
     version: '5.57.0',
     date: '2026-06-30',
     phase: 'alpha',
