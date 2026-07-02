@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.60.0',
+    date: '2026-07-01',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: both brief previews now show the full document page, footer included.',
+    ],
+  },
+  {
     version: '5.59.0',
     date: '2026-07-01',
     phase: 'alpha',
