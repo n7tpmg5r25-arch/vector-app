@@ -234,7 +234,7 @@ html:has(.vwl){scroll-behavior:smooth;}
 .vwl .shot-doc img{display:block;width:100%}
 
 /* PDF feature: bill brief + member brief together on the desktop */
-.vwl .fvis .briefs{position:relative}
-.vwl .briefs .b-bill{width:100%}
-.vwl .briefs .b-member{position:absolute;right:-4%;bottom:-14%;width:56%;z-index:3}
-@media (max-width:920px){.vwl .briefs .b-member{position:static;width:100%;margin-top:16px;right:auto;bottom:auto}}
+.vwl .fvis .briefs{display:flex;gap:16px;align-items:flex-start;justify-content:center}
+.vwl .doc-page{margin:0;flex:1 1 0;min-width:0;background:#fff;border:1px solid var(--border-light);border-radius:6px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.vwl .doc-page img{display:block;width:100%}
+@media (max-width:640px){.vwl .fvis .briefs{flex-direction:column;align-items:center}.vwl .doc-page{width:80%;flex:none}}
