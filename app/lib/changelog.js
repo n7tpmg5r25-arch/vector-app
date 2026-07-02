@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.62.0',
+    date: '2026-07-01',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: removed the "no account needed" line to match current sign-in.',
+    ],
+  },
+  {
     version: '5.61.0',
     date: '2026-07-01',
     phase: 'alpha',
