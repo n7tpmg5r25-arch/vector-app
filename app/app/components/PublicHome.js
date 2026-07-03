@@ -43,6 +43,7 @@ import IssueHeat from './dashboard/IssueHeat'
 import MoversChart from './dashboard/MoversChart'
 import InTheNews from './dashboard/InTheNews'
 import NeedsAttention from './dashboard/NeedsAttention'
+import LoadErrorCard from './LoadErrorCard'
 import { createBrowserClient } from '../../lib/supabase'
 import { useLocalWatchlist } from '../../lib/useLocalWatchlist'
 import { isInterimPeriod, getCurrentSession, bienniumShortLabel } from '../../lib/session-config'
@@ -65,6 +66,8 @@ export default function PublicHome() {
   const clock = getSessionClock()
 
   const [stats, setStats] = useState(null)   // { total, alive, alivePct, tiers }
+  // AUDIT-2 F1: statewide count failure -> retry card, never 0% of 0 bills.
+  const [loadError, setLoadError] = useState(false)
   const [categories, setCategories] = useState([])
   const [newsItems, setNewsItems] = useState([])
   const [deltas, setDeltas] = useState({})   // bill_id -> signed score change
@@ -110,6 +113,14 @@ export default function PublicHome() {
             .limit(24),
         ])
       if (cancelled) return
+
+      // AUDIT-2 F1 (2026-07-03): a failed statewide count must never render
+      // as "0% alive of 0 bills". Leave stats null (hero shows dashes) and
+      // raise the retry card instead.
+      if (totalRes.error || deadRes.error || highRes.error || modRes.error || lowRes.error || vlowRes.error) {
+        setLoadError(true)
+        return
+      }
 
       const total = totalRes.count || 0
       const dead = deadRes.count || 0
@@ -165,7 +176,11 @@ export default function PublicHome() {
       setDeltas(d)
     }
 
-    load()
+    load().catch(err => {
+      // AUDIT-2 F1: thrown loads surfaced instead of a silent dash-forever hero.
+      console.error('[public-home] load failed', err)
+      if (!cancelled) setLoadError(true)
+    })
     return () => { cancelled = true }
   }, [interim, session])
 
@@ -217,6 +232,9 @@ export default function PublicHome() {
           )}
           <SessionClock clock={clock} />
         </div>
+
+        {/* AUDIT-2 F1: statewide counts failed - show retry instead of zeros. */}
+        {loadError && <LoadErrorCard label="statewide data" style={{ marginBottom: 14 }} />}
 
         {/* -- HERO: statewide survival gauge + tier distribution -- */}
         <div style={{

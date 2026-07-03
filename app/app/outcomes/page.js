@@ -16,6 +16,7 @@ import PublicNav from '../components/PublicNav'
 import ScoreBadge from '../components/ScoreBadge'
 import DropdownMenu from '../components/DropdownMenu'
 import VectorLoader from '../components/VectorLoader'
+import LoadErrorCard from '../components/LoadErrorCard'
 
 import { CATEGORIES } from '../../lib/categories'
 const CHAMBERS = ['All', 'House', 'Senate']
@@ -34,6 +35,9 @@ export default function OutcomesPage() {
 
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
+  // AUDIT-2 F1: first-page query failure -> retry card + dashed stat cards,
+  // never zeros computed from an empty array.
+  const [loadError, setLoadError] = useState(false)
   const [outcome, setOutcome] = useState('All')
   const [category, setCategory] = useState('All')
   const [chamber, setChamber] = useState('All')
@@ -58,7 +62,13 @@ export default function OutcomesPage() {
           .eq('legislation_type', 'bill')
           .not('final_score', 'is', null)
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-        if (error || !data || data.length === 0) break
+        if (error) {
+          // AUDIT-2 F1 (2026-07-03): an error is not "no more pages". A
+          // page-0 failure would render every stat card as a confident zero.
+          if (page === 0) setLoadError(true)
+          break
+        }
+        if (!data || data.length === 0) break
         all = all.concat(data)
         if (data.length < PAGE_SIZE) break
         page++
@@ -149,7 +159,7 @@ export default function OutcomesPage() {
           Session Outcomes
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {SESSION} Biennium · {bills.length} bills{vetoCount + partialVetoCount > 0 ? ` · ${vetoCount} vetoed · ${partialVetoCount} partial vetoes` : ''}
+          {SESSION} Biennium · {loadError ? '—' : bills.length} bills{vetoCount + partialVetoCount > 0 ? ` · ${vetoCount} vetoed · ${partialVetoCount} partial vetoes` : ''}
         </div>
 
         {!isInterim && (
@@ -171,9 +181,9 @@ export default function OutcomesPage() {
             // Thread 13.3 — three stat cards differentiated by hue so a glance
             // tells the story: SIGNED → teal (success), PASSED → gold (mid),
             // DEAD → danger (terminal). Card structure unchanged; accent only.
-            { label: 'Signed', value: lawCount, color: 'var(--teal)', filterVal: 'LAW' },
-            { label: 'Passed Chamber', value: carryCount, color: 'var(--gold)', filterVal: 'PASSED_CHAMBER', tooltip: 'Passed at least one chamber but did not become law this session' },
-            { label: 'Dead', value: deadCount, color: 'var(--danger)', filterVal: 'DEAD' },
+            { label: 'Signed', value: loadError ? '—' : lawCount, color: 'var(--teal)', filterVal: 'LAW' },
+            { label: 'Passed Chamber', value: loadError ? '—' : carryCount, color: 'var(--gold)', filterVal: 'PASSED_CHAMBER', tooltip: 'Passed at least one chamber but did not become law this session' },
+            { label: 'Dead', value: loadError ? '—' : deadCount, color: 'var(--danger)', filterVal: 'DEAD' },
           ].map(({ label, value, color, filterVal, tooltip }) => (
             <button key={label} onClick={() => { setLongShots(false); setOutcome(outcome === filterVal ? 'All' : filterVal) }} title={tooltip || ''} style={{
               background: !longShots && outcome === filterVal ? 'var(--bg-surface)' : 'var(--bg-card)',
@@ -195,7 +205,7 @@ export default function OutcomesPage() {
               transition: 'all 0.15s',
             }}
           >
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{longShotCount}</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: 'var(--gold)', lineHeight: 1 }}>{loadError ? '—' : longShotCount}</div>
             <div style={{ fontSize: 9, color: 'var(--text-faint)', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 4 }}>Long Shots</div>
           </button>
         </div>
@@ -261,6 +271,8 @@ export default function OutcomesPage() {
 
         {loading ? (
           <VectorLoader label="Loading outcomes" />
+        ) : loadError ? (
+          <LoadErrorCard label="session outcomes" />
         ) : sorted.length === 0 ? (
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
