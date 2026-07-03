@@ -15,6 +15,7 @@ import HomeSkeleton from './components/HomeSkeleton'
 import { Check, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getSessionClock } from '../lib/session-clock'
 import ArcGauge from './components/dashboard/ArcGauge'
+import LoadErrorCard from './components/LoadErrorCard'
 import DistributionBar from './components/dashboard/DistributionBar'
 import SessionClock from './components/dashboard/SessionClock'
 import MoversChart from './components/dashboard/MoversChart'
@@ -76,6 +77,9 @@ export default function HomePage() {
   const [portfolioDelta, setPortfolioDelta] = useState(null) // DASH-3: signed weekly avg-trajectory change (null until computed)
   const [lastSyncAt, setLastSyncAt] = useState(null)  // Phase 5A: stale data warning
   const [loading, setLoading]    = useState(true)
+  // AUDIT-2 F1: set when a stats-critical query fails - render the retry
+  // card instead of letting failed counts paint as zeros.
+  const [loadError, setLoadError] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   // 6B.1: Session outcome counts for interim display
   const [outcomeCounts, setOutcomeCounts] = useState({ law: 0, carryOver: 0, dead: 0 })
@@ -160,6 +164,13 @@ export default function HomePage() {
 
     const [billsResult, wlResult, catsResult, syncResult, totalRes, lawRes, coRes, deadRes, bipartisanRes, newsRes] =
       await Promise.all(queries)
+
+    // AUDIT-2 F1 (2026-07-03): a failed count/list query must never paint
+    // as a confident zero. Flag critical failures for the retry card.
+    setLoadError(!!(
+      billsResult.error || totalRes.error ||
+      (interim && (lawRes.error || coRes.error || deadRes.error))
+    ))
 
     const bills = billsResult.data || []
     setTopBills(bills)
@@ -255,7 +266,10 @@ export default function HomePage() {
 
   async function handleRefresh() {
     setRefreshing(true)
-    await loadData()
+    await loadData().catch(err => {
+      console.error('[home] refresh failed', err)
+      setLoadError(true)
+    })
     setRefreshing(false)
   }
 
@@ -270,7 +284,13 @@ export default function HomePage() {
   useEffect(() => {
     if (viewerLoading) return
     if (publicLayerEnabled && !user) return
-    loadData()
+    loadData().catch(err => {
+      // AUDIT-2 F1: a thrown load (not just a soft query error) previously
+      // left the skeleton up forever. Surface the retry card instead.
+      console.error('[home] loadData failed', err)
+      setLoadError(true)
+      setLoading(false)
+    })
   }, [SESSION, user?.id, viewerLoading, publicLayerEnabled])
 
   const watchedScores = watchlist.map(w => w.bills?.final_score ?? 0).filter(s => s != null)
@@ -585,6 +605,10 @@ export default function HomePage() {
       </div>
 
       <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* AUDIT-2 F1: connection-failure banner - explains any zeros below
+            and offers retry. Renders only when a critical query failed. */}
+        {loadError && <LoadErrorCard label="live session data" />}
 
         {/* ── DASH-1: PORTFOLIO TRAJECTORY HERO ─────────────────
             Glanceable cockpit instrument — the watchlist's average trajectory

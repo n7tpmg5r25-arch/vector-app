@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.67.0',
+    date: '2026-07-03',
+    phase: 'alpha',
+    highlights: [
+      'Home, the statewide view, and Session Outcomes now show a retry card when live data fails to load - previously a failed connection rendered zeros that looked like real numbers.',
+      'A stalled home load now surfaces the retry card instead of an endless loading screen.',
+    ],
+  },
+  {
     version: '5.66.0',
     date: '2026-07-03',
     phase: 'alpha',
