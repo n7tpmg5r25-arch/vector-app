@@ -137,6 +137,12 @@ export default function Footer() {
     return () => { mounted = false }
   }, [])
 
+  // AUDIT-1 (2026-07-02): /welcome ships its own complete marketing footer
+  // (link rail + byline + copyright), so the global footer duplicated the
+  // rail directly beneath it. Suppress here -- after all hooks, since
+  // Footer persists across route changes and hook order must not vary.
+  if (pathname === '/welcome') return null
+
   // Row 2 right slot -- viewer-branched per G6 (Thread 19.1 pattern).
   let rightSlot = null
   if (!loading) {
