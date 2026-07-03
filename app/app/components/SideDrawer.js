@@ -510,6 +510,14 @@ function AuthedBody({ user, role, watchlistCount, teamSlug, onSignOut }) {
         Watchlist
       </DrawerLink>
 
+      {/* AUDIT-1 (2026-07-02): the bottom-nav fifth tab swaps by season
+          (Hearings during session, Committees during interim). Whichever
+          page the tab is NOT currently showing lives here, so neither
+          surface is ever unreachable. */}
+      <DrawerLink href={isInterimPeriod() ? '/hearings' : '/committees'} onClose={() => {}}>
+        {isInterimPeriod() ? 'Hearings' : 'Committees'}
+      </DrawerLink>
+
       {showAdmin && (
         <DrawerLink href="/admin/clients" onClose={() => {}}>Admin</DrawerLink>
       )}
