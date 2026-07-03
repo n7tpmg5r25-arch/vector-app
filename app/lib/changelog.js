@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.65.0',
+    date: '2026-07-02',
+    phase: 'alpha',
+    highlights: [
+      'Welcome page: the main button now says Request early access, matching the current sign-in flow (open sign-ups arrive at public launch).',
+      'Menu: Hearings and Committees are now both always reachable - the one the bottom tab is not currently showing lives in the side menu.',
+      'Removed an unused internal photo endpoint.',
+    ],
+  },
+  {
     version: '5.64.0',
     date: '2026-07-02',
     phase: 'alpha',
