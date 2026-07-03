@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.66.0',
+    date: '2026-07-03',
+    phase: 'alpha',
+    highlights: [
+      'Outcomes and Members: friendly empty states with a clear-filters button when a filter combination matches nothing (previously a bare zero count over blank space).',
+      'Home Top Trajectory now excludes resolutions and memorials, matching every other count on the page.',
+      'Statewide tier bar gains an awaiting-first-score caption that appears only when unscored bills exist (December pre-filing weeks).',
+    ],
+  },
+  {
     version: '5.65.0',
     date: '2026-07-02',
     phase: 'alpha',

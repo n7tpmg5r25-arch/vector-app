@@ -261,6 +261,30 @@ export default function OutcomesPage() {
 
         {loading ? (
           <VectorLoader label="Loading outcomes" />
+        ) : sorted.length === 0 ? (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)', padding: '28px 16px', textAlign: 'center',
+          }}>
+            {/* AUDIT-2 F2 (2026-07-03): zero-hit filters used to render a bare
+                count over blank space. */}
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+              No bills match these filters
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+              Try a different outcome, category, or chamber combination.
+            </div>
+            <button
+              onClick={() => { setOutcome('All'); setCategory('All'); setChamber('All'); setLongShots(false) }}
+              style={{
+                padding: '7px 16px', borderRadius: 16, fontSize: 11, fontWeight: 600,
+                background: 'rgba(184,151,90,0.1)', color: 'var(--teal)',
+                border: '1px solid rgba(184,151,90,0.3)', cursor: 'pointer',
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
         ) : sorted.slice(0, 100).map((bill, idx) => (
           <Link
             key={bill.bill_id}

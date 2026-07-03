@@ -115,6 +115,11 @@ export default function HomePage() {
         .from('bills')
         .select('bill_id, bill_number, title, final_score, stage, chamber, category, committee_name, prime_sponsor, prime_party, has_public_hearing, committee_passed, bipartisan, stalled, pulled_from_rules, hearing_date, confidence_label')
         .eq('session', SESSION)
+        // AUDIT-2 F6 (2026-07-03): bill-only, parity with outcomes + PublicHome.
+        // 300 scored resolutions/memorials exist this session; without this a
+        // high-scoring one could enter Top Trajectory while excluded from every
+        // count around it.
+        .eq('legislation_type', 'bill')
         .not('final_score', 'is', null)
         .order('final_score', { ascending: false })
         .limit(12),

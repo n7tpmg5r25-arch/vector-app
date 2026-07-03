@@ -247,6 +247,19 @@ export default function PublicHome() {
             </div>
           </div>
           {stats && <DistributionBar counts={tiers} style={{ marginTop: 13 }} />}
+          {/* AUDIT-2 F7 (2026-07-03): pre-filing weeks add unscored bills - the
+              hero total counts them, the tier buckets do not. Caption the gap so
+              the bar never silently under-counts; renders nothing while every
+              bill is scored (the normal state, e.g. 0 unscored today). */}
+          {stats && (() => {
+            const scored = tiers.high + tiers.mod + tiers.low + tiers.vlow
+            if (scored >= stats.total) return null
+            return (
+              <div style={{ marginTop: 6, fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.05em' }}>
+                {scored.toLocaleString()} scored &middot; {(stats.total - scored).toLocaleString()} awaiting first score
+              </div>
+            )
+          })()}
         </div>
 
         {/* -- NEEDS ATTENTION (PORTAL-3): once the device list has rows, the
