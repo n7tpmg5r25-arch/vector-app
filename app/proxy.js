@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 //   Batch 5:                 '/bill/[id]' (prefix: '/bill/')
 //   Batch 6:                 '/search', '/committees', '/committees/[slug]',
 //                            '/members', '/outcomes', '/hearings'
-//   Phase 6 Thread 65:       '/methodology', '/how-it-works', '/about',
+//   Phase 6 Thread 65:       '/methodology', '/how-it-works',
 //                            '/changelog' MOVED OUT of this list into
 //                            isAlwaysPublic below -- info/marketing pages
 //                            don't expose bill data and should be reachable
@@ -43,7 +43,7 @@ function isPublicLayerRoute(pathname) {
 // Always-public routes: reachable for anon visitors regardless of the
 // Phase-12 public-layer flag. These are auth surfaces (/login,
 // /auth/callback) and info/marketing pages that don't expose bill data
-// (/disclaimers, /methodology, /about, /install, /changelog).
+// (/disclaimers, /methodology, /install, /changelog).
 // Everything in this set links cleanly from /login's LEARN MORE block
 // (Thread 65) and the Footer Row 2 link rail.
 //

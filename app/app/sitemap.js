@@ -42,6 +42,14 @@ export default function sitemap() {
       changeFrequency: 'daily',
       priority: 1.0,
     },
+    // Pre-launch front door: anon '/' 307s here; the only indexable
+    // marketing page until the public layer flips on (AUDIT-1, 2026-07-02).
+    {
+      url: `${BASE}/welcome`,
+      lastModified: BUILT_AT,
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
     {
       url: `${BASE}/methodology`,
       lastModified: BUILT_AT,

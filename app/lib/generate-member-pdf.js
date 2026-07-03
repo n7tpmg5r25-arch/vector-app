@@ -87,9 +87,10 @@ function billLabel(bill) {
 
 /** Constructable from member fields — no new DB fetch needed. */
 function memberProfileUrl(member) {
-  const lastName = (member.name || '').trim().split(/\s+/).pop()
-  if (member.chamber === 'Senate') return `leg.wa.gov/Senate/Senators/Pages/${lastName}.aspx`
-  return `leg.wa.gov/House/Representatives/Pages/${lastName}.aspx`
+  // AUDIT-1 (2026-07-02): the Legislature site redesign retired the old
+  // last-name /Pages/ URLs; official member pages now key on member_id.
+  if (member.member_id) return `leg.wa.gov/legislators/member/${member.member_id}`
+  return 'leg.wa.gov/legislators'
 }
 
 /** One-line electoral summary for the identity block. */

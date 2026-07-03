@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.64.0',
+    date: '2026-07-02',
+    phase: 'alpha',
+    highlights: [
+      'Members: official leg.wa.gov profile links now use the new Legislature member pages (the old URL format broke in the state site redesign). Fixed on the member sheet and in the member PDF brief.',
+      'New branded page-not-found and error screens with a route back to home and search.',
+      'Welcome page: removed a duplicate footer. The sitemap now lists the welcome page.',
+    ],
+  },
+  {
     version: '5.63.0',
     date: '2026-07-01',
     phase: 'alpha',
