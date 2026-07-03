@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.68.0',
+    date: '2026-07-03',
+    phase: 'alpha',
+    highlights: [
+      'News sources repaired after a live feed audit: KNKX now delivers via its politics feed, Cascade PBS is restored via its working legacy feed, and three outlets whose feeds were discontinued or blocked (KUOW, The Olympian, The Center Square) were removed.',
+      'Welcome page now describes news coverage without a hard outlet count, so the copy stays accurate as sources change.',
+      'Member bio refresh tool repointed at the new Legislature member pages; the full refresh runs before the 2027 session.',
+    ],
+  },
+  {
     version: '5.67.0',
     date: '2026-07-03',
     phase: 'alpha',

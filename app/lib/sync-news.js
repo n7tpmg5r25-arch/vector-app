@@ -97,12 +97,18 @@ const FEEDS = [
   //   only source delivering rows, which is exactly the imbalance this thread
   //   fixes from the pool side).
   { source: 'WA State Standard', url: 'https://washingtonstatestandard.com/feed/', type: 'article', beat: 'politics' },
-  // [verified] NPR-member (Grove) /index.rss - whole-newsroom, beat-filtered.
-  { source: 'KNKX', url: 'https://www.knkx.org/index.rss', type: 'article', beat: 'general' },
-  // [confirm] Same NPR-member pattern as KNKX; 0 rows so far - confirm on log.
-  { source: 'KUOW', url: 'https://www.kuow.org/index.rss', type: 'article', beat: 'general' },
-  // [confirm] Cascade PBS (formerly Crosscut), Brightspot CMS; 0 rows so far.
-  { source: 'Cascade PBS', url: 'https://www.cascadepbs.org/index.rss', type: 'article', beat: 'general' },
+  // [verified AUDIT-2 2026-07-03] Grove CMS politics-section feed. The old
+  //   /index.rss decayed into a ~668-byte stub (0 items, why KNKX was silent
+  //   since DASH-4). Section feed is outlet-filtered, so beat 'politics'
+  //   (no gate); diagnose run parsed 10/10 items.
+  { source: 'KNKX', url: 'https://www.knkx.org/politics.rss', type: 'article', beat: 'politics' },
+  // [removed AUDIT-2 2026-07-03] KUOW - RSS discontinued: /index.rss,
+  //   /feeds/all.rss, /rss.xml, /politics.rss all 404. Re-add if they ever
+  //   publish a feed again.
+  // [verified AUDIT-2 2026-07-03] Cascade PBS - cascadepbs.org feeds 404, but
+  //   the legacy crosscut.com/feed still serves the newsroom (15 items in the
+  //   diagnose run). Whole-newsroom, beat-filtered.
+  { source: 'Cascade PBS', url: 'https://crosscut.com/feed', type: 'article', beat: 'general' },
   // ── Commercial dailies ──────────────────────────────────────────────────────
   // [verified] Official Spokesman-Review WA-government section feed.
   { source: 'Spokesman-Review', url: 'https://www.spokesman.com/feeds/stories/washington-government/', type: 'article', beat: 'politics' },
@@ -115,22 +121,26 @@ const FEEDS = [
   { source: 'Union-Bulletin', url: 'https://www.union-bulletin.com/search/?f=rss&l=25&s=start_time&sd=desc', type: 'article', beat: 'general' },
   // [confirm] WordPress politics-section feed; empty to the NEWS-1 fetch check.
   { source: 'The Columbian', url: 'https://www.columbian.com/news/politics/feed/', type: 'article', beat: 'politics' },
-  // [confirm] McClatchy RSS widget (pre-NEWS-1 line, kept); the contentId is
-  //   site-specific - replace from the first run's log if it stays at zero.
-  { source: 'The Olympian', url: 'https://www.theolympian.com/news/local/?widgetName=rssfeed&widgetContentId=712015&getXmlFeed=true', type: 'article', beat: 'general' },
+  // [removed AUDIT-2 2026-07-03] The Olympian - the McClatchy widget endpoint
+  //   hangs non-browser fetches to timeout on every known URL. No workable feed.
   // ── Commercial radio ────────────────────────────────────────────────────────
   // [verified NEWS-1] Bonneville / KIRO Newsradio - whole-newsroom, beat-filtered.
   { source: 'MyNorthwest', url: 'https://mynorthwest.com/feed/', type: 'article', beat: 'general' },
   // ── Wire & independent Olympia press ────────────────────────────────────────
-  // [confirm] Statehouse wire; BLOX CMS - empty to the NEWS-1 fetch check.
-  { source: 'The Center Square', url: 'https://www.thecentersquare.com/washington/search/?f=rss&l=25', type: 'article', beat: 'politics' },
-  // [verified NEWS-1] Independent Olympia politics newsletter (Substack feed).
+  // [removed AUDIT-2 2026-07-03] The Center Square - BLOX search-feed endpoints
+  //   404 across every known variant. The statehouse wire is worth re-adding
+  //   for the 2027 session if they restore RSS.
+  // [verified AUDIT-2 2026-07-03 - BUT blocked in production] Substack serves
+  //   this feed fine to residential fetches (20/20 items in the diagnose run)
+  //   and blocks GitHub Actions egress, so the pipeline gets nothing. Kept:
+  //   fault-isolated (fails fast, logged) and self-heals if Substack unblocks.
+  //   Do NOT count it in user-facing outlet claims.
   { source: 'Washington Observer', url: 'https://washingtonobserver.substack.com/feed', type: 'article', beat: 'politics' },
   // ── Official ────────────────────────────────────────────────────────────────
-  // [confirm] legislation-typed slot. The WA Legislature publishes only per-bill
-  //   and per-topic RSS (no single "legislation news" feed); point this at a
-  //   chosen topic feed from app.leg.wa.gov/bi/topicalindex. No-op until set.
-  { source: 'WA Legislature', url: 'https://app.leg.wa.gov/billsbytopic/Rss.aspx?topic=&year=2026', type: 'legislation', beat: 'politics' },
+  // [removed AUDIT-2 2026-07-03] The legislation-typed slot had an empty topic
+  //   param since DASH-4 - a guaranteed no-op. For the 2027 session, add chosen
+  //   per-topic feeds from app.leg.wa.gov/bi/topicalindex with type:
+  //   'legislation' to light up the legislation glyph in InTheNews.
 ];
 
 // ── Government-beat test (NEWS-1) ──────────────────────────────────────────────

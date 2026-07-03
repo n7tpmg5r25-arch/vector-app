@@ -97,9 +97,9 @@ function caucusUrls(member) {
       `https://senatedemocrats.wa.gov/${fullSlug}/biography/`,
       `https://senatedemocrats.wa.gov/${fullSlug}/`,
       `https://senatedemocrats.wa.gov/${firstLastSlug}/biography/`,
-      // leg.wa.gov static HTML fallback (Thread 116)
-      `https://leg.wa.gov/senate/senators/Pages/${lastSlug}.aspx`,
-      `https://leg.wa.gov/senate/senators/Pages/${firstLastSlug}.aspx`,
+      // AUDIT-2 (2026-07-03): the old last-name static fallbacks died in the
+      // Legislature site redesign; the official member page keys on member_id.
+      `https://leg.wa.gov/legislators/member/${member.member_id}`,
     ]
   }
   if (chamber === 'Senate' && party === 'R') {
@@ -112,9 +112,9 @@ function caucusUrls(member) {
       `https://${noSepSlug}.src.wastateleg.org/`,
       // Hyphenated slug fallback for any edge-case names
       `https://${firstLastSlug}.src.wastateleg.org/about/`,
-      // leg.wa.gov static HTML last-resort fallback
-      `https://leg.wa.gov/senate/senators/Pages/${lastSlug}.aspx`,
-      `https://leg.wa.gov/senate/senators/Pages/${firstLastSlug}.aspx`,
+      // AUDIT-2 (2026-07-03): the old last-name static fallbacks died in the
+      // Legislature site redesign; the official member page keys on member_id.
+      `https://leg.wa.gov/legislators/member/${member.member_id}`,
     ]
   }
   if (chamber === 'House' && party === 'D') {
@@ -127,9 +127,9 @@ function caucusUrls(member) {
       `https://housedemocrats.wa.gov/members/${lastSlug}/`,
       `https://housedemocrats.wa.gov/members/${firstLastSlug}/`,
       `https://housedemocrats.wa.gov/member/${fullSlug}/`,
-      // leg.wa.gov static HTML fallback (Thread 116)
-      `https://leg.wa.gov/house/representatives/Pages/${lastSlug}.aspx`,
-      `https://leg.wa.gov/house/representatives/Pages/${firstLastSlug}.aspx`,
+      // AUDIT-2 (2026-07-03): the old last-name static fallbacks died in the
+      // Legislature site redesign; the official member page keys on member_id.
+      `https://leg.wa.gov/legislators/member/${member.member_id}`,
     ]
   }
   if (chamber === 'House' && party === 'R') {
@@ -140,9 +140,9 @@ function caucusUrls(member) {
       // Fallbacks for edge cases (McEntire-style names already handled by toNoSepSlug)
       `https://houserepublicans.wa.gov/representatives/${lastSlug}/`,
       `https://houserepublicans.wa.gov/representatives/${fullSlug}/`,
-      // leg.wa.gov static HTML fallback (Thread 116)
-      `https://leg.wa.gov/house/representatives/Pages/${lastSlug}.aspx`,
-      `https://leg.wa.gov/house/representatives/Pages/${firstLastSlug}.aspx`,
+      // AUDIT-2 (2026-07-03): the old last-name static fallbacks died in the
+      // Legislature site redesign; the official member page keys on member_id.
+      `https://leg.wa.gov/legislators/member/${member.member_id}`,
     ]
   }
   return []
