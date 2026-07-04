@@ -2206,7 +2206,7 @@ export default function BillDetailPage() {
               date: f.detected_date,
               type: 'fiscal',
               icon: '\u0024',  // $
-              color: 'var(--danger, #c44730)',
+              color: 'var(--danger, #d4614a)',
               label: f.note || `Fiscal note: ${f.new_size}`,
               detail: [
                 f.has_state_impact ? 'State impact' : null,
@@ -2331,7 +2331,7 @@ export default function BillDetailPage() {
                     { key: 'signal',     label: 'Pass Rates' },
                   ]
               return _tabs.map(({ key, label }) => (
-              <button key={key} role="tab" aria-pressed={tab === key} onClick={() => setTab(key)} style={{
+              <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)} style={{
                 padding: '8px 14px', background: 'none', border: 'none',
                 borderBottom: tab === key ? '2px solid var(--teal)' : '2px solid transparent',
                 fontSize: 12, fontWeight: tab === key ? 600 : 400,

@@ -7,7 +7,9 @@
 // app's OTP hard-reload convention.
 export default function LoadErrorCard({ label = 'live data', style }) {
   return (
-    <div style={{
+    // AUDIT-3 A8 (2026-07-03): role=alert announces the failure to screen
+    // readers the moment it renders - without it the card appears silently.
+    <div role="alert" style={{
       background: 'var(--bg-card)', border: '1px solid rgba(196,71,48,0.35)',
       borderRadius: 'var(--radius)', padding: '20px 16px', textAlign: 'center',
       ...style,

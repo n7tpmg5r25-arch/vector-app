@@ -28,7 +28,10 @@
   --gold-glow:     0 0 10px rgba(212,180,122,0.3);
 
   /* Danger (warm red, harmonizes with Amber) */
-  --danger:        #c44730;
+  /* AUDIT-3 A1 (2026-07-03): #c44730 measured 3.6:1 on card - below the
+     AA 4.5:1 floor for the 12-13px text it colors (login errors, Sign Out,
+     STALLED chips). Lightened within the same warm-red hue. */
+  --danger:        #d4614a;
   --danger-pale:   rgba(196,71,48,0.1);
   --danger-glow:   0 0 10px rgba(196,71,48,0.3);
 
@@ -39,7 +42,8 @@
      score / data-viz tiers (T160). Previously these four hex values were
      copy-pasted across ScoreBadge, methodology, BillsMovingWidget, InstallPrompt. */
   --sage:        #7aab6e;  /* strong / passed */
-  --deep-teal:   #3a7a8a;  /* active */
+  /* AUDIT-3 A1: #3a7a8a measured 3.6:1 on card as text - lightened in-hue. */
+  --deep-teal:   #4a94a6;  /* active */
   --amber:       #c47a30;  /* watch / pending */
   --stone:       #8a8070;  /* inactive */
   --sage-glow:      rgba(122,171,110,0.4);
@@ -49,8 +53,13 @@
   /* Text (warm-shifted) */
   --text-primary:  #e8e9ec;
   --text-mid:      #a8acb4;
-  --text-muted:    #6c7078;
-  --text-faint:    #3d4050;
+  /* AUDIT-3 A1 (2026-07-03): muted measured 3.0-3.8:1 and faint 1.5-1.9:1
+     against the three backgrounds - far below the AA 4.5:1 floor for the
+     9-12px labels both tokens carry (284 faint call sites). Lightened within
+     the neutral ramp; hierarchy preserved (primary > mid > muted > faint).
+     Old values: muted #6c7078, faint #3d4050. Brand guide v1.2 amendment. */
+  --text-muted:    #989ca5;
+  --text-faint:    #8b8f98;
 
   /* Borders (forest-tinted) */
   --border:        #2a2d38;
@@ -116,6 +125,16 @@ body {
 
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: var(--font-body); }
+
+/* AUDIT-3 A6 (2026-07-03): branded keyboard-focus indicator. :focus-visible
+   fires for keyboard/switch navigation only (no rings on taps/clicks).
+   Brass-light on dark measures ~9:1 - well past the 3:1 indicator minimum.
+   Inputs that inline outline:none keep their border swap; removing those
+   suppressions is part of the Ship-2 markup sweep. */
+:focus-visible {
+  outline: 2px solid var(--brass-light, #d4b47a);
+  outline-offset: 2px;
+}
 /* T160 H1: 16px floor on form controls prevents iOS Safari from auto-zooming
    the viewport on focus (and never zooming back). Scale visual size with
    padding, never with a sub-16px font. */
