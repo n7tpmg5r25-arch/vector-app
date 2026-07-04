@@ -83,7 +83,7 @@ export default function GrantAccessButton({ waitlistId, email, alreadyInvited })
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <button onClick={handleGrant} style={btnStyle(false)}>Retry</button>
-        <span style={{ color: 'var(--danger, #c44730)', fontSize: 11 }}>{errMsg}</span>
+        <span style={{ color: 'var(--danger, #d4614a)', fontSize: 11 }}>{errMsg}</span>
       </span>
     )
   }

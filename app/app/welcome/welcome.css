@@ -19,7 +19,7 @@ html:has(.vwl){scroll-behavior:smooth;}
   --brass:#b8975a; --brass-light:#d4b47a; --brass-mid:#a0824a;
   --cream:#e8e9ec; --text-mid:#a8acb4; --text-muted:#6c7078; --text-faint:#3d4050;
   --border:#2a2d38; --border-light:#343845;
-  --sage:#7aab6e; --deep-teal:#3a7a8a; --amber:#c47a30; --stone:#8a8070; --danger:#c44730;
+  --sage:#7aab6e; --deep-teal:#4a94a6; --amber:#c47a30; --stone:#8a8070; --danger:#d4614a; /* AUDIT-3 A1: kept in sync with globals.css */
   --radius:10px; --radius-lg:16px;
   --display:var(--font-display,'Playfair Display',Georgia,serif);
   --body:var(--font-body,'Karla',system-ui,sans-serif);

@@ -66,10 +66,13 @@ export const metadata = {
   },
 }
 
+// AUDIT-3 A5 (2026-07-03): the max-scale viewport cap was removed - it
+// blocked pinch-zoom on Android (WCAG 1.4.4). Its original job (stopping
+// iOS auto-zoom on input focus) is handled at the root cause by the T160
+// 16px input floor.
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   themeColor: '#0e1014',
 }
 

@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.69.0',
+    date: '2026-07-03',
+    phase: 'alpha',
+    highlights: [
+      'Readability: the two dimmest text grays, the alert red, and the deep teal are brighter now, meeting WCAG AA contrast on dark backgrounds - the biggest lift is on small labels and captions.',
+      'Keyboard: a visible brass focus ring app-wide, and the export dialog now keeps Tab focus inside it.',
+      'Pinch-zoom is no longer blocked on Android, and screen readers now hear the load-error card and the tier distribution bar.',
+    ],
+  },
+  {
     version: '5.68.0',
     date: '2026-07-03',
     phase: 'alpha',

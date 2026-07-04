@@ -96,6 +96,14 @@ export function confirmExport(opts = {}) {
     }
     const onKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); cleanup(false) }
+      // AUDIT-3 A7 (2026-07-03): keep Tab inside the dialog. aria-modal
+      // describes modality to screen readers but does not trap the keyboard;
+      // with only two focusables, cycling them directly is the whole trap.
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        const next = document.activeElement === okBtn ? cancelBtn : okBtn
+        try { next.focus() } catch (err) {}
+      }
     }
 
     cancelBtn.addEventListener('click', () => cleanup(false))

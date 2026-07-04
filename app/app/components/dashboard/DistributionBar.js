@@ -17,7 +17,14 @@ export default function DistributionBar({ counts = {}, style }) {
   const total = SEGMENTS.reduce((sum, s) => sum + (counts[s.key] || 0), 0)
   return (
     <div style={style}>
-      <div style={{ display: 'flex', height: 9, borderRadius: 4, overflow: 'hidden', background: 'var(--bg-surface)' }}>
+      {/* AUDIT-3 A9 (2026-07-03): the bar is color-only - give it a text
+          equivalent. The dot legend below already carries the counts as real
+          text, so the bar summarizes and the dots go decorative. */}
+      <div
+        role="img"
+        aria-label={`Tier distribution: ${counts.high || 0} high, ${counts.mod || 0} moderate, ${counts.low || 0} low, ${counts.vlow || 0} very low`}
+        style={{ display: 'flex', height: 9, borderRadius: 4, overflow: 'hidden', background: 'var(--bg-surface)' }}
+      >
         {total > 0 && SEGMENTS.map((s) => {
           const n = counts[s.key] || 0
           if (n === 0) return null
@@ -27,7 +34,7 @@ export default function DistributionBar({ counts = {}, style }) {
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: 'var(--text-mid)' }}>
         {SEGMENTS.map((s) => (
           <span key={s.key}>
-            <span style={{ color: s.color }}>●</span> {counts[s.key] || 0} {s.label}
+            <span style={{ color: s.color }} aria-hidden="true">●</span> {counts[s.key] || 0} {s.label}
           </span>
         ))}
       </div>
