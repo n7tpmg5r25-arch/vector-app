@@ -97,7 +97,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             off, signed out, or empty device list -> renders null and does
             nothing. See app/app/components/MergeLocalWatchlist.js. */}
         <MergeLocalWatchlist />
-        {children}
+        {/* AUDIT-3 A3 (2026-07-03): main landmark so assistive tech can jump
+            straight to page content past the fixed chrome. Unstyled block
+            element - zero layout impact. */}
+        <main>{children}</main>
         <Footer />
         {/* Thread 29 (2026-04-27) — anon bottom-nav. Globally mounted but
             self-gates per layer (G6): renders only when role === 'public'

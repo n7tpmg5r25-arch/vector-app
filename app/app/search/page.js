@@ -266,10 +266,10 @@ function SearchContent() {
 
         {/* Row 1: Title + Watch All */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{
+          <h1 style={{
             fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700,
             color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)',
-          }}>Bill Search</div>
+          }}>Bill Search</h1>
 
           {user && bills.length > 0 && (
             <button

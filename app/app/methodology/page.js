@@ -50,7 +50,7 @@ export default function MethodologyPage() {
         borderBottom: '1px solid var(--border)',
         padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>Methodology</div>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>Methodology</h1>
         <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>How Vector | WA scores bills</div>
       </div>
 

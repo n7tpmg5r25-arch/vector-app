@@ -38,6 +38,11 @@ export default function DistributionBar({ counts = {}, style }) {
           </span>
         ))}
       </div>
+      {/* AUDIT-3 L2 (2026-07-03, IMPECCABLE leftover): what the tier colors
+          mean in score terms - the cuts match ScoreBadge and getScoreTier(). */}
+      <div style={{ marginTop: 5, fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-faint)', letterSpacing: '0.03em' }}>
+        Score tiers: 75+ High · 60+ Mod · 45+ Low · under 45 V.Low
+      </div>
     </div>
   )
 }

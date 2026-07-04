@@ -224,7 +224,7 @@ export default function RoadmapPage() {
         borderBottom: '1px solid var(--border)',
         padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
-        <div style={{
+        <h1 style={{
           fontFamily: 'var(--font-display, "Playfair Display", serif)',
           fontSize: 24,
           fontWeight: 700,
@@ -232,7 +232,7 @@ export default function RoadmapPage() {
           textShadow: `0 0 16px rgba(184,151,90,0.2)`,
         }}>
           Roadmap
-        </div>
+        </h1>
         <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
           What&apos;s shipped and what&apos;s next for Vector | WA.
         </div>

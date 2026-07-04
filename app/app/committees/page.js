@@ -309,12 +309,12 @@ export default function CommitteesPage() {
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{
+          <h1 style={{
             fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700,
             color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)',
           }}>
             Committees
-          </div>
+          </h1>
           <div style={{ fontSize: 11, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
             {view === 'calendar' ? `${filteredMeetings.length} meetings` : `${committees.length} committees`}
           </div>

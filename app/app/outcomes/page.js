@@ -155,9 +155,9 @@ export default function OutcomesPage() {
         padding: isAnonPublic ? '16px 16px 14px' : '52px 16px 14px',
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', marginBottom: 4, textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
           Session Outcomes
-        </div>
+        </h1>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           {SESSION} Biennium · {loadError ? '—' : bills.length} bills{vetoCount + partialVetoCount > 0 ? ` · ${vetoCount} vetoed · ${partialVetoCount} partial vetoes` : ''}
         </div>

@@ -135,6 +135,14 @@ button { cursor: pointer; font-family: var(--font-body); }
   outline: 2px solid var(--brass-light, #d4b47a);
   outline-offset: 2px;
 }
+
+/* AUDIT-3 A2 (2026-07-03): visually-hidden utility for screen-reader-only
+   headings on surfaces whose visual title is the logo (home, PublicHome). */
+.vec-sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 /* T160 H1: 16px floor on form controls prevents iOS Safari from auto-zooming
    the viewport on focus (and never zooming back). Scale visual size with
    padding, never with a sub-16px font. */

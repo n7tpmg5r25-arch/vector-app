@@ -606,6 +606,10 @@ export default function HomePage() {
 
       <div style={{ padding: '16px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+        {/* AUDIT-3 A2 (2026-07-03): the visual page identity is the logo, so
+            the h1 is screen-reader-only - gives the page a heading root. */}
+        <h1 className="vec-sr-only">Vector WA legislative dashboard</h1>
+
         {/* AUDIT-2 F1: connection-failure banner - explains any zeros below
             and offers retry. Renders only when a critical query failed. */}
         {loadError && <LoadErrorCard label="live session data" />}

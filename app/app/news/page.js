@@ -68,7 +68,7 @@ export default function NewsPage() {
 
       <div style={{ padding: '16px 16px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ ...EYEBROW, color: 'var(--teal)' }}>In the news</span>
+          <h1 style={{ ...EYEBROW, color: 'var(--teal)' }}>In the news</h1>
           <span style={{ ...EYEBROW, letterSpacing: '0.04em' }}>Statewide</span>
         </div>
 

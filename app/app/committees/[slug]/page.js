@@ -197,13 +197,13 @@ export default function CommitteeDetail() {
           background: 'none', border: 'none', color: 'var(--text-faint)', fontSize: 11,
           cursor: 'pointer', padding: 0, marginBottom: 6, fontFamily: 'var(--font-mono)',
         }}>← All committees</button>
-        <div style={{
+        <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700,
           color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)',
           lineHeight: 1.2,
         }}>
           {committee?.name || '…'}
-        </div>
+        </h1>
         {committee && (
           <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
             {committee.chamber} {committee.is_rules ? '· Rules / Floor Queue' : ''}

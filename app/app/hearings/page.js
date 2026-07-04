@@ -100,9 +100,9 @@ export default function HearingsPage() {
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 40,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
             Hearings
-          </div>
+          </h1>
           {/* Phase 12 Batch 6 — Subscribe requires an auth session token to
               sign the webcal:// URL. Hidden from anon visitors entirely. */}
           {user && (

@@ -153,7 +153,7 @@ export default function PublicBottomNav() {
   if (!pathname || !isPublicSurface(pathname)) return null
 
   return (
-    <nav style={{
+    <nav aria-label="Primary" style={{
       position: 'fixed', bottom: 0, left: '50%',
       transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
@@ -166,10 +166,12 @@ export default function PublicBottomNav() {
       zIndex: 100,
     }}>
       {TABS.map(({ path, label, icon, accent }) => {
-        const active = pathname === path || (path !== '/' && pathname.startsWith(path))
+        // AUDIT-3 L3 (2026-07-03): exact-or-child match, parity with Nav.js.
+        const active = pathname === path || (path !== '/' && pathname.startsWith(path + '/'))
         return (
           <button
             key={label}
+            aria-current={active ? 'page' : undefined}
             onClick={() => router.push(path)}
             style={{
               display: 'flex', flexDirection: 'column',
