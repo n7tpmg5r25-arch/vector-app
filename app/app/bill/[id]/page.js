@@ -1037,9 +1037,9 @@ export default function BillDetailPage() {
               </>
             )}
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.35 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.35 }}>
             {bill.title || bill.committee_name || `Bill ${bill.bill_number}`}
-          </div>
+          </h1>
         </div>
 
         {/* ── SCORE FORMULA BLOCK (Thread 92: moved above status banners) ── */}

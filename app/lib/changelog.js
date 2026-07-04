@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.70.0',
+    date: '2026-07-03',
+    phase: 'alpha',
+    highlights: [
+      'Screen readers can now navigate by heading: every page title is a real heading (16 surfaces), the page body sits in a main landmark, and both nav bars are labeled with the active tab marked.',
+      'The tier bar gains a one-line legend explaining what the score colors mean (75+ High, 60+ Mod, 45+ Low, under 45 V.Low).',
+      'No visual changes - the markup got its semantics without moving a pixel.',
+    ],
+  },
+  {
     version: '5.69.0',
     date: '2026-07-03',
     phase: 'alpha',

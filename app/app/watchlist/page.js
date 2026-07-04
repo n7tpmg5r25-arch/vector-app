@@ -396,9 +396,9 @@ export default function WatchlistPage() {
         position: 'sticky', top: isAnonPublic ? 60 : 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
             Watchlist
-          </div>
+          </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Subscribe to Calendar — direct webcal:// link.
                 PORTAL-3 S2.4: registered-only -- the .ics route reads

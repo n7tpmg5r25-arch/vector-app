@@ -112,13 +112,13 @@ export default function InstallPage() {
         borderBottom: '1px solid var(--border)',
         padding: isAnonPublic ? '16px 20px 20px' : '52px 20px 20px',
       }}>
-        <div style={{
+        <h1 style={{
           fontFamily: 'var(--font-display)',
           fontSize: 24,
           fontWeight: 700,
           color: 'var(--teal)',
           textShadow: '0 0 16px rgba(184,151,90,0.2)',
-        }}>Install Vector | WA</div>
+        }}>Install Vector | WA</h1>
         <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
           Add the app to your home screen for one-tap access and offline reading.
         </div>

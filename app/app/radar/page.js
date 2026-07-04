@@ -452,9 +452,9 @@ function RadarContent() {
       <div style={{ paddingBottom: 90, fontFamily: 'var(--font-body)', minHeight: '100vh' }}>
         <PublicNav />
         <div style={{ padding: '20px 16px' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)', marginBottom: 14 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)', marginBottom: 14 }}>
             Radar
-          </div>
+          </h1>
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border)',
             borderLeft: '3px solid var(--gold)',
@@ -1022,9 +1022,9 @@ function RadarHeader() {
       borderBottom: '1px solid var(--border)',
       padding: '52px 20px 20px',
     }}>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--teal)', textShadow: '0 0 16px rgba(184,151,90,0.2)' }}>
         Radar
-      </div>
+      </h1>
     </div>
   )
 }

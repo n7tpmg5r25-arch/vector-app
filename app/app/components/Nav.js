@@ -157,7 +157,7 @@ export default function Nav() {
         <HamburgerButton />
       </div>
 
-      <nav style={{
+      <nav aria-label="Primary" style={{
       position: 'fixed', bottom: 0, left: '50%',
       transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
@@ -191,7 +191,9 @@ export default function Nav() {
       )}
       <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
       {NAV.map(({ path, label, icon }) => {
-        const active = pathname === path || (path !== '/' && pathname.startsWith(path))
+        // AUDIT-3 L3 (2026-07-03): exact-or-child match. Bare startsWith would
+        // also light the tab for sibling paths sharing a prefix.
+        const active = pathname === path || (path !== '/' && pathname.startsWith(path + '/'))
         return (
           <button
             key={path}

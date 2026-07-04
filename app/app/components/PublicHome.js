@@ -233,6 +233,10 @@ export default function PublicHome() {
           <SessionClock clock={clock} />
         </div>
 
+        {/* AUDIT-3 A2 (2026-07-03): logo is the visual identity; sr-only h1
+            gives the public page a heading root. */}
+        <h1 className="vec-sr-only">Washington State legislative overview</h1>
+
         {/* AUDIT-2 F1: statewide counts failed - show retry instead of zeros. */}
         {loadError && <LoadErrorCard label="statewide data" style={{ marginBottom: 14 }} />}
 

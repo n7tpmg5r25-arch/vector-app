@@ -157,12 +157,12 @@ export default function SettingsPage() {
         borderBottom: '1px solid var(--border)',
         padding: '52px 20px 20px',
       }}>
-        <div style={{
+        <h1 style={{
           fontFamily: 'var(--font-display)',
           fontSize: 24, fontWeight: 700,
           color: 'var(--teal)',
           textShadow: '0 0 16px rgba(184,151,90,0.2)',
-        }}>Settings</div>
+        }}>Settings</h1>
       </div>
 
       <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
