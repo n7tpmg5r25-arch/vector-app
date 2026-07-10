@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.74.0',
+    date: '2026-07-09',
+    phase: 'alpha',
+    highlights: [
+      'Every bill page now carries its own tab title, search description, and canonical address — HB 1234 shows as HB 1234 with its subject instead of a generic site title, across roughly 3,400 bills.',
+      'Committee pages get the same per-page treatment, disambiguated by chamber.',
+      'Bill structured data now renders server-side, so search engines read it without running scripts.',
+    ],
+  },
+  {
     version: '5.73.0',
     date: '2026-07-09',
     phase: 'alpha',
