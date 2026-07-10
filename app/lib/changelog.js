@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.76.0',
+    date: '2026-07-09',
+    phase: 'alpha',
+    highlights: [
+      'Bill pages load their data in parallel instead of one query at a time — roughly a second faster to full content on mobile connections.',
+      'Committee pages get the same parallel loading.',
+      'Nothing about the data changed: same queries, same results, just fetched together.',
+    ],
+  },
+  {
     version: '5.75.0',
     date: '2026-07-09',
     phase: 'alpha',

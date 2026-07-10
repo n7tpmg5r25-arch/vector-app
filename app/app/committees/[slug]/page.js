@@ -68,21 +68,26 @@ export default function CommitteeDetail() {
       if (!cmte) { setNotFound(true); setLoading(false); return }
       setCommittee(cmte)
 
-      // Phase 11.2 — load current follow state (user comes from useViewer hook)
-      if (user) {
-        const { data: fr } = await supabase
-          .from('user_followed_committees')
-          .select('alerts_enabled')
-          .eq('user_id', user.id)
-          .eq('committee_id', cmte.id)
-          .maybeSingle()
-        setFollow(fr || null)
-      }
-
       const today = new Date().toISOString().split('T')[0]
 
+      // AUDIT-6 S2 (2026-07-09): follow-state, meetings, bills, and roster
+      // are independent once the committee row is loaded — they used to run
+      // in series and now fire in one Promise.all. The watched-ids read stays
+      // after, because it needs the bill list. Queries and state-sets are
+      // unchanged.
+
+      // Phase 11.2 — load current follow state (user comes from useViewer hook)
+      const followP = user
+        ? supabase
+            .from('user_followed_committees')
+            .select('alerts_enabled')
+            .eq('user_id', user.id)
+            .eq('committee_id', cmte.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null })
+
       // 2. Meetings (upcoming first, limit 20)
-      const { data: mtgs } = await supabase
+      const mtgsP = supabase
         .from('committee_meetings')
         .select('id, meeting_date, meeting_time, location, meeting_type, is_joint, agenda_url, meeting_agenda_items(id, bill_id)')
         .eq('committee_id', cmte.id)
@@ -90,10 +95,9 @@ export default function CommitteeDetail() {
         .order('meeting_date', { ascending: true })
         .order('meeting_time', { ascending: true })
         .limit(20)
-      setMeetings(mtgs || [])
 
       // 3. Bills in this committee (sorted by score)
-      const { data: bs } = await supabase
+      const billsP = supabase
         .from('bills')
         .select('bill_id, bill_number, title, final_score, stage, chamber, committee_passed, has_public_hearing, stalled, prime_sponsor, prime_party')
         .eq('session', SESSION)
@@ -101,6 +105,20 @@ export default function CommitteeDetail() {
         .eq('chamber', cmte.chamber)
         .order('final_score', { ascending: false })
         .limit(500)
+
+      // 4. Committee roster
+      const memP = supabase
+        .from('committee_members')
+        .select('member_name, member_id, title, party')
+        .eq('committee_id', cmte.id)
+        .order('title', { ascending: true })
+
+      const [followRes, mtgsRes, billsRes, memRes] =
+        await Promise.all([followP, mtgsP, billsP, memP])
+
+      if (user) setFollow(followRes.data || null)
+      setMeetings(mtgsRes.data || [])
+      const bs = billsRes.data
       setBills(bs || [])
 
       // Thread 105 — fetch which of this committee's bills the user tracks
@@ -113,13 +131,7 @@ export default function CommitteeDetail() {
       }
       setWatchedIds(watched)
 
-      // 4. Committee roster
-      const { data: mem } = await supabase
-        .from('committee_members')
-        .select('member_name, member_id, title, party')
-        .eq('committee_id', cmte.id)
-        .order('title', { ascending: true })
-      setMembers(mem || [])
+      setMembers(memRes.data || [])
 
       setLoading(false)
     }
