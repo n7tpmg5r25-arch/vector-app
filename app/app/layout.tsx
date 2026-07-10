@@ -53,7 +53,10 @@ export const metadata = {
     title: 'Vector | WA',
     description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
     siteName: 'Vector | WA',
-    url: 'https://vectorwa.com',
+    // AUDIT-5 S1 (2026-07-09): no site-level og:url — it stamped the homepage
+    // URL onto every page that lacked its own OG override (a wrong-canonical
+    // signal to social crawlers). Each page now carries its own og:url +
+    // canonical via lib/page-metadata.js.
     type: 'website',
     locale: 'en_US',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA — Free, open-source legislative intelligence for Washington State' }],
@@ -118,8 +121,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             See app/app/components/SideDrawer.js. */}
         <SideDrawer />
         {/* Thread 82 (2026-05-12) — Organization JSON-LD structured data.
-            Tells Google who runs this site and links the canonical URL,
-            social profiles, and sameAs entries. Renders server-side in
+            Tells Google who runs this site and links the canonical URL
+            and logo. Renders server-side in
             the root layout so it appears on every page without JS. */}
         <script
           type="application/ld+json"
@@ -129,6 +132,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               '@type': 'Organization',
               name: 'Vector | WA',
               url: 'https://vectorwa.com',
+              logo: 'https://vectorwa.com/apple-touch-icon.png',
               description: 'Free, open-source legislative intelligence for Washington State. Track bills, read plain-English summaries, and see where legislation is headed in Olympia.',
               areaServed: {
                 '@type': 'AdministrativeArea',

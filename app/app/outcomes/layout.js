@@ -1,27 +1,17 @@
-// Thread 82 (2026-05-12) — per-segment metadata for /outcomes.
-// outcomes/page.js is 'use client' so cannot export metadata directly.
-// This thin server-component layout exports it instead — Next.js App Router
-// merges it with the root layout metadata, with segment values winning on
-// conflicts (title, description, og:*).
-// Layout has no visible UI — it just passes children through.
-//
-// Note: /outcomes is currently behind the public-layer flag in production
-// (isPublicLayerRoute in proxy.js). Metadata ships now so Google picks it up
-// immediately when the flag turns on at the Aug 2027 public launch.
+// /outcomes segment metadata — Area 5 SEO audit (AUDIT-5 S1, 2026-07-09).
+// The page component is 'use client', so metadata lives in this thin server
+// layout. Built by pageMeta() (app/lib/page-metadata.js), which returns the
+// COMPLETE openGraph + twitter objects — Next.js replaces those objects per
+// segment instead of merging fields, so the previous partial overrides
+// silently dropped og:image and the large Twitter card. pageMeta() also adds
+// the self-referential canonical this route was missing.
+import { pageMeta } from '../../lib/page-metadata'
 
-export const metadata = {
+export const metadata = pageMeta({
   title: 'Outcomes',
-  description: 'Browse Washington State bill outcomes by session — filter by chamber, final status, and score tier. See which bills became law, passed their chamber, or died in committee.',
-  openGraph: {
-    title: 'Outcomes — Vector | WA',
-    description: 'Browse Washington State bill outcomes by session — filter by chamber, final status, and score tier. See which bills became law, passed their chamber, or died in committee.',
-    url: 'https://vectorwa.com/outcomes',
-  },
-  twitter: {
-    title: 'Outcomes — Vector | WA',
-    description: 'Browse Washington State bill outcomes by session — filter by chamber, final status, and score tier. See which bills became law, passed their chamber, or died in committee.',
-  },
-}
+  description: 'Browse Washington State bill outcomes by session — filter by chamber, final status, and score tier to see which bills became law.',
+  path: '/outcomes',
+})
 
 export default function OutcomesLayout({ children }) {
   return children

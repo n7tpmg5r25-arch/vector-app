@@ -12,16 +12,28 @@
 // scoped under .vwl so nothing leaks into the app shell. The real screenshot
 // is /public/welcome-members.png.
 
+// AUDIT-5 S1 (2026-07-09): description trimmed to 154 chars (was 167 —
+// Google truncates ~155), og gains siteName/locale, and a complete twitter
+// object is added (defining openGraph alone left twitter falling back to the
+// root layout's generic title — Next.js replaces these objects wholesale).
 export const metadata = {
   title: 'Open-source legislative intelligence for Washington State',
-  description: 'Vector | WA tracks every bill and legislator in Washington State - one-tap PDF briefs, bill-text alerts, watchlists, and plain-English summaries. Free and open source.',
+  description: 'Track every bill and legislator in Washington State — one-tap PDF briefs, bill-text alerts, watchlists, and plain-English summaries. Free and open source.',
   alternates: { canonical: '/welcome' },
   openGraph: {
     title: 'Vector | WA - open-source legislative intelligence for Washington State',
     description: 'One-tap PDF briefs, bill-text alerts, watchlists, and plain-English summaries for every bill in Olympia. Free and open source.',
     url: '/welcome',
+    siteName: 'Vector | WA',
     type: 'website',
+    locale: 'en_US',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Vector | WA' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Vector | WA - open-source legislative intelligence for Washington State',
+    description: 'One-tap PDF briefs, bill-text alerts, watchlists, and plain-English summaries for every bill in Olympia. Free and open source.',
+    images: ['/og-image.png'],
   },
 }
 

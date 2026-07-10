@@ -88,6 +88,15 @@ export default function sitemap() {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
+    // /news — statewide legislative news, source-balanced (AUDIT-5 S1,
+    // 2026-07-09). Gated for anon today like the other data surfaces; listed
+    // now so Google has it in crawl rotation when the public flag flips.
+    {
+      url: `${BASE}/news`,
+      lastModified: BUILT_AT,
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    },
 
     // ── Product + trust pages ──────────────────────────────────────────────
     {
