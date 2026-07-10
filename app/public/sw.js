@@ -1,4 +1,10 @@
 // Vector | WA Service Worker — Free legislative intelligence for Washington State (offline shell + fast repeat loads)
+// v6 (2026-07-09, AUDIT-6 S1) — cache-first is now limited to truly immutable
+// paths (hashed /_next/static chunks, /logos, fonts). v5 matched ANY image
+// extension, which pinned stable-URL images (welcome screenshots, og-image,
+// apple-touch-icon) in cache until a manual version bump — a deploy never
+// refreshed them for installed users. Stable-URL images now ride the
+// network-first branch below: fresh when online, still cached for offline.
 // v5 (2026-05-29, T159 perf) — fetch handler is now cache-first for immutable,
 // content-hashed static assets (/_next/static, logos, fonts, images) and
 // network-first for everything else. v4 was network-first for ALL requests,
@@ -6,7 +12,7 @@
 // network on every load. Serving fingerprinted assets from cache makes repeat
 // loads near-instant; because Next fingerprints those filenames, a cached copy
 // is always correct (a new build produces new URLs). Bump invalidates v4.
-const CACHE_NAME = 'vector-wa-v5';
+const CACHE_NAME = 'vector-wa-v6';
 
 // Same-origin assets that are safe to serve cache-first: their URLs are
 // content-hashed / immutable, so a cached response can never be stale.
@@ -14,8 +20,7 @@ function isImmutableAsset(url) {
   return (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/logos/') ||
-    url.pathname.startsWith('/icons/') ||
-    /\.(?:js|css|woff2?|png|jpg|jpeg|svg|webp|ico)$/.test(url.pathname)
+    /\.woff2?$/.test(url.pathname)
   );
 }
 

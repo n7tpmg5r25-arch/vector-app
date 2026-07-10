@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.75.0',
+    date: '2026-07-09',
+    phase: 'alpha',
+    highlights: [
+      'The welcome page is about 1.3 MB lighter: all six screenshots converted to WebP at the same visual quality, with explicit dimensions so the layout cannot shift while they load.',
+      'Repeat visits now refresh images correctly — the offline cache no longer pins screenshots and social images until a manual version bump.',
+      'Removed an unused font weight and 1.3 MB of dead files nothing referenced; pinned the build workspace root to silence a warning.',
+    ],
+  },
+  {
     version: '5.74.0',
     date: '2026-07-09',
     phase: 'alpha',

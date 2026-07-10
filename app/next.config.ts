@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', '@supabase/supabase-js'],
   },
 
+  // AUDIT-6 S1 (2026-07-09): pin the workspace root. Two lockfiles (repo
+  // root + app/) made Turbopack guess the root and warn on every build.
+  turbopack: {
+    root: __dirname,
+  },
+
   // Thread 71 (2026-05-07) — /how-it-works renamed to /install. The old
   // route was a 4-section explainer that grew redundant with /about §1 and
   // /methodology; only the install flow (Thread 61 PR #93) had unique value
