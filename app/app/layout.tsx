@@ -9,7 +9,8 @@ import { Analytics } from '@vercel/analytics/next'
 // globals.css. display:'swap' keeps text visible during load (no FOIT).
 const karla = Karla({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  // AUDIT-6 S1 (2026-07-09): weight 300 dropped — zero uses repo-wide.
+  weight: ['400', '500', '600', '700'],
   variable: '--font-karla',
   display: 'swap',
 })
