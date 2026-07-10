@@ -1,23 +1,17 @@
-// Thread 85 (2026-05-12) — per-segment metadata for /committees.
-// committees/page.js is 'use client' so cannot export metadata directly.
-// Thin server-component layout exports it so the root layout template
-// renders "Committees — Vector | WA" in the browser tab.
-// NOTE: /committees/[slug] is a dynamic route and does NOT get a layout.js —
-// dynamic per-slug metadata would need generateMetadata() in that segment.
+// /committees segment metadata — Area 5 SEO audit (AUDIT-5 S1, 2026-07-09).
+// The page component is 'use client', so metadata lives in this thin server
+// layout. Built by pageMeta() (app/lib/page-metadata.js), which returns the
+// COMPLETE openGraph + twitter objects — Next.js replaces those objects per
+// segment instead of merging fields, so the previous partial overrides
+// silently dropped og:image and the large Twitter card. pageMeta() also adds
+// the self-referential canonical this route was missing.
+import { pageMeta } from '../../lib/page-metadata'
 
-export const metadata = {
+export const metadata = pageMeta({
   title: 'Committees',
   description: 'All Washington State legislative committees with bill counts, hearing schedules, and pass rates.',
-  openGraph: {
-    title: 'Committees — Vector | WA',
-    description: 'All Washington State legislative committees with bill counts, hearing schedules, and pass rates.',
-    url: 'https://vectorwa.com/committees',
-  },
-  twitter: {
-    title: 'Committees — Vector | WA',
-    description: 'All Washington State legislative committees with bill counts, hearing schedules, and pass rates.',
-  },
-}
+  path: '/committees',
+})
 
 export default function CommitteesLayout({ children }) {
   return children

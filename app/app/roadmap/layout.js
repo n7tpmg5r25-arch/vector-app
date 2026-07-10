@@ -1,21 +1,17 @@
-// Thread 85 (2026-05-12) — per-segment metadata for /roadmap.
-// roadmap/page.js is 'use client' so cannot export metadata directly.
-// Thin server-component layout exports it so the root layout template
-// renders "Roadmap — Vector | WA" in the browser tab.
+// /roadmap segment metadata — Area 5 SEO audit (AUDIT-5 S1, 2026-07-09).
+// The page component is 'use client', so metadata lives in this thin server
+// layout. Built by pageMeta() (app/lib/page-metadata.js), which returns the
+// COMPLETE openGraph + twitter objects — Next.js replaces those objects per
+// segment instead of merging fields, so the previous partial overrides
+// silently dropped og:image and the large Twitter card. pageMeta() also adds
+// the self-referential canonical this route was missing.
+import { pageMeta } from '../../lib/page-metadata'
 
-export const metadata = {
+export const metadata = pageMeta({
   title: 'Roadmap',
   description: 'What has shipped and what is coming next for Vector | WA.',
-  openGraph: {
-    title: 'Roadmap — Vector | WA',
-    description: 'What has shipped and what is coming next for Vector | WA.',
-    url: 'https://vectorwa.com/roadmap',
-  },
-  twitter: {
-    title: 'Roadmap — Vector | WA',
-    description: 'What has shipped and what is coming next for Vector | WA.',
-  },
-}
+  path: '/roadmap',
+})
 
 export default function RoadmapLayout({ children }) {
   return children

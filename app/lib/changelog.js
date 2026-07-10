@@ -29,6 +29,16 @@
 
 export const CHANGELOG = [
   {
+    version: '5.73.0',
+    date: '2026-07-09',
+    phase: 'alpha',
+    highlights: [
+      'Link previews repaired: pasting a Vector | WA page into a chat or social app now shows the full preview card with image — nine pages had silently lost it.',
+      'Search hygiene: every page now declares its own canonical address, the Disclaimers tab title no longer repeats the site name, and page descriptions fit search-result limits.',
+      'The news page gains its own title and description and joins the sitemap.',
+    ],
+  },
+  {
     version: '5.72.0',
     date: '2026-07-08',
     phase: 'alpha',
