@@ -30,6 +30,24 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // AUDIT-4 S2 (2026-07-08): baseline security response headers. HSTS is
+  // already supplied by Vercel; these four are additive and low-risk. A full
+  // Content-Security-Policy is deferred to its own thread (the app's inline
+  // styles need a nonce strategy before a strict CSP is safe).
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

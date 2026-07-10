@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.72.0',
+    date: '2026-07-08',
+    phase: 'alpha',
+    highlights: [
+      'Security: added standard protective response headers (clickjacking, MIME-sniffing, referrer, and permissions policies) across the site.',
+    ],
+  },
+  {
     version: '5.71.0',
     date: '2026-07-08',
     phase: 'alpha',
