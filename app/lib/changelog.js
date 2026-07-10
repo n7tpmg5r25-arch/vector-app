@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.71.0',
+    date: '2026-07-08',
+    phase: 'alpha',
+    highlights: [
+      'Security: updated the web framework and supporting libraries to their latest patched versions, clearing the outstanding high-severity dependency advisories.',
+    ],
+  },
+  {
     version: '5.70.0',
     date: '2026-07-03',
     phase: 'alpha',
