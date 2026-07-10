@@ -483,90 +483,110 @@ export default function BillDetailPage() {
         .single()
       setBill(billData)
 
+      // AUDIT-6 S2 (2026-07-09): these reads used to run one-after-another —
+      // ~10 round-trips in series on every bill open. Only two orderings are
+      // real: the bills row must come first (three reads branch on it), and
+      // member-votes needs the roll-call ids. Everything else now fires in
+      // one Promise.all. Queries, filters, and state-sets are unchanged;
+      // only the awaiting moved. Pattern precedent: c/[slug]/bill/[id].
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10)
+      const noRow = Promise.resolve({ data: null })
+
       // Phase 11.3: Historic veto context for this bill's category (closed
       // biennia only). Display-only; not a scoring input. UI enforces n>=15
       // floor before showing.
-      if (billData?.category) {
-        const { data: vetoRow } = await supabase
-          .from('bill_category_veto_rates')
-          .select('*')
-          .eq('category', billData.category)
-          .maybeSingle()
-        if (vetoRow && vetoRow.reached_governor >= 15) setVetoCtx(vetoRow)
-      }
+      const vetoP = billData?.category
+        ? supabase
+            .from('bill_category_veto_rates')
+            .select('*')
+            .eq('category', billData.category)
+            .maybeSingle()
+        : noRow
 
       // Phase 11.4: Companion snapshots over the last 30 days for the Parallel
       // Track widget. Only fetched when a companion exists. Display-only.
-      if (billData?.companion_bill) {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-          .toISOString().slice(0, 10)
-        const { data: compSnaps } = await supabase
-          .from('companion_snapshots')
-          .select('snapshot_date, companion_stage, companion_score, companion_state')
-          .eq('bill_id', billId)
-          .gte('snapshot_date', thirtyDaysAgo)
-          .order('snapshot_date', { ascending: true })
-        setCompanionSnaps(compSnaps || [])
-      }
+      const compP = billData?.companion_bill
+        ? supabase
+            .from('companion_snapshots')
+            .select('snapshot_date, companion_stage, companion_score, companion_state')
+            .eq('bill_id', billId)
+            .gte('snapshot_date', thirtyDaysAgo)
+            .order('snapshot_date', { ascending: true })
+        : noRow
 
-      const { data: snapData } = await supabase
+      const snapP = supabase
         .from('trajectory_snapshots')
         .select('snapshot_date, score, stage, pass_probability, committee_score, sponsor_score, momentum_score, historical_score, fiscal_score, xf_factors, xf_multiplier')
         .eq('bill_id', billId)
         .order('snapshot_date', { ascending: true })
         .limit(30)
 
-      const snaps = snapData || []
-      setSnapshots(snaps)
-      if (snaps.length > 0) setLatestSnap(snaps[snaps.length - 1])
-
       // PORTAL-2: the tracked check also runs for anon viewers when the
       // public layer is on — watchlistStore(null) serves the device-local
       // backend, so a locally-watched bill renders "Watching" + its tag.
-      if (user || capabilities.canSave) {
-        const { data: trackData } = await watchlistStore(user).get(billId)
-        if (trackData) {
-          setTracked(trackData)
-          setNotes(trackData.notes || '')
-          setTag(trackData.tag || '')
-        }
-      }
+      const trackP = (user || capabilities.canSave)
+        ? watchlistStore(user).get(billId)
+        : noRow
 
-      if (user) {
-        // Phase 7S: fetch analyst notes for this bill
-        const { data: notesData } = await supabase
-          .from('bill_notes')
-          .select('*')
-          .eq('bill_id', billId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-        setBillNotes(notesData || [])
-      }
+      // Phase 7S: fetch analyst notes for this bill
+      const notesP = user
+        ? supabase
+            .from('bill_notes')
+            .select('*')
+            .eq('bill_id', billId)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+        : noRow
 
       // Phase 10.3: Fetch amendments and fiscal note history for timeline
-      const { data: amendData } = await supabase
+      const amendP = supabase
         .from('amendments')
         .select('*')
         .eq('bill_id', billId)
         .order('floor_action_date', { ascending: false, nullsFirst: false })
-      setAmendments(amendData || [])
 
-      const { data: fiscalData } = await supabase
+      const fiscalP = supabase
         .from('fiscal_note_history')
         .select('*')
         .eq('bill_id', billId)
         .order('detected_date', { ascending: false })
-      setFiscalHistory(fiscalData || [])
 
       // Thread 11: Roll-call history (display-only). vote_date DESC so the
       // most recent action surfaces first; member breakdown is lazy-loaded
       // by VoteHistoryTable on row expand to keep the initial fetch light.
-      const { data: rcData } = await supabase
+      const rcP = supabase
         .from('roll_calls')
         .select('id, chamber, vote_date, motion, yeas, nays, absent, excused, result, source_id')
         .eq('bill_id', billId)
         .order('vote_date', { ascending: false })
         .order('id', { ascending: true })
+
+      const [vetoRes, compRes, snapRes, trackRes, notesRes, amendRes, fiscalRes, rcRes] =
+        await Promise.all([vetoP, compP, snapP, trackP, notesP, amendP, fiscalP, rcP])
+
+      const vetoRow = vetoRes.data
+      if (vetoRow && vetoRow.reached_governor >= 15) setVetoCtx(vetoRow)
+
+      if (billData?.companion_bill) setCompanionSnaps(compRes.data || [])
+
+      const snaps = snapRes.data || []
+      setSnapshots(snaps)
+      if (snaps.length > 0) setLatestSnap(snaps[snaps.length - 1])
+
+      const trackData = trackRes.data
+      if (trackData) {
+        setTracked(trackData)
+        setNotes(trackData.notes || '')
+        setTag(trackData.tag || '')
+      }
+
+      if (user) setBillNotes(notesRes.data || [])
+
+      setAmendments(amendRes.data || [])
+      setFiscalHistory(fiscalRes.data || [])
+
+      const rcData = rcRes.data
       setRollCalls(rcData || [])
 
       // Thread 18.4/18.6: pull party + vote for ALL roll_calls in one batch
