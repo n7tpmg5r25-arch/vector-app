@@ -165,7 +165,9 @@ export default function Nav() {
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
       borderTop: isArchive ? '2px solid rgba(184,151,90,0.7)' : '1px solid var(--border)',
-      padding: '10px 4px 24px',
+      // AUDIT-7 M1 (2026-07-10): home-indicator aware — replaces a hand-tuned
+      // constant. 14px fallback keeps a visual floor on inset-less devices.
+      padding: '10px 4px calc(env(safe-area-inset-bottom, 14px) + 10px)',
       display: 'flex', flexDirection: 'column', alignItems: 'stretch',
       zIndex: 100,
     }}>
