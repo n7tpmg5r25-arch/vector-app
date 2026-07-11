@@ -29,6 +29,14 @@
 
 export const CHANGELOG = [
   {
+    version: '5.76.1',
+    date: '2026-07-10',
+    phase: 'alpha',
+    highlights: [
+      'Fix: welcome-page screenshots rendered vertically stretched after the WebP conversion — the stylesheet set image widths but not heights, so the new fixed height attributes distorted them. Images now keep their true proportions.',
+    ],
+  },
+  {
     version: '5.76.0',
     date: '2026-07-09',
     phase: 'alpha',
