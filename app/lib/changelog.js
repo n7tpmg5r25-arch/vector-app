@@ -29,6 +29,15 @@
 
 export const CHANGELOG = [
   {
+    version: '5.77.0',
+    date: '2026-07-10',
+    phase: 'alpha',
+    highlights: [
+      'Watchlist rows gain a visible actions button — highlight and remove no longer require knowing the swipe gesture (which still works exactly as before).',
+      'The bottom navigation now spaces itself off the iPhone home indicator on every device instead of using a fixed guess, and the app declares full safe-area support for notched screens.',
+    ],
+  },
+  {
     version: '5.76.1',
     date: '2026-07-10',
     phase: 'alpha',

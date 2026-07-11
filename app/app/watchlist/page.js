@@ -722,6 +722,23 @@ export default function WatchlistPage() {
             onHighlight={() => toggleHighlight(bill_id)}
             onRemove={() => handleRemove(bill_id)}
           >
+          {/* AUDIT-7 M2 (2026-07-10) — visible equivalent of the swipe
+              gesture (A10a): toggles the same action panel the swipe opens.
+              Rides the sliding card above the Link; 44px hit area; stops
+              propagation so the row never navigates. */}
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenSwipeId(openSwipeId === bill_id ? null : bill_id) }}
+            aria-label={`Show actions for ${bill.chamber === 'House' ? 'HB' : 'SB'} ${bill.bill_number}`}
+            aria-expanded={openSwipeId === bill_id}
+            style={{
+              position: 'absolute', top: 0, right: 0, zIndex: 2,
+              minWidth: 44, minHeight: 44,
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
+              padding: '10px 12px 0 0',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 15, lineHeight: 1,
+            }}
+          >⋯</button>
           <Link
             href={`/bill/${bill.bill_id}`}
             prefetch={false}
@@ -748,7 +765,7 @@ export default function WatchlistPage() {
             {/* Thread 102: FOR REPORT pip — shown when bill is highlighted */}
             {highlighted.has(bill_id) && (
               <span style={{
-                position: 'absolute', top: 6, right: 8,
+                position: 'absolute', top: 6, right: 46,
                 fontSize: 9, color: 'var(--brass)',
                 fontFamily: 'var(--font-mono)', letterSpacing: '0.08em',
                 textTransform: 'uppercase',

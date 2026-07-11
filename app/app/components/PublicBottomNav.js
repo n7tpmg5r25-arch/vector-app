@@ -161,7 +161,9 @@ export default function PublicBottomNav() {
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
       borderTop: '1px solid var(--border)',
-      padding: '10px 4px 24px',
+      // AUDIT-7 M1 (2026-07-10): home-indicator aware — replaces a hand-tuned
+      // constant. 14px fallback keeps a visual floor on inset-less devices.
+      padding: '10px 4px calc(env(safe-area-inset-bottom, 14px) + 10px)',
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
       zIndex: 100,
     }}>

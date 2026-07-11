@@ -78,6 +78,11 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: '#0e1014',
+  // AUDIT-7 M1 (2026-07-10): required for env(safe-area-inset-*) to be
+  // non-zero on iOS. Three components already position against those insets
+  // (Nav hamburger, TopHamburger, merge toast) with silent 0px fallbacks,
+  // and both bottom navs now pad against the home indicator.
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

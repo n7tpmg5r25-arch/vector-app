@@ -48,8 +48,12 @@ export default function SwipeableRow({
   const startY  = useRef(0)
   const baseX   = useRef(0)
 
+  // AUDIT-7 M2 (2026-07-10): sync BOTH directions so the visible row-actions
+  // button on watchlist rows can open the panel programmatically — this was
+  // close-only, which made an external open a silent no-op. Gesture paths
+  // land on the same values, so swipes are unaffected.
   useEffect(() => {
-    if (!isOpen) setX(0, true)
+    setX(isOpen ? -REVEAL_W : 0, true)
   }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Move card and panel in lockstep.
