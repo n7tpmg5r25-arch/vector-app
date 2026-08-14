@@ -35,8 +35,6 @@ Thumbs.db
 .claude/
 skills-lock.json
 
-# Internal infra / recovery notes — kept local, not published
-docs/
 
 # Secret material — never commit (env files already covered up top)
 *.pem
