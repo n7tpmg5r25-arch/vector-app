@@ -1,7 +1,7 @@
 # Vector | WA â€” Claude Context
 
 ## Recovery Mode
-If the user says "recover vector", "set up new machine", "disaster recovery", or anything about restoring the project from scratch: read `docs/DISASTER-RECOVERY.md` first, then walk them through it step by step. The setup script is `setup-new-machine.ps1` at the repo root.
+If the user says "recover vector", "set up new machine", "disaster recovery", "how do I pick up on my Mac", or anything about restoring the project from scratch: read `docs/DISASTER-RECOVERY.md` first, then walk them through it step by step. The setup script is `setup-new-machine.sh` at the repo root (macOS, current — Colin moved off Windows 2026-08-13). `setup-new-machine.ps1` is the retired Windows version, kept for reference.
 
 ## Project Overview
 Vector | WA is a legislative intelligence app for Washington State, built by Colin Foote. It tracks ~3,400 bills with predictive trajectory scoring.
