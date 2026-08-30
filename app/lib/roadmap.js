@@ -10,9 +10,9 @@
  *   title       Short milestone label. Playfair Display on the page.
  *   status      'shipped' | 'coming'
  *   date        Display string: month + year ("Apr 2026"), quarter + year
- *               ("Q3 2026"), or a plain descriptor ("live", "Late 2027 / 2028").
- *               Exception: Aug 1, 2027 is the publicly committed launch date
- *               and may carry a specific day.
+ *               ("Q3 2026"), or a plain descriptor ("live", "Forthcoming",
+ *               "Late 2027 / 2028"). No milestone carries a specific day —
+ *               the public launch date is deliberately not published.
  *   description 1-2 sentence summary. Quantified before qualitative.
  *               No emoji. No exclamation. No internal phase numbers.
  *   category    'infrastructure' | 'engine' | 'data' | 'public-release' |
@@ -164,7 +164,7 @@ export const ROADMAP = [
     id: 'public-launch',
     title: 'Public app launch — anonymous browse, free for everyone',
     status: 'coming',
-    date: 'Aug 1, 2027',
+    date: 'Forthcoming',
     description:
       'Anonymous browse opens to everyone. No account required. All bill data, ' +
       'search, and trajectory scores become free and public.',

@@ -5,8 +5,7 @@
 // (Sage checks) and coming milestones (Brass-light circles). A trust
 // signal anchored to Brand v1.2 Truth #3 (transparent + accessible +
 // public-data) and Truth #2 (probabilities not predictions — quarter-
-// grain dates; only Aug 1 2027 carries a specific day because it is
-// publicly committed).
+// grain dates only; no specific launch day is published).
 //
 // Shell mirrors /install (Thread 71 pattern):
 //   PublicNav for anon visitors when public-layer flag is on,
@@ -279,11 +278,10 @@ export default function RoadmapPage() {
           }}>
             About these dates
           </div>
-          Quarter-grain targets reflect the project&apos;s actual planning horizon,
-          not marketing commitments. The one exception is the{' '}
-          <strong style={{ color: 'var(--text-primary)' }}>August 1, 2027 public launch</strong>
-          {' '}— a specific date that is publicly committed. For the scoring model and
-          how trajectory estimates are built, see the{' '}
+          Dates are quarter-grain targets that reflect the project&apos;s actual
+          planning horizon, not commitments. The{' '}
+          <strong style={{ color: 'var(--text-primary)' }}>public launch date is forthcoming</strong>
+          . For the scoring model and how trajectory estimates are built, see the{' '}
           <Link href="/methodology" style={INLINE_LINK}>methodology page</Link>
           .
         </div>
