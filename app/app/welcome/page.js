@@ -22,6 +22,9 @@
 // COPY-3 (2026-08-26): body copy cut to one or two short factual
 // sentences per section. Section headings: "Built for mobile use",
 // "Additional features".
+// COPY-4 (2026-08-26): single call to action - the nav button. Hero and
+// closing-section "Request access" buttons removed; closing section kept
+// as a plain statement of how access works.
 
 export const metadata = {
   title: 'Bill tracking for the Washington State Legislature',
@@ -66,7 +69,6 @@ const MARKUP = `<div class="dev-bar">&#9679;&nbsp; Alpha &middot; in active deve
       <h1>Bill tracking</h1>
       <p class="sub">Every bill and legislator in the Washington State Legislature. Summaries, watchlists, PDF briefs, and text-change alerts. Free and open source.</p>
       <div class="cta-row">
-        <a href="/login" class="btn btn-primary btn-lg">Request access</a>
         <a href="#what" class="btn btn-ghost btn-lg">What it does</a>
       </div>
       <div class="trustline">
@@ -189,11 +191,8 @@ const MARKUP = `<div class="dev-bar">&#9679;&nbsp; Alpha &middot; in active deve
 
 <section class="final">
   <div class="wrap">
-    <h2>Request access</h2>
+    <h2>Access</h2>
     <p>Vector is in alpha. Access is granted by hand for now. It will be free and open to everyone at public launch.</p>
-    <div class="cta-row">
-      <a href="/login" class="btn btn-primary btn-lg">Request access</a>
-    </div>
   </div>
 </section>
 
