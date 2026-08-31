@@ -29,6 +29,17 @@
 
 export const CHANGELOG = [
   {
+    version: '5.78.0',
+    date: '2026-08-31',
+    phase: 'alpha',
+    highlights: [
+      'Fix: member PDF briefs printed a grey initials tile where the legislator photo belongs. The export requested the photo from an address that was never built, and a failed image load falls back to initials — so every member brief lost its photo. That endpoint now exists and serves the official leg.wa.gov portrait.',
+      'The landing page is rewritten in plain language: headings are the feature names, each section is one or two sentences, and the page carries a single Request access button instead of three.',
+      'Landing page figures now match the database — 3,400+ bills this session, 147 legislator profiles, 113 committees. The vague "Live" tile is gone.',
+      'The roadmap no longer names a public launch date. Both the timeline milestone and the note below it read "forthcoming", so every date on the page is quarter-grain.',
+    ],
+  },
+  {
     version: '5.77.0',
     date: '2026-07-10',
     phase: 'alpha',
